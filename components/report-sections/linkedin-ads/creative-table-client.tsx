@@ -1,5 +1,6 @@
 'use client'
 import { useState, type ReactNode } from 'react'
+import { useExportMode } from '@/components/export/export-mode'
 import { num, pct } from '@/lib/supermetrics/format'
 import { money, DASH } from '@/lib/paid-media/format'
 import type {
@@ -67,6 +68,9 @@ export function CreativeTableClient({
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'spend', dir: 'desc' })
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
   const [openCampaigns, setOpenCampaigns] = useState<Set<string>>(new Set())
+  // The PDF export prints the top level as on first load, collapsed, with no sort, expand or hint controls (spec 2026-10-08
+  // §7; PR 3 plan deviation 3). Rows split between pages only between rows (app/export/export-theme.css).
+  const exportMode = useExportMode()
 
   const toggle = (set: Set<string>, key: string) => {
     const next = new Set(set)
@@ -89,29 +93,36 @@ export function CreativeTableClient({
     ))
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface">
+    <div className="overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface" data-export-table="" {...(exportMode && sortedGroups.length + 1 <= 15 ? { 'data-export-block': '' } : {})}>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-white/[0.06]">
             <th
-              onClick={() => onSort('name')}
-              className="cursor-pointer select-none px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white"
+              onClick={exportMode ? undefined : () => onSort('name')}
+              className={exportMode
+                ? 'px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted'
+                : 'cursor-pointer select-none px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white'}
             >
-              Name{sort.key === 'name' ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+              Name{!exportMode && sort.key === 'name' ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
             </th>
             {COLS.map((c) => (
               <th
                 key={c.key}
-                onClick={() => onSort(c.key)}
-                className="cursor-pointer select-none px-5 py-3 text-right text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white"
+                onClick={exportMode ? undefined : () => onSort(c.key)}
+                className={exportMode
+                  ? 'px-5 py-3 text-right text-[11px] font-extrabold uppercase tracking-widest text-text-muted'
+                  : 'cursor-pointer select-none px-5 py-3 text-right text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white'}
               >
                 {c.label}
-                {sort.key === c.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                {!exportMode && sort.key === c.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
               </th>
             ))}
-            <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
-              Status
-            </th>
+            {/* Not in the PDF export: Status is an ad-level field, and only top-level rows print. */}
+            {!exportMode && (
+              <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
+                Status
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -120,6 +131,7 @@ export function CreativeTableClient({
             const campaigns = sortItems(group.campaigns, sort.key, sort.dir)
             return (
               <GroupRows
+                exportMode={exportMode}
                 key={group.name}
                 group={group}
                 groupOpen={groupOpen}
@@ -133,12 +145,12 @@ export function CreativeTableClient({
               />
             )
           })}
-          <tr className="border-t border-white/[0.12] font-semibold">
-            <td className="px-5 py-3 text-left text-white" style={indent(0)}>
+          <tr className="border-t border-white/[0.12] font-semibold" data-export-row="">
+            <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
               {`Total (${groups.length} ${groups.length === 1 ? 'Campaign Group' : 'Campaign Groups'})`}
             </td>
             {metricCells(totals)}
-            <td className="px-5 py-3 text-left text-white" />
+            {!exportMode && <td className="px-5 py-3 text-left text-white" />}
           </tr>
         </tbody>
       </table>
@@ -146,11 +158,14 @@ export function CreativeTableClient({
   )
 }
 
-function Chevron({ open }: { open: boolean }) {
+function Chevron({ open, exportMode = false }: { open: boolean; exportMode?: boolean }) {
+  // No expand arrow on paper: rows can't open in the PDF export.
+  if (exportMode) return null
   return <span className="inline-block w-4 text-text-muted">{open ? '▾' : '▸'}</span>
 }
 
 function GroupRows({
+  exportMode = false,
   group,
   groupOpen,
   campaigns,
@@ -161,6 +176,7 @@ function GroupRows({
   onToggleGroup,
   onToggleCampaign,
 }: {
+  exportMode?: boolean
   group: LinkedInCampaignGroupNode
   groupOpen: boolean
   campaigns: LinkedInCampaignNode[]
@@ -174,14 +190,15 @@ function GroupRows({
   return (
     <>
       <tr
-        onClick={onToggleGroup}
-        className="cursor-pointer border-b border-white/[0.04] transition-colors hover:bg-bg-subtle/50"
+        onClick={exportMode ? undefined : onToggleGroup}
+        data-export-row=""
+        className={exportMode ? 'border-b border-white/[0.04]' : 'cursor-pointer border-b border-white/[0.04] transition-colors hover:bg-bg-subtle/50'}
       >
-        <td className="px-5 py-3 text-left text-white" style={indent(0)}>
-          <Chevron open={groupOpen} /> {group.name}
+        <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
+          <Chevron open={groupOpen} exportMode={exportMode} /> {group.name}
         </td>
         {metricCells(group)}
-        <td className="px-5 py-3 text-left text-white" />
+        {!exportMode && <td className="px-5 py-3 text-left text-white" />}
       </tr>
       {groupOpen &&
         campaigns.map((camp) => {

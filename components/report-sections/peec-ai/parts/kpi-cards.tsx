@@ -49,7 +49,7 @@ export const kpiCardsV1: PartImpl<PeecCtx> = {
     return (
       <div>
         <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">{resolved.label}</h3>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3" data-export-block="">
           {[
             {
               title: 'Visibility',

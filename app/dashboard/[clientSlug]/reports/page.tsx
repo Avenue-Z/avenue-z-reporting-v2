@@ -32,7 +32,9 @@ import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import type { ReportSlug } from '@/lib/db/schema'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { parseModelsParam } from '@/lib/peec/models'
+import { parseModelsParam, serializeModelsParam } from '@/lib/peec/models'
+import { isServerExportSection } from '@/lib/export/sections'
+import { resolveExportView } from '@/lib/export/report-view'
 import { SectionSkeleton } from './section-skeleton'
 import { HealthProbe } from '@/lib/health/probe'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
@@ -272,8 +274,18 @@ export default async function ReportPage({
           </Suspense>
         )}
         <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={usesPageRange ? exportPeriodLabel(servedDateRange) : null}
-          {...(activeSection === 'organic-social'
-            ? { serverExport: { clientSlug, subsection: organicEntry?.id ?? null, dateRange: servedDateRange, compareRange: servedCompareRange } }
+          {...(isServerExportSection(activeSection)
+            ? { serverExport: {
+                clientSlug,
+                section: activeSection,
+                // The tab the page resolved, never the raw param: the route accepts only a slug-shaped tab.
+                subsection: resolveExportView(client, activeSection, subsectionParam ?? null).subsectionId,
+                // The Executive Overview ignores ranges: it posts its fixed ones, so a stale ?compareRange= the request
+                // validator refuses can't turn its export into a 400.
+                dateRange: activeSection === 'executive-overview' ? 'last_30_days' : servedDateRange,
+                compareRange: activeSection === 'executive-overview' ? null : servedCompareRange,
+                models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
+              } }
             : {})} />
       </StickyReportHeader>
 

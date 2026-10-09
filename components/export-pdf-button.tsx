@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { Download } from 'lucide-react'
+import type { ServerExportSection } from '@/lib/export/sections'
 
-/** The view a server export renders (Organic Social, app/api/export/pdf). Never a role or a client
- *  identity: the route takes those from the session. */
+/** The view a server export renders (app/api/export/pdf). Never a role or a client identity: the route takes
+ *  those from the session. */
 export interface ServerExport {
   clientSlug: string
+  section: ServerExportSection
   subsection: string | null
   dateRange: string
   compareRange: string | null
+  /** AEO's `?models=` filter, or null. */
+  models: string | null
 }
 
 interface ExportPdfButtonProps {
@@ -19,7 +23,7 @@ interface ExportPdfButtonProps {
   /** The served range, resolved server-side (lib/export-period.ts), e.g. "Sep 1 – Sep 30, 2026";
    *  null when it couldn't be read. */
   periodLabel: string | null
-  /** Set on Organic Social: the PDF is rendered on the server from the export page (spec
+  /** Set on sections switched on for the server export (lib/export/sections.ts): the PDF is rendered on the server from the export page (spec
    *  2026-10-06-organic-social-pdf-export-v2) instead of the browser printing this page. */
   serverExport?: ServerExport
 }

@@ -40,7 +40,7 @@ export function KpiCard({
           {title}
         </p>
         {tooltip && (
-          <div className="group relative flex-shrink-0">
+          <div className="group relative flex-shrink-0" data-export-hide="">
             <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">
               ?
             </span>

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { LineChart } from '@/components/charts/line-chart'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { useExportMode } from '@/components/export/export-mode'
 import type { ChannelKey } from '@/lib/paid-media/overview'
 import type { PaidMediaTrend } from '@/lib/paid-media/trend'
 
@@ -15,6 +16,8 @@ const CHANNEL_META: Record<ChannelKey, { label: string; color: string }> = {
 export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
   const [metric, setMetric] = useState<'spend' | 'clicks'>('spend')
   const [active, setActive] = useState<Set<ChannelKey>>(() => new Set(trend.channels))
+  // The PDF export prints the default view, Spend with every channel on, named as labels (spec 2026-10-08 §7).
+  const exportMode = useExportMode()
 
   if (trend.points.length === 0) {
     return (
@@ -42,9 +45,12 @@ export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
     .map((key) => ({ key: CHANNEL_META[key].label, color: CHANNEL_META[key].color, label: CHANNEL_META[key].label }))
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3" data-export-block="">
+      <div className="flex items-center justify-between" data-export-keep-with-next="">
         <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">Trend</p>
+        {exportMode ? (
+          <p data-export-toggle-label="" className="text-xs font-semibold text-white">{metric === 'spend' ? 'Spend' : 'Clicks'}</p>
+        ) : (
         <div className="flex gap-1">
           {(['spend', 'clicks'] as const).map((m) => (
             <button
@@ -61,11 +67,20 @@ export function PaidMediaTrendChart({ trend }: { trend: PaidMediaTrend }) {
             </button>
           ))}
         </div>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {trend.channels.map((key) => {
           const on = active.has(key)
           const { label, color } = CHANNEL_META[key]
+          if (exportMode) {
+            return (
+              <span key={key} className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-xs font-bold text-white">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color, border: `1px solid ${color}` }} />
+                {label}
+              </span>
+            )
+          }
           return (
             <button
               key={key}

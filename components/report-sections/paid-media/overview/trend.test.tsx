@@ -10,6 +10,7 @@ vi.mock('@/components/charts/line-chart', () => ({
 }))
 
 import { PaidMediaTrendChart } from './trend'
+import { ExportModeProvider } from '@/components/export/export-mode'
 
 const trend: Trend = {
   channels: ['paid-search', 'meta'],
@@ -52,4 +53,21 @@ describe('PaidMediaTrendChart', () => {
     expect(screen.queryByTestId('line')).not.toBeInTheDocument()
     expect(screen.getByText(/no trend data/i)).toBeInTheDocument()
   })
+})
+
+// PDF export (spec 2026-10-08 §7): the default metric and every channel, as labels, in one block.
+test('in the export the trend prints Spend and every channel as labels, no buttons, as one block', () => {
+  const { container } = render(<ExportModeProvider><PaidMediaTrendChart trend={trend} /></ExportModeProvider>)
+  expect(screen.queryAllByRole('button')).toHaveLength(0)
+  expect(screen.getByText('Spend')).toBeTruthy()
+  expect(lastProps.yKeys?.map((k) => k.key)).toEqual(['Paid Search', 'Meta'])
+  expect(lastProps.valueFormat).toBe('currency-cents')
+  expect(container.firstElementChild?.hasAttribute('data-export-block')).toBe(true)
+  expect(container.querySelector('[data-export-keep-with-next]')?.textContent).toContain('Trend')
+})
+
+test('with no points the trend prints its empty message, no controls', () => {
+  render(<ExportModeProvider><PaidMediaTrendChart trend={{ channels: ['meta'], points: [] }} /></ExportModeProvider>)
+  expect(screen.getByText('No trend data for this period.')).toBeTruthy()
+  expect(screen.queryAllByRole('button')).toHaveLength(0)
 })

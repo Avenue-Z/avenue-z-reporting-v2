@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { EditableText } from '@/components/dashboard/editable-text'
+import { useExportMode } from '@/components/export/export-mode'
 
 interface Column {
   key: string
@@ -72,6 +73,42 @@ export function DataTable({ columns, rows, defaultSort, totalsRow, bare = false,
   const accessor = col ? columnSortAccessor(col) : undefined
   const display = sort && accessor ? sortRows(rows, sort.key, sort.dir, accessor) : rows
   const canSort = (c: Column) => Boolean(c.sortable && columnSortAccessor(c))
+  // The PDF export prints the default view (spec 2026-10-08-pdf-export-all-reports-design §5, §7): plain headers, no sort
+  // control or arrow, plain-text labels, and rows (totals included) that split between pages only between rows. A table of
+  // up to 15 printed rows is one unbreakable block.
+  const exportMode = useExportMode()
+  if (exportMode) {
+    const printed = display.length + (totalsRow ? 1 : 0)
+    return (
+      <div data-export-table="" {...(printed <= 15 ? { 'data-export-block': '' } : {})} className={bare ? '' : 'rounded-lg border border-white/[0.06] bg-bg-surface'}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/[0.06]">
+              {columns.map((c) => (
+                <th key={c.key} className={`px-5 py-3 text-[11px] font-extrabold uppercase tracking-widest text-text-muted ${c.align === 'right' ? 'text-right' : 'text-left'}`}>{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {display.map((row, i) => (
+              <tr key={i} data-export-row="" className="border-b border-white/[0.04]">
+                {columns.map((c) => (
+                  <td key={c.key} className={`px-5 py-3 text-white ${c.align === 'right' ? 'text-right' : 'text-left'}`}>{row[c.key]}</td>
+                ))}
+              </tr>
+            ))}
+            {totalsRow && (
+              <tr data-export-row="" className="border-t border-white/[0.12] font-semibold">
+                {columns.map((c) => (
+                  <td key={c.key} className={`px-5 py-3 text-white ${c.align === 'right' ? 'text-right' : 'text-left'}`}>{totalsRow[c.key]}</td>
+                ))}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
 
   return (
     <div className={bare ? 'overflow-x-auto' : 'overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface'}>

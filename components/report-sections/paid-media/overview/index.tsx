@@ -35,7 +35,7 @@ export async function PaidMediaOverviewReport({
       {/* Combined top line — Spend + Clicks (item 11a). Blended Leads / Cost per Lead were
           scrapped: Meta has no lead data and LinkedIn reports 0 leads today, so a blended lead
           figure would mislead. Per-channel Leads stay in the breakdown below. */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-export-block="">
         <KpiCard title="Spend" value={asMoney(o.blendedSpend)} delta={o.blendedSpendDelta} comparisonExpected />
         <KpiCard
           title="Clicks"
@@ -55,9 +55,9 @@ export async function PaidMediaOverviewReport({
 
       {/* Per-channel breakdown (item 11b). */}
       <div className="space-y-6">
-        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">By Channel</p>
+        <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">By Channel</p>
         {o.channels.map((c) => (
-          <section key={c.key} className="space-y-3">
+          <section key={c.key} className="space-y-3" data-export-block="">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">{c.label}</h3>
             <div className="grid grid-cols-3 gap-3">
               <KpiCard title="Spend" value={asMoney(c.spend)} delta={c.spendDelta} comparisonExpected />

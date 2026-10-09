@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useExportMode } from '@/components/export/export-mode'
 import { CHART_COLORS } from '@/lib/constants'
 import { NoData, LoadFailed } from './no-data'
 
@@ -68,6 +69,7 @@ function DeltaBadge({ value }: { value: number | null }) {
 
 export function NewReturning({ rows, compareRows, failed }: NewReturningProps) {
   const [hovered, setHovered] = useState<string | null>(null)
+  const exportMode = useExportMode()
 
   // An empty array here means either a query that succeeded with zero rows or
   // one that REJECTED (see index.tsx / reshape.ts, both collapse to []).
@@ -98,10 +100,10 @@ export function NewReturning({ rows, compareRows, failed }: NewReturningProps) {
   const compareMap = new Map((compareRows ?? []).map((r) => [r.type, r]))
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5" data-export-block="" data-export-chart="">
       <div className="mb-0.5 flex items-center gap-2">
         <h3 className="text-lg font-bold text-white">New vs. Returning</h3>
-        <div className="group relative flex-shrink-0">
+        <div className="group relative flex-shrink-0" data-export-hide="">
           <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">?</span>
           <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
             Audience loyalty split. Returning visitors typically engage longer and convert at higher rates — a growing returning base signals the site is building an audience, not just buying traffic.
@@ -156,8 +158,8 @@ export function NewReturning({ rows, compareRows, failed }: NewReturningProps) {
                 isHov    ? 'border-white/[0.15]' : 'border-white/[0.06]',
                 isDimmed ? 'opacity-30'           : 'opacity-100'
               )}
-              onMouseEnter={() => setHovered(r.type)}
-              onMouseLeave={() => setHovered(null)}
+              onMouseEnter={exportMode ? undefined : () => setHovered(r.type)}
+              onMouseLeave={exportMode ? undefined : () => setHovered(null)}
             >
               {/* Color accent fill */}
               <div

@@ -38,7 +38,8 @@ const AEO_STATUS_CONFIG: Record<AEOStatus, {
 function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-      <div>
+      {/* In the PDF export the title stays on the page of what follows it (app/export/export-theme.css). */}
+      <div data-export-keep-with-next="">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         <p className="mt-1 text-xs text-text-muted">{description}</p>
       </div>
@@ -152,7 +153,7 @@ function TrendSection({ sfData }: { sfData: SFData }) {
   ]
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-3 gap-3" data-export-block="">
       {trendGroups.map(({ label, current: cur, prev: prv, color }) => {
         const delta = prv !== null ? cur - prv : null
         const maxVal = prv !== null ? Math.max(cur, prv, 1) : Math.max(cur, 1)
@@ -256,10 +257,10 @@ function AEOChecklistSection({ checklist }: { checklist: AEOChecklist }) {
 
   return (
     <div>
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Is the site meeting the AEO technical checklist?</h3>
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">Is the site meeting the AEO technical checklist?</h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((cat) => (
-          <div key={cat.title} className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-bg-surface p-5">
+          <div key={cat.title} className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-bg-surface p-5" data-export-block="">
             <div>
               <h4 className="text-xs font-bold text-white">{cat.title}</h4>
               <p className="mt-0.5 text-[11px] text-text-muted">{cat.description}</p>
@@ -371,9 +372,9 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
 
       {/* ── Section A: Snapshot KPIs ── */}
       <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">What&apos;s the audit at a glance?</h3>
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">What&apos;s the audit at a glance?</h3>
         {kpis ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7" data-export-block="">
             {kpis.map(({ label, value, hint, trend }) => (
               <KpiCard key={label} label={label} value={value} hint={hint} trend={trend} />
             ))}
@@ -489,7 +490,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
       )}
 
       {/* Scoring methodology */}
-      <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
+      <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6" data-export-block="">
         <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted">How is priority scored?</h3>
         <p className="text-sm leading-relaxed text-white/60">
           Each issue is scored using a weighted formula that combines technical severity with AI activity signals.

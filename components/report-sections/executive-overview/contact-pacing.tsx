@@ -108,7 +108,8 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
   const labelled = starts.map((d, i) => (i === 0 ? !(starts.length > 1 && opensMonth[1]) : opensMonth[i]))
 
   return (
-    <div className="space-y-6">
+    // One block in the PDF export: tiles, bars and labels (about 350 px) never split.
+    <div className="space-y-6" data-export-block="">
       <p className="text-xs text-text-muted">Year to date, by ISO week.</p>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
@@ -154,7 +155,8 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
             tracks carry the same flex-1 cells and the same gap, so the labels
             stay aligned under their bars. */}
         <div className="space-y-1">
-          <div className="flex h-32 items-end gap-1">
+          {/* data-export-bars: the brand-green bars print darkened on white paper (export-theme.css). */}
+          <div className="flex h-32 items-end gap-1" data-export-bars="">
             {weeks.map((b, i) => {
               const isPartial = i === weeks.length - 1
               return (
@@ -181,7 +183,9 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
                       borderTopColor: isPartial ? CHART_COLORS.positive : undefined,
                     }}
                   />
-                  <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                  {/* Hidden in the PDF export: w-max and absolute, the last bars' tooltips overflow the content width, and
+                      Chromium's print shrinks every page to fit them. */}
+                  <span data-export-hide="" className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
                     {isPartial
                       ? `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)} so far, ${daysElapsedInCurrentWeek} of 7 days`
                       : `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)}`}

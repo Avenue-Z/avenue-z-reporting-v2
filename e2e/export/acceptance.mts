@@ -53,7 +53,25 @@ const keepPage = (keep: boolean) => `<!doctype html><html><head><meta charset="u
 <section><h2 ${keep ? 'data-export-keep-with-next ' : ''}style="font-size:14px;font-weight:800;margin:0 0 16px">KEEPTITLE</h2>
 <div><div data-export-block><p style="font-size:11px">KEEPSTART</p><div style="height:341px;background:#f4f4f5"></div></div></div></section>
 </div><script>window.__exportReady = true</script></body></html>`
-const html = (url = '') => url.startsWith('/keep') ? keepPage(url === '/keep') : page(!url.startsWith('/never'))
+// A table longer than a page (AEO's PR placements prints up to 100 rows), starting low on the first page: it may split only
+// between rows, its header row repeats on each page it continues on, and its title stays with its first rows.
+const tablePage = () => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
+<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:600px"></div>
+<div><h3 data-export-keep-with-next style="font-size:14px;margin:0 0 8px">TABLETITLE</h3>
+<div data-export-table><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;height:24px">TABLEHEAD</th></tr></thead><tbody>
+${Array.from({ length: 60 }, (_, i) => `<tr data-export-row><td style="height:30px">ROW${i + 1}</td></tr>`).join('')}
+</tbody></table></div></div>
+</div><script>window.__exportReady = true</script></body></html>`
+// The same title-then-block case inside a flex column card (AEO's SectionCard and SectionWrapper are \`flex flex-col gap-4\`).
+const keepFlexPage = () => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
+<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:670px"></div>
+<div class="flex flex-col gap-4" style="display:flex;flex-direction:column;gap:16px"><div data-export-keep-with-next><h3 style="font-size:14px;margin:0">FLEXTITLE</h3>
+<p style="font-size:11px;margin:4px 0 0">FLEXDESC a description long enough to wrap onto several lines under the title, as AEO's card descriptions do. It explains what the card measures and where the data comes from, so a reader can trust the numbers below it. ${'More words to make it wrap. '.repeat(6)}</p></div>
+<div data-export-block><p style="font-size:11px">FLEXSTART</p><div style="height:300px;background:#f4f4f5"></div></div></div>
+</div><script>window.__exportReady = true</script></body></html>`
+const html = (url = '') => url === '/keep-flex' ? keepFlexPage() : url === '/table' ? tablePage() : url.startsWith('/keep') ? keepPage(url === '/keep') : page(!url.startsWith('/never'))
 const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(html(req.url)) })
 await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
 const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
@@ -73,6 +91,16 @@ const [ctlTitle, ctlCard] = await keepOf('/keep-control')
 check(ctlTitle === 1 && ctlCard === 2, `control: without keep-with-next the title ends page 1 alone (${ctlTitle} / ${ctlCard})`)
 const [keepTitle, keepCard] = await keepOf('/keep')
 check(keepTitle === keepCard, `a kept title moves with its first card (${keepTitle} / ${keepCard})`)
+const flexFile = join(out, 'keep-flex.pdf'); writeFileSync(flexFile, await renderPdf({ url: `${origin}/keep-flex`, cookies: [] }))
+const flx = readPdf(flexFile)
+check(new Set([pagesOf(flx, 'FLEXTITLE')[0], pagesOf(flx, 'FLEXDESC')[0], pagesOf(flx, 'FLEXSTART')[0]]).size === 1, `a kept title block (title + description) never splits and moves with its first block (${pagesOf(flx, 'FLEXTITLE')} / ${pagesOf(flx, 'FLEXDESC')} / ${pagesOf(flx, 'FLEXSTART')})`)
+const tableFile = join(out, 'table.pdf'); writeFileSync(tableFile, await renderPdf({ url: `${origin}/table`, cookies: [] }))
+const tbl = readPdf(tableFile)
+const rowPages = Array.from({ length: 60 }, (_, i) => pagesOf(tbl, `ROW${i + 1}`))
+check(rowPages.every((p) => p.length === 1), 'every table row prints whole, on one page')
+check(pagesOf(tbl, 'TABLETITLE')[0] === rowPages[0][0], `a table's title stays with its first rows (${pagesOf(tbl, 'TABLETITLE')} / ${rowPages[0]})`)
+const lastPage = rowPages[59][0]
+check(lastPage > rowPages[0][0] && pagesOf(tbl, 'TABLEHEAD').length === lastPage - rowPages[0][0] + 1, `the header row repeats on every page the table continues on (${pagesOf(tbl, 'TABLEHEAD')})`)
 check(outsideBox(fx).length === 0, `nothing outside the content box (${outsideBox(fx).length} words)`)
 check(pagesOf(fx, 'NOPRINTMARKER').length === 0, 'a no-print element stays out of the PDF (the export renders in screen media)')
 check(fx.pages.every((p) => p.width === 792 && p.height === 612), 'every page is US Letter landscape')
@@ -104,18 +132,24 @@ if (!process.env.AUTH_SECRET) {
     const pdf = readPdf(file)
     check(outsideBox(pdf).length === 0, `${name}: nothing outside the content box (${outsideBox(pdf).length} words)`)
     check(pdf.pages.every((p) => p.width === 792 && p.height === 612), `${name}: ${pdf.pages.length} pages, all Letter landscape`)
+    // Printed at full width, not shrunk to fit: anything laid out past the 979 px content width (a w-max hover tooltip, PR 4
+    // final review) makes Chromium scale every page down, which outsideBox can't see. The header stamp is right-aligned to
+    // the content box's right edge (763.2 pt), so it ends there unless the page was shrunk (an 11% shrink put it at ~680).
+    const stamp = pdf.words.find((w) => w.page === 1 && w.text === 'Exported')
+    const stampEnd = stamp ? Math.max(...pdf.words.filter((w) => w.page === 1 && Math.abs(w.yMin - stamp.yMin) < 2).map((w) => w.xMax)) : 0
+    check(stampEnd > 757, `${name}: printed at full width, not shrunk to fit (stamp ends at ${stampEnd.toFixed(1)} pt)`)
     // Vercel caps a function's response body at 4.5 MB; full-size WebP post images once made this export 31 MB.
     check(bytes.length < 4_500_000, `${name}: under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
     // Every glyph comes from a web font the page loads, never from a system font: the server's Chromium has almost none
     // (only Open Sans), so a character borrowed from a Mac font here prints as an empty box there (↑ ↓ ↗, emoji).
-    const system = fontsOf(file).filter((f) => !/^(NunitoSans|NotoSansMath|NotoColorEmoji)/.test(f))
+    const system = fontsOf(file).filter((f) => !/^(NunitoSans|NotoSansMath|NotoColorEmoji|NotoSansMono)/.test(f))
     check(system.length === 0, `${name}: every glyph from the page's web fonts, none from a system font (${system.join(', ') || 'none'})`)
     console.log(`  ${name} PDF: ${file}`)
     return { res, bytes, pdf }
   }
 
   const ren = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
-    { clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days' }, 'renaissance-client')
+    { clientSlug: 'renaissance', section: 'organic-social', subsection: null, dateRange: 'last_30_days' }, 'renaissance-client')
   if (ren) {
     check(/filename\*=UTF-8''Renaissance%20%E2%80%93%20Organic%20Social%20%E2%80%93%20\d{4}-\d{2}-\d{2}\.pdf/.test(ren.res.headers.get('content-disposition') ?? ''), 'named Renaissance – Organic Social – <date>.pdf')
     check(pagesOf(ren.pdf, 'Exported')[0] === 1 && pagesOf(ren.pdf, 'Reporting').length > 0, 'stamped with export time and reporting period on page 1')
@@ -123,9 +157,16 @@ if (!process.env.AUTH_SECRET) {
     check(viewPost > 0 && countLinks(ren.bytes) >= viewPost, `every post is a link (${countLinks(ren.bytes)} links, ${viewPost} posts)`)
   }
 
+  // A page loaded before sections were added posts no section; it must still export Organic Social.
+  const skew = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
+    { clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days' }, 'renaissance-no-section')
+  // Its filename names the section it exported, so a default that picked another enabled section fails here (Thomas,
+  // #348 acceptance.mts:129), not just one that failed outright.
+  check(/Organic%20Social/.test(skew?.res.headers.get('content-disposition') ?? ''), 'a body with no section still exports Organic Social')
+
   // A locked-months client's platform tab, exported by a staff editor and by a client (Thomas, #332 round 2, item 5): the
   // staff export prints exactly the client's, with no editor, draft or button text. A month both can see, so both serve it.
-  const APFM = { clientSlug: 'a-place-for-mom', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
+  const APFM = { clientSlug: 'a-place-for-mom', section: 'organic-social', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
   const staff = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, APFM, 'apfm-staff')
   const client = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: APFM.clientSlug }, APFM, 'apfm-client')
   // Every glyph in the same order, and every page starting at the same place. The stamp's minute can differ between the
@@ -143,6 +184,79 @@ if (!process.env.AUTH_SECRET) {
     check(!/(\d{1,2}\/\d{1,2}) · \1\b/.test(text), `${name}: each annotation's day prints once`)
   }
   if (staff && client) check(body(staff.pdf) === body(client.pdf), 'apfm: the staff export prints exactly what the client export does')
+
+  // AEO (PDF export PR 2): every tab of a client with all four (Peec and Profound) and Renaissance's two, each as a staff
+  // editor and as a client. No table or chart controls print, the two exports print the same, and each tab's time to
+  // ready is logged by exportAs (spec 2026-10-08 §11: a tab over 30 s is a finding).
+  const AEO_RUNS: [string, (string | null)[]][] = process.env.AEO_CLIENT
+    ? [[process.env.AEO_CLIENT, [null, 'pr-influence', 'content-impact', 'technical-audit']]]
+    : [['avenue-z', [null, 'pr-influence', 'content-impact', 'technical-audit']], ['renaissance', [null, 'pr-influence']]]
+  for (const [aeoClient, tabs] of AEO_RUNS) {
+    for (const tab of tabs) {
+      const aeoBody = { clientSlug: aeoClient, section: 'peec-ai', subsection: tab, dateRange: 'last_30_days' }
+      const name = `aeo-${aeoClient}-${tab ?? 'overview'}`
+      const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, aeoBody, `${name}-staff`)
+      const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: aeoClient }, aeoBody, `${name}-client`)
+      for (const [who, r] of [['staff', s], ['client', c]] as const) {
+        if (!r) continue
+        const text = r.pdf.words.map((w) => w.text).join(' ')
+        const controls = text.match(/See all \d+ rows|Show less|Clear all filters|Sort by|Daily Weekly Monthly Quarterly/g) ?? []
+        check(controls.length === 0, `${name}-${who}: no table or chart controls (${[...new Set(controls)].join(', ') || 'none'})`)
+      }
+      if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
+    }
+  }
+
+  // Paid Media (PDF export PR 3): every tab of a client running Paid Search, Meta and LinkedIn, each as a staff editor and
+  // as a client. No toggle, sort or expand control prints; the two exports print the same; exportAs logs each time to ready.
+  const PM_RUNS: [string, (string | null)[]][] = [[process.env.PM_CLIENT ?? 'renaissance', [null, 'paid-search', 'meta', 'linkedin']]]
+  for (const [pmClient, tabs] of PM_RUNS) {
+    for (const tab of tabs) {
+      const pmBody = { clientSlug: pmClient, section: 'paid-media', subsection: tab, dateRange: 'last_30_days' }
+      const name = `pm-${pmClient}-${tab ?? 'overview'}`
+      const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, pmBody, `${name}-staff`)
+      const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: pmClient }, pmBody, `${name}-client`)
+      for (const [who, r] of [['staff', s], ['client', c]] as const) {
+        if (!r) continue
+        const text = r.pdf.words.map((w) => w.text).join(' ')
+        const controls = text.match(/Spend Clicks Paid Search|Cost Clicks Impressions Leads|Show all|Filter ≥10 clicks|[▸▾]/g) ?? []
+        check(controls.length === 0, `${name}-${who}: no toggle, sort or expand controls (${[...new Set(controls)].join(', ') || 'none'})`)
+        // A part that failed or timed out prints its fallback and the export still returns 200 (Thomas, #352
+        // acceptance.mts:214); a run that printed one has not exported the tab.
+        const failed = text.match(/Couldn't load this section|Taking longer than usual/g) ?? []
+        check(failed.length === 0, `${name}-${who}: every part loaded, none printed its fallback (${[...new Set(failed)].join(', ') || 'none'})`)
+      }
+      if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
+    }
+  }
+
+  // Executive Overview (PDF export PR 4): exported as a staff editor and as a client, posting a stale custom range the page
+  // ignores (spec 2026-10-09 §9.1). No toggle, tab, sort or hover-only text prints; no reporting period is stamped; the two
+  // exports print the same; exportAs logs the time to ready.
+  {
+    const eoClient = process.env.EO_CLIENT ?? 'renaissance'
+    const eoBody = { clientSlug: eoClient, section: 'executive-overview', subsection: null, dateRange: 'custom:2026-08-01,2026-08-31' }
+    const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, eoBody, `eo-${eoClient}-staff`)
+    const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: eoClient }, eoBody, `eo-${eoClient}-client`)
+    for (const [who, r] of [['staff', s], ['client', c]] as const) {
+      if (!r) continue
+      const text = r.pdf.words.map((w) => w.text).join(' ')
+      // The sort headers print uppercase (CSS), so a leaked arrow reads "↓ SESSIONS": that part ignores case. The rest keeps
+      // it: "Prior period" is the hover layer, while every KPI delta legitimately reads "vs prior period".
+      const controls = [...(text.match(/By Conversion|7d avg|Prior period|rolling average/g) ?? []), ...(text.match(/[↓↑] (Sessions|CVR)/gi) ?? [])]
+      check(controls.length === 0, `eo-${eoClient}-${who}: no toggle, tab, sort or hover-only text (${[...new Set(controls)].join(', ') || 'none'})`)
+      check(!text.includes('Reporting period'), `eo-${eoClient}-${who}: no reporting period stamped`)
+      // Exact case: the Web Analytics label prints uppercase; the Journey's "sessions in the last 30 days" must not satisfy it.
+      check(text.includes('LAST 30 DAYS'), `eo-${eoClient}-${who}: Web Analytics keeps its 30-day window label`)
+      // The year-to-date and as-of-today labels are why no period is stamped (Thomas, #354 acceptance.mts:244). They print
+      // only when the CRM blocks loaded, so they're checked then; a run whose CRM failed says so instead of passing quietly.
+      const crmLoaded = !/Couldn't load (contact|lead|pipeline) data|CRM not connected/.test(text)
+      if (crmLoaded) {
+        check(text.includes('Year to date, by ISO week.') && text.includes('Open pipeline is as of today.'), `eo-${eoClient}-${who}: the CRM blocks keep their year-to-date and as-of-today labels`)
+      } else console.log(`  note  eo-${eoClient}-${who}: CRM blocks didn't load, so their window labels weren't checked`)
+    }
+    if (s && c) check(body(s.pdf) === body(c.pdf), `eo-${eoClient}: the staff export prints exactly what the client export does`)
+  }
 }
 
 console.log(`\nfixture PDF: ${fixturePdf}`)
