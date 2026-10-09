@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Every PR targets `aeo-outbound-audit` (the deliverable branch, cut from `dev` at `15b778de`), merges in order PR1 → PR2 → PR3 → PR4, and each one is cut from the deliverable branch **after** the previous PR merged (no stacked PRs).
+- Every PR targets `dev` (amended 2026-10-09: the shared base-branch guard lets `feat/*` target only `dev`, so the deliverable branch `aeo-outbound-audit` is retired), merges in order PR1 → PR2 → PR3 → PR4, and each one is cut from `dev` **after** the previous PR merged (no stacked PRs).
 - Shared files may only receive the six append-only edits listed in spec §4: `lib/db/schema.ts`, `drizzle/0026_*` (+ meta), `MIGRATIONS-PENDING.md`, `.env.example`, `lib/constants.ts` `TEAMS`, `vitest.config.ts` include list. Nothing else outside new folders.
 - Never edit `proxy.ts`, `auth.ts`, `lib/auth/*`, `lib/peec/*`, `lib/glean.ts`, `app/share/**`, `app/globals.css`, `components/layout/sidebar.tsx`, `package.json`.
 - AIVx source of truth: `~/code/aivx-reports` at `ff18697` (read-only). CSS SHA-256 `2925c9bd76410aaa8e6ea832a7fd9e20d981efcb65fa68958545cf3b251c833e`; JS SHA-256 `6453e61c22b1b171d3c5f951f901e356087e0dd507e9951808332255183a9bb6` (both hashes are of the evaluated Python string literals, which is what AIVx ships; the evaluated JS appears verbatim in the reference report).
@@ -1589,6 +1589,56 @@ gh pr create --base aeo-outbound-audit --draft --title "feat(aeo-outbound): data
 (`/tmp/pr1.md` is written at execution time: what it does, what was verified with the raw `make check` output, and the edge-case list per my CLAUDE.md if any code crosses a boundary. It crosses the Peec network boundary, so the list is required.)
 
 ---
+
+### Task 1.7: Open tracking, Edit a copy, hub listing (spec amendment 2026-10-09)
+
+Spec: §2 steps 5 to 11, §4 item 2 and the actions row, §8 "Recording an open", §9 (new columns, approved check,
+record open, copy as draft, hub listing), §14, §15. Review log: "Amendment 2026-10-09" (MINOR items 5 to 19).
+
+**Files:**
+- Modify: `lib/db/schema.ts` (the `aeoOutboundReports` block only)
+- Regenerate: `drizzle/0026_aeo_outbound_reports.sql`, `drizzle/meta/0026_snapshot.json`, the `0026` entry of `drizzle/meta/_journal.json` (allowed only because 0026 is unapplied and unmerged, spec §4 item 2)
+- Modify: `lib/aeo-outbound/store.ts`, `lib/aeo-outbound/store.test.ts`, `MIGRATIONS-PENDING.md` (the 0026 entry)
+- Create: `lib/aeo-outbound/recipient.ts`, `lib/aeo-outbound/recipient.test.ts`, `lib/aeo-outbound/opens.ts`, `lib/aeo-outbound/opens.test.ts`
+
+**Interfaces:**
+- Consumes: `cleanValue(v: string)` (`slots.ts:26`).
+- Produces: `MAX_RECIPIENT = 200`, `RECIPIENT_ERROR = 'Say who this link is for (1 to 200 characters).'`, `cleanRecipient(v: unknown) → { ok: true; value: string } | { ok: false; error: typeof RECIPIENT_ERROR }`; `shouldCountOpen(req: { method: string; headers: Headers }) → boolean`; `approveQuery(id, shownRevision, { html, token, recipient, by, now })`; `recordOpenQuery(id, now)`; `copyAsDraftQuery(sourceId, by, now)`; `liveByTokenQuery(token)` selecting `{ id, html }`; `getLiveByToken(token) → Promise<{ id: string; html: string } | undefined>`; type `ReportSummary`; `liveSummariesQuery()`, `recentSummariesQuery(limit)`, `listReportSummaries() → Promise<ReportSummary[]>`, `HUB_RECENT_LIMIT = 500`. `listReports` is removed (only Task 4.4 would have read it).
+
+- [ ] **Step 1: Schema.** In the `aeoOutboundReports` columns add, after `rerunOf`:
+  `shareRecipient: text('share_recipient')`, `openCount: integer('open_count').notNull().default(0)`,
+  `firstOpenedAt: timestamp('first_opened_at', { withTimezone: true })`, `lastOpenedAt: timestamp('last_opened_at', { withTimezone: true })`.
+  In `approvedComplete` add `AND ${table.shareRecipient} IS NOT NULL` inside the right-hand parentheses. Nothing else in the file changes.
+
+- [ ] **Step 2: Regenerate 0026.** `git rm drizzle/0026_aeo_outbound_reports.sql drizzle/meta/0026_snapshot.json`, remove only the `0026` entry from `drizzle/meta/_journal.json`, then run `DATABASE_URL_UNPOOLED=postgresql://x:x@localhost:5432/x perl -e 'alarm 120; exec @ARGV' -- npx drizzle-kit generate --name aeo_outbound_reports`. Expected: one new `0026_aeo_outbound_reports.sql` whose `prevId` chain still starts at 0025, containing only the enum, the table (now with the four new columns), the three checks (the approved one with four conditions), the unique `share_token`, and the two indexes. Anything touching another table: stop and report.
+
+- [ ] **Step 3: Failing tests.**
+  - `recipient.test.ts`: `'  Jane Doe,\n Acme '` cleans to `'Jane Doe, Acme'`; `''`, `'   '`, a non-string and 201 characters (after cleaning) return `RECIPIENT_ERROR`; exactly 200 passes.
+  - `opens.test.ts`: `GET` with a normal browser User-Agent counts; `HEAD` doesn't; each listed bot substring in mixed case doesn't (`slackbot`, `facebookexternalhit`, `twitterbot`, `linkedinbot`, `discordbot`, `whatsapp`, `telegrambot`, `skypeuripreview`, `googlebot`, `bingbot`); a `cookie` header holding `authjs.session-token=x`, `__Secure-authjs.session-token=x` or `authjs.session-token.0=x` among other cookies doesn't; a cookie named `xauthjs.session-token` or `theme=dark` still counts; a missing User-Agent counts; `Sec-Purpose: prefetch` counts (spec review log item 6).
+  - `store.test.ts` (exact `sql` with `toBe` and `params` with `toEqual`, as the file already does): `approveQuery` sets `share_recipient`; `recordOpenQuery` sets `open_count = open_count + 1`, `first_opened_at = coalesce(first_opened_at, $now)`, `last_opened_at = $now`, does not set `updated_at`, and matches id, `approved`, `share_revoked_at is null`, `deleted_at is null`; `copyAsDraftQuery` is one `insert ... select` copying `peec_project_id`, `peec_project_name`, `brand_name`, `data`, `slots`, `notes`, with `status 'draft'`, `rerun_of` = source id, `created_by`, `created_at` and `updated_at` = now, from the source `where id and status = 'approved' and deleted_at is null`, returning the new id; `liveByTokenQuery` selects id and html; `liveSummariesQuery` and `recentSummariesQuery(500)` select exactly the hub columns (id, peec_project_name, brand_name, status, error, share_token, share_recipient, open_count, first_opened_at, last_opened_at, created_at, approved_at, share_revoked_at) and never `data`, `slots`, `notes` or `html`; live is `status 'approved' and share_revoked_at is null and deleted_at is null` with no limit; recent excludes deleted and live rows, `order by created_at desc limit 500`.
+  - A test with a mocked db that `listReportSummaries` returns a live row older than 500 others exactly once, sorted by `created_at` desc with the rest.
+  - The regenerated `drizzle/0026_aeo_outbound_reports.sql` contains the four new columns and `"share_recipient" IS NOT NULL` inside `aeo_outbound_approved_complete`, and no statement names another table.
+
+- [ ] **Step 4: Run to see them fail.** `perl -e 'alarm 590; exec @ARGV' -- npx vitest run lib/aeo-outbound`
+
+- [ ] **Step 5: Implement.** `recipient.ts` and `opens.ts` as the tests define (the cookie pattern is `/^(__Secure-)?authjs\.session-token(\.\d+)?$/`, the one at `app/api/export/pdf/route.ts:21`; cookies are split on `;` and trimmed before the name is matched). In `store.ts`: the queries above. `copyAsDraftQuery` uses Drizzle 0.45's `db.insert(t).select(...)` (`node_modules/drizzle-orm/pg-core/query-builders/insert.d.ts:53-56`); confirm the emitted SQL in the test, and if insert-select cannot express the literal status or the parameters, use one `sql` template for the whole statement. Update the file header comment so it lists the inserts too.
+
+- [ ] **Step 6: Runbook.** In `MIGRATIONS-PENDING.md`'s 0026 entry, change the read-back to: the table with its four open-tracking columns, its three checks (the approved check including `share_recipient`), both indexes with the partial `WHERE status = 'generating'` intact, the enum, and the ledger up by one.
+
+- [ ] **Step 7: Full check, commit, push.** `DATABASE_URL=postgresql://ci:ci@db.invalid/ci perl -e 'alarm 590; exec @ARGV' -- make check` must exit 0. Commit the files by name: "Track opens, add Edit a copy, keep live links on the hub (store and migration)". Push.
+
+## Amendment 2026-10-09 (open tracking, Edit a copy, hub listing): changes to later tasks
+
+These apply when each task's brief is dispatched; the task text above them is otherwise unchanged.
+
+- **Already in PR1 after its review (the Task 1.4 code above is behind):** leadership gaps from exact ratios, the rank card reads `#{i} of {n} brands`, fixed slot values validated, notes for multiple own domains and an empty source mix, `getLiveByToken` refuses a malformed token.
+- **Every PR targets `dev`** (the shared base-branch guard), cut from `dev` after the previous part merges. `aeo-outbound-audit` is retired.
+- **Task 2.x and 3.x:** `DECISIONS.rankAmong` N also trims the bar chart and the Data block's brand list (they read `data.brands`). No code change; say so in the PR. `#{i} of {n} brands` is the rank format the grounding check sees.
+- **Task 4.2, actions:** `approve(id, revision, recipient)`. Checks in this order: forbidden, not found, recipient (`cleanRecipient`, so the length is checked after cleaning), Needs validation, stale. Errors exactly as spec §4. Success `{ ok: true, token }`. Add `copyAsDraft(id)`: forbidden, then `isReportId`, then `copyAsDraftQuery`; `{ ok: true, id }` or `not found`; `updateTag('db')` after success. Tests per spec §15, including that a refusal writes nothing.
+- **Task 4.2, public route:** `getLiveByToken` now returns `{ id, html }`. Serve `html` exactly as before. When `shouldCountOpen(request)`, await `Promise.race([recordOpenQuery(id, new Date()), <1.5s timer>])`; a throw or the timer logs `[aeo-outbound] open not recorded id=<id> reason=<error|timeout>` (never the token or the recipient) and the page is still served. A 0-row result is not logged. Next 16 runs GET for HEAD when no HEAD export exists, so the route exports a `HEAD` that returns the same status and headers with no body and never records. Tests: counted GET; not counted for HEAD, a bot, a session cookie, a 404; same bytes when recording throws and when it never resolves (fake timers).
+- **Task 4.4, hub and editor:** the hub reads `listReportSummaries()`. Columns per spec §10, with For and Opens empty on draft and failed rows; Opens shows the count and, on the row itself (not hover only), first and last opened in US Eastern in the footer's date format, plus the hover line "Email security scanners can count as an open". Actions per spec §10: Edit a copy on Live and Revoked rows and in the editor toolbar, disabled while its action is pending, opening the new draft on success. The Approve dialog has the required "Who is this for?" field and shows the recipient error inline. Component tests: the required field, the For and Opens cells, Edit a copy opening the new draft and staying disabled while pending, and `copyAsDraft` refused when forbidden.
+- **First preview deploy (spec review log item 7):** check that a link pasted into Slack and iMessage is served to the preview bot but not counted, and whether generation keeps running after the tab closes (spec §7a). Record both in `docs/findings/`.
+- **Follow-up, not built:** a retention rule for `share_recipient` (approved rows can't be discarded).
 
 ## Part 2 (PR2): the report page
 

@@ -371,7 +371,7 @@ Every UPDATE below also matches `deleted_at IS NULL`, so a stale tab can't save 
   - The parent tracks `dirty` (an edit not yet saved) and `saving`. **Approve is disabled while either is true**, the confirm dialog re-checks both before sending, and it always sends the last saved revision. What gets approved is exactly what Ryan sees.
   - **Errors:** a network error or `5xx` retries with backoff (1s, 2s, 4s, then every 10s), showing "Couldn't save, retrying". A `400` shows its reason next to the toolbar, keeps the edit dirty, and waits for Ryan to change the text. A `403`, `404` or `409` stops the queue and shows "This snapshot changed. Reload" with a Reload button. Nothing loops forever.
 
-The migration is a new table only, so no existing query selects it. The `clients` 42703 risk described in
+The migration is one new table (open-tracking columns included), so no existing query selects it. The `clients` 42703 risk described in
 `MIGRATIONS-PENDING.md` doesn't apply. Apply it with the hash-checked `scripts/migrate-http.ts` and record it in
 `MIGRATIONS-PENDING.md`.
 
