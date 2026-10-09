@@ -1,6 +1,6 @@
 # PDF export for the Executive Overview — design
 
-**Date:** 2026-10-09 · **Status:** approved in brainstorm, awaiting spec review
+**Date:** 2026-10-09 · **Status:** approved; amended while planning (§9)
 **Builds on:** `2026-10-08-pdf-export-all-reports-design.md`, the shared pipeline (PR #348) plus AEO (#350) and Paid
 Media (#352). Everything that spec says about the pipeline, the shared export behaviours (§5), error handling (§9)
 and testing (§10) holds here, unless this spec changes it.
@@ -116,3 +116,15 @@ and the export completes; none of them is "still loading".
 - **PR #219** (Executive Overview CRM wiring design) is open. If its implementation lands first, this PR adapts to it, and any element it adds follows §5's rules.
 - **Live-data gaps.** A client whose Salesforce isn't connected exercises only the `NeedsConnection` path. Renaissance
   covers the connected path.
+
+## 9. Amendments made while planning (2026-10-09)
+
+The code showed three points this spec got wrong or left open. They are recorded in the PR 4 plan (§A) and in full here.
+
+1. **E4 is reversed: no reporting period is stamped.**
+   - The page mixes windows. Web Analytics is the last 30 days. The AEO stage and Contact Creation are year to date. Open pipeline is as of today, and Closed Won is year to date.
+   - A header reading "last 30 days" would mislabel half of it.
+   - The live Export PDF button already stamps no period here (the tested rule "stamp ⇔ picker", `lib/export-period.pages.test.tsx`).
+   - The export page's served range for this section is `null`, whatever `dateRange` the request carries. Each section keeps its own window label.
+2. **Journey layout.** The export renders at 979 px, below Tailwind's `lg` (1024 px). So the Journey prints as the page's own two-column grid, with no connector arrows, as a 979 px browser shows it. This answers §8's width risk.
+3. **Dark panels.** The Journey, the trend, New vs Returning and Traffic by Channel get `data-export-chart`, so their brand colours print as on screen. KPI cards and the CRM blocks stay on white paper.
