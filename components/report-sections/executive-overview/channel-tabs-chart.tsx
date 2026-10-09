@@ -302,7 +302,8 @@ export function ChannelTabsChart({
                         {(row.convRate * 100).toFixed(1)}%
                       </span>
                     </div>
-                    {/* The hover layer (prior period) is not rendered in the export: invisible text would reach the PDF. */}
+                    {/* The hover layer (prior period) is not rendered in the export: nothing on paper can reveal it, and a hidden layer
+                        still takes layout space (Chromium leaves opacity-0 text out of the PDF; overflow is the hazard). */}
                     {!exportMode && (
                       <div
                         className={cn(

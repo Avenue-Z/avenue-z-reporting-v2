@@ -147,7 +147,8 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
                     </p>
                   )}
 
-                  {/* Hero label (shown on hover). The export renders it only when shown, so no hidden text reaches the PDF. */}
+                  {/* Hero label (shown on hover). The export renders it only when shown: a collapsed copy would only take layout
+                      space (Chromium leaves opacity-0 text out of the PDF; overflow is the hazard). */}
                   {(!exportMode || open) && (
                     <div
                       className="overflow-hidden transition-all duration-300"
