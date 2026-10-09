@@ -37,6 +37,13 @@ test('needsValidationPaths finds every slot still marked', () => {
   expect(r.ok && needsValidationPaths(r.slots)).toEqual(['market'])
 })
 
+test('needsValidationPaths matches in any letter case', () => {
+  for (const v of ['needs validation', 'NEEDS VALIDATION', 'Check this. nEeDs VaLiDaTiOn']) {
+    const r = applySlotPatch(S, 'market', v)
+    expect(r.ok && needsValidationPaths(r.slots)).toEqual(['market'])
+  }
+})
+
 const MODEL = {
   headline: 'H', summary: 'S', context: 'C',
   competitive_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }],

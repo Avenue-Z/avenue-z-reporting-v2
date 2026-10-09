@@ -6,10 +6,16 @@ const SESSION_COOKIE = /^(__Secure-)?authjs\.session-token(\.\d+)?$/
 
 const BOTS = ['slackbot', 'facebookexternalhit', 'twitterbot', 'linkedinbot', 'discordbot', 'whatsapp', 'telegrambot', 'skypeuripreview', 'googlebot', 'bingbot']
 
-export function shouldCountOpen(req: { method: string; headers: Headers }): boolean {
+/** True when the request carries an Auth.js session cookie. The route reads the session only then. */
+export function hasSessionCookie(headers: Headers): boolean {
+  const cookies = (headers.get('cookie') ?? '').split(';').map((c) => c.trim().split('=')[0])
+  return cookies.some((name) => SESSION_COOKIE.test(name))
+}
+
+/** viewerIsStaff is decided by the caller from the session; a client-portal session still counts. */
+export function shouldCountOpen(req: { method: string; headers: Headers }, viewerIsStaff: boolean): boolean {
   if (req.method !== 'GET') return false
   const ua = (req.headers.get('user-agent') ?? '').toLowerCase()
   if (BOTS.some((b) => ua.includes(b))) return false
-  const cookies = (req.headers.get('cookie') ?? '').split(';').map((c) => c.trim().split('=')[0])
-  return !cookies.some((name) => SESSION_COOKIE.test(name))
+  return !viewerIsStaff
 }

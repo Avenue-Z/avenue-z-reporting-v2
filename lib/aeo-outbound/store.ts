@@ -21,9 +21,13 @@ export function markStaleGeneratingQuery(projectId: string, now: Date) {
     .where(and(eq(t.peecProjectId, projectId), eq(t.status, 'generating'), lt(t.createdAt, staleBefore(now))))
 }
 
-export function insertGeneratingQuery(v: { projectId: string; projectName: string; createdBy: string; rerunOf: string | null }) {
+/** The two named constraints a write can lose a race on (spec §7a step 4). Recognized by name, never by code alone. */
+export const ONE_GENERATING_INDEX = 'aeo_outbound_one_generating'
+export const SHARE_TOKEN_UNIQUE = 'aeo_outbound_reports_share_token_unique'
+
+export function insertGeneratingQuery(v: { projectId: string; projectName: string; createdBy: string; rerunOf: string | null; range: { start: string; end: string } | null }) {
   return db.insert(t)
-    .values({ peecProjectId: v.projectId, peecProjectName: v.projectName, createdBy: v.createdBy, rerunOf: v.rerunOf })
+    .values({ peecProjectId: v.projectId, peecProjectName: v.projectName, createdBy: v.createdBy, rerunOf: v.rerunOf, requestedStart: v.range?.start ?? null, requestedEnd: v.range?.end ?? null })
     .returning({ id: t.id })
 }
 
@@ -112,11 +116,11 @@ export function recordOpenQuery(id: string, now: Date) {
     .where(and(eq(t.id, id), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt)))
 }
 
-/** Edit a copy: a new draft carrying an approved row's data, slots and notes, with rerun_of pointing at it. */
+/** Edit a copy: a new draft carrying an approved row's data, slots and notes, with rerun_of pointing at it and the requested range carried over. */
 export function copyAsDraftQuery(sourceId: string, by: string, now: Date) {
   // One literal statement: insert-select cannot carry the 'draft' literal or the parameters through Drizzle's typed builder.
   const at = now.toISOString()
-  return sql`insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", 'draft', "data", "slots", "notes", "id", ${by}, ${at}::timestamptz, ${at}::timestamptz from "aeo_outbound_reports" where "id" = ${sourceId} and "status" = 'approved' and "deleted_at" is null returning "id"`
+  return sql`insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "requested_start", "requested_end", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", 'draft', "data", "slots", "notes", "id", "requested_start", "requested_end", ${by}, ${at}::timestamptz, ${at}::timestamptz from "aeo_outbound_reports" where "id" = ${sourceId} and "status" = 'approved' and "deleted_at" is null returning "id"`
 }
 
 /** The new draft's id, or undefined when the source is not an approved (live or revoked) row (a lost race matches nothing). */
@@ -166,9 +170,17 @@ export async function listReportSummaries(): Promise<ReportSummary[]> {
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 }
 
-export function isUniqueViolation(e: unknown): boolean {
-  const code = (x: unknown) => (x as { code?: string } | null)?.code
-  return code(e) === '23505' || code((e as { cause?: unknown } | null)?.cause) === '23505'
+/** True when a write lost a race on the named unique constraint: Postgres 23505 with that constraint name. Drizzle wraps the
+ *  driver's error (DrizzleQueryError.cause), so the chain is walked, at most 5 deep (lib/organic-social/chart-notes/mutations.ts:125). */
+export function isConstraintViolation(e: unknown, name: string): boolean {
+  let cur: unknown = e
+  for (let i = 0; i < 5 && cur && typeof cur === 'object'; i++) {
+    const { code, constraint, message, cause } = cur as { code?: unknown; constraint?: unknown; message?: unknown; cause?: unknown }
+    const named = constraint === name || (typeof message === 'string' && message.includes(name))
+    if (code === '23505' && named) return true
+    cur = cause
+  }
+  return false
 }
 
 /** The reason shown for a failed row; a generating row past the stale limit reads "Timed out" (spec §9). */

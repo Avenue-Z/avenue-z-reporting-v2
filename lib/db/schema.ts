@@ -504,6 +504,8 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
   html: text('html'),
   shareToken: text('share_token').unique(),
   rerunOf: uuid('rerun_of'),
+  requestedStart: date('requested_start', { mode: 'string' }),
+  requestedEnd: date('requested_end', { mode: 'string' }),
   shareRecipient: text('share_recipient'),
   openCount: integer('open_count').notNull().default(0),
   firstOpenedAt: timestamp('first_opened_at', { withTimezone: true }),
@@ -524,6 +526,7 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
     sql`(${table.status} = 'approved') = (${table.html} IS NOT NULL AND ${table.shareToken} IS NOT NULL AND ${table.shareRecipient} IS NOT NULL AND ${table.approvedAt} IS NOT NULL)`),
   revokeOnlyApproved: check('aeo_outbound_revoke_only_approved', sql`${table.shareRevokedAt} IS NULL OR ${table.status} = 'approved'`),
   deleteOnlyDraftOrFailed: check('aeo_outbound_delete_only_draft_failed', sql`${table.deletedAt} IS NULL OR ${table.status} IN ('draft', 'failed')`),
+  rangeBothOrNeither: check('aeo_outbound_range_both_or_neither', sql`(${table.requestedStart} IS NULL) = (${table.requestedEnd} IS NULL)`),
 }))
 
 export type AeoOutboundRow = typeof aeoOutboundReports.$inferSelect

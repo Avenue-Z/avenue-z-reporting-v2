@@ -63,7 +63,8 @@ export function slotEntries(s: Slots): [string, string][] {
   return out
 }
 
-export const needsValidationPaths = (s: Slots): string[] => slotEntries(s).filter(([, v]) => v.includes(NEEDS_VALIDATION)).map(([p]) => p)
+/** Case-insensitive: a reviewer typing "needs validation" still blocks Approve (spec §9). */
+export const needsValidationPaths = (s: Slots): string[] => slotEntries(s).filter(([, v]) => v.toLowerCase().includes(NEEDS_VALIDATION.toLowerCase())).map(([p]) => p)
 
 /** Shape and limits for a model reply (spec §6). category, market and an optional fixed next_step come from code. */
 export function validateGeneratedSlots(raw: unknown, fixed: { category: string; market: string; next_step?: string }): { ok: true; slots: Slots } | { ok: false; errors: string[] } {

@@ -1,5 +1,5 @@
 {
-  "id": "873b50cc-2565-430b-8dd5-4abdb23bd388",
+  "id": "e5f0ce84-766a-4c6e-8956-6813cd7a81d2",
   "prevId": "6e5e401e-faf1-425b-9942-0b85b09c740a",
   "version": "7",
   "dialect": "postgresql",
@@ -87,6 +87,18 @@
         "rerun_of": {
           "name": "rerun_of",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_start": {
+          "name": "requested_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_end": {
+          "name": "requested_end",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -229,6 +241,10 @@
         "aeo_outbound_delete_only_draft_failed": {
           "name": "aeo_outbound_delete_only_draft_failed",
           "value": "\"aeo_outbound_reports\".\"deleted_at\" IS NULL OR \"aeo_outbound_reports\".\"status\" IN ('draft', 'failed')"
+        },
+        "aeo_outbound_range_both_or_neither": {
+          "name": "aeo_outbound_range_both_or_neither",
+          "value": "(\"aeo_outbound_reports\".\"requested_start\" IS NULL) = (\"aeo_outbound_reports\".\"requested_end\" IS NULL)"
         }
       },
       "isRLSEnabled": false

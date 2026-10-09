@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { approveQuery, copyAsDraftQuery, discardQuery, displayStatus, failureReason, finishDraftQuery, finishFailedQuery, isReportId, isUniqueViolation, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, recentSummariesQuery, recordOpenQuery, revokeQuery, saveSlotsQuery } from './store'
+import { approveQuery, copyAsDraftQuery, discardQuery, displayStatus, failureReason, finishDraftQuery, finishFailedQuery, insertGeneratingQuery, isConstraintViolation, isReportId, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, ONE_GENERATING_INDEX, recentSummariesQuery, recordOpenQuery, revokeQuery, saveSlotsQuery, SHARE_TOKEN_UNIQUE } from './store'
 import type { AeoOutboundRow } from '@/lib/db/schema'
 import type { Slots } from './slots'
 import type { SnapshotData } from './metrics'
@@ -75,7 +75,7 @@ test('recording an open bumps the count on a live link only and leaves updated_a
 test('Edit a copy is one insert-select from an approved (live or revoked) row', () => {
   const q = new PgDialect().sqlToQuery(copyAsDraftQuery(ID, 'ryan@avenuez.com', NOW))
   expect(q.sql).toBe(
-    'insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", \'draft\', "data", "slots", "notes", "id", $1, $2::timestamptz, $3::timestamptz from "aeo_outbound_reports" where "id" = $4 and "status" = \'approved\' and "deleted_at" is null returning "id"')
+    'insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "requested_start", "requested_end", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", \'draft\', "data", "slots", "notes", "id", "requested_start", "requested_end", $1, $2::timestamptz, $3::timestamptz from "aeo_outbound_reports" where "id" = $4 and "status" = \'approved\' and "deleted_at" is null returning "id"')
   expect(q.params).toEqual(['ryan@avenuez.com', NOW_ISO, NOW_ISO, ID])
 })
 
@@ -149,10 +149,36 @@ test('report ids must be UUIDs before anything reaches Postgres', () => {
   for (const bad of ['', 'abc', "1' or '1'='1", 'c7d8e0a1-1111-4111-8111-11111111111Z', 5]) expect(isReportId(bad)).toBe(false)
 })
 
-test('unique violation detection', () => {
-  expect(isUniqueViolation({ code: '23505' })).toBe(true)
-  expect(isUniqueViolation({ cause: { code: '23505' } })).toBe(true)
-  expect(isUniqueViolation(new Error('x'))).toBe(false)
+test('the constraint names are exported', () => {
+  expect(ONE_GENERATING_INDEX).toBe('aeo_outbound_one_generating')
+  expect(SHARE_TOKEN_UNIQUE).toBe('aeo_outbound_reports_share_token_unique')
+})
+
+test('constraint violation detection is by name', () => {
+  const gen = { code: '23505', constraint: ONE_GENERATING_INDEX }
+  const tok = { code: '23505', constraint: SHARE_TOKEN_UNIQUE }
+  expect(isConstraintViolation(gen, ONE_GENERATING_INDEX)).toBe(true)
+  expect(isConstraintViolation(tok, SHARE_TOKEN_UNIQUE)).toBe(true)
+  expect(isConstraintViolation(gen, SHARE_TOKEN_UNIQUE)).toBe(false)
+  expect(isConstraintViolation(tok, ONE_GENERATING_INDEX)).toBe(false)
+  expect(isConstraintViolation({ code: '23505' }, ONE_GENERATING_INDEX)).toBe(false)
+  expect(isConstraintViolation({ code: '23505', message: `duplicate key value violates unique constraint "${SHARE_TOKEN_UNIQUE}"` }, SHARE_TOKEN_UNIQUE)).toBe(true)
+  expect(isConstraintViolation({ code: '23503', constraint: ONE_GENERATING_INDEX }, ONE_GENERATING_INDEX)).toBe(false)
+  expect(isConstraintViolation({ cause: { cause: gen } }, ONE_GENERATING_INDEX)).toBe(true)
+  expect(isConstraintViolation(new Error('x'), ONE_GENERATING_INDEX)).toBe(false)
+  expect(isConstraintViolation(null, ONE_GENERATING_INDEX)).toBe(false)
+  const deep = { cause: { cause: { cause: { cause: { cause: gen } } } } }
+  expect(isConstraintViolation(deep, ONE_GENERATING_INDEX)).toBe(false)
+})
+
+test('the insert stores the requested range, or both columns null', () => {
+  const base = { projectId: 'or_a', projectName: 'Acme', createdBy: 'ryan@avenuez.com', rerunOf: null }
+  const withRange = insertGeneratingQuery({ ...base, range: { start: '2026-09-01', end: '2026-09-30' } }).toSQL()
+  expect(withRange.sql).toBe(
+    'insert into "aeo_outbound_reports" ("id", "peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "revision", "error", "html", "share_token", "rerun_of", "requested_start", "requested_end", "share_recipient", "open_count", "first_opened_at", "last_opened_at", "created_by", "approved_by", "revoked_by", "deleted_by", "created_at", "updated_at", "approved_at", "share_revoked_at", "deleted_at") values (default, $1, $2, default, default, default, default, default, default, default, default, default, $3, $4, $5, default, default, default, default, $6, default, default, default, default, default, default, default, default) returning "id"')
+  expect(withRange.params).toEqual(['or_a', 'Acme', null, '2026-09-01', '2026-09-30', 'ryan@avenuez.com'])
+  const none = insertGeneratingQuery({ ...base, range: null }).toSQL()
+  expect(none.params).toEqual(['or_a', 'Acme', null, null, null, 'ryan@avenuez.com'])
 })
 
 test('a malformed share token returns undefined without building a query', async () => {
@@ -172,9 +198,12 @@ test('a malformed share token returns undefined without building a query', async
 
 test('the 0026 migration carries the open-tracking columns and the recipient check, and names no other table', () => {
   const sqlText = readFileSync('drizzle/0026_aeo_outbound_reports.sql', 'utf8')
-  for (const c of ['"share_recipient" text', '"open_count" integer DEFAULT 0 NOT NULL', '"first_opened_at" timestamp with time zone', '"last_opened_at" timestamp with time zone']) expect(sqlText).toContain(c)
+  for (const c of ['"requested_start" date', '"requested_end" date', '"share_recipient" text', '"open_count" integer DEFAULT 0 NOT NULL', '"first_opened_at" timestamp with time zone', '"last_opened_at" timestamp with time zone']) expect(sqlText).toContain(c)
   const approved = sqlText.split('\n').find((l) => l.includes('CONSTRAINT "aeo_outbound_approved_complete"')) ?? ''
   expect(approved).toContain('"aeo_outbound_reports"."share_recipient" IS NOT NULL')
+  const range = sqlText.split('\n').find((l) => l.includes('CONSTRAINT "aeo_outbound_range_both_or_neither" CHECK')) ?? ''
+  expect(range).toContain('"aeo_outbound_reports"."requested_start" IS NULL')
+  expect(range).toContain('"aeo_outbound_reports"."requested_end" IS NULL')
   const tables = [...sqlText.matchAll(/(?:CREATE TABLE|ALTER TABLE|ON|REFERENCES)\s+"(?:public"\.")?([a-z_]+)"/g)].map((m) => m[1])
   expect(new Set(tables)).toEqual(new Set(['aeo_outbound_reports']))
 })
