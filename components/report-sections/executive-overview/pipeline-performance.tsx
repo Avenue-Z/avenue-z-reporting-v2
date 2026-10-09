@@ -113,7 +113,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-text-muted">
+      <p className="text-xs text-text-muted" data-export-keep-with-next="">
         Open pipeline is as of today. Closed won is year to date.
         {/* Whole-org and scoped figures differ by orders of magnitude and carry
             identical tile titles, so the reader has nothing but this line to

@@ -31,12 +31,24 @@ test('a card that is not connected prints only its needs-connection copy, never 
   expect(screen.queryByText('open pipeline as of today')).toBeNull()
 })
 
-test('the Journey is one dark-panel block, each card a block, with no hover styling', () => {
+test('a one-row Journey is one dark-panel block, each card a block, with no hover styling', () => {
   const container = inExport([live, unconnected])
   const root = container.firstElementChild as HTMLElement
   expect(root.hasAttribute('data-export-block') && root.hasAttribute('data-export-chart')).toBe(true)
   expect(container.querySelectorAll('[data-export-block]')).toHaveLength(1 + 2)
   expect(container.querySelector('.cursor-default')).toBeNull()
+})
+
+// Final review, Important 2: four expanded cards (two rows at the 979 px export width) run ~730 px, more than page 1 has
+// under the header, so a whole-Journey block would leave page 1 a header strip or split anyway. Two rows break between
+// rows instead; each card stays whole.
+test('a two-row Journey is not one block: it breaks between rows, each card whole', () => {
+  const four = ['aeo', 'ga4', 'inbound', 'pipeline'].map((key) => ({ ...live, key }))
+  const container = inExport(four)
+  const root = container.firstElementChild as HTMLElement
+  expect(root.hasAttribute('data-export-block')).toBe(false)
+  expect(root.hasAttribute('data-export-chart')).toBe(true)
+  expect(container.querySelectorAll('[data-export-block]')).toHaveLength(4)
 })
 
 test('the live Journey still collapses until hovered', () => {

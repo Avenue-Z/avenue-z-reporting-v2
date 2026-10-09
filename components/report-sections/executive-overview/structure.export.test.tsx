@@ -52,10 +52,21 @@ test('pipeline: tiles are one block, the owners title stays with the list, owner
   const { container } = render(<PipelinePerformance data={PIPELINE} />)
   expect(container.querySelector('.grid')?.hasAttribute('data-export-block')).toBe(true)
   expect(screen.getByText('Open Deals by Owner').hasAttribute('data-export-keep-with-next')).toBe(true)
+  // Final review, Minor 2 (re-graded: a stranded title): the window line stays with the tiles, so the h2 can't strand with it.
+  expect(screen.getByText(/Open pipeline is as of today/).hasAttribute('data-export-keep-with-next')).toBe(true)
   expect(screen.getAllByTestId('owner-row')[0].parentElement?.hasAttribute('data-export-wrap')).toBe(true)
 })
 
 test('contact pacing prints as one block', () => {
   const { container } = render(<ContactPacing data={CONTACTS} />)
   expect((container.firstElementChild as HTMLElement).hasAttribute('data-export-block')).toBe(true)
+})
+
+// Final review, Important 1: each bar's hover tooltip is a w-max absolute span that pokes ~150 px past the content
+// width; Chromium's print then shrinks every page ~11% to fit it. Hidden (display: none) in the export, none overflow.
+test("contact pacing's bar tooltips are hidden in the export", () => {
+  const { container } = render(<ContactPacing data={CONTACTS} />)
+  const tips = [...container.querySelectorAll('span.absolute')].filter((s) => s.textContent?.startsWith('Week of'))
+  expect(tips).toHaveLength(CONTACTS.weeks.length)
+  expect(tips.every((t) => t.hasAttribute('data-export-hide'))).toBe(true)
 })

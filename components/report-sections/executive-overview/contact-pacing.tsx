@@ -182,7 +182,9 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
                       borderTopColor: isPartial ? CHART_COLORS.positive : undefined,
                     }}
                   />
-                  <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                  {/* Hidden in the PDF export: w-max and absolute, the last bars' tooltips overflow the content width, and
+                      Chromium's print shrinks every page to fit them. */}
+                  <span data-export-hide="" className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-2.5 py-1.5 text-xs text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
                     {isPartial
                       ? `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)} so far, ${daysElapsedInCurrentWeek} of 7 days`
                       : `Week of ${dateLabel(starts[i])} \u00b7 ${countLabel(b.contacts)}`}

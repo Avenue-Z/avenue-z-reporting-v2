@@ -57,7 +57,9 @@ export function DemandJourney({ stages }: DemandJourneyProps) {
   const exportMode = useExportMode()
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-bg-surface p-6" data-export-block="" data-export-chart="">
+    // One block only while it is one row (two cards at the 979 px export width): four expanded cards run ~730 px, more than
+    // page 1 has under the header, so they break between rows instead, each card whole.
+    <div className="rounded-xl border border-white/[0.06] bg-bg-surface p-6" data-export-chart="" {...(stages.length <= 2 ? { 'data-export-block': '' } : {})}>
       {/* Flow row */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:items-start lg:gap-0">
         {stages.map((stage, i) => {

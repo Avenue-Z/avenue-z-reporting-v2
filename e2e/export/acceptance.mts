@@ -132,6 +132,12 @@ if (!process.env.AUTH_SECRET) {
     const pdf = readPdf(file)
     check(outsideBox(pdf).length === 0, `${name}: nothing outside the content box (${outsideBox(pdf).length} words)`)
     check(pdf.pages.every((p) => p.width === 792 && p.height === 612), `${name}: ${pdf.pages.length} pages, all Letter landscape`)
+    // Printed at full width, not shrunk to fit: anything laid out past the 979 px content width (a w-max hover tooltip, PR 4
+    // final review) makes Chromium scale every page down, which outsideBox can't see. The header stamp is right-aligned to
+    // the content box's right edge (763.2 pt), so it ends there unless the page was shrunk (an 11% shrink put it at ~680).
+    const stamp = pdf.words.find((w) => w.page === 1 && w.text === 'Exported')
+    const stampEnd = stamp ? Math.max(...pdf.words.filter((w) => w.page === 1 && Math.abs(w.yMin - stamp.yMin) < 2).map((w) => w.xMax)) : 0
+    check(stampEnd > 757, `${name}: printed at full width, not shrunk to fit (stamp ends at ${stampEnd.toFixed(1)} pt)`)
     // Vercel caps a function's response body at 4.5 MB; full-size WebP post images once made this export 31 MB.
     check(bytes.length < 4_500_000, `${name}: under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
     // Every glyph comes from a web font the page loads, never from a system font: the server's Chromium has almost none
@@ -229,10 +235,13 @@ if (!process.env.AUTH_SECRET) {
     for (const [who, r] of [['staff', s], ['client', c]] as const) {
       if (!r) continue
       const text = r.pdf.words.map((w) => w.text).join(' ')
-      const controls = text.match(/By Conversion|7d avg|Prior period|rolling average|[↓↑] (Sessions|CVR)/g) ?? []
+      // The sort headers print uppercase (CSS), so a leaked arrow reads "↓ SESSIONS": that part ignores case. The rest keeps
+      // it: "Prior period" is the hover layer, while every KPI delta legitimately reads "vs prior period".
+      const controls = [...(text.match(/By Conversion|7d avg|Prior period|rolling average/g) ?? []), ...(text.match(/[↓↑] (Sessions|CVR)/gi) ?? [])]
       check(controls.length === 0, `eo-${eoClient}-${who}: no toggle, tab, sort or hover-only text (${[...new Set(controls)].join(', ') || 'none'})`)
       check(!text.includes('Reporting period'), `eo-${eoClient}-${who}: no reporting period stamped`)
-      check(/last 30 days/i.test(text), `eo-${eoClient}-${who}: each section keeps its own window label`) // printed uppercase
+      // Exact case: the Web Analytics label prints uppercase; the Journey's "sessions in the last 30 days" must not satisfy it.
+      check(text.includes('LAST 30 DAYS'), `eo-${eoClient}-${who}: each section keeps its own window label`)
     }
     if (s && c) check(body(s.pdf) === body(c.pdf), `eo-${eoClient}: the staff export prints exactly what the client export does`)
   }
