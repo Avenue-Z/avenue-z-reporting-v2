@@ -13,6 +13,10 @@ CREATE TABLE "aeo_outbound_reports" (
 	"html" text,
 	"share_token" text,
 	"rerun_of" uuid,
+	"share_recipient" text,
+	"open_count" integer DEFAULT 0 NOT NULL,
+	"first_opened_at" timestamp with time zone,
+	"last_opened_at" timestamp with time zone,
 	"created_by" text NOT NULL,
 	"approved_by" text,
 	"revoked_by" text,
@@ -23,7 +27,7 @@ CREATE TABLE "aeo_outbound_reports" (
 	"share_revoked_at" timestamp with time zone,
 	"deleted_at" timestamp with time zone,
 	CONSTRAINT "aeo_outbound_reports_share_token_unique" UNIQUE("share_token"),
-	CONSTRAINT "aeo_outbound_approved_complete" CHECK (("aeo_outbound_reports"."status" = 'approved') = ("aeo_outbound_reports"."html" IS NOT NULL AND "aeo_outbound_reports"."share_token" IS NOT NULL AND "aeo_outbound_reports"."approved_at" IS NOT NULL)),
+	CONSTRAINT "aeo_outbound_approved_complete" CHECK (("aeo_outbound_reports"."status" = 'approved') = ("aeo_outbound_reports"."html" IS NOT NULL AND "aeo_outbound_reports"."share_token" IS NOT NULL AND "aeo_outbound_reports"."share_recipient" IS NOT NULL AND "aeo_outbound_reports"."approved_at" IS NOT NULL)),
 	CONSTRAINT "aeo_outbound_revoke_only_approved" CHECK ("aeo_outbound_reports"."share_revoked_at" IS NULL OR "aeo_outbound_reports"."status" = 'approved'),
 	CONSTRAINT "aeo_outbound_delete_only_draft_failed" CHECK ("aeo_outbound_reports"."deleted_at" IS NULL OR "aeo_outbound_reports"."status" IN ('draft', 'failed'))
 );

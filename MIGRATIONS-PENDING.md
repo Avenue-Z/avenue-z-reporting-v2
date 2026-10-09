@@ -302,6 +302,7 @@ at, so a host guard runs first and refuses any host that is not the one I named 
 Before: a read-only dry run that lists what is pending. On dev and staging it must show exactly
 `0026_aeo_outbound_reports` and nothing else. On production `0025_chart_notes` is also unapplied,
 so production needs 0025 applied first, on my go, or the dry run will show both and the script
-would apply both. After: a read-only read-back of the `aeo_outbound_reports` table, its three
-checks, both indexes with the partial `WHERE status = 'generating'` intact, the
-`aeo_outbound_status` enum, and the migration ledger up by one.
+would apply both. After: a read-only read-back of the `aeo_outbound_reports` table with its four
+open-tracking columns, its three checks (the approved check including `share_recipient`), both indexes
+with the partial `WHERE status = 'generating'` intact, the `aeo_outbound_status` enum, and the
+migration ledger up by one.

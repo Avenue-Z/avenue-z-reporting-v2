@@ -1,5 +1,5 @@
 {
-  "id": "2fd45897-a345-45bb-87cb-1f64f2e17a73",
+  "id": "873b50cc-2565-430b-8dd5-4abdb23bd388",
   "prevId": "6e5e401e-faf1-425b-9942-0b85b09c740a",
   "version": "7",
   "dialect": "postgresql",
@@ -87,6 +87,31 @@
         "rerun_of": {
           "name": "rerun_of",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "share_recipient": {
+          "name": "share_recipient",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "open_count": {
+          "name": "open_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "first_opened_at": {
+          "name": "first_opened_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_opened_at": {
+          "name": "last_opened_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -195,7 +220,7 @@
       "checkConstraints": {
         "aeo_outbound_approved_complete": {
           "name": "aeo_outbound_approved_complete",
-          "value": "(\"aeo_outbound_reports\".\"status\" = 'approved') = (\"aeo_outbound_reports\".\"html\" IS NOT NULL AND \"aeo_outbound_reports\".\"share_token\" IS NOT NULL AND \"aeo_outbound_reports\".\"approved_at\" IS NOT NULL)"
+          "value": "(\"aeo_outbound_reports\".\"status\" = 'approved') = (\"aeo_outbound_reports\".\"html\" IS NOT NULL AND \"aeo_outbound_reports\".\"share_token\" IS NOT NULL AND \"aeo_outbound_reports\".\"share_recipient\" IS NOT NULL AND \"aeo_outbound_reports\".\"approved_at\" IS NOT NULL)"
         },
         "aeo_outbound_revoke_only_approved": {
           "name": "aeo_outbound_revoke_only_approved",

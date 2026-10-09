@@ -1,5 +1,7 @@
 import { expect, test, vi } from 'vitest'
-import { approveQuery, discardQuery, displayStatus, failureReason, finishDraftQuery, finishFailedQuery, isReportId, isUniqueViolation, liveByTokenQuery, markStaleGeneratingQuery, revokeQuery, saveSlotsQuery } from './store'
+import { readFileSync } from 'node:fs'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { approveQuery, copyAsDraftQuery, discardQuery, displayStatus, failureReason, finishDraftQuery, finishFailedQuery, isReportId, isUniqueViolation, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, recentSummariesQuery, recordOpenQuery, revokeQuery, saveSlotsQuery } from './store'
 import type { AeoOutboundRow } from '@/lib/db/schema'
 import type { Slots } from './slots'
 import type { SnapshotData } from './metrics'
@@ -27,11 +29,11 @@ test('save matches a live draft at the shown revision and bumps it', () => {
   }
 })
 
-test('approve matches a live draft at the shown revision', () => {
-  const q = approveQuery(ID, 7, { html: '<html>', token: 'tok', by: 'ryan@avenuez.com', now: NOW }).toSQL()
+test('approve matches a live draft at the shown revision and records the recipient', () => {
+  const q = approveQuery(ID, 7, { html: '<html>', token: 'tok', recipient: 'Jane Doe, Acme', by: 'ryan@avenuez.com', now: NOW }).toSQL()
   expect(q.sql).toBe(
-    `update ${T} set "status" = $1, "html" = $2, "share_token" = $3, "approved_by" = $4, "updated_at" = $5, "approved_at" = $6 where (${T}."id" = $7 and ${T}."status" = $8 and ${T}."revision" = $9 and ${T}."deleted_at" is null) returning "id", "share_token"`)
-  expect(q.params).toEqual(['approved', '<html>', 'tok', 'ryan@avenuez.com', NOW_ISO, NOW_ISO, ID, 'draft', 7])
+    `update ${T} set "status" = $1, "html" = $2, "share_token" = $3, "share_recipient" = $4, "approved_by" = $5, "updated_at" = $6, "approved_at" = $7 where (${T}."id" = $8 and ${T}."status" = $9 and ${T}."revision" = $10 and ${T}."deleted_at" is null) returning "id", "share_token"`)
+  expect(q.params).toEqual(['approved', '<html>', 'tok', 'Jane Doe, Acme', 'ryan@avenuez.com', NOW_ISO, NOW_ISO, ID, 'draft', 7])
 })
 
 test('revoke only touches a live approved link', () => {
@@ -58,8 +60,56 @@ test('stale generating rows for a project are failed before a new insert', () =>
 test('the token lookup requires approved and excludes revoked and deleted rows', () => {
   const q = liveByTokenQuery('tok').toSQL()
   expect(q.sql).toBe(
-    `select "html" from ${T} where (${T}."share_token" = $1 and ${T}."status" = $2 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null) limit $3`)
+    `select "id", "html" from ${T} where (${T}."share_token" = $1 and ${T}."status" = $2 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null) limit $3`)
   expect(q.params).toEqual(['tok', 'approved', 1])
+})
+
+test('recording an open bumps the count on a live link only and leaves updated_at alone', () => {
+  const q = recordOpenQuery(ID, NOW).toSQL()
+  expect(q.sql).toBe(
+    `update ${T} set "open_count" = ${T}."open_count" + 1, "first_opened_at" = coalesce(${T}."first_opened_at", $1), "last_opened_at" = $2 where (${T}."id" = $3 and ${T}."status" = $4 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null)`)
+  expect(q.params).toEqual([NOW_ISO, NOW_ISO, ID, 'approved'])
+  expect(q.sql).not.toContain('"updated_at"')
+})
+
+test('Edit a copy is one insert-select from a live approved row', () => {
+  const q = new PgDialect().sqlToQuery(copyAsDraftQuery(ID, 'ryan@avenuez.com', NOW))
+  expect(q.sql).toBe(
+    'insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", \'draft\', "data", "slots", "notes", "id", $1, $2::timestamptz, $3::timestamptz from "aeo_outbound_reports" where "id" = $4 and "status" = \'approved\' and "deleted_at" is null returning "id"')
+  expect(q.params).toEqual(['ryan@avenuez.com', NOW_ISO, NOW_ISO, ID])
+})
+
+const HUB_COLS = '"id", "peec_project_name", "brand_name", "status", "error", "share_token", "share_recipient", "open_count", "first_opened_at", "last_opened_at", "created_at", "approved_at", "share_revoked_at"'
+test('hub summaries select exactly the hub columns and never the heavy ones', () => {
+  const live = liveSummariesQuery().toSQL()
+  expect(live.sql).toBe(
+    `select ${HUB_COLS} from ${T} where (${T}."status" = $1 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null)`)
+  expect(live.params).toEqual(['approved'])
+  const recent = recentSummariesQuery(500).toSQL()
+  expect(recent.sql).toBe(
+    `select ${HUB_COLS} from ${T} where (${T}."deleted_at" is null and not (${T}."status" = $1 and ${T}."share_revoked_at" is null)) order by ${T}."created_at" desc limit $2`)
+  expect(recent.params).toEqual(['approved', 500])
+  for (const s of [live.sql, recent.sql]) for (const c of ['"data"', '"slots"', '"notes"', '"html"']) expect(s).not.toContain(c)
+})
+
+test('listReportSummaries merges the live rows with the recent ones once, newest first', async () => {
+  vi.resetModules()
+  const mk = (id: string, day: number) => ({ id, createdAt: new Date(Date.UTC(2026, 9, day)) })
+  const oldLive = mk('live-old', 1)
+  const recent = [mk('r3', 9), mk('r2', 8), mk('r1', 7)]
+  const chain = (rows: unknown[]) => ({ from: () => ({ where: () => Object.assign(Promise.resolve(rows), { orderBy: () => ({ limit: () => Promise.resolve(rows) }) }) }) })
+  const select = vi.fn()
+    .mockReturnValueOnce(chain([oldLive, recent[2]]))
+    .mockReturnValueOnce(chain(recent))
+  vi.doMock('@/lib/db/client', () => ({ db: { select } }))
+  try {
+    const store = await import('./store')
+    const out = await store.listReportSummaries()
+    expect(out.map((r) => r.id)).toEqual(['r3', 'r2', 'r1', 'live-old'])
+  } finally {
+    vi.doUnmock('@/lib/db/client')
+    vi.resetModules()
+  }
 })
 
 test('finishing a draft only matches a generating row', () => {
@@ -118,4 +168,13 @@ test('a malformed share token returns undefined without building a query', async
     vi.doUnmock('@/lib/db/client')
     vi.resetModules()
   }
+})
+
+test('the 0026 migration carries the open-tracking columns and the recipient check, and names no other table', () => {
+  const sqlText = readFileSync('drizzle/0026_aeo_outbound_reports.sql', 'utf8')
+  for (const c of ['"share_recipient" text', '"open_count" integer DEFAULT 0 NOT NULL', '"first_opened_at" timestamp with time zone', '"last_opened_at" timestamp with time zone']) expect(sqlText).toContain(c)
+  const approved = sqlText.split('\n').find((l) => l.includes('CONSTRAINT "aeo_outbound_approved_complete"')) ?? ''
+  expect(approved).toContain('"aeo_outbound_reports"."share_recipient" IS NOT NULL')
+  const tables = [...sqlText.matchAll(/(?:CREATE TABLE|ALTER TABLE|ON|REFERENCES)\s+"(?:public"\.")?([a-z_]+)"/g)].map((m) => m[1])
+  expect(new Set(tables)).toEqual(new Set(['aeo_outbound_reports']))
 })

@@ -1,7 +1,7 @@
-// The only reader and writer of aeo_outbound_reports (spec §9). Every write is one conditional statement, and all
-// but markStaleGeneratingQuery end in .returning(), so a lost race matches nothing instead of reporting success
-// (app/actions/commentary.ts:17-37). markStaleGeneratingQuery does not return rows.
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+// The only reader and writer of aeo_outbound_reports (spec §9). Every write (updates and inserts) is one conditional
+// statement, and all but markStaleGeneratingQuery and recordOpenQuery end in .returning(), so a lost race matches
+// nothing instead of reporting success (app/actions/commentary.ts:17-37). Those two do not return rows.
+import { and, desc, eq, inArray, isNull, lt, not, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
 import { STALE_GENERATING_MS } from './config'
@@ -48,9 +48,9 @@ export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, 
     .returning({ revision: t.revision })
 }
 
-export function approveQuery(id: string, shownRevision: number, v: { html: string; token: string; by: string; now: Date }) {
+export function approveQuery(id: string, shownRevision: number, v: { html: string; token: string; recipient: string; by: string; now: Date }) {
   return db.update(t)
-    .set({ status: 'approved', html: v.html, shareToken: v.token, approvedBy: v.by, approvedAt: v.now, updatedAt: v.now })
+    .set({ status: 'approved', html: v.html, shareToken: v.token, shareRecipient: v.recipient, approvedBy: v.by, approvedAt: v.now, updatedAt: v.now })
     .where(and(eq(t.id, id), eq(t.status, 'draft'), eq(t.revision, shownRevision), isNull(t.deletedAt)))
     .returning({ id: t.id, shareToken: t.shareToken })
 }
@@ -89,24 +89,80 @@ export async function getReport(id: string): Promise<ReportRow | undefined> {
   return r ? typed(r) : undefined
 }
 
-export async function listReports(): Promise<ReportRow[]> {
-  return (await db.select().from(t).where(isNull(t.deletedAt)).orderBy(desc(t.createdAt)).limit(200)).map(typed)
-}
-
 export async function findGeneratingFor(projectId: string): Promise<string | undefined> {
   return (await db.select({ id: t.id }).from(t).where(and(eq(t.peecProjectId, projectId), eq(t.status, 'generating'))).limit(1))[0]?.id
 }
 
 export function liveByTokenQuery(token: string) {
-  return db.select({ html: t.html }).from(t)
+  return db.select({ id: t.id, html: t.html }).from(t)
     .where(and(eq(t.shareToken, token), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt))).limit(1)
 }
 
-/** The frozen HTML for a live link, or undefined for unknown, revoked or discarded tokens. */
-export async function getLiveByToken(token: string): Promise<string | undefined> {
+/** The row id and frozen HTML for a live link, or undefined for unknown, revoked or discarded tokens. */
+export async function getLiveByToken(token: string): Promise<{ id: string; html: string } | undefined> {
   if (!isShareTokenShape(token)) return undefined
   const r = (await liveByTokenQuery(token))[0]
-  return r?.html ?? undefined
+  return r?.html ? { id: r.id, html: r.html } : undefined
+}
+
+/** Counts one open of a live link. Leaves updated_at alone: an open is not an edit. Returns no rows. */
+export function recordOpenQuery(id: string, now: Date) {
+  return db.update(t)
+    .set({ openCount: sql`${t.openCount} + 1`, firstOpenedAt: sql`coalesce(${t.firstOpenedAt}, ${now.toISOString()})`, lastOpenedAt: now })
+    .where(and(eq(t.id, id), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt)))
+}
+
+/** Edit a copy: a new draft carrying an approved row's data, slots and notes, with rerun_of pointing at it. */
+export function copyAsDraftQuery(sourceId: string, by: string, now: Date) {
+  // One literal statement: insert-select cannot carry the 'draft' literal or the parameters through Drizzle's typed builder.
+  const at = now.toISOString()
+  return sql`insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", 'draft', "data", "slots", "notes", "id", ${by}, ${at}::timestamptz, ${at}::timestamptz from "aeo_outbound_reports" where "id" = ${sourceId} and "status" = 'approved' and "deleted_at" is null returning "id"`
+}
+
+/** The new draft's id, or undefined when the source is not a live approved row (a lost race matches nothing). */
+export async function copyAsDraft(sourceId: string, by: string, now: Date): Promise<string | undefined> {
+  if (!isReportId(sourceId)) return undefined
+  const res = await db.execute(copyAsDraftQuery(sourceId, by, now))
+  return (res.rows[0] as { id?: string } | undefined)?.id
+}
+
+const hubColumns = {
+  id: t.id,
+  peecProjectName: t.peecProjectName,
+  brandName: t.brandName,
+  status: t.status,
+  error: t.error,
+  shareToken: t.shareToken,
+  shareRecipient: t.shareRecipient,
+  openCount: t.openCount,
+  firstOpenedAt: t.firstOpenedAt,
+  lastOpenedAt: t.lastOpenedAt,
+  createdAt: t.createdAt,
+  approvedAt: t.approvedAt,
+  shareRevokedAt: t.shareRevokedAt,
+}
+/** One hub row: the columns the list shows, never data, slots, notes or html. */
+export type ReportSummary = Pick<AeoOutboundRow, keyof typeof hubColumns>
+
+/** Every live link, with no limit, so a live link can never fall off the hub. */
+export function liveSummariesQuery() {
+  return db.select(hubColumns).from(t).where(and(eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt)))
+}
+
+/** The newest rows that are not live and not discarded. */
+export function recentSummariesQuery(limit: number) {
+  return db.select(hubColumns).from(t).where(and(isNull(t.deletedAt), not(and(eq(t.status, 'approved'), isNull(t.shareRevokedAt))!))).orderBy(desc(t.createdAt)).limit(limit)
+}
+
+export const HUB_RECENT_LIMIT = 500
+
+/** All live links plus the newest HUB_RECENT_LIMIT others, each row once, newest first. */
+export async function listReportSummaries(): Promise<ReportSummary[]> {
+  const [live, recent] = await Promise.all([liveSummariesQuery(), recentSummariesQuery(HUB_RECENT_LIMIT)])
+  const seen = new Set<string>()
+  return [...live, ...recent]
+    .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 }
 
 export function isUniqueViolation(e: unknown): boolean {
