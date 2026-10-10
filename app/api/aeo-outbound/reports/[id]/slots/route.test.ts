@@ -37,13 +37,17 @@ const patch = (b: unknown, id = ID, headers: Record<string, string> = {}) =>
   PATCH(new NextRequest(`https://app.example/api/aeo-outbound/reports/${id}/slots`, { method: 'PATCH', body: typeof b === 'string' ? b : JSON.stringify(b), headers: { 'content-type': 'application/json', host: 'app.example', ...headers } }), { params: Promise.resolve({ id }) })
 const as = (email: string) => vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ANALYST', email, clientSlug: null } } as never)
 
+const logged = () => [...vi.mocked(console.error).mock.calls, ...vi.mocked(console.warn).mock.calls].map((c) => c.join(' '))
+
 beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.stubEnv('AEO_OUTBOUND_USERS', 'ryan@avenuez.com')
   as('ryan@avenuez.com')
   m.getReport.mockResolvedValue(row())
   m.save.mockResolvedValue([{ revision: 4 }])
 })
-afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks() })
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); vi.clearAllMocks() })
 
 test('403 for no session, non-allowlisted staff and a foreign Origin; nothing is read or written', async () => {
   vi.mocked(auth).mockResolvedValue(null as never)
@@ -67,9 +71,29 @@ test('404 for a malformed, unknown or discarded id', async () => {
   expect((await patch({ path: 'headline', value: 'x', revision: 3 }, 'nope')).status).toBe(404)
   m.getReport.mockResolvedValue(undefined)
   expect((await patch({ path: 'headline', value: 'x', revision: 3 })).status).toBe(404)
-  m.getReport.mockRejectedValue(new Error('db down'))
-  expect((await patch({ path: 'headline', value: 'x', revision: 3 })).status).toBe(404)
   expect(m.save).not.toHaveBeenCalled()
+})
+
+test('503 unavailable, with one safe log line, when the read or the save rejects', async () => {
+  const secret = 'secret-slot-value@example.com'
+  const dbErr = () => Object.assign(new Error(`query params ${secret}`), { code: '57P01' })
+  m.getReport.mockRejectedValue(dbErr())
+  let res = await patch({ path: 'headline', value: secret, revision: 3 })
+  expect(res.status).toBe(503)
+  expect(await res.json()).toEqual({ error: 'unavailable' })
+  expect(logged()).toEqual([`[aeo-outbound] slots read failed id=${ID} reason=57P01`])
+  vi.mocked(console.error).mockClear()
+  m.getReport.mockResolvedValue(row())
+  m.save.mockRejectedValue(new Error('boom'))
+  res = await patch({ path: 'headline', value: secret, revision: 3 })
+  expect(res.status).toBe(503)
+  expect(logged()).toEqual([`[aeo-outbound] slots save failed id=${ID} reason=Error`])
+  vi.mocked(console.error).mockClear()
+  m.save.mockResolvedValue([])
+  m.getReport.mockResolvedValueOnce(row()).mockRejectedValueOnce(dbErr())
+  res = await patch({ path: 'headline', value: secret, revision: 3 })
+  expect(res.status).toBe(503)
+  for (const line of logged()) { expect(line).not.toContain(secret); expect(line).not.toContain('@') }
 })
 
 test('409 not-draft for an approved row, with its revision', async () => {
@@ -77,6 +101,17 @@ test('409 not-draft for an approved row, with its revision', async () => {
   const res = await patch({ path: 'headline', value: 'x', revision: 7 })
   expect(res.status).toBe(409)
   expect(await res.json()).toEqual({ error: 'not-draft', revision: 7 })
+  expect(m.save).not.toHaveBeenCalled()
+  expect(logged()).toEqual([`[aeo-outbound] slots refused id=${ID} reason=not-draft`])
+})
+
+test('409 not-draft for a draft row with null slots or null data', async () => {
+  for (const over of [{ slots: null }, { data: null }]) {
+    m.getReport.mockResolvedValue(row(over))
+    const res = await patch({ path: 'headline', value: 'x', revision: 3 })
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'not-draft', revision: 3 })
+  }
   expect(m.save).not.toHaveBeenCalled()
 })
 
@@ -99,6 +134,15 @@ test('409 stale with the current revision when nothing matched', async () => {
   const res = await patch({ path: 'headline', value: 'New headline.', revision: 3 })
   expect(res.status).toBe(409)
   expect(await res.json()).toEqual({ error: 'stale', revision: 5 })
+  expect(logged()).toEqual([`[aeo-outbound] slots refused id=${ID} reason=stale`])
+})
+
+test('409 stale with a null revision when the row is gone on the second read', async () => {
+  m.save.mockResolvedValue([])
+  m.getReport.mockResolvedValueOnce(row()).mockResolvedValueOnce(undefined)
+  const res = await patch({ path: 'headline', value: 'New headline.', revision: 3 })
+  expect(res.status).toBe(409)
+  expect(await res.json()).toEqual({ error: 'stale', revision: null })
 })
 
 test('200 with the new revision, the notes plus fresh grounding flags, and needsValidation', async () => {

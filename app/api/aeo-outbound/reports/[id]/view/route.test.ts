@@ -35,11 +35,12 @@ const get = (id = ID, qs = '') => GET(new NextRequest(`https://app.example/api/a
 const as = (email: string) => vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ANALYST', email, clientSlug: null } } as never)
 
 beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.stubEnv('AEO_OUTBOUND_USERS', 'ryan@avenuez.com')
   as('ryan@avenuez.com')
   m.getReport.mockResolvedValue(row())
 })
-afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks() })
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); vi.clearAllMocks() })
 
 test('403 for no session and for non-allowlisted staff, before any read', async () => {
   vi.mocked(auth).mockResolvedValue(null as never)
@@ -54,8 +55,17 @@ test('404 for a malformed, unknown or discarded id', async () => {
   expect(m.getReport).not.toHaveBeenCalled()
   m.getReport.mockResolvedValue(undefined)
   expect((await get()).status).toBe(404)
-  m.getReport.mockRejectedValue(new Error('db down'))
-  expect((await get()).status).toBe(404)
+})
+
+test('503 with no-store and one safe log line when the read rejects', async () => {
+  m.getReport.mockRejectedValue(Object.assign(new Error('params ryan@avenuez.com'), { code: '57P01' }))
+  const res = await get()
+  expect(res.status).toBe(503)
+  expect(await res.text()).toBe('Unavailable')
+  expect(res.headers.get('Cache-Control')).toBe('no-store')
+  const lines = vi.mocked(console.error).mock.calls.map((c) => c.join(' '))
+  expect(lines).toEqual([`[aeo-outbound] view read failed id=${ID} reason=57P01`])
+  expect(lines[0]).not.toContain('@')
 })
 
 test('404 for generating and failed rows', async () => {
