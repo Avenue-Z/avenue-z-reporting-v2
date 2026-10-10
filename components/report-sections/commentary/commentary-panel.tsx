@@ -8,6 +8,7 @@ import { CommentaryEditor } from './commentary-editor'
 import { approveCommentary, revokeCommentary, deleteCommentaryDraft } from '@/app/actions/commentary'
 import type { CommentaryEntry, CommentaryCapabilities, CommentaryPeriodHistory, CommentaryVersionTag } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
+import { INSIGHTS_LABELS, addText, emptyText as emptyDefault, type CommentaryLabels } from '@/lib/commentary/labels'
 import { useExportMode } from '@/components/export/export-mode'
 
 function fmt(d: string): string {
@@ -41,6 +42,7 @@ export function CommentaryPanel({
   defaultPeriod,
   emptyText,
   entryNotes,
+  labels = INSIGHTS_LABELS,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
@@ -53,6 +55,8 @@ export function CommentaryPanel({
   defaultPeriod?: { start: string; end: string }
   emptyText?: string
   entryNotes?: Record<string, string>
+  /** The box's words (title, button, empty line). Absent: Insights, the box formerly titled Commentary. */
+  labels?: CommentaryLabels
 }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
@@ -68,7 +72,7 @@ export function CommentaryPanel({
   const selected = entries.find((e) => e.id === selectedId) ?? null
   const exportMode = useExportMode()
 
-  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} />
+  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} title={labels.title} />
 
   function refresh() {
     setEditing(null)
@@ -98,17 +102,17 @@ export function CommentaryPanel({
     <section className="mb-8 rounded-lg border border-white/[0.08] bg-bg-surface">
       <div className="flex items-center justify-between p-4">
         <button type="button" onClick={() => setCollapsed((c) => !c)} className="flex items-center gap-2 text-sm font-extrabold text-white">
-          <span>{collapsed ? '▸' : '▾'}</span> Commentary
+          <span>{collapsed ? '▸' : '▾'}</span> {labels.title}
         </button>
         {capabilities.canEdit && editing === null && (
-          <Button onClick={() => setEditing('new')}>Add commentary</Button>
+          <Button onClick={() => setEditing('new')}>{addText(labels)}</Button>
         )}
       </div>
 
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
           {editing === 'new' && (
-            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} defaultPeriod={defaultPeriod} />
+            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} defaultPeriod={defaultPeriod} outline={labels.outline} />
           )}
 
           {editing !== 'new' && entries.length > 1 && (
@@ -125,7 +129,7 @@ export function CommentaryPanel({
             </select>
           )}
 
-          {editing !== 'new' && !selected && <p className="text-sm text-text-muted">{emptyText ?? 'No commentary yet.'}</p>}
+          {editing !== 'new' && !selected && <p className="text-sm text-text-muted">{emptyText ?? emptyDefault(labels)}</p>}
 
           {editing !== 'new' && selected && editing !== selected.id && (
             <article className="space-y-3">
@@ -170,7 +174,7 @@ export function CommentaryPanel({
           )}
 
           {editing !== 'new' && selected && editing === selected.id && (
-            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} />
+            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} outline={labels.outline} />
           )}
 
           {capabilities.canApprove && history.length > 0 && (
@@ -224,11 +228,11 @@ export function CommentaryPanel({
 /** Commentary as the PDF export prints it: what the client sees, whoever exports. The client's entry is worked out
  *  server-side with the client's own rules (index.tsx; monthly.tsx for a locked month, where a whole-month entry wins),
  *  not from `initialId`, which for staff is the newest entry including drafts. None, nothing. No controls; one block. */
-function ExportCommentary({ entry: shown }: { entry: CommentaryEntry | null }) {
+function ExportCommentary({ entry: shown, title }: { entry: CommentaryEntry | null; title: string }) {
   if (!shown) return null
   return (
     <section data-export-block="" className="mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4">
-      <h2 className="text-sm font-extrabold text-white">Commentary</h2>
+      <h2 className="text-sm font-extrabold text-white">{title}</h2>
       <p className="text-xs text-text-muted">Reporting period: {fmt(shown.periodStart)} – {fmt(shown.periodEnd)}</p>
       <div
         className="text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1"

@@ -69,6 +69,7 @@ export default defineConfig({
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
       'components/charts/line-chart.test.tsx',
       'components/charts/kpi-card.test.tsx',
+      'components/charts/progress-ring.test.tsx',
       'components/export-pdf-button.test.tsx',
       'lib/export-period.test.ts',
       'lib/export-period.pages.test.tsx',

@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import { roundDelta } from '@/lib/delta-rounding'
+import { HoverHint } from './hover-hint'
 
 interface KpiCardProps {
   title: string
@@ -45,17 +46,7 @@ export function KpiCard({
         <p className="text-xs font-extrabold uppercase tracking-widest text-text-muted">
           {title}
         </p>
-        {tooltip && (
-          <div className="group relative flex-shrink-0">
-            <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">
-              ?
-            </span>
-            <div className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-56 -translate-x-1/2 rounded-md border border-white/[0.08] bg-bg-surface px-3 py-2 text-xs leading-relaxed text-text-muted opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-              {tooltip}
-              <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white/[0.08]" />
-            </div>
-          </div>
-        )}
+        {tooltip && <HoverHint text={tooltip} />}
       </div>
 
       <p className="mt-2 text-3xl font-extrabold text-white">

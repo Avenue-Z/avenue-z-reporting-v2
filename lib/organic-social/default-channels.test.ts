@@ -45,5 +45,5 @@ test('a client that names TikTok gets it through the real client lookup', async 
 test('a client with no allowlist keeps exactly the tabs it has today', () => {
   const client = { dashSocialConfig: { brandId: 1 }, hiddenReports: [] } as unknown as Client
   expect(organicSocialSubsections(client).map((s) => s.id))
-    .toEqual([null, 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x'])
+    .toEqual([null, 'organic-influencer', 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x'])
 })

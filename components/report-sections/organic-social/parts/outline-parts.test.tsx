@@ -34,6 +34,8 @@ const built = (value: number | null) => buildOutlineKpis('INSTAGRAM',
   Object.fromEntries(outlineSpecsFor('INSTAGRAM').map((s) => [metricFor(s), { value, context: null, context_change: null }])),
   outlineSpecsFor('INSTAGRAM'))
 const text = async (node: Promise<ReactNode>) => render(<>{await node}</>).container
+/** React's useId values (\"_r_0_\") differ per render; markup comparisons treat them as one placeholder. */
+const sameIds = (html: string) => html.replace(/_r_[0-9a-z]+_/g, '<id>')
 const builtFor = (ch: 'FACEBOOK' | 'INSTAGRAM', value: number) => buildOutlineKpis(ch,
   Object.fromEntries(outlineSpecsFor(ch).map((s) => [metricFor(s), { value, context: null, context_change: null }])),
   outlineSpecsFor(ch))
@@ -64,7 +66,8 @@ test('the Data part shows the outline rows, Video Views from Views on Reels, and
   expect(c.textContent).toContain('Profile Views')
   expect(card(c, 'Video Views')!.textContent).toContain('1,234')
   expect(getOutlineMediaKpis).toHaveBeenCalledWith(IG.clientSlug, IG.dateRange, IG.compareRange, 'INSTAGRAM')
-  for (const gone of ['Likes', 'Saves', 'Reposts']) expect(c.textContent).not.toContain(gone)
+  // Tiles by title, not substrings: the engagements definition text legitimately contains "Likes".
+  for (const gone of ['Likes', 'Saves', 'Reposts']) expect(card(c, gone)).toBeFalsy()
 })
 
 test('a failed Views on Reels request flags only its row, and says so once in the log', async () => {
@@ -189,13 +192,30 @@ test("Facebook has no Profile Views tile: Jasmine removed the row, so the block 
 })
 
 test("the Data block draws a tab with no flagged row exactly as the shared tiles do, under the heading \"Data\"", async () => {
+  // Facebook: no outline override, so every tile carries the same badge on both. (Instagram's one difference is below.)
+  getOutlineKpis.mockResolvedValueOnce(builtFor('FACEBOOK', 10))
+  const outline = await text(OutlineDataSection({ ctx: { ...IG, channel: 'FACEBOOK' }, channel: 'FACEBOOK', rows: OUTLINE_DATA_ROWS.standard.FACEBOOK! }))
+  const h = selectOutlineRows('FACEBOOK', builtFor('FACEBOOK', 10), OUTLINE_DATA_ROWS.standard.FACEBOOK!)
+  expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
+  // Identical markup except the heading text: the shared tiles drawn under the outline's heading. Each badge carries an
+  // id from useId (it links the badge to its definition), and every render mints its own, so ids are compared as a shape.
+  const shared = render(<PlatformHeadlines headlines={[{ ...h, label: 'Data' } as PlatformHeadline]} />).container
+  expect(sameIds(outline.innerHTML)).toBe(sameIds(shared.innerHTML))
+})
+
+test('on Instagram the Data block differs from the shared tiles by one thing only: the Engagement Rate badge', async () => {
+  // The outline tab reads the views-basis rate, which the appendix text describes; the shared tile reads the
+  // follower-basis rate and draws no badge for it (sharedTileDefinition). Everything else is the same markup.
   getOutlineKpis.mockResolvedValueOnce(builtFor('INSTAGRAM', 10))
   const outline = await text(OutlineDataSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_DATA_ROWS.standard.INSTAGRAM! }))
   const b = builtFor('INSTAGRAM', 10)
   const h = selectOutlineRows('INSTAGRAM', { ...b, kpis: { ...b.kpis, ...REELS } }, OUTLINE_DATA_ROWS.standard.INSTAGRAM!)
-  expect(h.kpis.every((k) => !k.unavailable)).toBe(true)
-  // Identical markup except the heading text: the shared tiles drawn under the outline's heading.
   const shared = render(<PlatformHeadlines headlines={[{ ...h, label: 'Data' } as PlatformHeadline]} />).container
+  const badges = (c: HTMLElement) => c.querySelectorAll('[data-export-hide]')
+  expect(badges(outline).length).toBe(badges(shared).length + 1)
+  expect(card(outline, 'Engagement Rate')?.querySelector('[data-export-hide]')).not.toBeNull()
+  expect(card(shared, 'Engagement Rate')?.querySelector('[data-export-hide]')).toBeNull()
+  for (const c of [outline, shared]) badges(c).forEach((e) => e.remove())
   expect(outline.innerHTML).toBe(shared.innerHTML)
 })
 
@@ -212,7 +232,7 @@ test('with no data, a tab with a flagged row shows only the no-data card, as the
 })
 
 test('a flagged row under the graph is a blank tile with the flag too', () => {
-  const c = render(<OutlineTiles kpis={[
+  const c = render(<OutlineTiles channel="INSTAGRAM" kpis={[
     { key: 'likes', label: 'Likes', format: 'number', value: 7 },
     { key: 'reposts', label: 'Reposts', format: 'number', value: null, unavailable: NOT_IN_DASH },
   ]} />).container
@@ -221,7 +241,7 @@ test('a flagged row under the graph is a blank tile with the flag too', () => {
 })
 
 test('outline tiles show percent changes as whole numbers, the arrow following the rounded value', () => {
-  const c = render(<OutlineTiles kpis={[
+  const c = render(<OutlineTiles channel="INSTAGRAM" kpis={[
     { key: 'views', label: 'Views', format: 'number', value: 100, delta: 6.34 },
     { key: 'likes', label: 'Likes', format: 'number', value: 100, delta: 0.04 },
   ]} />).container

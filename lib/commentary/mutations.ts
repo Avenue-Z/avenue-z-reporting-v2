@@ -8,7 +8,7 @@ export function validateCommentaryInput(input: {
   periodEnd: string
 }): { ok: boolean; error?: string } {
   const text = (input.bodyHtml ?? '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
-  if (!text) return { ok: false, error: 'Commentary body is required.' }
+  if (!text) return { ok: false, error: 'Text is required.' }
   if (!input.periodStart || !input.periodEnd) return { ok: false, error: 'A date range is required.' }
   if (input.periodStart > input.periodEnd) return { ok: false, error: 'Start date must be on or before the end date.' }
   return { ok: true }

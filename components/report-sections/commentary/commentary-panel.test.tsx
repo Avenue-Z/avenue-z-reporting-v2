@@ -122,7 +122,7 @@ describe('delete draft button', () => {
 })
 
 describe('deleting the dropdown-selected draft', () => {
-  test('falls back to the RSC default instead of stranding on "No commentary yet."', async () => {
+  test('falls back to the RSC default instead of stranding on "No insights yet."', async () => {
     const { deleteCommentaryDraft } = await import('@/app/actions/commentary')
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
@@ -153,7 +153,7 @@ describe('deleting the dropdown-selected draft', () => {
     // Simulate the RSC's post-refresh render: the deleted draft is gone from `entries`.
     rerender(<CommentaryPanel {...props} entries={[juneApproved]} initialId={juneApproved.id} clientEntryId={null} />)
 
-    expect(screen.queryByText('No commentary yet.')).toBeNull()
+    expect(screen.queryByText('No insights yet.')).toBeNull()
     expect(screen.getByText('Visibility climbed this month.')).toBeTruthy()
 
     confirmSpy.mockRestore()
@@ -218,11 +218,11 @@ test('panel and editor HTML without the new optional props', () => {
 test('the new optional props: empty text, the team note, and the month as a new entry\'s period', () => {
   const empty = render(
     <CommentaryPanel clientSlug="acme" viewKey="organic-social:instagram" entries={[]} initialId={null} clientEntryId={null}
-      capabilities={{ canEdit: true, canApprove: false }} history={[]} emptyText="No commentary for September 2026 yet"
+      capabilities={{ canEdit: true, canApprove: false }} history={[]} emptyText="No insights for September 2026 yet"
       defaultPeriod={{ start: '2026-09-01', end: '2026-09-30' }} />,
   )
-  expect(empty.container.textContent).toContain('No commentary for September 2026 yet')
-  fireEvent.click(empty.getByText('Add commentary'))
+  expect(empty.container.textContent).toContain('No insights for September 2026 yet')
+  fireEvent.click(empty.getByText('Add insights'))
   expect([...empty.container.querySelectorAll('input[type="date"]')].map((i) => (i as HTMLInputElement).value)).toEqual(['2026-09-01', '2026-09-30'])
   empty.unmount()
   const noted = render(
@@ -230,4 +230,17 @@ test('the new optional props: empty text, the team note, and the month as a new 
       capabilities={{ canEdit: true, canApprove: false }} history={[]} entryNotes={{ [ENTRY.id]: 'Clients see this from Nov 12' }} />,
   )
   expect(noted.container.textContent).toContain('Clients see this from Nov 12')
+})
+
+test('the box title, button and empty line follow the labels prop; the default is Insights', () => {
+  const base = { clientSlug: 'c', viewKey: 'organic-social' as const, entries: [], initialId: null, clientEntryId: null, capabilities: { canEdit: true, canApprove: false }, history: [] }
+  const a = render(<CommentaryPanel {...base} />)
+  expect(a.getByText('Insights')).toBeTruthy()
+  expect(a.getByText('Add insights')).toBeTruthy()
+  expect(a.getByText('No insights yet.')).toBeTruthy()
+  a.unmount()
+  const b = render(<CommentaryPanel {...base} viewKey="organic-social:recommendations" labels={{ title: 'Recommendations', noun: 'recommendations', outline: null }} />)
+  expect(b.getByText('Recommendations')).toBeTruthy()
+  expect(b.getByText('Add recommendations')).toBeTruthy()
+  expect(b.getByText('No recommendations yet.')).toBeTruthy()
 })

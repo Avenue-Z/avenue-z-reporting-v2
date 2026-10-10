@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { cn } from '@/lib/utils'
 import { PostCard } from './post-card'
-import { SORT_METRICS, sortPosts, paginate, type SortKey, type SortDir } from '@/lib/organic-social/sort-content'
+import { sortPosts, paginate, type SortKey, type SortDir } from '@/lib/organic-social/sort-content'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
 import { useExportMode } from '@/components/export/export-mode'
+import { SortToolbar, useSort } from './sort-toolbar'
 
 export type PlatformGroup = { platform: string; posts: TopContentPost[] }
 
@@ -105,23 +105,11 @@ export function SortableTopContent({
    *  page alone (the part's own title is hidden there). The live page ignores it. */
   heading?: string
 }) {
-  const metrics = sortKeys ? SORT_METRICS.filter((m) => sortKeys.includes(m.key)) : SORT_METRICS
-  const [sortKey, setSortKey] = useState<SortKey>(metrics.some((m) => m.key === 'engagements') ? 'engagements' : metrics[0].key)
-  const [dir, setDir] = useState<SortDir>('desc')
+  const { metrics, sortKey, dir, onMetric } = useSort(sortKeys)
   const exportMode = useExportMode()
   if (exportMode) {
     return <ExportTopContent owned={owned} influencer={influencer} clientSlug={clientSlug} pageSize={pageSize} ownedLimit={ownedLimit}
       sortKey={sortKey} sortLabel={metrics.find((m) => m.key === sortKey)!.label} influencerHeading={influencerHeading} heading={heading} />
-  }
-
-  // Click the active metric → flip direction; click another → switch to it, starting descending.
-  const onMetric = (key: SortKey) => {
-    if (key === sortKey) {
-      setDir((d) => (d === 'desc' ? 'asc' : 'desc'))
-    } else {
-      setSortKey(key)
-      setDir('desc')
-    }
   }
 
   // key includes sortKey+dir so a sort change REMOUNTS each row, resetting its page to 0 — the new
@@ -144,29 +132,7 @@ export function SortableTopContent({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Sort by</span>
-        {metrics.map((m) => {
-          const active = m.key === sortKey
-          return (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => onMetric(m.key)}
-              aria-pressed={active}
-              className={cn(
-                'rounded-full border px-3 py-1 text-xs font-bold transition-colors',
-                active
-                  ? 'border-white/20 bg-white/[0.06] text-white'
-                  : 'border-white/[0.08] text-text-muted hover:text-white',
-              )}
-            >
-              {m.label}
-              {active ? (dir === 'desc' ? ' ↓' : ' ↑') : ''}
-            </button>
-          )
-        })}
-      </div>
+      <SortToolbar metrics={metrics} sortKey={sortKey} dir={dir} onMetric={onMetric} />
 
       <div className="space-y-5">{rows(owned, 'owned')}</div>
 

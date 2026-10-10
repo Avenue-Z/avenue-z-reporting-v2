@@ -16,7 +16,7 @@ test('the id is organic-overview, namespaced like the platform tabs', () => {
 })
 
 test('a client that hides Overview gets only its platform tabs, in outline order', () => {
-  expect(tabs(APFM)).toEqual(['organic-instagram', 'organic-facebook', 'organic-linkedin'])
+  expect(tabs(APFM)).toEqual(['organic-instagram', 'organic-influencer', 'organic-facebook', 'organic-linkedin'])
 })
 
 test('with Overview hidden, the report opens on the first platform tab', () => {
@@ -31,9 +31,9 @@ test('with Overview hidden, a named platform tab still opens', () => {
 
 // THE RENAISSANCE GUARD. Its hidden reports (read 2026-09-18) do not list organic-overview
 // and it has no channel allowlist, so its Organic Social tabs are exactly today's.
-test("Renaissance's settings keep Overview first and every tab as today", () => {
+test("Renaissance's settings keep Overview first, then the Influencer tab and every platform tab", () => {
   const ren = client(undefined, ['technical-audit', 'content-impact'])
-  expect(tabs(ren)).toEqual([null, 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x'])
+  expect(tabs(ren)).toEqual([null, 'organic-influencer', 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x'])
   expect(resolveOrganicSubsection(ren, null).channel).toBeNull()
 })
 

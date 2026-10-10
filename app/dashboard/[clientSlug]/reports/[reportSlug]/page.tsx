@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
-import { REPORT_NAMES, resolveOrganicSubsection } from '@/lib/constants'
+import { REPORT_NAMES, resolveOrganicSubsection, type OrganicView } from '@/lib/constants'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 import { Header } from '@/components/layout/header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -42,7 +42,7 @@ function ReportSkeleton() {
   )
 }
 
-function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null, organicChannel: DashChannel | null) {
+function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null, organicChannel: DashChannel | null, organicView: OrganicView = null) {
   switch (reportSlug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -79,7 +79,7 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
       // ?subsection= param resolves to when it is absent (Spec 1 §5.2). Hard-coding Overview
       // here rendered a tab a client that hides Overview cannot navigate to. The health sweep
       // and cache warmer fetch this route's portal twin, not this one (Paul's review of PR 255).
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={organicChannel} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={organicChannel} view={organicView} />
     default:
       return null
   }
@@ -109,7 +109,7 @@ export default async function ReportPage({
   // The error boundary below reuses it, as the SPA's does. deep-link-parity.test.tsx holds the two
   // routes together, so neither can drift from the other.
   const reportName =
-    reportSlug === 'organic-social' && organicChannel != null
+    reportSlug === 'organic-social' && (organicChannel != null || organicEntry.view === 'influencer')
       ? organicEntry.label
       : (REPORT_NAMES[reportSlug] ?? reportSlug)
   const dateRange = dateRangeParam ?? 'last_30_days'
@@ -133,7 +133,7 @@ export default async function ReportPage({
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, organicChannel)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, organicChannel, organicEntry.view ?? null)}
         </Suspense>
       </ReportErrorBoundary>
     </>

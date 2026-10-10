@@ -148,6 +148,9 @@ export interface DashSocialConfig {
    *  { "INSTAGRAM": { "hidden": true } } or { "INSTAGRAM": { "label": "Partnership Posts" } }. Validated at runtime
    *  (parseInfluencerSection), so typed unknown. */
   influencerSection?: unknown
+  /** The team's KPI tracker sheet per year, read by kpi-check-in@1 (10/6 calls): { "<year>": { sheetId, tab } }, the
+   *  same shape as ytdSheets, validated at runtime (ytdSheetFor), so typed unknown. */
+  kpiSheets?: unknown
   /** Written notes on the v2 graphs for a client without reportingMonths (PR #306). Only exactly
    *  `true` turns them on (notesOn), so typed unknown. */
   chartNotes?: unknown
