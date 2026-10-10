@@ -29,16 +29,17 @@ async function live(token: string) {
 /** Counts the open when the viewer is a recipient. The session read and the UPDATE share one budget. Never throws. */
 async function recordOpen(req: Request, id: string): Promise<void> {
   let reason: Reason | null = null
+  let expired = false
   let timer: ReturnType<typeof setTimeout> | undefined
   const work = (async () => {
     let staff = false
     if (hasSessionCookie(req.headers)) {
       try { staff = isStaff((await auth())?.user ?? {}) } catch { reason = 'session'; return }
     }
-    if (!shouldCountOpen(req, staff)) return
+    if (expired || !shouldCountOpen(req, staff)) return
     try { await recordOpenQuery(id, new Date()) } catch { reason = 'error' }
   })()
-  const budget = new Promise<void>((resolve) => { timer = setTimeout(() => { reason ??= 'timeout'; resolve() }, OPEN_BUDGET_MS) })
+  const budget = new Promise<void>((resolve) => { timer = setTimeout(() => { expired = true; reason ??= 'timeout'; resolve() }, OPEN_BUDGET_MS) })
   try { await Promise.race([work, budget]) } finally { clearTimeout(timer) }
   if (reason) console.warn(`[aeo-outbound] open not recorded id=${id} reason=${reason}`)
 }

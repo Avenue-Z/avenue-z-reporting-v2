@@ -107,6 +107,12 @@ test.each([['empty', ''], ['blank', '   '], ['201 characters', 'x'.repeat(201)],
   noWrites()
 })
 
+test('approve: the recipient length is checked after cleaning', async () => {
+  const r = await approveSnapshotAction(ID, 1, '  ' + 'x'.repeat(200) + '  ')
+  expect(r.ok).toBe(true)
+  expect(vi.mocked(store.approveQuery).mock.calls[0][2].recipient).toBe('x'.repeat(200))
+})
+
 test('approve: a Needs validation slot is refused when the decision blocks, and writes nothing', async () => {
   expect(DECISIONS.needsValidationBlocksApprove).toBe(true)
   vi.mocked(store.getReport).mockResolvedValue({ ...DRAFT, slots: { ...SLOTS, summary: 'Needs validation' } } as never)

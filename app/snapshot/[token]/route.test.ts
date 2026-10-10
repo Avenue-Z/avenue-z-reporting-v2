@@ -81,8 +81,7 @@ test('HEAD gives the GET status and headers with no body, and never reads the se
   expect(await h.text()).toBe('')
   expect(authMock).not.toHaveBeenCalled()
   expect(store.recordOpenQuery).not.toHaveBeenCalled()
-  const missing = vi.mocked(store.getLiveByToken).mockResolvedValue(undefined)
-  expect(missing).toBeDefined()
+  vi.mocked(store.getLiveByToken).mockResolvedValue(undefined)
   const h404 = await settle(HEAD(req({ method: 'HEAD' }), ctx()))
   expect(h404.status).toBe(404)
   expect(await h404.text()).toBe('')
@@ -106,10 +105,14 @@ test('a client-portal session IS counted', async () => {
   expect(store.recordOpenQuery).toHaveBeenCalledTimes(1)
 })
 
-test('a 0-row update is not logged', async () => {
-  vi.mocked(store.recordOpenQuery).mockResolvedValue({ rowCount: 0 } as never)
-  await settle(GET(req(), ctx()))
-  expect(warn).not.toHaveBeenCalled()
+test('a session read that resolves after the cap is not counted: one timeout line, same bytes', async () => {
+  authMock.mockImplementation(() => new Promise((res) => setTimeout(() => res({ user: { role: 'CLIENT_VIEWER', email: 'someone@client.example' } }), 2000)))
+  const p = GET(req({ cookie: SESSION_COOKIE }), ctx())
+  await vi.advanceTimersByTimeAsync(2100)
+  const r = await p
+  expect(await r.text()).toBe(HTML)
+  expect(store.recordOpenQuery).not.toHaveBeenCalled()
+  expect(logged(warn)).toEqual([`[aeo-outbound] open not recorded id=${ID} reason=timeout`])
 })
 
 async function failure(arrange: () => void, cookie?: string) {
