@@ -19,6 +19,12 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 
 const BAD_REQUEST = { error: 'bad-request', code: 'bad-request' }
+const UNSTARTED = { error: 'Could not start generation. Try again.' }
+/** A read or write before the pipeline failed: one line with the step and the error's code (never its message), and a 500. */
+const unstarted = (step: string, projectId: string, e: unknown) => {
+  console.error(`[aeo-outbound] generate ${step} failed project=${projectId} reason=${errorLabel(e)}`)
+  return NextResponse.json(UNSTARTED, { status: 500 })
+}
 const none = (v: unknown) => v === undefined || v === null
 
 export async function POST(req: NextRequest) {
@@ -42,7 +48,8 @@ export async function POST(req: NextRequest) {
   let range: DayRange | null
   if (rerunOf !== null) {
     if (!none(body?.start) || !none(body?.end)) return NextResponse.json(BAD_REQUEST, { status: 400 })
-    const prior = await getReport(rerunOf as string)
+    let prior
+    try { prior = await getReport(rerunOf as string) } catch (e) { return unstarted('rerun read', projectId, e) }
     if (!prior || prior.peecProjectId !== projectId) {
       return NextResponse.json({ error: "That snapshot can't be rerun. Refresh the list.", code: 'bad-rerun' }, { status: 404 })
     }
@@ -63,14 +70,15 @@ export async function POST(req: NextRequest) {
   }
   if (!project) return NextResponse.json({ error: "This Peec project can't be used.", code: 'bad-project' }, { status: 400 })
 
-  await markStaleGeneratingQuery(projectId, new Date())
+  try { await markStaleGeneratingQuery(projectId, new Date()) } catch (e) { return unstarted('stale mark', projectId, e) }
   let id: string
   try {
     id = (await insertGeneratingQuery({ projectId, projectName: project.name, createdBy: email, rerunOf: rerunOf as string | null, range }))[0].id
   } catch (e) {
-    if (isConstraintViolation(e, ONE_GENERATING_INDEX)) return NextResponse.json({ error: 'already-generating', id: (await findGeneratingFor(projectId)) ?? null }, { status: 409 })
-    console.error(`[aeo-outbound] generate insert failed project=${projectId} reason=${errorLabel(e)}`)
-    return NextResponse.json({ error: 'Could not start generation. Try again.' }, { status: 500 })
+    if (!isConstraintViolation(e, ONE_GENERATING_INDEX)) return unstarted('insert', projectId, e)
+    let existing: string | undefined
+    try { existing = await findGeneratingFor(projectId) } catch (e2) { return unstarted('find generating', projectId, e2) }
+    return NextResponse.json({ error: 'already-generating', id: existing ?? null }, { status: 409 })
   }
 
   try {

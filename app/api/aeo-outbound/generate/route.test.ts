@@ -11,7 +11,7 @@ vi.mock('@/lib/aeo-outbound/glean', async (o) => ({ ...(await o<object>()), glea
 vi.mock('@/lib/aeo-outbound/store', async (o) => ({
   ...(await o<object>()),
   getReport: m.getReport,
-  markStaleGeneratingQuery: () => ({ then: (r: (v: unknown) => void) => r(m.stale()) }),
+  markStaleGeneratingQuery: () => ({ then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.stale()) } catch (e) { j(e) } } }),
   insertGeneratingQuery: (v: unknown) => { m.insertArgs(v); return { then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.insert()) } catch (e) { j(e) } } } },
   finishDraftQuery: () => ({ then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.draft()) } catch (e) { j(e) } } }),
   finishFailedQuery: () => ({ then: (r: (v: unknown) => void) => r(m.failed()) }),
@@ -130,6 +130,28 @@ test('a non-409 insert failure answers 500 and no log carries the email or the m
   const logged = spies.flatMap((s) => s.mock.calls.flat()).map(String)
   expect(logged.join(' ')).toContain('insert failed project=or_a reason=08006')
   expect(logged.join(' ')).not.toContain('@')
+  expect(m.generateSnapshot).not.toHaveBeenCalled()
+})
+
+const dbError = () => Object.assign(new Error('Failed query: select ...\nparams: ryan@avenuez.com'), { name: 'DrizzleQueryError', cause: Object.assign(new Error('connection'), { code: '08006' }) })
+const UNSTARTED = { error: 'Could not start generation. Try again.' }
+
+test.each([
+  ['rerun read', { projectId: 'or_a', rerunOf: RERUN }, () => m.getReport.mockRejectedValue(dbError())],
+  ['stale mark', { projectId: 'or_a' }, () => m.stale.mockImplementationOnce(() => { throw dbError() })],
+  ['find generating', { projectId: 'or_a' }, () => {
+    m.insert.mockImplementation(() => { throw Object.assign(new Error('dup'), { code: '23505', constraint: ONE_GENERATING_INDEX }) })
+    m.findGenerating.mockRejectedValueOnce(dbError())
+  }],
+])('a %s failure answers 500 with one safe log line', async (step, body, arrange) => {
+  as('ryan@avenuez.com')
+  arrange()
+  const spies = (['error', 'warn', 'info', 'log'] as const).map((k) => vi.spyOn(console, k).mockImplementation(() => {}))
+  const res = await post(body)
+  expect(res.status).toBe(500)
+  expect(await res.json()).toEqual(UNSTARTED)
+  const logged = spies.flatMap((s) => s.mock.calls.map((c) => c.map(String).join(' ')))
+  expect(logged).toEqual([`[aeo-outbound] generate ${step} failed project=or_a reason=08006`])
   expect(m.generateSnapshot).not.toHaveBeenCalled()
 })
 

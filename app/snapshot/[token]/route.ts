@@ -3,6 +3,7 @@
 // and never logs the token or the recipient.
 import { auth } from '@/auth'
 import { isStaff } from '@/lib/auth/route-access'
+import { errorLabel } from '@/lib/aeo-outbound/log'
 import { hasSessionCookie, shouldCountOpen } from '@/lib/aeo-outbound/opens'
 import { getLiveByToken, recordOpenQuery } from '@/lib/aeo-outbound/store'
 import { isShareTokenShape } from '@/lib/aeo-outbound/token'
@@ -22,8 +23,15 @@ function respond(html: string | undefined, withBody: boolean): Response {
   return new Response(withBody ? html : null, { headers: { ...BASE, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': 'sandbox allow-scripts' } })
 }
 
+/** The live row for a token, or undefined. A failed lookup answers like an unknown token, logged without the token. */
 async function live(token: string) {
-  return isShareTokenShape(token) ? await getLiveByToken(token).catch(() => undefined) : undefined
+  if (!isShareTokenShape(token)) return undefined
+  try {
+    return await getLiveByToken(token)
+  } catch (e) {
+    console.error(`[aeo-outbound] snapshot lookup failed reason=${errorLabel(e)}`)
+    return undefined
+  }
 }
 
 /** Counts the open when the viewer is a recipient. The session read and the UPDATE share one budget. Never throws. */
