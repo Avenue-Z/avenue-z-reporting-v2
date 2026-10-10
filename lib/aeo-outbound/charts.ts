@@ -53,6 +53,7 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
       hovertemplate: '<b>%{y}</b><br>Visibility: %{x}%<extra></extra>',
       text: x.map((v) => `${v.toFixed(1)}%`),
       textposition: 'outside',
+      cliponaxis: false, // the % labels are wider than AIVx's counts and would be clipped at the plot edge
       textfont: { color: '#A6A6A6', size: 11 },
     }],
     layout: {

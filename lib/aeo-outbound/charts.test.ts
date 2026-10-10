@@ -7,13 +7,14 @@ const C = goldens.cases as unknown as Record<string, Case>
 const plain = (x: unknown) => JSON.parse(JSON.stringify(x))
 
 for (const name of ['visibility_bar_12', 'visibility_bar_4']) {
-  test(`${name}: identical to AIVx's bar except the visibility hover and % labels`, () => {
+  test(`${name}: identical to AIVx's bar except the visibility hover, % labels and unclipped labels`, () => {
     const lb = (C[name].input.leaderboard as { brand: string; citation_count: number }[])
     const ours = plain(visibilityBarFigure(lb.map((b) => ({ name: b.brand, visibilityPct: b.citation_count }))))
     const gold = plain(C[name].figure)
     expect(ours.data[0].hovertemplate).toBe('<b>%{y}</b><br>Visibility: %{x}%<extra></extra>')
     expect(ours.data[0].text).toEqual(ours.data[0].x.map((v: number) => `${v.toFixed(1)}%`))
-    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].text }
+    expect(ours.data[0].cliponaxis).toBe(false)
+    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].text; delete f.data[0].cliponaxis }
     expect(ours).toEqual(gold)
   })
 }
