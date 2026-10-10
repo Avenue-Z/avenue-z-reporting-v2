@@ -30,6 +30,7 @@ test('malformed payloads never throw a TypeError', () => {
 })
 
 const FAKE_TOKEN = 'fake-token-abc123'
+const EMAIL = 'ryan@avenuez.com'
 let saved: { token?: string; instance?: string }
 beforeEach(() => {
   saved = { token: process.env.GLEAN_API_TOKEN, instance: process.env.GLEAN_INSTANCE }
@@ -45,7 +46,7 @@ afterEach(() => {
 
 test('gleanOnce: a 500 throws the status only, never the body or the token', async () => {
   const fetchImpl = vi.fn(async () => new Response('secret body ' + FAKE_TOKEN, { status: 500 }))
-  const err = await gleanOnce('the prompt', new AbortController().signal, fetchImpl as unknown as typeof fetch).catch((e: Error) => e)
+  const err = await gleanOnce('the prompt', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch).catch((e: Error) => e)
   expect(err).toBeInstanceOf(Error)
   expect((err as Error).message).toBe('Glean chat error 500')
   expect((err as Error).message).not.toContain('the prompt')
@@ -55,29 +56,35 @@ test('gleanOnce: returns the CONTENT reply and sends saveChat false with the sig
   const body = { messages: [ai('CONTENT', [{ text: 'hello' }])] }
   const fetchImpl = vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }))
   const signal = new AbortController().signal
-  const r = await gleanOnce('the prompt', signal, fetchImpl as unknown as typeof fetch)
+  const r = await gleanOnce('the prompt', signal, EMAIL, fetchImpl as unknown as typeof fetch)
   expect(r).toEqual({ text: 'hello', searched: false })
   const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
   expect(url).toBe(`${GLEAN_BASE_URL}/chat`)
   expect(init.signal).toBe(signal)
   expect(JSON.parse(init.body as string).saveChat).toBe(false)
 })
-test('gleanOnce: sends no X-Scio-Actas header', async () => {
+test('gleanOnce: acts as the given email', async () => {
   const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ messages: [ai('CONTENT', [{ text: 'hi' }])] }), { status: 200 }))
-  await gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch)
+  await gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)
   const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
-  const names = Object.keys(init.headers as Record<string, string>).map((k) => k.toLowerCase())
-  expect(names).not.toContain('x-scio-actas')
+  expect((init.headers as Record<string, string>)['X-Scio-Actas']).toBe(EMAIL)
+})
+test('gleanOnce: refuses a malformed email before any request', async () => {
+  for (const bad of ['', 'ryan', 'a@', 'a@b']) {
+    const fetchImpl = vi.fn()
+    await expect(gleanOnce('p', new AbortController().signal, bad, fetchImpl as unknown as typeof fetch)).rejects.toThrow("Glean needs the signed-in user's email")
+    expect(fetchImpl).not.toHaveBeenCalled()
+  }
 })
 test('gleanOnce: not configured when GLEAN_INSTANCE is missing', async () => {
   delete process.env.GLEAN_INSTANCE
   const fetchImpl = vi.fn()
-  await expect(gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch)).rejects.toThrow('Glean is not configured')
+  await expect(gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)).rejects.toThrow('Glean is not configured')
   expect(fetchImpl).not.toHaveBeenCalled()
 })
 test('gleanOnce: a 200 that is not JSON throws without any body text', async () => {
   const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('Unexpected token < secret')) }))
-  const err = await gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch).catch((e: Error) => e)
+  const err = await gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch).catch((e: Error) => e)
   expect((err as Error).message).toBe('Glean chat returned unreadable JSON')
 })
 test('gleanOnce: a deadline abort during the body read stays an AbortError', async () => {
@@ -90,11 +97,11 @@ test('gleanOnce: a deadline abort during the body read stays an AbortError', asy
       throw Object.assign(new Error('aborted'), { name: 'AbortError' })
     },
   }))
-  await expect(gleanOnce('p', controller.signal, fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({ name: 'AbortError' })
+  await expect(gleanOnce('p', controller.signal, EMAIL, fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({ name: 'AbortError' })
 })
 test('gleanOnce: a non-ok response releases the body before throwing', async () => {
   const cancel = vi.fn(async () => {})
   const fetchImpl = vi.fn(async () => ({ ok: false, status: 502, body: { cancel } }))
-  await expect(gleanOnce('p', new AbortController().signal, fetchImpl as unknown as typeof fetch)).rejects.toThrow('Glean chat error 502')
+  await expect(gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)).rejects.toThrow('Glean chat error 502')
   expect(cancel).toHaveBeenCalledTimes(1)
 })
