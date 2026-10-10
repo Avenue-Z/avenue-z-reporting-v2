@@ -111,5 +111,11 @@ test('hostile names and source labels stay inert through the whole page, figures
   expect(h).toContain(`<span>${esc}</span>`)
   expect(h).toContain(`<span class="grad-text">${esc}</span>`)
   expect(h).toContain(`${esc}<br>Prepared x`)
-  expect(h).toContain('\\u003c')
+  // Each figure's own script must hold no raw < > & (jsonForScript), and must hold the escaped < from its hovertemplate.
+  for (const id of ['aeo-chart-sources', 'aeo-chart-visibility']) {
+    const inner = h.split('<script>').map((b) => b.split('</script>')[0]).find((b) => b.includes(`Plotly.newPlot("${id}"`))
+    expect(inner, id).toBeDefined()
+    expect(inner, id).not.toMatch(/[<>&]/)
+    expect(inner, id).toContain('\\u003c')
+  }
 })
