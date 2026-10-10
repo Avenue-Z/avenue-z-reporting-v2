@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
 import { requireStaff } from '@/lib/auth/page-access'
 import { outboundEmail } from '@/lib/aeo-outbound/permissions'
-import { displayStatus, failureReason, getReport } from '@/lib/aeo-outbound/store'
+import { errorLabel } from '@/lib/aeo-outbound/log'
+import { displayStatus, failureReason, getReport, isReportId } from '@/lib/aeo-outbound/store'
 import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
 import { OutboundEditor } from '@/components/aeo-outbound/editor'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
@@ -14,7 +15,15 @@ export default async function NewBusinessEditorPage({
   const { reportId } = await params
   const session = await requireStaff()
   if (!outboundEmail(session.user)) return <NoAccess />
-  const row = await getReport(reportId).catch(() => undefined)
+  if (!isReportId(reportId)) notFound()
+  let row: Awaited<ReturnType<typeof getReport>>
+  try {
+    row = await getReport(reportId)
+  } catch (e) {
+    // A database failure is not a missing snapshot: log it and let the error boundary show.
+    console.error(`[aeo-outbound] editor read failed id=${reportId} reason=${errorLabel(e)}`)
+    throw e
+  }
   if (!row) notFound()
   const now = Date.now()
   return (

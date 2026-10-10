@@ -11,7 +11,7 @@ import { DEFAULT_WINDOW_DAYS } from '@/lib/aeo-outbound/config'
 import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
 import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { requestGenerate, type GenerateBody } from './generate-client'
-import { DISCARD_CONFIRM, PEEC_DOWN_RETRY, REVOKE_CONFIRM, SCANNER_NOTE, actionError } from './messages'
+import { ACTION_FAILED, DISCARD_CONFIRM, PEEC_DOWN_RETRY, REVOKE_CONFIRM, SCANNER_NOTE, actionError } from './messages'
 import { STATUS_UI, actionsFor, snapshotUrl } from './status'
 
 export type HubRow = {
@@ -96,6 +96,8 @@ export function OutboundHub({ rows }: { rows: HubRow[] }) {
     setPending({ projectId: body.projectId, projectName })
     const out = await requestGenerate(body)
     setPending(null)
+    // Every answer refreshes the list (spec §10 "after every action"), so a row the request created always shows.
+    router.refresh()
     if (out.kind === 'open') {
       router.push(`/tools/new-business/${out.id}`)
       return
@@ -105,7 +107,6 @@ export function OutboundHub({ rows }: { rows: HubRow[] }) {
       return
     }
     setMessage(out.text || null)
-    if (out.refresh) router.refresh()
   }
 
   function onGenerate() {
@@ -123,6 +124,8 @@ export function OutboundHub({ rows }: { rows: HubRow[] }) {
       const r = await run()
       if (!r.ok) setMessage(actionError(r.error))
       else if (open && r.id) router.push(`/tools/new-business/${r.id}`)
+    } catch {
+      setMessage(ACTION_FAILED)
     } finally {
       setBusy(null)
       router.refresh()

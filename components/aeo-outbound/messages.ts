@@ -38,3 +38,8 @@ export function actionError(error: string): string {
 
 /** The editor could not load the report HTML (not a 404). Derived from §7a's "Lost connection", shown with a Reload button. */
 export const VIEW_FAILED = 'Lost connection.'
+
+/** A server action that threw or a request that dropped. Derived from §7a's "Lost connection" and "Try again" (Task 4.4 fix round 1). */
+export const ACTION_FAILED = 'Lost connection. Try again.'
+/** Leaving a draft with an edit not yet saved (Task 4.4 fix round 1, from the coordinator's review). */
+export const LEAVE_UNSAVED = 'You have unsaved edits. Leave anyway?'

@@ -164,7 +164,6 @@ test('the Approve dialog shows the confirm text and requires who it is for', asy
 test.each([
   [{ ok: false, error: RECIPIENT_ERROR }, RECIPIENT_ERROR],
   [{ ok: false, error: 'Fill in every "Needs validation" first.' }, 'Fill in every "Needs validation" first.'],
-  [{ ok: false, error: 'stale' }, 'This snapshot changed. Reload.'],
   [{ ok: false, error: 'not found' }, 'This snapshot no longer exists.'],
 ])('an approve refusal shows its message in the dialog (%o)', async (result, text) => {
   actions.approveSnapshotAction.mockResolvedValue(result)
@@ -241,4 +240,97 @@ test('a failed snapshot shows its reason with Rerun and Discard and no iframe', 
   expect(window.confirm).toHaveBeenCalledWith('Discard this snapshot? This removes it from the hub.')
   await waitFor(() => expect(actions.discardSnapshotAction).toHaveBeenCalledWith(ID))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/tools/new-business'))
+})
+
+test('a stale approve closes the dialog, stops saving and offers a reload', async () => {
+  actions.approveSnapshotAction.mockResolvedValue({ ok: false, error: 'stale' })
+  const { iframe } = await openDialog()
+  fireEvent.change(screen.getByLabelText('Who is this for?'), { target: { value: 'Jane Doe, Acme' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+  expect(await screen.findByText('This snapshot changed. Reload.')).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+  expect(approveBtn()).toBeDisabled()
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'x' })
+  await new Promise((r) => setTimeout(r, 20))
+  expect(patches()).toHaveLength(0)
+})
+
+test('an approve that throws unlocks the dialog and shows a message', async () => {
+  let reject: (e: unknown) => void = () => {}
+  actions.approveSnapshotAction.mockReturnValue(new Promise((_, r) => { reject = r }))
+  await openDialog()
+  const field = screen.getByLabelText('Who is this for?')
+  fireEvent.change(field, { target: { value: 'Jane Doe, Acme' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+  await waitFor(() => expect(field).toBeDisabled())
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+  await act(async () => reject(new Error('db down')))
+  const dialog = screen.getByRole('dialog')
+  await waitFor(() => expect(dialog).toHaveTextContent('Lost connection. Try again.'))
+  expect(field).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled()
+})
+
+test('Edit a copy that throws shows a message and unlocks', async () => {
+  actions.copySnapshotAsDraftAction.mockRejectedValue(new Error('dropped'))
+  await setup({ status: 'live', token: 'tok_123' })
+  const btn = screen.getByRole('button', { name: 'Edit a copy' })
+  fireEvent.click(btn)
+  expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
+  expect(btn).toBeEnabled()
+  expect(push).not.toHaveBeenCalled()
+})
+
+test('the dialog re-checks at Confirm: an edit that arrived after it opened blocks the approve', async () => {
+  const { iframe } = await openDialog()
+  fireEvent.change(screen.getByLabelText('Who is this for?'), { target: { value: 'Jane Doe, Acme' } })
+  await fromFrame(iframe, { type: 'dirty', path: 'headline' })
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+  expect(screen.getByRole('dialog')).toHaveTextContent('Saving. Try again in a moment.')
+  expect(actions.approveSnapshotAction).not.toHaveBeenCalled()
+})
+
+test('Approve flushes, and the dialog opens as soon as the queue is clean, well inside 2s', async () => {
+  const { iframe } = await setup()
+  const post = vi.spyOn(iframe.contentWindow!, 'postMessage')
+  vi.useFakeTimers()
+  fireEvent.click(approveBtn())
+  expect(post).toHaveBeenCalledWith({ type: 'flush' }, '*')
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'flushed' })
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(screen.getByRole('dialog')).toBeInTheDocument()
+  expect(patches()).toHaveLength(1)
+  expect(screen.queryByText('Saving. Try again in a moment.')).not.toBeInTheDocument()
+})
+
+test('with an unsaved edit, the browser warns on unload and Back and Rerun ask first', async () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  const { iframe } = await setup()
+  const clean = new Event('beforeunload', { cancelable: true })
+  window.dispatchEvent(clean)
+  expect(clean.defaultPrevented).toBe(false)
+  await fromFrame(iframe, { type: 'dirty', path: 'headline' })
+  const dirty = new Event('beforeunload', { cancelable: true })
+  window.dispatchEvent(dirty)
+  expect(dirty.defaultPrevented).toBe(true)
+  expect(fireEvent.click(screen.getByRole('link', { name: 'Back' }))).toBe(false)
+  expect(confirm).toHaveBeenLastCalledWith('You have unsaved edits. Leave anyway?')
+  fireEvent.click(screen.getByRole('button', { name: 'Rerun' }))
+  expect(confirm).toHaveBeenCalledTimes(2)
+  await new Promise((r) => setTimeout(r, 20))
+  expect(fetchMock.mock.calls.filter(([u]) => u === '/api/aeo-outbound/generate')).toHaveLength(0)
+  confirm.mockReturnValue(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Rerun' }))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${NEW_ID}`))
+})
+
+test('a clean editor opens Edit a copy without asking', async () => {
+  const confirm = vi.spyOn(window, 'confirm')
+  actions.copySnapshotAsDraftAction.mockResolvedValue({ ok: true, id: NEW_ID })
+  await setup({ status: 'live', token: 'tok_123' })
+  fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${NEW_ID}`))
+  expect(confirm).not.toHaveBeenCalled()
 })

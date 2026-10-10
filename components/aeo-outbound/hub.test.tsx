@@ -109,6 +109,7 @@ test.each([
   expect(await screen.findByText(text)).toBeInTheDocument()
   expect(push).not.toHaveBeenCalled()
   expect(screen.queryByText('Generating…')).not.toBeInTheDocument()
+  expect(refresh).toHaveBeenCalledTimes(2)
 })
 
 test('a 400 bad-range shows the route reason inline by the dates', async () => {
@@ -116,6 +117,7 @@ test('a 400 bad-range shows the route reason inline by the dates', async () => {
   await pickAndGenerate()
   const msg = await screen.findByText('The end date must be on or after the start date.')
   expect(msg.closest('[data-range]')).not.toBeNull()
+  expect(refresh).toHaveBeenCalledTimes(2)
 })
 
 test('a 409 opens the snapshot already generating, or refreshes when its id is unknown', async () => {
@@ -272,4 +274,23 @@ test('Edit a copy is disabled while pending and opens the new draft; a refusal s
   actions.copySnapshotAsDraftAction.mockResolvedValueOnce({ ok: false, error: 'forbidden' })
   fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
   expect(await screen.findByText('This tool is limited to the New Business team.')).toBeInTheDocument()
+})
+
+test('a revoke that throws shows a message and unlocks the row', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  actions.revokeSnapshotAction.mockRejectedValue(new Error('dropped'))
+  render(<OutboundHub rows={[row({ status: 'live', token: 't', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })]} />)
+  await screen.findByRole('option', { name: 'Acme pitch' })
+  fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+  expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Revoke' })).toBeEnabled()
+})
+
+test('an Edit a copy that throws shows a message', async () => {
+  actions.copySnapshotAsDraftAction.mockRejectedValue(new Error('dropped'))
+  render(<OutboundHub rows={[row({ status: 'revoked', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })]} />)
+  await screen.findByRole('option', { name: 'Acme pitch' })
+  fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
+  expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
+  expect(push).not.toHaveBeenCalled()
 })

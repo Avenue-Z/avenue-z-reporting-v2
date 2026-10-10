@@ -13,8 +13,8 @@ import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { requestGenerate } from './generate-client'
 import { StatusPill, btnCls, cardCls } from './hub'
 import {
-  APPROVE_CONFIRM, DISCARD_CONFIRM, FLUSH_WAIT, GENERATING_EDITOR, GONE, NEEDS_VALIDATION_FIRST,
-  RECIPIENT_EXAMPLE, RECIPIENT_LABEL, REVOKE_CONFIRM, VIEW_FAILED, actionError,
+  ACTION_FAILED, APPROVE_CONFIRM, DISCARD_CONFIRM, FLUSH_WAIT, GENERATING_EDITOR, GONE, LEAVE_UNSAVED,
+  NEEDS_VALIDATION_FIRST, RECIPIENT_EXAMPLE, RECIPIENT_LABEL, REVOKE_CONFIRM, STALE, VIEW_FAILED, actionError,
 } from './messages'
 import { RETRY_MESSAGE, SaveQueue, type SaveState, type SendResult } from './save-queue'
 import { snapshotUrl } from './status'
@@ -161,7 +161,17 @@ export function OutboundEditor(props: OutboundEditorProps) {
     // The dialog re-checks before sending, and always sends the last saved revision (spec §9a).
     if (q.state.dirty || q.state.saving || q.state.stopped) return setDialog({ ...dialog, error: FLUSH_WAIT })
     setDialog({ ...dialog, error: null, sending: true })
-    const r = await approveSnapshotAction(id, q.state.revision, dialog.recipient)
+    let r: Awaited<ReturnType<typeof approveSnapshotAction>>
+    try {
+      r = await approveSnapshotAction(id, q.state.revision, dialog.recipient)
+    } catch {
+      return setDialog({ ...dialog, sending: false, error: ACTION_FAILED })
+    }
+    if (!r.ok && r.error === 'stale') {
+      // Someone else changed it: stop saving and offer the reload, the same as a save's 409.
+      setDialog(null)
+      return q.stop(STALE)
+    }
     if (!r.ok) return setDialog({ ...dialog, sending: false, error: actionError(r.error) })
     setDialog(null)
     setApprovedToken(r.token)
@@ -172,17 +182,27 @@ export function OutboundEditor(props: OutboundEditorProps) {
   async function run(fn: () => Promise<void>) {
     setMessage(null)
     setBusy(true)
-    try { await fn() } finally { setBusy(false) }
+    try { await fn() } catch { setMessage(ACTION_FAILED) } finally { setBusy(false) }
   }
 
-  const onRerun = () => run(async () => {
+  // An edit not yet saved: the browser warns on unload, and in-app navigation asks first.
+  const unsaved = status === 'draft' && !!save && (save.dirty || save.saving)
+  useEffect(() => {
+    if (!unsaved) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [unsaved])
+  const mayLeave = () => !unsaved || window.confirm(LEAVE_UNSAVED)
+
+  const onRerun = () => mayLeave() && run(async () => {
     const out = await requestGenerate({ projectId, rerunOf: id })
     if (out.kind === 'open') return router.push(`/tools/new-business/${out.id}`)
     setMessage(out.text || null)
     if (out.kind === 'message' && out.refresh) router.refresh()
   })
 
-  const onEditCopy = () => run(async () => {
+  const onEditCopy = () => mayLeave() && run(async () => {
     const r = await copySnapshotAsDraftAction(id)
     if (r.ok) router.push(`/tools/new-business/${r.id}`)
     else setMessage(actionError(r.error))
@@ -219,7 +239,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   return (
     <div>
       <div className="sticky top-0 z-20 -mx-8 -mt-8 mb-4 flex flex-wrap items-center gap-3 border-b border-white/[0.06] bg-black px-8 py-3">
-        <Link href="/tools/new-business" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-white">
+        <Link href="/tools/new-business" onClick={(e) => { if (!mayLeave()) e.preventDefault() }} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-white">
           <ArrowLeft className="h-4 w-4" aria-hidden />Back
         </Link>
         <span className="text-sm font-semibold text-white">{brand}</span>
@@ -311,6 +331,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
               placeholder={RECIPIENT_EXAMPLE}
               value={dialog.recipient}
               onChange={(e) => setDialog({ ...dialog, recipient: e.target.value, error: null })}
+              disabled={dialog.sending}
               autoFocus
             />
             {dialog.error && <p className="mt-2 text-xs text-[#FF6B6B]">{dialog.error}</p>}
