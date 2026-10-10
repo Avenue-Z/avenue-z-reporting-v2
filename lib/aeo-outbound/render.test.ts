@@ -90,3 +90,26 @@ test('a long brand name gets the AIVx 72px hero rule', () => {
   const h = renderSnapshotHtml({ ...DATA, brand: 'A Very Long Brand Name Incorporated' }, SLOTS, 'final', 'x')
   expect(h).toContain('<h1 class="hero-industry" style="font-size:72px">')
 })
+
+test('hostile names and source labels stay inert through the whole page, figures included', () => {
+  const EVIL = '</script><img src=x onerror=alert(1)>'
+  const benignBrands = [BRANDS[0], { ...BRANDS[1], name: 'Own' }]
+  const benign = renderSnapshotHtml(
+    { ...DATA, brand: 'Own', brands: benignBrands, own: benignBrands[1], sourceMix: [{ label: 'Corporate', weight: 5, pct: 50 }, { label: 'You', weight: 5, pct: 50 }] },
+    { ...SLOTS, headline: 'H', context: 'C' }, 'final', 'x')
+  const evilBrands = [BRANDS[0], { ...BRANDS[1], name: EVIL }]
+  const h = renderSnapshotHtml(
+    { ...DATA, brand: EVIL, brands: evilBrands, own: evilBrands[1], sourceMix: [{ label: '</script><b>x</b>', weight: 5, pct: 50 }, { label: 'You', weight: 5, pct: 50 }] },
+    { ...SLOTS, headline: 'H', context: 'C' }, 'final', 'x')
+  expect(h).not.toContain('<img src=x')
+  expect(h).not.toContain('</script><b>')
+  expect(h).not.toContain('</script><img')
+  expect(h.match(/<\/script>/g)?.length).toBe(benign.match(/<\/script>/g)?.length)
+  // Title, sidebar, hero and footer carry the escaped name; the figures carry the stripped, JSON-escaped one.
+  const esc = '&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;'
+  expect(h).toContain(`<title>AI Visibility Snapshot: ${esc} | Avenue Z</title>`)
+  expect(h).toContain(`<span>${esc}</span>`)
+  expect(h).toContain(`<span class="grad-text">${esc}</span>`)
+  expect(h).toContain(`${esc}<br>Prepared x`)
+  expect(h).toContain('\\u003c')
+})
