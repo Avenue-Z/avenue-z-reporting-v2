@@ -161,3 +161,18 @@ test('stop() while a send is in flight: a late ok changes neither the revision n
   release({ kind: 'ok', revision: 9 }); await flush()
   expect(q.state).toMatchObject({ revision: 5, stopped: true, error: 'This snapshot changed. Reload.' })
 })
+test('badPaths names every field with an outstanding 400, and empties once each is fixed', async () => {
+  let leadOk = false
+  const send = vi.fn(async (p: string): Promise<SendResult> => (p === LEAD && !leadOk ? { kind: 'bad', error: MSG } : { kind: 'ok', revision: 1 }))
+  const q = new SaveQueue(send, 0, () => {})
+  expect(q.state.badPaths).toEqual([])
+  q.markDirty(LEAD); q.edit(LEAD, 'x'.repeat(81))
+  q.markDirty('headline'); q.edit('headline', 'h')
+  await flush()
+  expect(q.state.badPaths).toEqual([LEAD])
+  expect(q.state.error).toBe(MSG)
+  leadOk = true
+  q.markDirty(LEAD); q.edit(LEAD, 'short')
+  await flush()
+  expect(q.state.badPaths).toEqual([])
+})

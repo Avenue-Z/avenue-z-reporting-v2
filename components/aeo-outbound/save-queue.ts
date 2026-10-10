@@ -3,8 +3,9 @@
 // keystroke is saved, so Approve (disabled while dirty or saving) can never approve text Ryan is still typing.
 // A 400 belongs to its own field: it is recorded, the field stays dirty, and every other pending field still sends.
 export type SendResult = { kind: 'ok'; revision: number } | { kind: 'bad'; error: string } | { kind: 'stop' } | { kind: 'retry' }
-export interface SaveState { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean }
-const RETRY_MESSAGE = "Couldn't save, retrying"
+// badPaths: the fields with an outstanding 400, oldest first, so the newest is the one `error` describes.
+export interface SaveState { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean; badPaths: string[] }
+export const RETRY_MESSAGE = "Couldn't save, retrying"
 const BACKOFF = [1000, 2000, 4000]
 
 export class SaveQueue {
@@ -23,11 +24,11 @@ export class SaveQueue {
     private readonly onState: (s: SaveState) => void,
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {
-    this.state = { dirty: false, saving: false, revision, error: null, stopped: false }
+    this.state = { dirty: false, saving: false, revision, error: null, stopped: false, badPaths: [] }
   }
 
   private set(p: Partial<SaveState>) {
-    this.state = { ...this.state, ...p, dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 || this.bad.size > 0 }
+    this.state = { ...this.state, ...p, dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 || this.bad.size > 0, badPaths: [...this.bad.keys()] }
     this.onState(this.state)
   }
 
