@@ -61,3 +61,30 @@ test('with no competitors tracked an outside brand name is not exempt', () => {
   expect(groundingFlags({ ...plain, why: 'Formula 7 Labs leads' }, d, t)).toEqual(['why: "7" is not in the Peec data'])
   expect(groundingFlags({ ...plain, why: 'Example Co leads' }, d, t)).toEqual([])
 })
+
+test('the window days are allowed as bare numbers but not as percentages or ranks', () => {
+  const d = { ...R, windowLabel: 'Sep 9, 2026 to Oct 8, 2026', window: { start: '2026-09-09', end: '2026-10-08' } } as unknown as SnapshotData
+  const text = dataBlock(d)
+  const run = (why: string) => groundingFlags({ ...plain, why }, d, text)
+  expect(run('Peec data from Sep 9, 2026 to Oct 8, 2026')).toEqual([])
+  expect(run('An 8% share of voice')).toEqual(['why: "8%" is not in the Peec data'])
+  expect(run('9% of answers')).toEqual(['why: "9%" is not in the Peec data'])
+  expect(run('Ranked #8')).toEqual(['why: "#8" is not in the Peec data'])
+})
+test('a whole realistic good reply produces no flags', () => {
+  const d = { ...R, windowLabel: 'Sep 9, 2026 to Oct 8, 2026', window: { start: '2026-09-09', end: '2026-10-08' } } as unknown as SnapshotData
+  const text = dataBlock(d)
+  const good: Slots = {
+    category: 'Skincare', market: 'United States',
+    headline: 'Example Co ranks #3 of 12 brands with 15.1% visibility',
+    summary: 'Formula 7 Labs leads with 26.1% visibility.',
+    context: 'Formula 7 Labs leads with 26.1% visibility and 22.5% share of voice, ahead of Example Co at #3.',
+    competitive_bullets: [{ lead: 'Own site:', text: 'The site was retrieved in 1,989 answers, 22.4% of answers on example.com.' }, { lead: 'Position:', text: 'Average answer position is #3.1.' }],
+    sources_bullets: [{ lead: 'Gap:', text: 'alpha.com was used in 1,250 answers where the brand is absent.' }, { lead: 'Visibility:', text: 'The gap to Formula 7 Labs is 11 points.' }],
+    why: 'The pattern may affect consideration.',
+    opportunities: [{ signal: 'Peec recommends fixing a heading', opportunity: 'Explore it', workstream: 'Technical AEO / SEO' }, { signal: 'alpha.com is cited often', opportunity: 'Investigate', workstream: 'PR / earned media' }, { signal: 'Share of voice is 15.9%', opportunity: 'Test content', workstream: 'Content / AEO' }],
+    methodology: 'Peec data from Sep 9, 2026 to Oct 8, 2026 across 12 brands, 100 prompts on ChatGPT UI. Results are directional.',
+    next_step: 'A full AEO audit.',
+  }
+  expect(groundingFlags(good, d, text)).toEqual([])
+})

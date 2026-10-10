@@ -18,8 +18,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // With no competitors tracked the Data block names no outside brand, so its digits are not exempt either.
   const brandNames = (d.competitorsTracked === 0 ? d.brands.filter((b) => b.isOwn) : d.brands).map((b) => b.name)
   const exemptNames = [...brandNames, ...allowedDomains].filter(Boolean).sort((a, b) => b.length - a.length)
-  // Digits inside a name or a domain, and the window's dates, are not figures: only the years stay allowed.
-  let figures = dataText.split('\n').filter((l) => !l.startsWith('Data window:')).join('\n')
+  // Digits inside a name or a domain are not figures. The window's days and years are in the Data block, so they stay allowed as bare numbers.
+  let figures = dataText
   for (const name of exemptNames) figures = figures.split(name).join(' ')
   const allowed = new Set((figures.match(NUM) ?? []).map((t) => `${kindOf(t)}:${digitsOf(t)}`))
   for (const y of [d.window.start, d.window.end]) allowed.add(`bare:${y.slice(0, 4)}`)
