@@ -29,6 +29,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   }
   const flags: string[] = []
   for (const [path, value] of slotEntries(slots)) {
+    // The page hides the context box when no competitor is tracked (render.ts), so its text is never shown.
+    if (path === 'context' && d.competitorsTracked === 0) continue
     let text = value
     for (const name of exemptNames) text = text.split(name).join(' ')
     for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) flags.push(`${path.split('.')[0]}: "${m}" is not a domain in the Peec data`)

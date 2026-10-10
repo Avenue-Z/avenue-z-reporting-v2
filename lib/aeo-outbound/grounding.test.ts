@@ -62,6 +62,16 @@ test('with no competitors tracked an outside brand name is not exempt', () => {
   expect(groundingFlags({ ...plain, why: 'Example Co leads' }, d, t)).toEqual([])
 })
 
+test('with no competitors tracked the hidden context slot is never flagged; other slots still are', () => {
+  const d = { ...R, competitorsTracked: 0 } as unknown as SnapshotData
+  const t = dataBlock(d)
+  const dash = String.fromCharCode(0x2014)
+  const s = { ...plain, context: `Visibility rose 99% ${dash} see competitor.io`, why: 'Visibility rose 99%' }
+  expect(groundingFlags(s, d, t)).toEqual(['why: "99%" is not in the Peec data'])
+  // With competitors tracked the same context is shown, so it is flagged.
+  expect(groundingFlags(s, R, RT).filter((f) => f.startsWith('context:'))).toHaveLength(3)
+})
+
 test('the window days are allowed as bare numbers but not as percentages or ranks', () => {
   const d = { ...R, windowLabel: 'Sep 9, 2026 to Oct 8, 2026', window: { start: '2026-09-09', end: '2026-10-08' } } as unknown as SnapshotData
   const text = dataBlock(d)
