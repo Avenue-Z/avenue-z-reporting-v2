@@ -32,7 +32,7 @@ export async function generateSnapshot(
     }
     const block = dataBlock(data)
     let problems: string[] = []
-    let searched = 0
+    let lastSearched = false
     /** A shape-valid reply whose only problem was grounding: kept so a worse second attempt can't lose it. */
     let groundedFallback: { slots: Slots; flags: string[] } | null = null
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -43,7 +43,8 @@ export async function generateSnapshot(
       let replyText: string
       try {
         const r = await deps.glean(buildPrompt(data, problems), controller.signal)
-        if (r.searched) { searched++; problems = ['the answer used sources outside the Data section']; continue }
+        lastSearched = r.searched
+        if (r.searched) { problems = ['the answer used sources outside the Data section']; continue }
         replyText = r.text
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') { if (groundedFallback) break; throw e }
@@ -64,7 +65,7 @@ export async function generateSnapshot(
       break
     }
     if (groundedFallback) return { ok: true, brandName, data, slots: groundedFallback.slots, notes: [...data.notes, ...groundedFallback.flags] }
-    if (searched === 2) return { ok: false, error: 'Copy generation used outside sources. Rerun.', brandName }
+    if (lastSearched) return { ok: false, error: 'Copy generation used outside sources. Rerun.', brandName }
     return { ok: false, error: 'Copy generation failed. Rerun.', brandName }
   } catch (e) {
     // Only this client's own exhausted budget counts (PeecError.timeout), never an upstream body that says "timed out".

@@ -115,7 +115,21 @@ test('409 with the existing id when the one-generating index is hit; another 235
   expect(res.status).toBe(409)
   expect(await res.json()).toEqual({ error: 'already-generating', id: 'row-0' })
   m.insert.mockImplementation(() => { throw Object.assign(new Error('dup'), { code: '23505', constraint: 'some_other_index' }) })
-  await expect(post({ projectId: 'or_a' })).rejects.toThrow('dup')
+  expect((await post({ projectId: 'or_a' })).status).toBe(500)
+  expect(m.generateSnapshot).not.toHaveBeenCalled()
+})
+
+test('a non-409 insert failure answers 500 and no log carries the email or the message', async () => {
+  as('ryan@avenuez.com')
+  const cause = Object.assign(new Error('connection'), { code: '08006' })
+  m.insert.mockImplementation(() => { throw Object.assign(new Error('Failed query: insert ...\nparams: ryan@avenuez.com'), { name: 'DrizzleQueryError', cause }) })
+  const spies = (['error', 'warn', 'info', 'log'] as const).map((k) => vi.spyOn(console, k).mockImplementation(() => {}))
+  const res = await post({ projectId: 'or_a' })
+  expect(res.status).toBe(500)
+  expect(await res.json()).toEqual({ error: 'Could not start generation. Try again.' })
+  const logged = spies.flatMap((s) => s.mock.calls.flat()).map(String)
+  expect(logged.join(' ')).toContain('insert failed project=or_a reason=08006')
+  expect(logged.join(' ')).not.toContain('@')
   expect(m.generateSnapshot).not.toHaveBeenCalled()
 })
 
@@ -175,4 +189,14 @@ test('a throw while finishing still fails the row and answers', async () => {
   m.draft.mockImplementationOnce(() => { throw new Error('db down') })
   expect(await (await post({ projectId: 'or_a' })).json()).toEqual({ id: 'row-1', status: 'failed', error: 'Generation failed. Rerun.' })
   expect(m.failed).toHaveBeenCalled()
+})
+
+test('the finish log names the error, never its message', async () => {
+  as('ryan@avenuez.com')
+  m.draft.mockImplementationOnce(() => { throw new Error('Failed query: update params: prospect data') })
+  await post({ projectId: 'or_a' })
+  const line = vi.mocked(console.error).mock.calls.flat().map(String).join(' ')
+  expect(line).toContain('outcome=error step=finish')
+  expect(line).toContain('reason=Error')
+  expect(line).not.toContain('prospect')
 })

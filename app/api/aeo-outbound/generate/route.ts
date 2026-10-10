@@ -18,6 +18,16 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 
 const BAD_REQUEST = { error: 'bad-request', code: 'bad-request' }
+/** A safe label for an error: its string code, else its name, walking .cause. Never the message (a Drizzle message carries the SQL params). */
+function errorLabel(e: unknown): string {
+  let cur: unknown = e
+  for (let i = 0; i < 5 && cur && typeof cur === 'object'; i++) {
+    const { code, cause } = cur as { code?: unknown; cause?: unknown }
+    if (typeof code === 'string') return code
+    cur = cause
+  }
+  return e instanceof Error ? e.name : 'error'
+}
 const none = (v: unknown) => v === undefined || v === null
 
 export async function POST(req: NextRequest) {
@@ -68,7 +78,8 @@ export async function POST(req: NextRequest) {
     id = (await insertGeneratingQuery({ projectId, projectName: project.name, createdBy: email, rerunOf: rerunOf as string | null, range }))[0].id
   } catch (e) {
     if (isConstraintViolation(e, ONE_GENERATING_INDEX)) return NextResponse.json({ error: 'already-generating', id: (await findGeneratingFor(projectId)) ?? null }, { status: 409 })
-    throw e
+    console.error(`[aeo-outbound] generate insert failed project=${projectId} reason=${errorLabel(e)}`)
+    return NextResponse.json({ error: 'Could not start generation. Try again.' }, { status: 500 })
   }
 
   try {
@@ -96,7 +107,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id, status: 'failed', error: result.error })
   } catch (e) {
     // Never leave the row generating: a failed write or an unexpected throw still fails it.
-    console.error(`[aeo-outbound] generate id=${id} outcome=error step=finish ms=${Date.now() - started}`, (e as Error)?.message)
+    console.error(`[aeo-outbound] generate id=${id} outcome=error step=finish ms=${Date.now() - started} reason=${errorLabel(e)}`)
     try { await finishFailedQuery(id, 'Generation failed. Rerun.', null, new Date()) } catch { /* logged above; the stale rule still frees the row */ }
     return NextResponse.json({ id, status: 'failed', error: 'Generation failed. Rerun.' })
   }

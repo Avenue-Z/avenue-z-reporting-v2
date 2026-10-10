@@ -72,20 +72,32 @@ test('a searched reply is retried once; a second searched reply fails', async ()
   expect(glean).toHaveBeenCalledTimes(2)
 })
 test('two shape failures fail', async () => {
-  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply('{"headline":5}'))))
+  const glean = vi.fn(async () => reply('{"headline":5}'))
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(glean).toHaveBeenCalledTimes(2)
   expect(r).toMatchObject({ ok: false, error: 'Copy generation failed. Rerun.' })
 })
 test('grounding-only problems still save as a draft, with notes', async () => {
   const bad = JSON.parse(GOOD); bad.why = 'Visibility rose 42.0% last year.'
-  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(JSON.stringify(bad)))))
+  const glean = vi.fn(async (_prompt: string) => reply(JSON.stringify(bad)))
+  const r = await generateSnapshot('or_a', deps(glean))
   expect(r.ok && r.notes.join(' ')).toContain('"42.0%" is not in the Peec data')
+  expect(glean).toHaveBeenCalledTimes(2)
+  expect(String(glean.mock.calls[1][0])).toContain('"42.0%" is not in the Peec data')
 })
 test('no second Glean attempt with under 60s left', async () => {
   let t = Date.parse('2026-10-08T12:00:00Z')
   const glean = vi.fn(async () => { t += 230_000; return reply('{}') })
   const r = await generateSnapshot('or_a', { ...deps(glean, () => t), deadline: Date.parse('2026-10-08T12:00:00Z') + 270_000 })
   expect(glean).toHaveBeenCalledTimes(1)
-  expect(r.ok).toBe(false)
+  expect(r).toMatchObject({ ok: false, error: 'Copy generation failed. Rerun.' })
+})
+test('a searched first reply with under 60s left reports the outside-sources reason', async () => {
+  let t = NOW
+  const glean = vi.fn(async () => { t += 230_000; return reply(GOOD, true) })
+  const r = await generateSnapshot('or_a', { ...deps(glean, () => t), deadline: NOW + 270_000 })
+  expect(glean).toHaveBeenCalledTimes(1)
+  expect(r).toMatchObject({ ok: false, error: 'Copy generation used outside sources. Rerun.' })
 })
 test('a grounding-only first answer survives a broken second answer', async () => {
   const bad = JSON.parse(GOOD); bad.why = 'Visibility rose 42.0% last year.'
