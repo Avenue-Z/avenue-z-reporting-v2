@@ -150,3 +150,15 @@ rerunOf returns `code: 'bad-request'`; (17) the session read and the UPDATE shar
 sets a cookie by reading the session token without writing (or by dropping any Set-Cookie it would add), named in the
 plan; (19) no range rule is re-checked on rerun, with a test that an old stored range reaches Peec and fails with the
 no-data reason.
+
+## Amendment 2026-10-09 (3): the Glean call acts as the signed-in user
+
+Commit `8aa687d2`; review round 1 (changed lines): 0 BLOCKER, 2 MAJOR, 5 MINOR.
+1. MAJOR, the no-header failure wasn't recorded: it was measured (the dashboard token without act-as returned 400 in the same
+   probe); now written into §6 with the exact list of dashboard paths that send act-as (the reviewer's claim that meeting-brief
+   skips it is wrong: `app/api/glean/meeting-brief/route.ts:48` sends it).
+2. MAJOR, wrong email source and stale code blocks: the plan now passes the route's `outboundEmail(session?.user)` result and the
+   Task 3.1 Produces line, signature and Task 3.3 call site are edited directly.
+MINOR, fixed in the same edit: a `local@domain.tld` shape check with `a@` tested; a route test that a body email is ignored;
+status-only logging; the privacy, permission and rerun sentences; `.env.example` marks the token required and organization-wide.
+MINOR, for my decision: whether local `.env.local` carries the organization-wide Glean token.
