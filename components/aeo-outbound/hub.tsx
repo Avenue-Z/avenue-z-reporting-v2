@@ -112,8 +112,9 @@ export function OutboundHub({ rows }: { rows: HubRow[] }) {
   function onGenerate() {
     if (!projectId || pending) return
     const body: GenerateBody = { projectId }
-    // Sent only when both are filled; the route validates them (spec §7a).
-    if (start && end) Object.assign(body, { start, end })
+    // Each filled date is sent, so a lone date reaches the route and its 400 bad-range shows inline (spec §7 step 4, §14).
+    if (start) body.start = start
+    if (end) body.end = end
     void generate(body, projects?.find((p) => p.id === projectId)?.name ?? projectId)
   }
 

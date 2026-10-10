@@ -145,17 +145,35 @@ test('a 5xx with no JSON body is a lost connection', async () => {
   expect(refresh).toHaveBeenCalledTimes(2)
 })
 
-test('dates are sent only when both are filled', async () => {
+test('each filled date is sent, so a lone date reaches the route and its 400 bad-range shows inline (spec §7 step 4, §14)', async () => {
+  generate = async () => json(400, { error: 'Pick both a start and an end date, or neither.', code: 'bad-range' })
   render(<OutboundHub rows={[]} />)
   await screen.findByRole('option', { name: 'Acme pitch' })
   fireEvent.change(screen.getByLabelText('Peec project'), { target: { value: 'p1' } })
   fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-09-01' } })
   fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
-  await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
+  const msg = await screen.findByText('Pick both a start and an end date, or neither.')
+  expect(msg.closest('[data-range]')).not.toBeNull()
+  expect(push).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '' } })
   fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2026-09-30' } })
   fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
-  await waitFor(() => expect(push).toHaveBeenCalledTimes(2))
-  expect(bodies()).toEqual([{ projectId: 'p1' }, { projectId: 'p1', start: '2026-09-01', end: '2026-09-30' }])
+  await waitFor(() => expect(bodies()).toHaveLength(2))
+  generate = async () => json(200, { id: ID(9), status: 'draft' })
+  fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-09-01' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+  await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
+  expect(bodies()).toEqual([
+    { projectId: 'p1', start: '2026-09-01' },
+    { projectId: 'p1', end: '2026-09-30' },
+    { projectId: 'p1', start: '2026-09-01', end: '2026-09-30' },
+  ])
+})
+
+test('no dates sends only the project', async () => {
+  await pickAndGenerate()
+  await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
+  expect(bodies()).toEqual([{ projectId: 'p1' }])
 })
 
 test('a failed projects load shows "Peec is unavailable. Retry" and the table still renders', async () => {
@@ -258,6 +276,20 @@ test('a refused action shows its message', async () => {
   await screen.findByRole('option', { name: 'Acme pitch' })
   fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
   expect(await screen.findByText('This snapshot no longer exists.')).toBeInTheDocument()
+})
+
+test.each([
+  ['Revoke', 'revokeSnapshotAction', 'live'],
+  ['Discard', 'discardSnapshotAction', 'draft'],
+  ['Edit a copy', 'copySnapshotAsDraftAction', 'revoked'],
+] as const)('%s answered unavailable shows the lost connection message', async (name, action, status) => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  actions[action].mockResolvedValue({ ok: false, error: 'unavailable' })
+  render(<OutboundHub rows={[row({ status, token: status === 'draft' ? null : 't', recipient: status === 'draft' ? null : 'R', approvedAt: status === 'draft' ? null : '2026-10-02T15:00:00.000Z' })]} />)
+  await screen.findByRole('option', { name: 'Acme pitch' })
+  fireEvent.click(screen.getByRole('button', { name }))
+  expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name })).toBeEnabled()
 })
 
 test('Edit a copy is disabled while pending and opens the new draft; a refusal shows its error', async () => {
