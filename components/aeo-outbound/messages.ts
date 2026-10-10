@@ -33,6 +33,8 @@ export function actionError(error: string): string {
   if (error === 'forbidden') return ACCESS_MESSAGE
   if (error === 'not found') return GONE
   if (error === 'stale') return STALE
+  // A database failure the action caught and logged (app/actions/aeo-outbound.ts): the same message as a throw.
+  if (error === 'unavailable') return ACTION_FAILED
   return error
 }
 

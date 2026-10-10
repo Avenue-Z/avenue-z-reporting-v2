@@ -165,6 +165,7 @@ test.each([
   [{ ok: false, error: RECIPIENT_ERROR }, RECIPIENT_ERROR],
   [{ ok: false, error: 'Fill in every "Needs validation" first.' }, 'Fill in every "Needs validation" first.'],
   [{ ok: false, error: 'not found' }, 'This snapshot no longer exists.'],
+  [{ ok: false, error: 'unavailable' }, 'Lost connection. Try again.'],
 ])('an approve refusal shows its message in the dialog (%o)', async (result, text) => {
   actions.approveSnapshotAction.mockResolvedValue(result)
   await openDialog()
@@ -271,6 +272,27 @@ test('an approve that throws unlocks the dialog and shows a message', async () =
   expect(field).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled()
+})
+
+test.each([
+  ['Revoke', 'revokeSnapshotAction', true],
+  ['Edit a copy', 'copySnapshotAsDraftAction', false],
+] as const)('%s answered unavailable shows the lost connection message', async (name, action, confirms) => {
+  if (confirms) vi.spyOn(window, 'confirm').mockReturnValue(true)
+  actions[action].mockResolvedValue({ ok: false, error: 'unavailable' })
+  await setup({ status: 'live', token: 'tok_123' })
+  fireEvent.click(screen.getByRole('button', { name }))
+  expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name })).toBeEnabled()
+})
+
+test('Discard answered unavailable shows the lost connection message', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  actions.discardSnapshotAction.mockResolvedValue({ ok: false, error: 'unavailable' })
+  await setup({ status: 'failed', error: 'Peec had no data.' })
+  fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+  expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
+  expect(push).not.toHaveBeenCalled()
 })
 
 test('Edit a copy that throws shows a message and unlocks', async () => {
