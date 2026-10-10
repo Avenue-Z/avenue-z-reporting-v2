@@ -192,6 +192,7 @@ With the prompt rule "Use ONLY the Data section. Do not search company documents
 neither probe showed any of those fragments, and the full generation call didn't either. A prompt rule is not a guarantee,
 so the tool enforces it:
 - This tool makes its own chat call in `lib/aeo-outbound/glean.ts`, built from the exported `GLEAN_BASE_URL` and `getGleanHeaders` (`lib/glean.ts:6-18`), with the same body as `gleanChat` (`:54-65`). It needs its own call because `gleanChat` returns only the text (`:39-100`), and the check below needs the raw messages. `lib/glean.ts` is not changed.
+- **It acts as the signed-in user** (amended 2026-10-09): the request carries `X-Scio-Actas` = the signed-in staff user's email, via `getGleanHeaders(actAsEmail)` (`lib/glean.ts:8-17`), the way the dashboard's own Glean features do (`lib/dashboard/nl/glean-chat.ts:8`, with the email from the session at `app/actions/dashboard.ts:77`). The email comes only from the server session, never from the request. Why: production's `GLEAN_API_TOKEN` is organization-wide (every dashboard Glean call sends act-as), and an organization-wide token needs that header. Measured 2026-10-09 (read-only, unsaved calls): the dashboard's token with act-as answered (200); with act-as, the grounded "use only the Data" JSON prompt returned JSON with no search fragments, so the search guard is unchanged; Glean accepted an act-as email that doesn't exist (200), so the value must come from the session; a personal user token rejects act-as (400), so local runs need the organization-wide token too. `gleanOnce` refuses to call without an email.
 - **Search guard:** if any message carries a `querySuggestion`, `structuredResults` or `action` fragment, or any citation, the attempt counts as a violation. It retries once with the rule restated. A second violation fails the snapshot with "Copy generation used outside sources. Rerun."
 - The answer is taken from the last `GLEAN_AI` message of `messageType: CONTENT`, not the longest one. In probe B, the longest-message rule `gleanChat` uses (`:86-94`) picked a heading ("Clarifying data constraints") instead of the short answer. For long JSON output it picked correctly. The JSON parse and shape check (above) still guard both cases.
 
@@ -535,6 +536,7 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
 | Stale *Generating* row | Shows as Failed (timed out). Discard and Rerun work (§9). |
 | Peec 5xx, timeout, non-JSON | Failed, with a scrubbed reason. |
 | Glean down, or bad JSON twice | Failed: "Copy generation failed. Rerun." |
+| Glean token is a personal user token (it rejects act-as with 400) | Failed: "Copy generation failed. Rerun."; the fix is configuration (the organization-wide token), noted in `.env.example`. |
 | Two tabs editing | Revision conflict 409, reload prompt. |
 | Approve double-click | The second UPDATE matches 0 rows, so it's a no-op. |
 | Revoke while recipient has the page open | Their open page stays. The next load is 404 (`no-store`). |
@@ -610,6 +612,7 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
   - computed competitor gaps from `mentioned_brands`; half-to-even rounding on a `.x5` value; SOV donut pre-slices 15 rows
   - grounding: number regex, the exemptions, and recompute after a save
   - Glean search guard: a reply with `querySuggestion`, `structuredResults`, `action` or citations counts as a violation, retries once, then fails; the answer is the last `CONTENT` message
+  - Glean act-as: the request carries `X-Scio-Actas` equal to the email passed in; an empty or missing email is refused before any request; the generate route passes the session user's email, never a body field
   - `profile: null` → `Needs validation` in category and market
 - **Render:**
   - frozen HTML has no `data-slot`, no `contenteditable` and no editor script
