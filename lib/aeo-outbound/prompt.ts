@@ -6,27 +6,32 @@ import type { SnapshotData } from './metrics'
 const n = (x: number) => x.toLocaleString('en-US')
 const p1 = (x: number) => `${x.toFixed(1)}%`
 
+/** Peec text goes into the Data block on one line: a newline in a name or title can't forge a Data line. */
+const one = (t: string) => t.replace(/\s+/g, ' ').trim()
+
 export function dataBlock(d: SnapshotData): string {
-  // No competitors tracked: Peec can still return a row for a brand outside the roster. Name none of them.
+  // No competitors tracked: Peec can still return a row for a brand outside the roster, and metrics counts it in
+  // the rank and the comparison set. Name none of them, and print no rank.
   const noRivals = d.competitorsTracked === 0
   const listed = noRivals ? d.brands.filter((b) => b.isOwn) : d.brands
   const gaps = noRivals ? [] : d.leaderGaps
+  const ownSite = d.ownDomains.length ? `answers that retrieved ${d.ownDomains.map(one).join(', ')}` : "answers that retrieved the brand's own site"
   const lines = [
-    `Brand: ${d.brand}`,
-    `Category: ${d.category ?? 'not in Peec'}`,
-    `Market: ${d.market ?? 'not in Peec'}`,
-    `Data window: ${d.windowLabel}`,
-    `Key metrics: ${d.kpis.map((k) => `${k.label} ${k.value}`).join('; ')}`,
+    `Brand: ${one(d.brand)}`,
+    `Category: ${d.category === null ? 'not in Peec' : one(d.category)}`,
+    `Market: ${d.market === null ? 'not in Peec' : one(d.market)}`,
+    `Data window: ${one(d.windowLabel)}`,
+    `Key metrics: ${d.kpis.map((k) => `${one(k.label)} ${one(k.value)}`).join('; ')}`,
     `Competitors tracked in Peec: ${d.competitorsTracked}`,
-    `Brands in the comparison set: ${d.rankN}`,
-    `Brands by AI visibility (rank, name, visibility, share of voice): ${listed.slice(0, 10).map((b) => `#${b.rank} ${b.name} ${p1(b.visibilityPct)}${b.sovPct !== null ? ` / ${p1(b.sovPct)}` : ''}`).join('; ') || 'none'}`,
-    `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${g.name} ${g.visibilityPoints} points${g.sovPoints !== null ? `, ${g.sovPoints} points` : ''}`).join('; ') || 'none'}`,
-    `Own site retrievals (answers that retrieved the brand's own site): ${n(d.ownRetrievedChats)}${d.ownRetrievedPct !== null ? `, which is ${p1(d.ownRetrievedPct)} of answers` : ''}`,
-    `Source types by share of retrievals: ${d.sourceMix.map((s) => `${s.label} ${p1(s.pct)}`).join('; ') || 'none'}`,
-    `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${g.domain} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
-    `Peec recommended actions (title, impact): ${d.actions.map((a) => `${a.title} (${a.impact})`).join('; ') || 'none'}`,
+    ...(noRivals ? [] : [`Brands in the comparison set: ${d.rankN}`]),
+    `Brands by AI visibility (rank, name, visibility, share of voice): ${listed.slice(0, 5).map((b) => `${noRivals ? '' : `#${b.rank} `}${one(b.name)} ${p1(b.visibilityPct)}${b.sovPct !== null ? ` / ${p1(b.sovPct)}` : ''}`).join('; ') || 'none'}`,
+    `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${g.visibilityPoints} points${g.sovPoints !== null ? `, ${g.sovPoints} points` : ''}`).join('; ') || 'none'}`,
+    `Own site retrievals (${ownSite}): ${n(d.ownRetrievedChats)}${d.ownRetrievedPct !== null ? `, which is ${p1(d.ownRetrievedPct)} of answers` : ''}`,
+    `Source types by share of retrievals: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
+    `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
+    `Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${one(a.impact)})`).join('; ') || 'none'}`,
   ]
-  if (DECISIONS.methodologyStatesPromptsAndModels) lines.push(`Prompts tracked: ${d.promptCount ?? 'not reported'}`, `AI models covered: ${d.models.join(', ') || 'not reported'}`)
+  if (DECISIONS.methodologyStatesPromptsAndModels) lines.push(`Prompts tracked: ${d.promptCount ?? 'not reported'}`, `AI models covered: ${d.models.map(one).join(', ') || 'not reported'}`)
   return lines.join('\n')
 }
 
@@ -41,6 +46,7 @@ Writing rules:
 - Keep findings, hypotheses and recommendations distinct. Use explore, investigate and test. Do not present a full roadmap.
 - Use Peec terms where possible: visibility, share of voice, position, retrievals.
 - Every number you write must appear exactly in the Data section. Do not calculate new numbers. Do not round.
+- Do not say "no" or "none" when a count is positive. Do not state a positive number when the count is zero.
 - Do not infer prompt count, model coverage, timeframe, market, sentiment or causality beyond the Data section.
 - Never mention a discovery call, an internal brief or how the data was gathered. No pricing, no agency comparisons, no criticism of prior partners.
 - Keep strengths and gaps distinct; never repeat a strength as a gap.

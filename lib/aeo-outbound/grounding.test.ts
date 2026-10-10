@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { groundingFlags } from './grounding'
+import { dataBlock } from './prompt'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
 
@@ -27,4 +28,36 @@ test('a dash in a code-set field or a roster brand name is not flagged', () => {
 test('an unknown domain is flagged', () => {
   const s = { ...base, why: 'See competitor.io for more' }
   expect(groundingFlags(s, D, allowed)).toEqual(['why: "competitor.io" is not a domain in the Peec data'])
+})
+
+// The real Data block, not a hand-written string: the digits in names, domains and dates must not open the door.
+const R = {
+  brand: 'Example Co', windowLabel: 'Oct 1, 2026 to Oct 8, 2026', category: null, market: 'United States',
+  window: { start: '2026-10-01', end: '2026-10-08' },
+  brands: [
+    { id: 'o', name: 'Example Co', isOwn: true, visibilityPct: 15.1, sovPct: 15.9, position: 3.1, rank: 3 },
+    { id: 'f', name: 'Formula 7 Labs', isOwn: false, visibilityPct: 26.1, sovPct: 22.5, position: 2.2, rank: 1 },
+  ],
+  kpis: [{ label: 'AI visibility', value: '15.1%' }], competitorsTracked: 11, rankN: 12,
+  leaderGaps: [{ name: 'Formula 7 Labs', visibilityPoints: 11, sovPoints: 6.6 }], ownDomains: ['example.com'],
+  ownRetrievedChats: 1989, ownRetrievedPct: 22.4, sourceMix: [{ label: 'Corporate', weight: 9, pct: 45 }],
+  gapDomains: [{ domain: 'alpha.com', retrievedChats: 1250 }], actions: [], promptCount: 100, models: ['ChatGPT UI'], notes: [],
+} as unknown as SnapshotData
+const RT = dataBlock(R)
+const plain: Slots = { ...base, headline: 'h', context: 'c', competitive_bullets: [{ lead: 'a', text: 't' }, { lead: 'b', text: 't' }], sources_bullets: [{ lead: 'a', text: 't' }, { lead: 'b', text: 't' }] }
+const say = (why: string) => groundingFlags({ ...plain, why }, R, RT)
+
+test('with the real Data block, figures of the wrong kind or from names and dates are flagged', () => {
+  for (const [text, bad] of [['It appears in 7% of answers', '7%'], ['Visibility of 12% trails the leader', '12%'], ['Retrieved in 100% of answers', '100%'], ['An 8% share of voice', '8%'], ['A gap of 11% to the leader', '11%'], ['Only 45% of sources', '45%']]) {
+    expect(say(text)).toEqual([`why: "${bad}" is not in the Peec data`])
+  }
+})
+test('with the real Data block, the data figures pass', () => {
+  for (const t of ['Visibility is 15.1%', 'Ranks #3 of 12', 'It had 1,989 retrievals', 'A gap of 11 points', 'Data as of 2026', 'Share of voice 22.5%']) expect(say(t)).toEqual([])
+})
+test('with no competitors tracked an outside brand name is not exempt', () => {
+  const d = { ...R, competitorsTracked: 0 } as unknown as SnapshotData
+  const t = dataBlock(d)
+  expect(groundingFlags({ ...plain, why: 'Formula 7 Labs leads' }, d, t)).toEqual(['why: "7" is not in the Peec data'])
+  expect(groundingFlags({ ...plain, why: 'Example Co leads' }, d, t)).toEqual([])
 })
