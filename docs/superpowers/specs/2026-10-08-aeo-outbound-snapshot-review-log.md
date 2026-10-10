@@ -162,3 +162,4 @@ Commit `8aa687d2`; review round 1 (changed lines): 0 BLOCKER, 2 MAJOR, 5 MINOR.
 MINOR, fixed in the same edit: a `local@domain.tld` shape check with `a@` tested; a route test that a body email is ignored;
 status-only logging; the privacy, permission and rerun sentences; `.env.example` marks the token required and organization-wide.
 MINOR, for my decision: whether local `.env.local` carries the organization-wide Glean token.
+Round 2 (`8aa687d2..3ee99fda`): both MAJORs RESOLVED; 5 MINOR fixed as targeted edits (the Task 3.1 block's body and guard, where gleanOnce lives, the route wrapper logs status only, matching test cases, a duplicate sentence). No round 3.
