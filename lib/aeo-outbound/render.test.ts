@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { AIVX_CSS } from './aivx/css'
-import { renderSnapshotHtml } from './render'
+import { SHARE_BUTTON, renderSnapshotHtml } from './render'
+import { AIVX_SHARE_BLOCK } from './aivx/share'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
 
@@ -117,5 +118,37 @@ test('hostile names and source labels stay inert through the whole page, figures
     expect(inner, id).toBeDefined()
     expect(inner, id).not.toMatch(/[<>&]/)
     expect(inner, id).toContain('\\u003c')
+  }
+})
+
+test('zero competitors: the context box is absent from final, draft and preview, and the rest still renders (spec §14)', () => {
+  const zero = { ...DATA, competitorsTracked: 0, brands: [BRANDS[1]], rankN: 1 } as SnapshotData
+  for (const mode of ['final', 'draft', 'preview'] as const) {
+    const h = renderSnapshotHtml(zero, SLOTS, mode, 'Oct 9, 2026')
+    expect(h).not.toContain('data-slot="context"')
+    expect(h).not.toContain('Alpha leads')
+    expect(h).not.toContain('<div class="insight-box"><strong>')
+    for (const id of ['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology']) expect(h).toContain(`id="${id}"`)
+    expect(h).toContain('<div class="kpi-strip">')
+    expect(h.trimEnd().endsWith('</html>')).toBe(true)
+  }
+  const draft = renderSnapshotHtml(zero, SLOTS, 'draft', 'Oct 9, 2026')
+  expect(draft).toContain('data-slot="headline"')
+  expect(draft).toContain('data-slot="why"')
+  const final = renderSnapshotHtml(zero, SLOTS, 'final', 'Oct 9, 2026')
+  expect(final).toContain('class="share-btn"')
+  // One competitor tracked: the same slots show the context box.
+  expect(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x')).toContain('data-slot="context"')
+})
+
+test('SHARE_BUTTON is exactly the markup the final render uses, once, and only in final', () => {
+  const final = renderSnapshotHtml(DATA, SLOTS, 'final', 'x')
+  expect(SHARE_BUTTON).toContain('<button class="share-btn"')
+  expect(final.split(SHARE_BUTTON)).toHaveLength(2)
+  expect(final.split(AIVX_SHARE_BLOCK)).toHaveLength(2)
+  for (const mode of ['draft', 'preview'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    expect(h).not.toContain(SHARE_BUTTON)
+    expect(h).not.toContain(AIVX_SHARE_BLOCK)
   }
 })

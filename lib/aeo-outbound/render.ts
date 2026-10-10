@@ -17,6 +17,20 @@ const UL = '<ul style="margin-top:10px;padding-left:20px;display:flex;flex-direc
 const EDITOR_STYLE = '<style>[data-slot]{outline:1px dashed transparent;outline-offset:2px;cursor:text}[data-slot]:hover,[data-slot]:focus{outline-color:rgba(255,255,255,0.35)}</style>'
 const EDITOR_SCRIPT = "<script>(function(){var t={},els={};function send(p){clearTimeout(t[p]);delete t[p];parent.postMessage({type:'edit',path:p,value:els[p].textContent||''},'*')}window.addEventListener('message',function(e){if(e.source===parent&&e.data&&e.data.type==='flush'){Object.keys(t).forEach(send)}});document.querySelectorAll('[data-slot]').forEach(function(el){var p=el.getAttribute('data-slot');els[p]=el;el.addEventListener('input',function(){parent.postMessage({type:'dirty',path:p},'*');clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});el.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();el.blur()}});el.addEventListener('paste',function(e){e.preventDefault();var s=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,s)})})})();</script>"
 
+/**
+ * The final page's share button, exactly as rendered (with its leading newline and indent). Exported so the editor's
+ * preview of a frozen page can remove this exact string (app/api/aeo-outbound/reports/[id]/view/route.ts).
+ */
+export const SHARE_BUTTON = `
+    <button class="share-btn" type="button" aria-label="Copy shareable link to this report">
+      <svg viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+        <polyline points="16 6 12 2 8 6"/>
+        <line x1="12" y1="2" x2="12" y2="15"/>
+      </svg>
+      <span class="share-btn-label">Share Report</span>
+    </button>`
+
 export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: RenderMode, preparedOn: string): string {
   const draft = mode === 'draft'
   /** A slot's text, escaped, inside its element; editable only in draft. */
@@ -63,15 +77,7 @@ export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: Rende
     <a href="#opportunities"><span class="nav-num">04</span> Opportunities</a>
     <a href="#methodology"><span class="nav-num">05</span> Methodology</a>
   </nav>
-  <div class="sidebar-footer">${mode === 'final' ? `
-    <button class="share-btn" type="button" aria-label="Copy shareable link to this report">
-      <svg viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-        <polyline points="16 6 12 2 8 6"/>
-        <line x1="12" y1="2" x2="12" y2="15"/>
-      </svg>
-      <span class="share-btn-label">Share Report</span>
-    </button>` : ''}
+  <div class="sidebar-footer">${mode === 'final' ? SHARE_BUTTON : ''}
     <a href="https://avenuez.com" target="_blank" rel="noopener">avenuez.com ↗</a>
   </div>
 </nav>`
