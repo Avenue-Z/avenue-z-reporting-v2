@@ -87,3 +87,20 @@ export function peecContract<T>(boundary: PeecBoundary, value: T, env: Env = pro
   }
   return value
 }
+
+/** A report id: the same shape store.ts checks before any query reaches Postgres. */
+export const REPORT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+const copyText = z.string().min(1)
+const bullet = z.looseObject({ lead: copyText, text: copyText })
+/** The Glean reply's shape (spec §6). validateGeneratedSlots still cleans and length-checks every value afterwards. */
+export const GLEAN_SLOTS = z.looseObject({
+  headline: copyText, summary: copyText, context: copyText,
+  competitive_bullets: z.array(bullet).min(2).max(3), sources_bullets: z.array(bullet).min(2).max(3),
+  why: copyText, opportunities: z.array(z.looseObject({ signal: copyText, opportunity: copyText, workstream: copyText })).length(3),
+  methodology: copyText, next_step: copyText.optional(),
+})
+/** POST /api/aeo-outbound/generate. start and end are checked by checkRange (range.ts), which owns their messages. */
+export const GENERATE_BODY = z.looseObject({ projectId: z.string().min(1), rerunOf: z.string().regex(REPORT_ID_RE).nullish() })
+/** PATCH /api/aeo-outbound/reports/{id}/slots. path and value are checked by slots.ts, which owns their messages. */
+export const SLOTS_BODY = z.looseObject({ path: z.string(), value: z.unknown(), revision: z.number().int() })

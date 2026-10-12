@@ -188,3 +188,55 @@ test('Q7: the fixed next step is written into next_step', async () => {
   const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))))
   expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
 })
+
+test('progress: pull reports steps 1 to 6 and 8, then generate reports 9 before the first Glean call', async () => {
+  const steps: number[] = []
+  const glean = vi.fn(async () => { steps.push(-1); return reply(GOOD) })
+  await generateSnapshot('or_a', { ...deps(glean), onStep: (s) => steps.push(s) })
+  // GOOD has numbers the fixture's Data block lacks, so a second attempt may follow; only the order up to the first call matters.
+  expect(steps.slice(0, 9)).toEqual([1, 2, 3, 4, 5, 6, 8, 9, -1])
+})
+
+test('progress: step 10 is reported before a second Glean attempt, and never when the second attempt is skipped (spec v1.1 §16.3)', async () => {
+  const steps: number[] = []
+  let calls = 0
+  const glean = vi.fn(async () => { steps.push(-1); return calls++ === 0 ? reply('not json') : reply(GOOD) })
+  await generateSnapshot('or_a', { ...deps(glean), onStep: (s) => steps.push(s) })
+  expect(steps.slice(7, 11)).toEqual([9, -1, 10, -1])
+  const skipped: number[] = []
+  let t = NOW
+  const slow = vi.fn(async () => { t += 230_000; skipped.push(-1); return reply('not json') })
+  await generateSnapshot('or_a', { ...deps(slow, () => t), onStep: (s) => skipped.push(s) })
+  expect(skipped).not.toContain(10)
+  expect(skipped.filter((s) => s === -1)).toHaveLength(1)
+})
+
+test('a reply that breaks its contract is retried once with the fields named', async () => {
+  const glean = vi.fn().mockResolvedValueOnce(reply('{"headline":5}')).mockResolvedValueOnce(reply(GOOD))
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(r.ok).toBe(true)
+  expect(String(glean.mock.calls[1][0])).toContain('headline: invalid_type')
+})
+
+test('every failure carries its code', async () => {
+  const run = (routes: Record<string, Route>, range: { start: string; end: string } | null = null, opts: { maxRows?: number } = {}, glean = vi.fn(), project = 'or_a') =>
+    generateSnapshot(project, { peec: fakePeec(routes, opts).client, glean, deadline: NOW + 270_000, now: () => NOW }, range)
+  const codeOf = async (p: Promise<{ ok: boolean }>) => ((await p) as { code?: string }).code
+  expect(await codeOf(run(base, null, {}, vi.fn(), 'or_zzz'))).toBe('no_project')
+  expect(await codeOf(run({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) }))).toBe('own_brand_count')
+  expect(await codeOf(run({ ...base, '/reports/domains': () => [] }, { start: '2026-09-01', end: '2026-09-07' }))).toBe('no_data')
+  expect(await codeOf(run({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3 }]) }))).toBe('own_brand_no_row')
+  expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', retrieved_chat_count: 0 }]) }))).toBe('zero_retrievals')
+  const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
+  expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, null, { maxRows: 3 }))).toBe('history_too_long')
+  expect(await codeOf(run(timeoutRoutes))).toBe('history_too_long')
+  expect(await codeOf(run(timeoutRoutes, { start: '2026-09-01', end: '2026-09-07' }))).toBe('timeout')
+  expect(await codeOf(run({ ...base, '/brands': () => { throw { status: 404 } } }))).toBe('peec_error')
+  const noVisibility = await run({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_own', name: 'Example Co' } }]) })
+  expect(noVisibility).toMatchObject({ ok: false, code: 'contract_violation', error: 'peec.brands_report.visibility' })
+  expect(await codeOf(run(base, null, {}, vi.fn(async () => reply('{"headline":5}'))))).toBe('copy_failed')
+  expect(await codeOf(run(base, null, {}, vi.fn(async () => reply(GOOD, true))))).toBe('copy_outside_sources')
+  const clockBroken = await generateSnapshot('or_a', { peec: fakePeec(base).client, glean: vi.fn(), deadline: NOW + 270_000, now: () => { throw new Error('clock') } })
+  expect(clockBroken).toMatchObject({ ok: false, code: 'internal', error: 'Generation failed at step 0: clock' })
+  expect(await generateSnapshot('or_a', { peec: new PeecClient('skc-x', { now: () => 10, deadline: 5 }), glean: vi.fn(), deadline: 5, now: () => 10 })).toMatchObject({ code: 'timeout', error: 'Timed out at step 1' })
+})

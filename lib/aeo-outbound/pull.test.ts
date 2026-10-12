@@ -195,3 +195,54 @@ test('a row cap after step 4 keeps the client message even on the default range'
   const late = fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [1, 2, 3, 4].map((i) => ({ brand: { id: `kw_${i}`, name: `B${i}` }, visibility: 0.1 }))) }, { maxRows: 3 })
   await expect(pullSnapshot(late.client, 'or_a', NOW)).rejects.toThrow('more than 3 rows')
 })
+
+const codeOf = async (p: Promise<unknown>) => { try { await p; return 'resolved' } catch (e) { return (e as PeecError).code } }
+
+test('each guard fails with its code on the error object', async () => {
+  expect(await codeOf(pullSnapshot(fakePeec(base).client, 'or_zzz', NOW))).toBe('no_project')
+  expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) }).client, 'or_a', NOW))).toBe('own_brand_count')
+  expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/domains': () => [] }).client, 'or_a', NOW))).toBe('no_data')
+  expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]) }).client, 'or_a', NOW))).toBe('own_brand_no_row')
+  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', retrieved_chat_count: 0 }]) })
+  expect(await codeOf(pullSnapshot(zero.client, 'or_a', NOW))).toBe('zero_retrievals')
+  const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
+  const cap = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, { maxRows: 3 })
+  expect(await codeOf(pullSnapshot(cap.client, 'or_a', NOW))).toBe('history_too_long')
+  const http = fakePeec({ ...base, '/brands': () => { throw { status: 500 } } })
+  expect(await codeOf(pullSnapshot(http.client, 'or_a', NOW))).toBeNull()
+})
+
+test('a brands report row missing visibility fails with contract_violation naming the field, never a NaN%', async () => {
+  const f = fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_own', name: 'Example Co' }, share_of_voice: 0.2 }]) })
+  await expect(pullSnapshot(f.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.brands_report.visibility' })
+})
+
+test('a broken contract in an optional call propagates instead of becoming a warning', async () => {
+  const f = fakePeec({ ...base, '/prompts': () => ({ total_count: 2.5 }) })
+  await expect(pullSnapshot(f.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.prompts.total_count' })
+})
+
+/** /actions/list answering page by page from body.offset, so the fake's offset-0 rule does not apply. */
+const actionPages = (all: { id: string; status: string; title: string }[]) => (_u: URL, b: Record<string, unknown> | null) => {
+  const offset = Number(b?.offset ?? 0); const limit = Number(b?.limit ?? 50)
+  return { data: all.slice(offset, offset + limit) }
+}
+const act = (i: number, pending: boolean) => ({ id: `a${i}`, status: pending ? 'PENDING' : 'COMPLETED', title: `Action ${i}`, impact: 'HIGH', type: 'SEO_ISSUE' })
+
+test('/actions/list pages until it has 10 pending actions', async () => {
+  const all = Array.from({ length: 300 }, (_, i) => act(i, i % 10 === 0))
+  const f = fakePeec({ ...base, '/actions/list': actionPages(all) })
+  const pull = await pullSnapshot(f.client, 'or_a', NOW)
+  expect(pull.actions.map((a) => a.id)).toEqual(['a0', 'a10', 'a20', 'a30', 'a40', 'a50', 'a60', 'a70', 'a80', 'a90'])
+  expect(f.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50])
+})
+
+test('/actions/list stops at 5 pages, and on a short page', async () => {
+  const sparse = Array.from({ length: 400 }, (_, i) => act(i, i === 7))
+  const f = fakePeec({ ...base, '/actions/list': actionPages(sparse) })
+  expect((await pullSnapshot(f.client, 'or_a', NOW)).actions.map((a) => a.id)).toEqual(['a7'])
+  expect(f.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50, 100, 150, 200])
+  const short = fakePeec({ ...base, '/actions/list': actionPages(Array.from({ length: 60 }, (_, i) => act(i, false))) })
+  await pullSnapshot(short.client, 'or_a', NOW)
+  expect(short.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50])
+})

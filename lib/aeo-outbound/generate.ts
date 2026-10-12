@@ -1,7 +1,11 @@
-// Spec §6 and §7a: pull, compute, write copy with at most two Glean attempts inside the deadline, enforce the
-// search guard and the shape check, keep grounding problems as notes.
+// Spec §6 and §7a (v1.1 §7, §10): pull, compute, write copy with at most two Glean attempts inside the deadline, enforce
+// the search guard, the reply contract and the shape check, keep grounding problems as notes. Every failure carries
+// a code the UI turns into plain words.
 import { DECISIONS, MAX_WINDOW_DAYS, NEEDS_VALIDATION } from './config'
+import { checkContract, GLEAN_SLOTS } from './contracts'
+import type { ErrorCode } from './error-codes'
 import { buildSnapshotData, type SnapshotData } from './metrics'
+import type { StoredNote } from './notes'
 import { isPeecTimeout, PeecClient, PeecError } from './peec'
 import { pullSnapshot } from './pull'
 import { buildPrompt, dataBlock, parseModelJson } from './prompt'
@@ -9,21 +13,26 @@ import { groundingFlags } from './grounding'
 import { cleanValue, MAX_LEAD, validateGeneratedSlots, type Slots } from './slots'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
-import type { StoredNote } from './notes'
 
 export type GenerationResult =
   | { ok: true; brandName: string; data: SnapshotData; slots: Slots; notes: StoredNote[] }
-  | { ok: false; error: string; brandName: string | null }
+  | { ok: false; error: string; code: ErrorCode; brandName: string | null }
+
+/** The step reported while Glean writes the copy (v1.1 §7). Pull reports 1 to 6 and 8; there is no step 7. */
+export const WRITING_STEP = 9
+/** The step reported just before Glean's second attempt, only when it runs (spec v1.1 §16.3). */
+export const SECOND_ATTEMPT_STEP = 10
 
 export async function generateSnapshot(
   projectId: string,
-  deps: { peec: PeecClient; glean: (prompt: string, signal: AbortSignal) => Promise<GleanReply>; deadline: number; now: () => number },
+  deps: { peec: PeecClient; glean: (prompt: string, signal: AbortSignal) => Promise<GleanReply>; deadline: number; now: () => number; onStep?: (step: number) => void },
   range: DayRange | null = null,
 ): Promise<GenerationResult> {
   let brandName: string | null = null
   let step = 0
+  const reach = (s: number) => { step = s; deps.onStep?.(s) }
   try {
-    const pull = await pullSnapshot(deps.peec, projectId, deps.now(), (s) => { step = s }, range)
+    const pull = await pullSnapshot(deps.peec, projectId, deps.now(), reach, range)
     brandName = pull.ownBrand.name
     const data = buildSnapshotData(pull, new Date(deps.now()).toISOString())
     const fixed = {
@@ -36,9 +45,11 @@ export async function generateSnapshot(
     let lastSearched = false
     /** A shape-valid reply whose only problem was grounding: kept so a worse second attempt can't lose it. */
     let groundedFallback: { slots: Slots; flags: string[] } | null = null
+    reach(WRITING_STEP)
     for (let attempt = 1; attempt <= 2; attempt++) {
       const left = deps.deadline - deps.now()
       if (attempt === 2 && left < 60_000) break
+      if (attempt === 2) reach(SECOND_ATTEMPT_STEP)
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), Math.max(left, 1))
       let replyText: string
@@ -55,9 +66,12 @@ export async function generateSnapshot(
         clearTimeout(timer)
       }
       const parsed = parseModelJson(replyText) as Record<string, unknown> | null
+      // v1.1 §10: the reply's shape is a contract. A violation is a shape problem fed to the one retry.
+      const shape = checkContract('glean.slots', GLEAN_SLOTS, parsed)
+      if (!shape.ok) { problems = shape.issues.map((i) => `${i.field}: ${i.issue}`); continue }
       const fixedNow = { ...fixed }
-      if (parsed && DECISIONS.writeSpecificCategory && typeof parsed.category === 'string') {
-        // Glean's category only when it fits (spec v1.1 §16.1); anything else keeps the code value and never retries or fails.
+      if (DECISIONS.writeSpecificCategory && typeof parsed?.category === 'string') {
+        // Glean's category only when it fits (spec v1.1 §16.1, Task 3b); anything else keeps the code value and never retries or fails.
         const written = cleanValue(parsed.category)
         if (written && written.length <= MAX_LEAD) fixedNow.category = written
       }
@@ -70,12 +84,15 @@ export async function generateSnapshot(
       break
     }
     if (groundedFallback) return { ok: true, brandName, data, slots: groundedFallback.slots, notes: [...data.notes, ...groundedFallback.flags] }
-    if (lastSearched) return { ok: false, error: 'Copy generation used outside sources. Rerun.', brandName }
-    return { ok: false, error: 'Copy generation failed. Rerun.', brandName }
+    if (lastSearched) return { ok: false, error: 'Copy generation used outside sources. Rerun.', code: 'copy_outside_sources', brandName }
+    return { ok: false, error: 'Copy generation failed. Rerun.', code: 'copy_failed', brandName }
   } catch (e) {
     // Only this client's own exhausted budget counts (PeecError.timeout), never an upstream body that says "timed out".
-    if ((e as Error)?.name === 'AbortError' || isPeecTimeout(e)) return { ok: false, error: range == null && step === 4 ? `Timed out at step 4. Pick a start and end date, at most ${MAX_WINDOW_DAYS} days.` : `Timed out at step ${step}`, brandName }
-    if (e instanceof PeecError) return { ok: false, error: e.message, brandName }
-    return { ok: false, error: `Generation failed at step ${step}: ${(e as Error)?.message ?? String(e)}`.slice(0, 300), brandName }
+    if ((e as Error)?.name === 'AbortError' || isPeecTimeout(e)) {
+      const history = range == null && step === 4
+      return { ok: false, error: history ? `Timed out at step 4. Pick a start and end date, at most ${MAX_WINDOW_DAYS} days.` : `Timed out at step ${step}`, code: history ? 'history_too_long' : 'timeout', brandName }
+    }
+    if (e instanceof PeecError) return { ok: false, error: e.message, code: e.code ?? 'peec_error', brandName }
+    return { ok: false, error: `Generation failed at step ${step}: ${(e as Error)?.message ?? String(e)}`.slice(0, 300), code: 'internal', brandName }
   }
 }

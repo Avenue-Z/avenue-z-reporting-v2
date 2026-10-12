@@ -3,6 +3,7 @@ import { and, desc, eq, ilike, inArray, isNull, lt, not, or, sql, type SQL } fro
 import { db } from '@/lib/db/client'
 import { aeoOutboundOpens as o, aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
 import { STALE_GENERATING_MS } from './config'
+import { REPORT_ID_RE } from './contracts'
 import type { SnapshotData } from './metrics'
 import type { StoredNote } from './notes'
 import type { Slots } from './slots'
@@ -93,7 +94,7 @@ export function discardQuery(id: string, by: string, now: Date) {
     .returning({ id: t.id })
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const UUID = REPORT_ID_RE
 export const isReportId = (id: unknown): id is string => typeof id === 'string' && UUID.test(id)
 
 /** undefined for a malformed id, an unknown id or a discarded row (a malformed id never reaches Postgres). */

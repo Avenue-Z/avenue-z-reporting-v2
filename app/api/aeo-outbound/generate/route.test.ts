@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 const m = vi.hoisted(() => ({
   listProjects: vi.fn(), generateSnapshot: vi.fn(), gleanOnce: vi.fn(), getReport: vi.fn(),
   insert: vi.fn(), insertArgs: vi.fn(), stale: vi.fn(), draft: vi.fn(), failed: vi.fn(), findGenerating: vi.fn(),
+  progress: vi.fn(), progressArgs: vi.fn(), failedArgs: vi.fn(),
 }))
 vi.mock('@/lib/aeo-outbound/pull', async (o) => ({ ...(await o<object>()), listProjects: m.listProjects }))
 vi.mock('@/lib/aeo-outbound/generate', () => ({ generateSnapshot: m.generateSnapshot }))
@@ -14,7 +15,8 @@ vi.mock('@/lib/aeo-outbound/store', async (o) => ({
   markStaleGeneratingQuery: () => ({ then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.stale()) } catch (e) { j(e) } } }),
   insertGeneratingQuery: (v: unknown) => { m.insertArgs(v); return { then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.insert()) } catch (e) { j(e) } } } },
   finishDraftQuery: () => ({ then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.draft()) } catch (e) { j(e) } } }),
-  finishFailedQuery: () => ({ then: (r: (v: unknown) => void) => r(m.failed()) }),
+  finishFailedQuery: (...a: unknown[]) => { m.failedArgs(...a); return { then: (r: (v: unknown) => void) => r(m.failed()) } },
+  progressStepQuery: (id: string, step: number) => { m.progressArgs(id, step); return { then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.progress()) } catch (e) { j(e) } } } },
   findGeneratingFor: m.findGenerating,
 }))
 
@@ -159,10 +161,11 @@ test('200 draft and 200 failed, with the row inserted with its range', async () 
   as('ryan@avenuez.com')
   expect(await (await post({ projectId: 'or_a' })).json()).toEqual({ id: 'row-1', status: 'draft' })
   expect(m.insertArgs).toHaveBeenLastCalledWith({ projectId: 'or_a', projectName: 'Alpha', createdBy: 'ryan@avenuez.com', rerunOf: null, range: null })
-  m.generateSnapshot.mockResolvedValueOnce({ ok: false, error: 'Copy generation failed. Rerun.', brandName: 'Example Co' })
-  expect(await (await post({ projectId: 'or_a', rerunOf: RERUN })).json()).toEqual({ id: 'row-1', status: 'failed', error: 'Copy generation failed. Rerun.' })
+  m.generateSnapshot.mockResolvedValueOnce({ ok: false, error: 'Copy generation failed. Rerun.', code: 'copy_failed', brandName: 'Example Co' })
+  expect(await (await post({ projectId: 'or_a', rerunOf: RERUN })).json()).toEqual({ id: 'row-1', status: 'failed', error: 'Copy generation failed. Rerun.', code: 'copy_failed' })
   expect(m.insertArgs).toHaveBeenLastCalledWith({ projectId: 'or_a', projectName: 'Alpha', createdBy: 'ryan@avenuez.com', rerunOf: RERUN, range: null })
   expect(m.failed).toHaveBeenCalled()
+  expect(m.failedArgs).toHaveBeenLastCalledWith('row-1', 'Copy generation failed. Rerun.', 'Example Co', expect.any(Date), 'copy_failed')
 })
 
 test('a picked range reaches the insert and the pipeline; no range passes null', async () => {
@@ -209,8 +212,9 @@ test('glean acts as the session email, never a body field, and a failure logs th
 test('a throw while finishing still fails the row and answers', async () => {
   as('ryan@avenuez.com')
   m.draft.mockImplementationOnce(() => { throw new Error('db down') })
-  expect(await (await post({ projectId: 'or_a' })).json()).toEqual({ id: 'row-1', status: 'failed', error: 'Generation failed. Rerun.' })
+  expect(await (await post({ projectId: 'or_a' })).json()).toEqual({ id: 'row-1', status: 'failed', error: 'Generation failed. Rerun.', code: 'internal' })
   expect(m.failed).toHaveBeenCalled()
+  expect(m.failedArgs).toHaveBeenLastCalledWith('row-1', 'Generation failed. Rerun.', null, expect.any(Date), 'internal')
 })
 
 test('the finish log names the error, never its message', async () => {
@@ -221,4 +225,28 @@ test('the finish log names the error, never its message', async () => {
   expect(line).toContain('outcome=error step=finish')
   expect(line).toContain('reason=Error')
   expect(line).not.toContain('prospect')
+})
+
+test('a missing Peec key answers 502 JSON with one log line, and creates no row', async () => {
+  as('ryan@avenuez.com')
+  vi.stubEnv('PEEC_AI_CUSTOMER_TOKEN', '')
+  const res = await post({ projectId: 'or_a' })
+  expect(res.status).toBe(502)
+  expect(await res.json()).toEqual({ error: "Peec isn't configured on this server. Tell engineering." })
+  expect(m.insert).not.toHaveBeenCalled()
+  expect(vi.mocked(console.error).mock.calls.map((c) => c.map(String).join(' '))).toEqual(['[aeo-outbound] generate peec client failed reason=PeecError'])
+})
+
+test('progress steps are written unawaited for this row, and a failing write logs one line and never throws', async () => {
+  as('ryan@avenuez.com')
+  await post({ projectId: 'or_a' })
+  const deps = m.generateSnapshot.mock.calls[0][1] as { onStep: (s: number) => void }
+  deps.onStep(4)
+  await new Promise((r) => setTimeout(r, 0))
+  expect(m.progressArgs).toHaveBeenCalledWith('row-1', 4)
+  m.progress.mockImplementationOnce(() => { throw Object.assign(new Error('params ryan@avenuez.com'), { code: '57P01' }) })
+  expect(() => deps.onStep(5)).not.toThrow()
+  await new Promise((r) => setTimeout(r, 0))
+  const lines = vi.mocked(console.warn).mock.calls.map((c) => c.map(String).join(' '))
+  expect(lines).toEqual(['[aeo-outbound] progress not recorded id=row-1 step=5 reason=57P01'])
 })

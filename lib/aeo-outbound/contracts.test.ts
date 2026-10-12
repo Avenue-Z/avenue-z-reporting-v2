@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
 import { z } from 'zod'
 import { CONTRACT_MODES } from './config'
-import { checkContract, contractsDisabled, PEEC_CONTRACTS, peecContract } from './contracts'
+import { checkContract, contractsDisabled, GENERATE_BODY, GLEAN_SLOTS, PEEC_CONTRACTS, peecContract, SLOTS_BODY } from './contracts'
 import { PeecError } from './peec'
 
 // Every value here is invented. SECRET stands for a prospect's data that must never reach a log line.
@@ -100,4 +100,23 @@ test('every Peec boundary has a contract and starts in the documented mode', () 
   expect(Object.keys(PEEC_CONTRACTS).sort()).toEqual(Object.keys(CONTRACT_MODES).filter((b) => b.startsWith('peec.')).sort())
   for (const b of ['peec.domains_by_date', 'peec.brands_report', 'peec.brands_by_model', 'peec.domains_report', 'peec.prompts'] as const) expect(CONTRACT_MODES[b]).toBe('enforce')
   for (const b of ['peec.projects', 'peec.brands', 'peec.project_profile', 'peec.model_channels', 'peec.actions'] as const) expect(CONTRACT_MODES[b]).toBe('observe')
+})
+
+test('the generate body contract keeps the v1.0 rules: a non-empty projectId, and rerunOf null or a report id', () => {
+  const ok = (b: unknown) => checkContract('request.generate', GENERATE_BODY, b, 'enforce', {}).ok
+  expect(ok({ projectId: 'or_a' })).toBe(true)
+  expect(ok({ projectId: 'or_a', rerunOf: null, start: '2026-09-01', end: '2026-09-30' })).toBe(true)
+  expect(ok({ projectId: 'or_a', rerunOf: 'c7d8e0a1-1111-4111-8111-111111111111' })).toBe(true)
+  for (const b of [null, 'x', {}, { projectId: '' }, { projectId: 5 }, { projectId: 'or_a', rerunOf: 'nope' }, { projectId: 'or_a', rerunOf: 7 }]) expect(ok(b)).toBe(false)
+})
+test('the slots body contract: a string path, any value, an integer revision', () => {
+  const ok = (b: unknown) => checkContract('request.slots', SLOTS_BODY, b, 'enforce', {}).ok
+  expect(ok({ path: 'headline', value: 'x', revision: 3 })).toBe(true)
+  for (const b of [null, {}, { path: 5, revision: 3 }, { path: 'headline', value: 'x' }, { path: 'headline', value: 'x', revision: 1.5 }, { path: 'headline', value: 'x', revision: '3' }]) expect(ok(b)).toBe(false)
+})
+test('the Glean reply contract: every copy key a non-empty string, 2 or 3 bullets, exactly 3 opportunities, next_step optional', () => {
+  const reply = { headline: 'H', summary: 'S', context: 'C', competitive_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], sources_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'M' }
+  expect(checkContract('glean.slots', GLEAN_SLOTS, reply, 'enforce', {}).ok).toBe(true)
+  expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, headline: 5 }, 'enforce', {})).toEqual({ ok: false, issues: [{ field: 'headline', issue: 'invalid_type' }] })
+  expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, opportunities: reply.opportunities.slice(0, 2) }, 'enforce', {}).ok).toBe(false)
 })

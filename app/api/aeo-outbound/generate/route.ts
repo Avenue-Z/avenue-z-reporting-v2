@@ -3,15 +3,16 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/auth'
 import { GENERATION_DEADLINE_MS } from '@/lib/aeo-outbound/config'
+import { checkContract, GENERATE_BODY } from '@/lib/aeo-outbound/contracts'
 import { generateSnapshot } from '@/lib/aeo-outbound/generate'
 import { gleanOnce } from '@/lib/aeo-outbound/glean'
 import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
-import { peecFromEnv, PeecError } from '@/lib/aeo-outbound/peec'
+import { peecFromEnv, PeecClient, PeecError } from '@/lib/aeo-outbound/peec'
 import { listProjects } from '@/lib/aeo-outbound/pull'
 import { checkRange, type DayRange } from '@/lib/aeo-outbound/range'
 import {
   finishDraftQuery, finishFailedQuery, findGeneratingFor, getReport, insertGeneratingQuery,
-  isConstraintViolation, isReportId, markStaleGeneratingQuery, ONE_GENERATING_INDEX,
+  isConstraintViolation, markStaleGeneratingQuery, ONE_GENERATING_INDEX, progressStepQuery,
 } from '@/lib/aeo-outbound/store'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 
@@ -20,6 +21,7 @@ export const maxDuration = 300
 
 const BAD_REQUEST = { error: 'bad-request', code: 'bad-request' }
 const UNSTARTED = { error: 'Could not start generation. Try again.' }
+const PEEC_NOT_CONFIGURED = { error: "Peec isn't configured on this server. Tell engineering." }
 /** A read or write before the pipeline failed: one line with the step and the error's code (never its message), and a 500. */
 const unstarted = (step: string, projectId: string, e: unknown) => {
   console.error(`[aeo-outbound] generate ${step} failed project=${projectId} reason=${errorLabel(e)}`)
@@ -39,11 +41,10 @@ export async function POST(req: NextRequest) {
     const parsed: unknown = await req.json()
     body = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
   } catch { /* bad request below */ }
-  const projectId = body?.projectId
-  const rerunOf = body?.rerunOf ?? null
-  if (typeof projectId !== 'string' || !projectId || (rerunOf !== null && !isReportId(rerunOf))) {
-    return NextResponse.json(BAD_REQUEST, { status: 400 })
-  }
+  // v1.1 §10: the body is a contract; a violation keeps the v1.0 400 body.
+  if (!checkContract('request.generate', GENERATE_BODY, body).ok) return NextResponse.json(BAD_REQUEST, { status: 400 })
+  const projectId = (body as { projectId: string }).projectId
+  const rerunOf = (body as { rerunOf?: string | null }).rerunOf ?? null
 
   let range: DayRange | null
   if (rerunOf !== null) {
@@ -61,7 +62,12 @@ export async function POST(req: NextRequest) {
     range = checked.range
   }
 
-  const peec = peecFromEnv({ deadline })
+  let peec: PeecClient
+  try { peec = peecFromEnv({ deadline }) } catch (e) {
+    // A missing PEEC_AI_CUSTOMER_TOKEN throws in the constructor (peec.ts:60): answer JSON, never crash (v1.1 §9).
+    console.error(`[aeo-outbound] generate peec client failed reason=${errorLabel(e)}`)
+    return NextResponse.json(PEEC_NOT_CONFIGURED, { status: 502 })
+  }
   let project
   try {
     project = (await listProjects(peec)).find((p) => p.id === projectId)
@@ -93,6 +99,12 @@ export async function POST(req: NextRequest) {
         }),
         deadline,
         now: Date.now,
+        // v1.1 §7: one unawaited, guarded UPDATE per step. It never throws and never slows the run.
+        onStep: (step: number) => {
+          void Promise.resolve()
+            .then(() => progressStepQuery(id, step))
+            .then(() => undefined, (e: unknown) => console.warn(`[aeo-outbound] progress not recorded id=${id} step=${step} reason=${errorLabel(e)}`))
+        },
       },
       range,
     )
@@ -101,13 +113,13 @@ export async function POST(req: NextRequest) {
       console.info(`[aeo-outbound] generate id=${id} outcome=draft ms=${Date.now() - started}`)
       return NextResponse.json({ id, status: 'draft' })
     }
-    await finishFailedQuery(id, result.error, result.brandName, new Date())
-    console.info(`[aeo-outbound] generate id=${id} outcome=failed ms=${Date.now() - started}`)
-    return NextResponse.json({ id, status: 'failed', error: result.error })
+    await finishFailedQuery(id, result.error, result.brandName, new Date(), result.code)
+    console.info(`[aeo-outbound] generate id=${id} outcome=failed code=${result.code} ms=${Date.now() - started}`)
+    return NextResponse.json({ id, status: 'failed', error: result.error, code: result.code })
   } catch (e) {
     // Never leave the row generating: a failed write or an unexpected throw still fails it.
     console.error(`[aeo-outbound] generate id=${id} outcome=error step=finish ms=${Date.now() - started} reason=${errorLabel(e)}`)
-    try { await finishFailedQuery(id, 'Generation failed. Rerun.', null, new Date()) } catch { /* logged above; the stale rule still frees the row */ }
-    return NextResponse.json({ id, status: 'failed', error: 'Generation failed. Rerun.' })
+    try { await finishFailedQuery(id, 'Generation failed. Rerun.', null, new Date(), 'internal') } catch { /* logged above; the stale rule still frees the row */ }
+    return NextResponse.json({ id, status: 'failed', error: 'Generation failed. Rerun.', code: 'internal' })
   }
 }
