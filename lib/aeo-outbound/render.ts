@@ -268,7 +268,9 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}
 </section>
 <section id="methodology" class="section">
-  <div class="method-note">${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)} ${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div>
+  <div class="section-label">${fixed('05 / ')}${mirror('page.method_nav', p.method_nav)}</div>
+  <h2 class="section-title">${mirror('page.method_nav', p.method_nav)}</h2>
+  <div class="method-note"><div>${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)}</div><div style="margin-top:10px">${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div></div>
 </section>
 <footer class="footer">
   <div class="footer-grad-line"></div>

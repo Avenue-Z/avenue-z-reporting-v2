@@ -204,7 +204,7 @@ test('every visible text in draft is a slot, a mirror, fixed by design, a chart 
 
 test('fixed by design means exactly the nav numbers, the section number prefixes and the Prepared date', () => {
   const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'Oct 8, 2026'))
-  expect([...doc.querySelectorAll('[data-locked="fixed"]')].map((e) => e.textContent)).toEqual(['01', '02', '03', '04', '05', '02 / ', '03 / ', '04 / ', 'Oct 8, 2026'])
+  expect([...doc.querySelectorAll('[data-locked="fixed"]')].map((e) => e.textContent)).toEqual(['01', '02', '03', '04', '05', '02 / ', '03 / ', '04 / ', '05 / ', 'Oct 8, 2026'])
   expect(doc.querySelectorAll('[data-locked="chart"]')).toHaveLength(2)
 })
 
@@ -215,7 +215,7 @@ test('exactly one editable element per path, every path present, and every mirro
   // The default wordmark is Avenue Z, so the Powered by line and its slot are not on the page (spec v1.1 §16.1).
   expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(SLOTS, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
   const mirrors = new Set([...doc.querySelectorAll('[data-mirror]')].map((e) => e.getAttribute('data-mirror')))
-  expect(mirrors).toEqual(new Set(['brand', 'page.series', 'page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label']))
+  expect(mirrors).toEqual(new Set(['brand', 'page.series', 'page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label', 'page.method_nav']))
   for (const m of mirrors) expect(paths).toContain(m)
   expect(doc.querySelectorAll('[data-mirror][data-slot]')).toHaveLength(0)
 })
@@ -432,5 +432,35 @@ test('the Add bullet button is a direct child of .insight-box, which the .aeo-ct
   for (const b of add) {
     expect(b.classList.contains('aeo-ctl')).toBe(true)
     expect(b.parentElement!.classList.contains('insight-box')).toBe(true)
+  }
+})
+
+test('Methodology has a 05 label and a title that follow the menu word, and Next step sits in its own block (spec v1.1 §17.13)', () => {
+  for (const [word, slots] of [['Methodology', SLOTS], ['Approach', { ...SLOTS, page: { method_nav: 'Approach' } } as Slots]] as const) {
+    for (const mode of ['draft', 'preview', 'final'] as const) {
+      const doc = parse(renderSnapshotHtml(DATA, slots, mode, 'x'))
+      const sec = doc.querySelector('#methodology')!
+      const label = sec.querySelector('.section-label')!
+      const title = sec.querySelector('h2.section-title')!
+      expect(label.textContent, `${mode} ${word} label`).toBe(`05 / ${word}`)
+      expect(title.textContent, `${mode} ${word} title`).toBe(word)
+      if (mode === 'draft') {
+        expect(label.querySelector('[data-mirror="page.method_nav"]')).not.toBeNull()
+        expect(title.getAttribute('data-mirror') ?? title.querySelector('[data-mirror]')?.getAttribute('data-mirror')).toBe('page.method_nav')
+      }
+      const blocks = [...sec.querySelectorAll('.method-note > div')]
+      expect(blocks, `${mode} blocks`).toHaveLength(2)
+      expect(blocks[0].querySelector('strong')!.getAttribute('data-slot') ?? (mode === 'draft' ? 'missing' : null)).toBe(mode === 'draft' ? 'page.method_label' : null)
+      if (mode === 'draft') {
+        expect(blocks[0].querySelector('[data-slot="methodology"]')).not.toBeNull()
+        expect(blocks[1].querySelector('[data-slot="page.next_label"]')).not.toBeNull()
+        expect(blocks[1].querySelector('[data-slot="next_step"]')).not.toBeNull()
+        expect(blocks[0].querySelector('[data-slot="next_step"]')).toBeNull()
+      }
+      expect(blocks[0].textContent).toContain('Method.')
+      expect(blocks[1].textContent).toContain('Next.')
+      expect(blocks[0].textContent).not.toContain('Next.')
+      expect(blocks[1].getAttribute('style')).toBe('margin-top:10px')
+    }
   }
 })
