@@ -163,3 +163,12 @@ MINOR, fixed in the same edit: a `local@domain.tld` shape check with `a@` tested
 status-only logging; the privacy, permission and rerun sentences; `.env.example` marks the token required and organization-wide.
 MINOR, for my decision: whether local `.env.local` carries the organization-wide Glean token.
 Round 2 (`8aa687d2..3ee99fda`): both MAJORs RESOLVED; 5 MINOR fixed as targeted edits (the Task 3.1 block's body and guard, where gleanOnce lives, the route wrapper logs status only, matching test cases, a duplicate sentence). No round 3.
+
+## Amendment 2026-10-11 (4): full history by default, and the implausible-visibility warning
+
+My decisions after the 2026-10-11 sample-copy trial (`aeo-outbound-audit-notes/findings/2026-10-11-sample-copy-trial.md`):
+the default range goes back to the project's full history (400 days), which reverses the 2026-10-09 change made after Paul's
+review, because an ended pitch project older than 30 days failed with no data and Ryan's skill says all-time; Paul's row-cap
+concern is bounded by pitch-only projects and answered with a plain "pick a range" failure. A notes-panel warning flags any
+brand above 90% visibility. Spec edits are targeted (§2 step 2, §7 step 4, §7 warning, §10 hub, §14 two rows, §15 two tests).
+

@@ -1695,6 +1695,22 @@ These apply when each task's brief is dispatched; the task text above them is ot
 - **First preview deploy (spec review log item 7):** check that a link pasted into Slack and iMessage is served to the preview bot but not counted, and whether generation keeps running after the tab closes (spec §7a). Record both in `docs/findings/`.
 - **Follow-up, not built:** a retention rule for `share_recipient` (approved rows can't be discarded).
 
+## Amendment 2026-10-11: full-history default and the implausible-visibility warning (Task T2, on PR 368)
+
+Built on `feat/aeo-outbound-parts` (PR 368) so PR 361 stays as Paul reviews it.
+- **Full history by default:** `defaultRange(nowMs)` returns today − (`MAX_LOOKBACK_DAYS` − 1) through today (400 days).
+  `DEFAULT_WINDOW_DAYS` is removed (its only other reader, the hub's helper text, says "the project's full history, up to
+  {MAX_LOOKBACK_DAYS} days back"). `checkRange` is unchanged (a picked range stays at most 90 days). In `pullSnapshot`, when no
+  range was passed and the step-4 discovery throws the client's row-cap `PeecError`, rethrow
+  `PeecError('This project has too much history for one snapshot. Pick a start and end date, at most 90 days.')`; a picked
+  range keeps the client's message; every other error is unchanged. Tests: the default range is 400 days ending today; the
+  default-range row cap gives the new message; a picked-range row cap keeps the old one.
+- **Warning:** `IMPLAUSIBLE_VISIBILITY_PCT = 90` in `config.ts`; `buildSnapshotData` adds, for each brand in `brands` (own
+  or competitor) whose displayed visibility is above 90, the note
+  `{name} shows {v}% AI visibility, which is unusually high. Check this brand's setup in Peec before sending: a name that is a common word can match unrelated answers.`
+  with `{v}` the displayed one-decimal value. Never on the page, in the Data block or in the copy; never blocks Approve.
+  Tests: 90.1 adds it, 90.0 does not, own and competitor both, two brands give two notes.
+
 ## Part 2 (PR2): the report page
 
 Cut from `aeo-outbound-audit` after PR1 merges: `git checkout -b feat/aeo-outbound-render origin/aeo-outbound-audit`.
