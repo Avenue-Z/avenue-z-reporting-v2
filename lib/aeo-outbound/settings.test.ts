@@ -64,3 +64,17 @@ test('the form starts from the settings, and validating that input gives the sam
   expect(input).toMatchObject({ users: 'ana@avenuez.com\nbo@avenuez.com', nextStepMode: 'fixed', rankMode: 'top', rankAmong: '7', peecOpportunityRows: '1' })
   expect(validateSettingsInput(input)).toEqual({ ok: true, values: s })
 })
+
+test('under the contract kill switch a malformed users or admins list still makes the row invalid, because it decides access', () => {
+  vi.stubEnv('CONTRACT_DISABLED', '1')
+  const bad = (over: Record<string, unknown>) => resolveSettings({ ...ROW, ...over })
+  const expected = { settings: SETTINGS_DEFAULTS, updatedAt: '2026-10-10T09:00:00.000Z', invalid: true }
+  expect(bad({ users: 'bob@avenuez.com' })).toEqual(expected)
+  expect(bad({ admins: { 0: 'boss@avenuez.com' } })).toEqual(expected)
+  expect(bad({ users: ['ana@gmail.com'] })).toEqual(expected)
+  expect(bad({ users: [5] })).toEqual(expected)
+  expect(bad({ users: Array.from({ length: 51 }, (_, i) => `p${i}@avenuez.com`) })).toEqual(expected)
+  expect(bad({ admins: [`${'a'.repeat(190)}@avenuez.com`] })).toEqual(expected)
+  expect(bad({}).invalid).toBe(false)
+  vi.unstubAllEnvs()
+})

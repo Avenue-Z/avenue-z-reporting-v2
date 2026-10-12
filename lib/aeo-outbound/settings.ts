@@ -47,12 +47,18 @@ export const SETTINGS_FIELD_LABELS: Record<SettingsField, string> = {
 }
 const FIELDS: SettingsField[] = ['users', 'admins', 'sectionTitles', 'fixedNextStep', 'rankAmong', 'peecOpportunityRows', 'methodologyStatesPromptsAndModels', 'sidebarWordmark']
 
+/** A stored people list: an array of at most 50 strings, each an @avenuez.com address of at most 200 characters. */
+const isAccessList = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.length <= SETTINGS_LIMITS.people && v.every((e) => typeof e === 'string' && e.length <= SETTINGS_LIMITS.emailChars && e.endsWith('@avenuez.com'))
+
 /** The row as settings. No row: the defaults. A row that breaks its contract: the defaults, flagged invalid, with its
  *  updated_at kept so an admin's save can replace it. */
 export function resolveSettings(row: unknown): { settings: OutboundSettings; updatedAt: string | null; invalid: boolean } {
   if (row === null || row === undefined) return { settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false }
   const at = (row as { updatedAt?: unknown }).updatedAt
   const updatedAt = at instanceof Date ? at.toISOString() : null
+  // This guard holds even under the CONTRACT_DISABLED kill switch, because users and admins decide access.
+  if (!isAccessList((row as { users?: unknown }).users) || !isAccessList((row as { admins?: unknown }).admins)) return { settings: SETTINGS_DEFAULTS, updatedAt, invalid: true }
   if (!checkContract('settings.row', SETTINGS_ROW, row).ok) return { settings: SETTINGS_DEFAULTS, updatedAt, invalid: true }
   const r = row as OutboundSettings
   return {

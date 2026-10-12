@@ -271,4 +271,5 @@ test('a settings user can generate, and the request settings reach the pipeline'
   expect((await post({ projectId: 'or_a' })).status).toBe(200)
   expect(m.generateSnapshot.mock.calls[0][3]).toMatchObject({ rankAmong: 5, sectionTitles: ['Strengths', 'Gaps'] })
   expect(m.insertArgs).toHaveBeenLastCalledWith(expect.objectContaining({ createdBy: 'ana@avenuez.com' }))
+  expect(m.readSettings).toHaveBeenCalledTimes(1)
 })
