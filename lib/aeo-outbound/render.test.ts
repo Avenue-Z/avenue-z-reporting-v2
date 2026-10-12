@@ -332,23 +332,28 @@ test('the phone Share block is in the final page only, immediately before the fo
   expect(SHARE_MOBILE).toBe('<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>')
 })
 
-/** v1.1 §17.8: the five rules that close up the space beside the two charts, verbatim and in order. */
+/** v1.1 §17.8 and §17.10: the rules that close up the space beside the two charts and lay the findings out as rows, verbatim and in order. */
 const CHART_SPACING_RULES = [
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
   '#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}',
-  '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;justify-content:center}',
+  '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
+  '#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}',
+  '#category-data .insight-box li,#competitive-visibility .insight-box li{font-size:16px;line-height:1.6;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.08)}',
+  '#category-data .insight-box li:last-child,#competitive-visibility .insight-box li:last-child{border-bottom:none}',
+  '#category-data .insight-box li strong,#competitive-visibility .insight-box li strong{display:block;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{margin-bottom:0}',
 ]
+const COLOR_SCHEME_RULE = 'html{color-scheme:dark}'
 const outsideRules = () => PAGE_CSS.slice(0, PAGE_CSS.indexOf('@media (max-width: 900px){')).split('\n').filter(Boolean)
 
-test('every PAGE_CSS rule except aeo-long, the hidden share block and the five chart spacing rules sits inside the phone media query', () => {
+test('every PAGE_CSS rule except aeo-long, the hidden share block and the chart spacing rules sits inside the phone media query', () => {
   const open = '@media (max-width: 900px){'
   const at = PAGE_CSS.indexOf(open)
   expect(at).toBeGreaterThan(-1)
   expect(PAGE_CSS.endsWith('}')).toBe(true)
   const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
-  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', '.aeo-share-mobile{display:none}', ...CHART_SPACING_RULES])
+  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', '.aeo-share-mobile{display:none}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES])
   const inside = PAGE_CSS.slice(at + open.length, -1).split('\n').filter(Boolean)
   expect(inside.length).toBeGreaterThan(5)
   expect(inside.every((r) => r.endsWith('}') && !r.includes('@media'))).toBe(true)
@@ -389,15 +394,35 @@ test('data-kpis="3" on the strip only with exactly three cards', () => {
 
 test('chart spacing rules (v1.1 §17.8): none names a chart internal, the chart-wrap body is only margin-bottom:0, no sizing or box property', () => {
   for (const r of CHART_SPACING_RULES) expect(r).not.toMatch(/plotly|svg|aeo-chart-/)
-  const wrap = CHART_SPACING_RULES[4]!
+  const wrap = CHART_SPACING_RULES[CHART_SPACING_RULES.length - 1]!
+  expect(wrap.startsWith('#category-data .chart-wrap')).toBe(true)
   expect(wrap.slice(wrap.indexOf('{') + 1, -1)).toBe('margin-bottom:0')
-  for (const r of outsideRules()) expect(r.slice(r.indexOf('{') + 1)).not.toMatch(/(^|[;{\s])(height|min-height|padding|border|overflow)\s*:/)
+  for (const r of outsideRules().filter((x) => /chart-wrap|plotly|svg|aeo-chart-/.test(x.slice(0, x.indexOf('{'))))) expect(r.slice(r.indexOf('{') + 1)).not.toMatch(/(^|[;{\s])(height|min-height|padding|border|overflow)\s*:/)
 })
 
 test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final page exactly once', () => {
   for (const mode of ['draft', 'preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
-    for (const r of CHART_SPACING_RULES) expect(h.split(r).length - 1).toBe(1)
+    for (const r of [COLOR_SCHEME_RULE, ...CHART_SPACING_RULES]) expect(h.split(r).length - 1, `${mode} ${r.slice(0, 40)}`).toBe(1)
+  }
+})
+
+test('findings rows (v1.1 §17.10): the box loses justify-content:center, the list fills it, and html is drawn dark', () => {
+  const out = outsideRules()
+  expect(out.join('\n')).not.toContain('justify-content:center')
+  expect(out.indexOf(COLOR_SCHEME_RULE)).toBe(out.indexOf('.aeo-share-mobile{display:none}') + 1)
+  const ctl = out.findIndex((r) => r.includes('.insight-box>.aeo-ctl'))
+  expect(out.slice(ctl + 1, ctl + 5)).toEqual(CHART_SPACING_RULES.slice(4, 8))
+})
+
+test('the draft keeps the Add bullet and Remove buttons inside .insight-box with 2 and 3 bullets', () => {
+  for (const n of [2, 3]) {
+    const slots = { ...SLOTS, competitive_bullets: Array.from({ length: n }, (_, i) => ({ lead: `L${i}`, text: `T${i}` })), sources_bullets: Array.from({ length: n }, (_, i) => ({ lead: `S${i}`, text: `U${i}` })) } as unknown as Slots
+    const doc = parse(renderSnapshotHtml(DATA, slots, 'draft', 'x'))
+    const ctls = [...doc.querySelectorAll('[data-structure]')]
+    expect(ctls.length).toBeGreaterThanOrEqual(2)
+    for (const b of ctls) expect(b.closest('.insight-box'), `${n} ${b.getAttribute('data-structure')}`).not.toBeNull()
+    expect(doc.querySelectorAll(`[data-structure="${n === 2 ? 'add' : 'remove'}"]`)).toHaveLength(n === 2 ? 2 : 6)
   }
 })
 
