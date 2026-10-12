@@ -548,12 +548,15 @@ Sources: my dev test on 2026-10-12 (migration 0027 applied on dev, a real pitch-
 
 AIVx's own phone rules (hide the sidebar, stack columns, two KPI columns when there are four) stay. "Phone" below means
 the media query `(max-width: 900px)`, the one AIVx uses (900px included). A stylesheet `PAGE_CSS`, emitted right after
-`AIVX_CSS` (`render.ts:245`) in every mode, adds the rules below (all inside that media query except `aeo-long`); the
+`AIVX_CSS` (`render.ts:245`) in every mode, adds the rules below (all inside that media query except `aeo-long` and the
+default `.aeo-share-mobile { display: none }`); the
 title, card, table, donut and button looks were checked in the trial, the share click was not:
 - Phone: the brand title `font-size: clamp(40px, 11vw, 64px) !important; line-height: 1.1` (the `!important` beats the
   long-name inline 72px).
-- Phone: `.kpi-strip { grid-template-columns: repeat(2, 1fr) !important }`, because a strip of 1 to 3 KPIs carries an
-  inline `repeat(N, 1fr)` (`render.ts:135`) that beats AIVx's phone rule.
+- Phone: a 3-KPI strip goes to two columns. Render adds `data-kpis="3"` to the strip only when it has exactly 3 cards
+  (its inline `repeat(3, 1fr)`, `render.ts:135`, beats AIVx's phone rule), and `PAGE_CSS` has
+  `.kpi-strip[data-kpis="3"] { grid-template-columns: repeat(2, 1fr) !important }`. One card stays full width and two stay
+  two columns, as today; four use AIVx's own rule.
 - At every width: a KPI value longer than 7 characters (after trimming) gets the class `aeo-long`
   (`font-size: 24px; line-height: 1.15`), so the rank card fits one line on desktop and two on a phone. The class is set at
   render from the slot value. This is the one deliberate desktop change (AIVx's 32px).
@@ -567,21 +570,28 @@ title, card, table, donut and button looks were checked in the trial, the share 
 - Phone: a second Share button, in the final mode only, rendered from the exported constant `SHARE_MOBILE` exactly as
   `<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this
   report">Share Report</button></div>` immediately before the footer (not `SHARE_BUTTON`, and not the class `share-btn`,
-  which AIVx's script and the view route key on). `PAGE_CSS` styles `.aeo-share-mobile-btn` like AIVx's pill and hides the
-  block above 900px. `PAGE_JS` makes a click on it call `click()` on the sidebar's `.share-btn` (the element AIVx's share
+  which AIVx's script and the view route key on). `.aeo-share-mobile-btn` copies AIVx's `.share-btn` declarations (`width: auto; margin: 0` instead of AIVx's full width
+  and bottom margin), and the block is `display: none` by default and `display: flex; justify-content: center; padding:
+  24px` inside the phone query. `PAGE_JS` makes a click on it call `click()` on the sidebar's `.share-btn` (the element AIVx's share
   block binds, `aivx/share.ts`), so AIVx's own pinned block does the copy and shows its toast; the "Copied!" flash is on the
   hidden sidebar button, so a phone user sees the toast only. The view route's preview of an approved row removes the
-  exact `SHARE_MOBILE` string as it removes `SHARE_BUTTON`, and its `HIDE_SHARE` fallback also hides `.aeo-share-mobile`
+  exact `SHARE_MOBILE` string when it occurs once, treats its absence as fine (rows approved before this change have
+  none), and uses its `HIDE_SHARE` fallback, which also hides `.aeo-share-mobile`, only when it occurs more than once
   (`app/api/aeo-outbound/reports/[id]/view/route.ts:17-25`).
-- Phone, the donut (`#aeo-chart-sources`, drawn by `embedFigure`'s inline `newPlot`, `charts.ts:92`): on `load` and on
-  every change of `matchMedia('(max-width: 900px)')`, `PAGE_JS` takes deep copies of the element's `data` and `layout`
-  (which keep the template and `marker.colors`, `charts.ts:78,84`; the original copies are kept to restore). When the query
-  matches it calls `Plotly.react` with: `texttemplate` an array, `'%{percent:.1%}'` for a slice whose value is at least 5%
-  of the total (unrounded) and `''` otherwise; `labels` each with its percentage, two spaces, one decimal and `%`
-  ("Reference  4.8%"); `customdata` the original labels; and the hover template with `%{label}` replaced by
-  `%{customdata}`, so the hover reads as before. When it stops matching it calls `Plotly.react` with the original copies.
-  `Plotly.restyle` is not used (it throws on this figure, trial). If `Plotly` or the element is missing, or anything
-  throws, it does nothing and the chart stays as AIVx drew it. The page's figure JSON stays AIVx's, so the chart goldens
+- Phone, the donut (`#aeo-chart-sources`, drawn by `embedFigure`'s inline `newPlot`, `charts.ts:92`): on `load`,
+  `PAGE_JS` takes deep copies of the element's `data` and `layout` once (they keep the template and `marker.colors`,
+  `charts.ts:78,84`) and keeps them as the originals. On `load` and on every change of `matchMedia('(max-width: 900px)')`:
+  when the query matches it calls `Plotly.react` with a fresh copy of the originals in which `texttemplate` is an array,
+  `'%{percent:.1%}'` for a slice whose value is at least 5% of the total (unrounded) and `''` otherwise; `labels` are
+  each original label, one space and `(100 * value / total).toFixed(1)` with `%` ("Reference 4.8%"); `customdata` is the
+  original labels; and the hover template has `%{label}` replaced by `%{customdata}` (it is
+  `'<b>%{label}</b><br>Retrievals: %{value}<extra></extra>'`, `charts.ts:82`). When it stops matching it calls
+  `Plotly.react` with the originals. Every call is caught both as a throw and as a rejected promise; on a failure it calls
+  `Plotly.react` once with the originals, also caught. If `Plotly` or the element is missing it does nothing.
+  `Plotly.restyle` is not used (it throws on this figure, trial). Verified in the browser on 2026-10-12 with Plotly 3.5.0
+  on a real report: the slice texts read "60.3%" and "23.3%" with the small slices blank, the legend reads "Reference 4.8%",
+  and the originals restore AIVx's donut exactly. Unverified: the hover text after the `customdata` swap (the tests prove
+  the template string, not Plotly's hover). The page's figure JSON stays AIVx's, so the chart goldens
   are unchanged.
 - The version 1 golden (`v1-compat.test.ts`) gains these as deliberate differences: the `PAGE_CSS` style element, the
   `PAGE_JS` script, the `data-label` attributes, the `aeo-long` class where a value is long, and `SHARE_MOBILE`.
@@ -613,8 +623,9 @@ editing. Open by default on a draft and the generating-to-draft rule (§4, Task 
 - "Powered by Avenue Z" (§16.1) shows only when the top-left name does not already contain "avenue z" (trimmed, any
   case): it shows under "AIVx" or a new name such as "AEO Lens", and not under "Avenue Z" or "Avenue Z AEO".
   `showsPowered` changes to that rule.
-- Grounding skips `page.series` and `page.sidebar_wordmark` (they come from settings or Ryan's own edit, not from Glean),
-  so a name with a digit or a domain never adds a "Check these" item.
+- Grounding skips the number and domain checks for `page.series` and `page.sidebar_wordmark` (they come from settings or
+  Ryan's own edit, not from Glean), so a name with a digit or a domain never adds a "Check these" item. The long-dash check
+  still runs on both, as on every slot.
 - A new setting `series`, label "Report name", the same rules, default "AI Visibility Snapshot" (`PAGE_WORDS_V1.series`).
   It is the default for `page.series` on every new report (`pageDefaults`, `lib/aeo-outbound/slots.ts:73`, called at
   `generate.ts:88`), which drives the title, the hero, the sidebar and the footer series.
@@ -648,8 +659,10 @@ and in a draft outside edit mode (frame test running `PAGE_JS`); in edit mode it
 script; a hash with no target is not prevented; the phone Share click calls `click()` on the sidebar `.share-btn` and,
 with the real `AIVX_SHARE_BLOCK` and a stubbed clipboard, shows the toast; a missing `Plotly` and a throwing
 `Plotly.react` each leave the donut untouched; every `PAGE_CSS` rule except `aeo-long` sits inside `(max-width: 900px)`;
-the phone `.kpi-strip` rule for a 3-KPI page; the view route removes `SHARE_MOBILE` in preview and its fallback hides
-`.aeo-share-mobile`; the donut's hover still shows the original label; `PAGE_CSS` and `PAGE_JS` present in draft, preview and final; `data-label`
+the phone `.kpi-strip` rule for a 3-KPI page and none on 1, 2 or 4; the view route removes `SHARE_MOBILE` in preview, an
+old approved row without it is served without the fallback or its log line, and the fallback hides `.aeo-share-mobile`;
+the donut's hover template uses `%{customdata}`; a media-query change that stops matching restores the originals; a
+rejected `Plotly.react` restores the originals once; `PAGE_CSS` and `PAGE_JS` present in draft, preview and final; `data-label`
 on every opportunities cell equal to its column word; `aeo-long` on an 8-character value and not on a 7-character one; the
 phone Share block in final only; the donut re-render keeps labels for slices of 5% or more and adds percentages to the
 legend under 900px and does nothing at 901px (a test with a stubbed `Plotly` and `matchMedia`); the version 1 golden with
@@ -658,6 +671,6 @@ the new deliberate differences. Hub: `color-scheme` on both date inputs; a click
 Revoked.
 Settings: free-text top-left name and report name accepted at 1 and 60 characters, refused at 0 and 61 ("Use 1 to 60
 characters.") and with a long dash; the form's labels; `series` defaults, round trip, change log and SQL text;
-`pageDefaults` sets `series`; `showsPowered` for "AIVx", "AEO Lens", "Avenue Z" and "Avenue Z AEO"; grounding skips
-`page.series` and `page.sidebar_wordmark`; `0028` adds only that column; a settings read on a database without the column
+`pageDefaults` sets `series`; `showsPowered` for "AIVx", "AEO Lens", "Avenue Z" and "Avenue Z AEO"; grounding skips the
+number and domain checks on `page.series` and `page.sidebar_wordmark` and still flags a long dash in them; `0028` adds only that column; a settings read on a database without the column
 falls back to the env list (the access test with a throwing read already covers the path).

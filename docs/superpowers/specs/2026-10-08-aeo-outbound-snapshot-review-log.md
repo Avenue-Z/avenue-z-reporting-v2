@@ -230,3 +230,15 @@ Ryan's answers, the share link, live progress. Draft `22c39ba6`.
   `generate.ts` wholesale and its plan:2100 restores the old category rule. N2: Task 6 replaces `slots.ts` wholesale and
   its `limitFor` (plan:2998-3002) gives `category` 1,000. Both are missing plan lines in §16.4, no design change. Per my
   regimen, a MAJOR after round 2 goes to Thomas as a decision. The 11 MINORs (N3 to N13) go to the plan edits.
+
+## v1.1 amendment 6 (§17), 2026-10-12
+
+The phone layout, the menu links, the calendar, the panel, the name settings. Draft `375d1a49`.
+
+- **Round 1** (opus, whole amendment, fixed checklist): 0 BLOCKER, 6 MAJOR, 10 MINOR. MAJORs: the 0028-not-applied row and
+  gate; the phone Share button vs the view route strip; PAGE_JS listener phase and edit mode; the donut mechanics; a 1 to 3
+  KPI strip's inline grid; missing tests. All fixed in `16fd8613`, with the minors that were wrong statements.
+- **Round 2** (opus, changed lines only): every round 1 MAJOR resolved; 0 BLOCKER, 0 MAJOR, 8 MINOR (the default hide rule,
+  grounding keeps the long-dash check, the strip of old approved rows, the 3-KPI-only rule, rejected promises, when copies
+  are taken, tests, unverified mechanics). Folded in as targeted edits; no round 3. The donut mechanics were then verified
+  in the browser on a real report (Plotly 3.5.0); the hover text after the customdata swap stays unverified.
