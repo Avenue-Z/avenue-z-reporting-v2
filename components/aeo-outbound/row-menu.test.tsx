@@ -37,6 +37,13 @@ test('Tab from the last item to a control outside closes it, without stealing fo
   expect(screen.getByRole('button', { name: 'outside' })).toHaveFocus()
 })
 
+test('a focusout with no related target keeps it open', () => {
+  render(<RowMenu label="Acme" items={items()} />)
+  fireEvent.click(more())
+  fireEvent.focusOut(screen.getByRole('menuitem', { name: 'Revoke' }), { relatedTarget: null })
+  expect(screen.getByRole('menu')).toBeInTheDocument()
+})
+
 test('moving focus between the items and More keeps it open', () => {
   render(<RowMenu label="Acme" items={items()} />)
   fireEvent.click(more())

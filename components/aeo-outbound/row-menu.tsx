@@ -35,11 +35,12 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
       if (t instanceof Node && wrapRef.current?.contains(t)) return
       setOpen(false)
     }
-    // Focus leaving the menu (Tab past the last item) closes it; focus stays where the user sent it.
+    // Focus moving to an element outside the menu (Tab past the last item) closes it; focus stays where the user sent it.
+    // A null relatedTarget is ignored: Safari does not focus a clicked button, and focus leaving the page also gives
+    // null. Outside mousedown, Escape, scroll and resize still close the menu.
     const onFocusOut = (e: FocusEvent) => {
       const to = e.relatedTarget
-      if (to instanceof Node && wrapRef.current?.contains(to)) return
-      setOpen(false)
+      if (to instanceof Element && !wrapRef.current?.contains(to)) setOpen(false)
     }
     const wrap = wrapRef.current
     wrap?.addEventListener('focusout', onFocusOut)
