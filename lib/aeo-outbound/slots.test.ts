@@ -116,7 +116,7 @@ test('every page key has a v1.0 default, and no default carries a number', () =>
 })
 
 test('a new row takes the section titles and wordmark from settings and every other word from v1.0', () => {
-  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z' })).toEqual({ ...PAGE_WORDS_V1, section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z' })
+  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report' })
 })
 
 test('every new path saves within its limit: 120 for page words, KPIs, brand and window label, 1,000 for the footer description and disclaimer', () => {

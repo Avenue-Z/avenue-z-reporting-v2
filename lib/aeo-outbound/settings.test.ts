@@ -7,18 +7,18 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 const INPUT: SettingsInput = {
   users: 'ana@avenuez.com', admins: '', section1: 'Category data', section2: 'Competitive visibility',
   nextStepMode: 'fixed', nextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankMode: 'all', rankAmong: '', peecOpportunityRows: '1',
-  methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z',
+  methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot',
 }
-const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 7, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, sidebarWordmark: 'Avenue Z', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'boss@avenuez.com' }
+const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 7, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'boss@avenuez.com' }
 
 test('the defaults are the config.ts DECISIONS, and no row means the defaults', () => {
-  expect(SETTINGS_DEFAULTS).toEqual({ users: [], admins: [], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z' })
+  expect(SETTINGS_DEFAULTS).toEqual({ users: [], admins: [], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
   expect(resolveSettings(null)).toEqual({ settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false })
   expect(resolveSettings(undefined)).toEqual({ settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false })
 })
 
 test('a valid row becomes the settings with its updated_at', () => {
-  expect(resolveSettings(ROW)).toEqual({ settings: { users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 7, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, sidebarWordmark: 'Avenue Z' }, updatedAt: '2026-10-10T09:00:00.000Z', invalid: false })
+  expect(resolveSettings(ROW)).toEqual({ settings: { users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 7, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' }, updatedAt: '2026-10-10T09:00:00.000Z', invalid: false })
 })
 
 test('a row that breaks its contract falls back to the defaults, keeps its updated_at so a save can replace it, and logs the field', () => {
@@ -43,9 +43,43 @@ test('validation applies the §8 limits field by field', () => {
   expect(bad({ nextStepMode: 'fixed', nextStep: 'x'.repeat(301) })).toEqual({ fixedNextStep: SETTINGS_ERRORS.nextStep })
   for (const n of ['1', '51', '2.5', 'ten', '']) expect(bad({ rankMode: 'top', rankAmong: n })).toEqual({ rankAmong: SETTINGS_ERRORS.rank })
   expect(bad({ peecOpportunityRows: '4' })).toEqual({ peecOpportunityRows: SETTINGS_ERRORS.peecRows })
-  expect(bad({ sidebarWordmark: 'AIVX' })).toEqual({ sidebarWordmark: SETTINGS_ERRORS.wordmark })
   const ok = validateSettingsInput({ ...INPUT, nextStepMode: 'fixed', nextStep: '  Book a   working session. ', rankMode: 'top', rankAmong: '7', section1: ' Strengths ' })
   expect(ok.ok && [ok.values.fixedNextStep, ok.values.rankAmong, ok.values.sectionTitles[0]]).toEqual(['Book a working session.', 7, 'Strengths'])
+})
+
+test('both names are free text of 1 to 60 characters after cleaning, and refuse a long dash', () => {
+  const bad = (over: Partial<SettingsInput>) => { const r = validateSettingsInput({ ...INPUT, ...over }); return r.ok ? null : r.errors }
+  expect(SETTINGS_ERRORS.wordmark).toBe('Use 1 to 60 characters.')
+  for (const f of ['sidebarWordmark', 'series'] as const) {
+    for (const v of ['x', 'x'.repeat(60), 'AEO Lens 2']) {
+      const r = validateSettingsInput({ ...INPUT, [f]: v })
+      expect(r.ok && r.values[f]).toBe(v)
+    }
+    expect(bad({ [f]: '  Spaced   out ' })).toBeNull()
+    const trimmed = validateSettingsInput({ ...INPUT, [f]: '  Spaced   out ' })
+    expect(trimmed.ok && trimmed.values[f]).toBe('Spaced out')
+    for (const v of ['', '   ', 'x'.repeat(61)]) expect(bad({ [f]: v })).toEqual({ [f]: SETTINGS_ERRORS.wordmark })
+    for (const d of ['\u2013', '\u2014']) expect(bad({ [f]: `A${d}B` })).toEqual({ [f]: SETTINGS_ERRORS.longDash })
+    expect(bad({ [f]: undefined as unknown as string })).toEqual({ [f]: SETTINGS_ERRORS.wordmark })
+  }
+})
+
+test('a row without a series, or with an empty or long one, breaks its contract; a name outside the old two is sound', () => {
+  const { series: _s, ...noSeries } = ROW
+  expect(resolveSettings(noSeries).invalid).toBe(true)
+  expect(resolveSettings({ ...ROW, series: '' }).invalid).toBe(true)
+  expect(resolveSettings({ ...ROW, sidebarWordmark: 'x'.repeat(61) }).invalid).toBe(true)
+  expect(resolveSettings({ ...ROW, sidebarWordmark: 'AEO Lens' })).toMatchObject({ invalid: false, settings: { sidebarWordmark: 'AEO Lens' } })
+})
+
+test('the access guard still refuses a bad people list under the kill switch', () => {
+  vi.stubEnv('CONTRACT_DISABLED', '1')
+  expect(resolveSettings({ ...ROW, users: ['x@gmail.com'] }).invalid).toBe(true)
+})
+
+test('a series change is logged, after the wordmark in the field order', () => {
+  expect(settingsChanges(SETTINGS_DEFAULTS, { ...SETTINGS_DEFAULTS, series: 'AEO Lens Report' })).toEqual([{ field: 'series', oldValue: 'AI Visibility Snapshot', newValue: 'AEO Lens Report' }])
+  expect(settingsToInput({ ...SETTINGS_DEFAULTS, series: 'AEO Lens Report' }).series).toBe('AEO Lens Report')
 })
 
 test('the change list names each changed field with its old and new value', () => {
@@ -55,7 +89,7 @@ test('the change list names each changed field with its old and new value', () =
     { field: 'rankAmong', oldValue: null, newValue: 7 },
   ])
   expect(settingsChanges(SETTINGS_DEFAULTS, SETTINGS_DEFAULTS)).toEqual([])
-  expect(settingsChanges(null, SETTINGS_DEFAULTS).map((c) => c.field)).toEqual(['users', 'admins', 'sectionTitles', 'fixedNextStep', 'rankAmong', 'peecOpportunityRows', 'methodologyStatesPromptsAndModels', 'sidebarWordmark'])
+  expect(settingsChanges(null, SETTINGS_DEFAULTS).map((c) => c.field)).toEqual(['users', 'admins', 'sectionTitles', 'fixedNextStep', 'rankAmong', 'peecOpportunityRows', 'methodologyStatesPromptsAndModels', 'sidebarWordmark', 'series'])
 })
 
 test('the form starts from the settings, and validating that input gives the same settings back', () => {

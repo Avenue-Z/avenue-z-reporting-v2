@@ -23,7 +23,10 @@ test('the form shows the current settings, the env admins and the note', () => {
   expect(screen.getByLabelText('Every brand tracked in Peec')).toBeChecked()
   expect(screen.getByLabelText('Most opportunities from Peec recommendations')).toHaveValue('1')
   expect(screen.getByLabelText('Methodology names the prompt count and the AI models')).toBeChecked()
-  expect(screen.getByLabelText('Menu wordmark')).toHaveValue('Avenue Z')
+  expect(screen.getByLabelText('Top-left name')).toHaveValue('Avenue Z')
+  expect(screen.getByLabelText('Top-left name')).toHaveAttribute('maxlength', '60')
+  expect(screen.getByLabelText('Report name')).toHaveValue('AI Visibility Snapshot')
+  expect(screen.getByLabelText('Report name')).toHaveAttribute('maxlength', '60')
   expect(screen.getByText('No changes yet.')).toBeInTheDocument()
 })
 
@@ -64,4 +67,15 @@ test('a failed read disables Save and says why; an unreadable stored row says th
 test('recent changes list who changed which field and when', () => {
   render(<SettingsForm {...base} log={[{ changedAt: '2026-10-02T15:00:00.000Z', changedBy: 'boss@avenuez.com', field: 'sectionTitles' }]} />)
   expect(screen.getByText('Oct 2, 2026, 11:00 AM: boss@avenuez.com changed Section titles')).toBeInTheDocument()
+})
+
+test('both names are text inputs that Save sends, and their errors show next to them', async () => {
+  save.mockResolvedValueOnce({ ok: false, error: 'invalid', fieldErrors: { series: 'Use 1 to 60 characters.', sidebarWordmark: 'Use a period or comma instead of a long dash.' } })
+  render(<SettingsForm {...base} />)
+  fireEvent.change(screen.getByLabelText('Top-left name'), { target: { value: 'AEO Lens' } })
+  fireEvent.change(screen.getByLabelText('Report name'), { target: { value: 'AEO Lens Report' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+  expect(await screen.findByText('Use 1 to 60 characters.')).toBeInTheDocument()
+  expect(screen.getByText('Use a period or comma instead of a long dash.')).toBeInTheDocument()
+  expect(save.mock.calls[0][0]).toEqual(expect.objectContaining({ sidebarWordmark: 'AEO Lens', series: 'AEO Lens Report' }))
 })

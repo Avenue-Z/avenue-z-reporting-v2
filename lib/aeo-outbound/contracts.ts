@@ -118,7 +118,8 @@ export const SETTINGS_ROW = z.looseObject({
   rankAmong: z.number().int().min(2).max(50).nullable(),
   peecOpportunityRows: z.number().int().min(0).max(3),
   methodologyStatesPromptsAndModels: z.boolean(),
-  sidebarWordmark: z.enum(['AIVx', 'Avenue Z']),
+  sidebarWordmark: z.string().min(1).max(60),
+  series: z.string().min(1).max(60),
   updatedAt: z.date(),
 })
 

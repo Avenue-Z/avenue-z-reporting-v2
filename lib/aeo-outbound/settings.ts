@@ -1,14 +1,14 @@
 // The tool's settings (spec v1.1 §8): types, the config.ts defaults used when no row exists, the row read through its
 // contract, form validation with the §8 limits, and the per-field change list the log records. pitchOnly and
 // needsValidationBlocksApprove stay config.ts constants, never settings.
-import { DECISIONS } from './config'
+import { DECISIONS, PAGE_WORDS_V1 } from './config'
 import { checkContract, SETTINGS_ROW } from './contracts'
 import type { SettingsChange, SettingsValues } from './settings-store'
 import { cleanValue } from './slots'
 
 export type OutboundSettings = SettingsValues
 /** What a generation reads from the settings. */
-export type GenerationSettings = Pick<OutboundSettings, 'sectionTitles' | 'fixedNextStep' | 'rankAmong' | 'peecOpportunityRows' | 'methodologyStatesPromptsAndModels' | 'sidebarWordmark'>
+export type GenerationSettings = Pick<OutboundSettings, 'sectionTitles' | 'fixedNextStep' | 'rankAmong' | 'peecOpportunityRows' | 'methodologyStatesPromptsAndModels' | 'sidebarWordmark' | 'series'>
 
 export const SETTINGS_DEFAULTS: OutboundSettings = {
   users: [],
@@ -19,6 +19,7 @@ export const SETTINGS_DEFAULTS: OutboundSettings = {
   peecOpportunityRows: DECISIONS.peecOpportunityRows,
   methodologyStatesPromptsAndModels: DECISIONS.methodologyStatesPromptsAndModels,
   sidebarWordmark: DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z',
+  series: PAGE_WORDS_V1.series,
 }
 export const SETTINGS_LIMITS = { people: 50, emailChars: 200, title: 60, nextStep: 300, rankMin: 2, rankMax: 50, peecRowsMax: 3 } as const
 export const SETTINGS_ERRORS = {
@@ -30,7 +31,7 @@ export const SETTINGS_ERRORS = {
   longDash: 'Use a period or comma instead of a long dash.',
   rank: 'Rank among must be a whole number from 2 to 50.',
   peecRows: 'Pick 0, 1, 2 or 3.',
-  wordmark: 'Pick AIVx or Avenue Z.',
+  wordmark: 'Use 1 to 60 characters.',
   lastAdmin: 'Keep at least one admin.',
   conflict: 'Someone else changed these settings. Reload to see their changes.',
   readFailed: "The settings couldn't be loaded, so they can't be saved now. Reload and try again.",
@@ -46,9 +47,10 @@ export const SETTINGS_FIELD_LABELS: Record<SettingsField, string> = {
   rankAmong: 'Rank the brand among',
   peecOpportunityRows: 'Most opportunities from Peec recommendations',
   methodologyStatesPromptsAndModels: 'Methodology names the prompt count and the AI models',
-  sidebarWordmark: 'Menu wordmark',
+  sidebarWordmark: 'Top-left name',
+  series: 'Report name',
 }
-const FIELDS: SettingsField[] = ['users', 'admins', 'sectionTitles', 'fixedNextStep', 'rankAmong', 'peecOpportunityRows', 'methodologyStatesPromptsAndModels', 'sidebarWordmark']
+const FIELDS: SettingsField[] = ['users', 'admins', 'sectionTitles', 'fixedNextStep', 'rankAmong', 'peecOpportunityRows', 'methodologyStatesPromptsAndModels', 'sidebarWordmark', 'series']
 
 /** A stored people list: an array of at most 50 strings, each an @avenuez.com address of at most 200 characters. */
 const isAccessList = (v: unknown): v is string[] =>
@@ -72,7 +74,7 @@ export function resolveSettings(row: unknown): { settings: OutboundSettings; upd
     settings: {
       users: r.users, admins: r.admins, sectionTitles: [r.sectionTitles[0], r.sectionTitles[1]], fixedNextStep: r.fixedNextStep,
       rankAmong: r.rankAmong, peecOpportunityRows: r.peecOpportunityRows,
-      methodologyStatesPromptsAndModels: r.methodologyStatesPromptsAndModels, sidebarWordmark: r.sidebarWordmark,
+      methodologyStatesPromptsAndModels: r.methodologyStatesPromptsAndModels, sidebarWordmark: r.sidebarWordmark, series: r.series,
     },
     updatedAt,
     invalid: false,
@@ -95,6 +97,7 @@ export interface SettingsInput {
   peecOpportunityRows: string
   methodologyStatesPromptsAndModels: boolean
   sidebarWordmark: string
+  series: string
 }
 export type SettingsErrors = Partial<Record<SettingsField, string>>
 
@@ -126,14 +129,22 @@ export function validateSettingsInput(input: SettingsInput): { ok: true; values:
   }
   const rowsRaw = String(input.peecOpportunityRows ?? '')
   if (!/^[0-3]$/.test(rowsRaw)) errors.peecOpportunityRows = SETTINGS_ERRORS.peecRows
-  if (input.sidebarWordmark !== 'AIVx' && input.sidebarWordmark !== 'Avenue Z') errors.sidebarWordmark = SETTINGS_ERRORS.wordmark
+  // The two names: free text, cleaned, 1 to 60 characters, no long dash.
+  const name = (raw: unknown, field: 'sidebarWordmark' | 'series'): string => {
+    const v = cleanValue(typeof raw === 'string' ? raw : '')
+    if (v.length < 1 || v.length > SETTINGS_LIMITS.title) errors[field] = SETTINGS_ERRORS.wordmark
+    else if (LONG_DASH.test(v)) errors[field] = SETTINGS_ERRORS.longDash
+    return v
+  }
+  const sidebarWordmark = name(input.sidebarWordmark, 'sidebarWordmark')
+  const series = name(input.series, 'series')
   if (Object.keys(errors).length) return { ok: false, errors }
   return {
     ok: true,
     values: {
       users, admins, sectionTitles: [titles[0], titles[1]], fixedNextStep, rankAmong,
       peecOpportunityRows: Number(rowsRaw), methodologyStatesPromptsAndModels: input.methodologyStatesPromptsAndModels === true,
-      sidebarWordmark: input.sidebarWordmark as OutboundSettings['sidebarWordmark'],
+      sidebarWordmark, series,
     },
   }
 }
@@ -150,6 +161,6 @@ export function settingsToInput(s: OutboundSettings): SettingsInput {
     users: s.users.join('\n'), admins: s.admins.join('\n'), section1: s.sectionTitles[0], section2: s.sectionTitles[1],
     nextStepMode: s.fixedNextStep === null ? 'written' : 'fixed', nextStep: s.fixedNextStep ?? '',
     rankMode: s.rankAmong === null ? 'all' : 'top', rankAmong: s.rankAmong === null ? '' : String(s.rankAmong),
-    peecOpportunityRows: String(s.peecOpportunityRows), methodologyStatesPromptsAndModels: s.methodologyStatesPromptsAndModels, sidebarWordmark: s.sidebarWordmark,
+    peecOpportunityRows: String(s.peecOpportunityRows), methodologyStatesPromptsAndModels: s.methodologyStatesPromptsAndModels, sidebarWordmark: s.sidebarWordmark, series: s.series,
   }
 }

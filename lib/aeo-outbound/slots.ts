@@ -69,9 +69,9 @@ export function limitFor(path: string): number {
   return path.endsWith('.lead') || path === 'category' ? MAX_LEAD : MAX_VALUE
 }
 
-/** The page words a new row is created with: v1.0's, with the section titles and wordmark from settings (v1.1 §3). */
-export function pageDefaults(s: { sectionTitles: readonly string[]; sidebarWordmark: string }): PageWords {
-  return { ...V1_WORDS, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark }
+/** The page words a new row is created with: v1.0's, with the section titles, wordmark and report name from settings (v1.1 §3). */
+export function pageDefaults(s: { sectionTitles: readonly string[]; sidebarWordmark: string; series: string }): PageWords {
+  return { ...V1_WORDS, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series }
 }
 
 /** Every key filled. Missing keys read the row's own data (brand, window label, KPIs) and the v1.0 words. Never mutates. */

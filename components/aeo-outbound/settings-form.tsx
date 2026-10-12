@@ -98,13 +98,17 @@ export function SettingsForm(p: SettingsFormProps) {
           <input type="checkbox" checked={form.methodologyStatesPromptsAndModels} onChange={(e) => set({ methodologyStatesPromptsAndModels: e.target.checked })} />
           {SETTINGS_FIELD_LABELS.methodologyStatesPromptsAndModels}
         </label>
-        <div>
-          <label htmlFor="s-wordmark" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.sidebarWordmark}</label>
-          <select id="s-wordmark" className={inputCls} value={form.sidebarWordmark} onChange={(e) => set({ sidebarWordmark: e.target.value })}>
-            <option value="AIVx">AIVx</option>
-            <option value="Avenue Z">Avenue Z</option>
-          </select>
-          {err('sidebarWordmark')}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="s-wordmark" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.sidebarWordmark}</label>
+            <input id="s-wordmark" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.sidebarWordmark} onChange={(e) => set({ sidebarWordmark: e.target.value })} />
+            {err('sidebarWordmark')}
+          </div>
+          <div>
+            <label htmlFor="s-series" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.series}</label>
+            <input id="s-series" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.series} onChange={(e) => set({ series: e.target.value })} />
+            {err('series')}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button type="button" className={primaryBtnCls} disabled={p.readFailed || saving} onClick={() => void onSave()}>{SAVE_SETTINGS}</button>

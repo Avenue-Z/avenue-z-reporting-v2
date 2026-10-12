@@ -14,7 +14,7 @@ import { saveSettingsAction } from './aeo-outbound-settings'
 // Every email is invented.
 const AT = '2026-10-10T09:00:00.000Z'
 // The stored row equals the defaults apart from the people (Ryan's answers, spec v1.1 §16.1), so a save that changes nothing logs nothing.
-const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', updatedAt: new Date(AT), updatedBy: 'boss@avenuez.com' }
+const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot', updatedAt: new Date(AT), updatedBy: 'boss@avenuez.com' }
 const STORED = { ...SETTINGS_DEFAULTS, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'] }
 const as = (email: string, role = 'INTERNAL_ANALYST') => vi.mocked(auth).mockResolvedValue({ user: { role, email } } as never)
 
@@ -100,7 +100,7 @@ test('a settings read failure refuses the save; a row that broke its contract is
   expect(await saveSettingsAction(settingsToInput(STORED), null)).toEqual({ ok: false, error: "The settings couldn't be loaded, so they can't be saved now. Reload and try again." })
   m.read.mockResolvedValue({ ...ROW, sectionTitles: ['Only one'] })
   expect((await saveSettingsAction(settingsToInput(SETTINGS_DEFAULTS), AT)).ok).toBe(true)
-  expect(m.save.mock.calls[0][1].map((c: { field: string }) => c.field)).toEqual(['users', 'admins', 'sectionTitles', 'fixedNextStep', 'rankAmong', 'peecOpportunityRows', 'methodologyStatesPromptsAndModels', 'sidebarWordmark'])
+  expect(m.save.mock.calls[0][1].map((c: { field: string }) => c.field)).toEqual(['users', 'admins', 'sectionTitles', 'fixedNextStep', 'rankAmong', 'peecOpportunityRows', 'methodologyStatesPromptsAndModels', 'sidebarWordmark', 'series'])
 })
 
 test('a failed write is unavailable, with one log line and no value in it', async () => {

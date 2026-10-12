@@ -346,3 +346,24 @@ foreign key to `aeo_outbound_reports`, the `(report_id, opened_at)` index), `aeo
 `aeo_outbound_settings_single_row` check), `aeo_outbound_settings_log` (6 columns, the `changed_at` index), all empty;
 `aeo_outbound_reports.progress_step` `integer not null default 0` (0 on both existing rows) and `error_code text` (null on both);
 the ledger at 33 with nothing pending; those three tables the only ones added. Staging and production: not applied.
+
+## Add `series` to aeo_outbound_settings (delivered, awaiting apply)
+
+`drizzle/0028_aeo_outbound_settings_series.sql` is one statement: `ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series"
+text DEFAULT 'AI Visibility Snapshot' NOT NULL;`. It makes the report name a team setting (the default of `page.series` on
+every new report; the top-left name `sidebar_wordmark` is already a text column and needs no change). Additive: no existing
+column, constraint or row changes, and the column default fills an existing settings row. Only
+`lib/aeo-outbound/settings-store.ts` reads this table. Apply with the hash-checked `scripts/migrate-http.ts`, each
+environment only on my written go, dev first, with a host guard that refuses any host but the one named for that run (dev:
+`ep-still-tree-aqs8ui6d`).
+
+Dry runs (read-only) before applying: dev must list exactly `0028_aeo_outbound_settings_series` (dev already has `0027`);
+staging lists `0026_aeo_outbound_reports`, `0027_aeo_outbound_v1_1` and `0028_aeo_outbound_settings_series`; production lists
+`0025_chart_notes` through `0028_aeo_outbound_settings_series`, and needs `0025` applied first, on my go.
+
+Read-back after applying: `aeo_outbound_settings.series` is `text not null default 'AI Visibility Snapshot'` (the existing
+row, if any, reads that value); the ledger up by one with nothing pending.
+
+**Applied nowhere.** Any build whose `lib/db/schema.ts` has `series` must not reach an environment before `0028` is
+applied there: Drizzle names every column, so the settings read throws (42703), access falls back to `AEO_OUTBOUND_USERS`
+only, and every save is refused with the read-failed message.

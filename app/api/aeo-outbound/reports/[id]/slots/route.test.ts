@@ -196,7 +196,7 @@ test('a version 1 row saves with its version 1 flags unchanged', async () => {
 })
 
 test('a settings change never alters an existing draft: words and code-set fields come from the row', async () => {
-  m.readSettings.mockResolvedValueOnce({ id: true, users: [], admins: [], sectionTitles: ['Live title', 'Other'], fixedNextStep: 'A fixed sentence.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'ryan@avenuez.com' })
+  m.readSettings.mockResolvedValueOnce({ id: true, users: [], admins: [], sectionTitles: ['Live title', 'Other'], fixedNextStep: 'A fixed sentence.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', series: 'AI Visibility Snapshot', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'ryan@avenuez.com' })
   const dash = String.fromCharCode(0x2014)
   m.getReport.mockResolvedValue(row({ slots: { ...SLOTS, page: { section_1_title: 'Strengths' } } }))
   const body = await (await patch({ path: 'next_step', value: `Book ${dash} now`, revision: 3 })).json()

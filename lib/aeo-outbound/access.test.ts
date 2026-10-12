@@ -5,7 +5,7 @@ import { SETTINGS_DEFAULTS } from './settings'
 beforeEach(() => { vi.spyOn(console, 'error').mockImplementation(() => {}) })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 const staff = (email: string | null, role = 'INTERNAL_ANALYST') => ({ role, email })
-const row = (over: Record<string, unknown> = {}) => ({ id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'boss@avenuez.com', ...over })
+const row = (over: Record<string, unknown> = {}) => ({ id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', series: 'AI Visibility Snapshot', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'boss@avenuez.com', ...over })
 const ENV = 'ryan@avenuez.com'
 
 test('the env list is the floor: always a user and an admin, whatever the settings say', async () => {

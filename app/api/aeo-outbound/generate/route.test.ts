@@ -264,7 +264,7 @@ test('with the contract kill switch on, a structurally bad body still answers 40
   expect(m.generateSnapshot).not.toHaveBeenCalled()
 })
 
-const SETTINGS_ROW = { id: true, users: ['ana@avenuez.com'], admins: [], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 5, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'ryan@avenuez.com' }
+const SETTINGS_ROW = { id: true, users: ['ana@avenuez.com'], admins: [], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 5, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', series: 'AI Visibility Snapshot', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'ryan@avenuez.com' }
 test('a settings user can generate, and the request settings reach the pipeline', async () => {
   m.readSettings.mockResolvedValueOnce(SETTINGS_ROW)
   as('ana@avenuez.com')

@@ -13,7 +13,8 @@ export interface SettingsValues {
   rankAmong: number | null
   peecOpportunityRows: number
   methodologyStatesPromptsAndModels: boolean
-  sidebarWordmark: 'AIVx' | 'Avenue Z'
+  sidebarWordmark: string
+  series: string
 }
 export interface SettingsChange { field: string; oldValue: unknown; newValue: unknown }
 
@@ -33,8 +34,8 @@ export function saveSettingsSql(v: SettingsValues, changes: SettingsChange[], by
   const at = now.toISOString()
   const j = (x: unknown) => JSON.stringify(x)
   const write = expectedUpdatedAt === null
-    ? sql`insert into "aeo_outbound_settings" ("id", "users", "admins", "section_titles", "fixed_next_step", "rank_among", "peec_opportunity_rows", "methodology_states_prompts_and_models", "sidebar_wordmark", "updated_at", "updated_by") values (true, ${j(v.users)}::jsonb, ${j(v.admins)}::jsonb, ${j(v.sectionTitles)}::jsonb, ${v.fixedNextStep}::text, ${v.rankAmong}::integer, ${v.peecOpportunityRows}::integer, ${v.methodologyStatesPromptsAndModels}::boolean, ${v.sidebarWordmark}::text, ${at}::timestamptz, ${by}::text) on conflict ("id") do nothing returning "id"`
-    : sql`update "aeo_outbound_settings" set "users" = ${j(v.users)}::jsonb, "admins" = ${j(v.admins)}::jsonb, "section_titles" = ${j(v.sectionTitles)}::jsonb, "fixed_next_step" = ${v.fixedNextStep}::text, "rank_among" = ${v.rankAmong}::integer, "peec_opportunity_rows" = ${v.peecOpportunityRows}::integer, "methodology_states_prompts_and_models" = ${v.methodologyStatesPromptsAndModels}::boolean, "sidebar_wordmark" = ${v.sidebarWordmark}::text, "updated_at" = ${at}::timestamptz, "updated_by" = ${by}::text where "id" = true and date_trunc('milliseconds', "updated_at") = ${expectedUpdatedAt}::timestamptz returning "id"`
+    ? sql`insert into "aeo_outbound_settings" ("id", "users", "admins", "section_titles", "fixed_next_step", "rank_among", "peec_opportunity_rows", "methodology_states_prompts_and_models", "sidebar_wordmark", "series", "updated_at", "updated_by") values (true, ${j(v.users)}::jsonb, ${j(v.admins)}::jsonb, ${j(v.sectionTitles)}::jsonb, ${v.fixedNextStep}::text, ${v.rankAmong}::integer, ${v.peecOpportunityRows}::integer, ${v.methodologyStatesPromptsAndModels}::boolean, ${v.sidebarWordmark}::text, ${v.series}::text, ${at}::timestamptz, ${by}::text) on conflict ("id") do nothing returning "id"`
+    : sql`update "aeo_outbound_settings" set "users" = ${j(v.users)}::jsonb, "admins" = ${j(v.admins)}::jsonb, "section_titles" = ${j(v.sectionTitles)}::jsonb, "fixed_next_step" = ${v.fixedNextStep}::text, "rank_among" = ${v.rankAmong}::integer, "peec_opportunity_rows" = ${v.peecOpportunityRows}::integer, "methodology_states_prompts_and_models" = ${v.methodologyStatesPromptsAndModels}::boolean, "sidebar_wordmark" = ${v.sidebarWordmark}::text, "series" = ${v.series}::text, "updated_at" = ${at}::timestamptz, "updated_by" = ${by}::text where "id" = true and date_trunc('milliseconds', "updated_at") = ${expectedUpdatedAt}::timestamptz returning "id"`
   const rows = sql.join(changes.map((c) => sql`(${c.field}::text, ${j(c.oldValue)}::jsonb, ${j(c.newValue)}::jsonb)`), sql`, `)
   return sql`with "s" as (${write}) insert into "aeo_outbound_settings_log" ("changed_at", "changed_by", "field", "old_value", "new_value") select ${at}::timestamptz, ${by}::text, "v"."field", "v"."old_value", "v"."new_value" from "s", (values ${rows}) as "v"("field", "old_value", "new_value") returning "id"`
 }

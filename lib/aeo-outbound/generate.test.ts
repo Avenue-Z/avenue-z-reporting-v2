@@ -268,12 +268,12 @@ test('with the default settings, settingsUsed records the fixed next step the ro
 })
 
 test('a generated row stores every key: brand, window label and KPIs from its data, page words from the settings', async () => {
-  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))), null, { ...SETTINGS_DEFAULTS, sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z' })
+  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))), null, { ...SETTINGS_DEFAULTS, sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })
   if (!r.ok) throw new Error(r.error)
   expect(r.slots.brand).toBe('Example Co')
   expect(r.slots.window_label).toBe(r.data.windowLabel)
   expect(r.slots.kpis).toEqual(r.data.kpis)
-  expect(r.slots.page).toMatchObject({ section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
+  expect(r.slots.page).toMatchObject({ section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report' })
 })
 
 test('a flag on a page word Glean cannot fix costs no second attempt, and is still a stored note', async () => {

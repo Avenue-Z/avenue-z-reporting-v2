@@ -286,6 +286,12 @@ test('the 0027 migration adds only the opens and settings tables and two report 
   expect(sqlText).not.toMatch(/\bip\b|user_agent/i)
 })
 
+test('the 0028 migration is exactly one additive statement that adds the series column', () => {
+  const sqlText = readFileSync('drizzle/0028_aeo_outbound_settings_series.sql', 'utf8')
+  const statements = sqlText.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)
+  expect(statements).toEqual(['ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series" text DEFAULT \'AI Visibility Snapshot\' NOT NULL;'])
+})
+
 test('a stored row that breaks its contract is read as unreadable, with one log line naming the field; a sound row is not', async () => {
   vi.resetModules()
   const error = vi.spyOn(console, 'error').mockImplementation(() => {})

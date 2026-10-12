@@ -562,6 +562,7 @@ export const aeoOutboundSettings = pgTable('aeo_outbound_settings', {
   peecOpportunityRows: integer('peec_opportunity_rows').notNull(),
   methodologyStatesPromptsAndModels: boolean('methodology_states_prompts_and_models').notNull(),
   sidebarWordmark: text('sidebar_wordmark').notNull(),
+  series: text('series').notNull().default('AI Visibility Snapshot'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
   updatedBy: text('updated_by').notNull(),
 }, (table) => ({
