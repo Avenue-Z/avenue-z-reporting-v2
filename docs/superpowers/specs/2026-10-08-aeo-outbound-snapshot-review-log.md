@@ -171,4 +171,13 @@ the default range goes back to the project's full history (400 days), which reve
 review, because an ended pitch project older than 30 days failed with no data and Ryan's skill says all-time; Paul's row-cap
 concern is bounded by pitch-only projects and answered with a plain "pick a range" failure. A notes-panel warning flags any
 brand above 90% visibility. Spec edits are targeted (§2 step 2, §7 step 4, §7 warning, §10 hub, §14 two rows, §15 two tests).
+Commit `cca3218a`; review round 1 (changed lines): 0 BLOCKER, 2 MAJOR, 5 MINOR.
+1. MAJOR, the bound wasn't measured (the trial's 1 and 13 days were inside the 30-day window): measured read-only on all 55
+   usable pitch projects (notes repo `findings/2026-10-11-full-history-probe.md`): at most 9,809 rows, 2 calls, 5.0s, a data
+   span of at most 13 days; 49 of 55 have no data in the last 30 days. Cited in §7 step 4; the plan's 90-day bound note updated.
+2. MAJOR, a long history is likelier to time out at step 4 than to hit the cap: a default-range step-4 timeout now reads
+   "Timed out at step 4. Pick a start and end date, at most 90 days."; §14 row and tests added.
+MINOR, fixed in the same edit: a `rowCap` flag instead of matching the message; `{v}` is `toFixed(1)` over
+`SnapshotData.brands`, after the rank notes; the parity row (§3 Data window) updated; the changed test expectations and the
+exact hub sentence listed in the plan; the default is today − 400, the same earliest day a picked range may start.
 

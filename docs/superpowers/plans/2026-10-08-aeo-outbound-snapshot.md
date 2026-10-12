@@ -1680,7 +1680,7 @@ After 1.8d: `make check` with CI's placeholder `DATABASE_URL`; a whole-branch re
 - **Task 3.3, Glean identity:** the generate route passes `glean: (prompt, signal) => gleanOnce(prompt, signal, email)` with the `email` it already computes as `outboundEmail(session?.user)` (the code block above shows it); never a value from the request body. Route test: a body carrying another email reaches the stubbed `glean` as the session email. The route's wrapper, `(prompt, signal) => gleanOnce(prompt, signal, email).catch((e) => { console.warn(`[aeo-outbound] glean failed id=${id} reason=${e instanceof Error ? e.message : 'error'}`); throw e })`, logs the status-bearing message (`Glean chat error <status>`) with the report id and never the email; a route test asserts the log line has no email.
 - **Task 3.3, timeouts:** classify a Peec timeout with `isPeecTimeout(e)` exported from `peec.ts` (the `timeout` flag on `PeecError`), not by matching its message; this supersedes the message regex in the Task 3.3 code block, and `isUniqueViolation` there is superseded by `isConstraintViolation(e, ONE_GENERATING_INDEX)`. Call `pullSnapshot(client, projectId, now, onStep, range)` with the validated range (or the stored one on a rerun).
 - **Task 3.2, Data block guard:** a step-5 row for a brand outside the roster must not produce leader gaps or brands that contradict "No competitors tracked" (review of Task 1.8c); when the roster has no competitors, the Data block lists no competitors.
-- **Part 2 and 3:** the bar chart and the Data block read `data.brands` (brands with data only); the methodology's brand count is `data.rankN` (Task 1.8c); Task 3.2 puts it in the Data block. Paul's brands-by-date suggestion (review log MINOR 9) is not taken: the window rule stays AIVx's domain-retrieval rule, and a 90-day range is bounded at 90 × the domain count, checked against the 250,000-row cap on the first preview deploy.
+- **Part 2 and 3:** the bar chart and the Data block read `data.brands` (brands with data only); the methodology's brand count is `data.rankN` (Task 1.8c); Task 3.2 puts it in the Data block. Paul's brands-by-date suggestion (review log MINOR 9) is not taken: the window rule stays AIVx's domain-retrieval rule, and a 90-day range is bounded at 90 × the domain count. Amended 2026-10-11: the default is the 400-day discovery again, measured on all 55 pitch projects at most 9,809 rows (notes repo `findings/2026-10-11-full-history-probe.md`); a picked range stays at most 90 days.
 
 ## Amendment 2026-10-09 (open tracking, Edit a copy, hub listing): changes to later tasks
 
@@ -1698,18 +1698,25 @@ These apply when each task's brief is dispatched; the task text above them is ot
 ## Amendment 2026-10-11: full-history default and the implausible-visibility warning (Task T2, on PR 368)
 
 Built on `feat/aeo-outbound-parts` (PR 368) so PR 361 stays as Paul reviews it.
-- **Full history by default:** `defaultRange(nowMs)` returns today − (`MAX_LOOKBACK_DAYS` − 1) through today (400 days).
-  `DEFAULT_WINDOW_DAYS` is removed (its only other reader, the hub's helper text, says "the project's full history, up to
-  {MAX_LOOKBACK_DAYS} days back"). `checkRange` is unchanged (a picked range stays at most 90 days). In `pullSnapshot`, when no
-  range was passed and the step-4 discovery throws the client's row-cap `PeecError`, rethrow
-  `PeecError('This project has too much history for one snapshot. Pick a start and end date, at most 90 days.')`; a picked
-  range keeps the client's message; every other error is unchanged. Tests: the default range is 400 days ending today; the
-  default-range row cap gives the new message; a picked-range row cap keeps the old one.
+- **Full history by default:** `defaultRange(nowMs)` returns today − `MAX_LOOKBACK_DAYS` through today (the earliest day
+  `checkRange` accepts, range.ts:42). `DEFAULT_WINDOW_DAYS` is removed; the hub's helper text (hub.tsx:180) becomes exactly
+  `Left empty, the report covers the project's full history, up to {MAX_LOOKBACK_DAYS} days back.` `checkRange` is unchanged
+  (a picked range stays at most 90 days). Row cap: `PeecError` gains a `rowCap` flag set only by the cap throw (peec.ts:172),
+  with `isPeecRowCap(e)` beside `isPeecTimeout`; in `pullSnapshot`, when no range was passed and step 4 throws one, rethrow
+  `PeecError('This project has too much history for one snapshot. Pick a start and end date, at most 90 days.')`. Timeout:
+  in `generateSnapshot`, when `range` is null and the failure is a timeout at step 4, the error is
+  `Timed out at step 4. Pick a start and end date, at most 90 days.` (classification unchanged). A picked range keeps every
+  existing message; every other error is unchanged. New tests: the default range is today − 400 through today; a default-range
+  row cap gives the new message; a picked-range row cap keeps the client's; a default-range repeated-row or HTTP error at step 4
+  keeps its message; a default-range step-4 timeout gets the advice, a picked-range one doesn't. Changed expectations (the
+  30-day default is gone): range.test.ts:11-14 and :77, pull.test.ts:67, :69 and :117, hub.test.tsx:77.
+  Measured scale: notes repo `findings/2026-10-11-full-history-probe.md`.
 - **Warning:** `IMPLAUSIBLE_VISIBILITY_PCT = 90` in `config.ts`; `buildSnapshotData` adds, for each brand in `brands` (own
   or competitor) whose displayed visibility is above 90, the note
   `{name} shows {v}% AI visibility, which is unusually high. Check this brand's setup in Peec before sending: a name that is a common word can match unrelated answers.`
-  with `{v}` the displayed one-decimal value. Never on the page, in the Data block or in the copy; never blocks Approve.
-  Tests: 90.1 adds it, 90.0 does not, own and competitor both, two brands give two notes.
+  with `{v}` = `visibilityPct.toFixed(1)`, for each brand in `SnapshotData.brands`, placed after the rank notes. Never on the
+  page, in the Data block or in the copy; never blocks Approve. Tests: 90.1 adds it, 90.0 does not, 95 prints 95.0, own and
+  competitor both, two brands give two notes.
 
 ## Part 2 (PR2): the report page
 
