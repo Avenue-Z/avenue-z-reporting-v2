@@ -3,7 +3,7 @@ import { outboundAccess } from './access'
 import { SETTINGS_DEFAULTS } from './settings'
 
 beforeEach(() => { vi.spyOn(console, 'error').mockImplementation(() => {}) })
-afterEach(() => { vi.restoreAllMocks() })
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 const staff = (email: string | null, role = 'INTERNAL_ANALYST') => ({ role, email })
 const row = (over: Record<string, unknown> = {}) => ({ id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'boss@avenuez.com', ...over })
 const ENV = 'ryan@avenuez.com'
@@ -53,7 +53,6 @@ test('with the contract kill switch on, a string users list grants nothing by su
   const read = async () => row({ users: 'bob@avenuez.com', admins: { 0: 'x@avenuez.com' } })
   expect(await outboundAccess(staff('ob@avenuez.com'), ENV, read)).toEqual({ ok: false, admins: ['ryan@avenuez.com'] })
   expect(await outboundAccess(staff('ryan@avenuez.com'), ENV, read)).toMatchObject({ ok: true, admin: true, settings: SETTINGS_DEFAULTS, settingsInvalid: true })
-  vi.unstubAllEnvs()
 })
 
 test('with contracts on, a contract-breaking row listing a person does not let them in', async () => {

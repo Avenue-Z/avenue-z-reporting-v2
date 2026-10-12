@@ -58,7 +58,11 @@ export function resolveSettings(row: unknown): { settings: OutboundSettings; upd
   const at = (row as { updatedAt?: unknown }).updatedAt
   const updatedAt = at instanceof Date ? at.toISOString() : null
   // This guard holds even under the CONTRACT_DISABLED kill switch, because users and admins decide access.
-  if (!isAccessList((row as { users?: unknown }).users) || !isAccessList((row as { admins?: unknown }).admins)) return { settings: SETTINGS_DEFAULTS, updatedAt, invalid: true }
+  const refused = (['users', 'admins'] as const).filter((f) => !isAccessList((row as Record<string, unknown>)[f]))
+  if (refused.length) {
+    console.error(`[aeo-outbound] settings row refused field=${refused.join(',')}`)
+    return { settings: SETTINGS_DEFAULTS, updatedAt, invalid: true }
+  }
   if (!checkContract('settings.row', SETTINGS_ROW, row).ok) return { settings: SETTINGS_DEFAULTS, updatedAt, invalid: true }
   const r = row as OutboundSettings
   return {

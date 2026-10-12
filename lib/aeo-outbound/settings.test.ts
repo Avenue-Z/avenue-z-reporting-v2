@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { parseEmails, resolveSettings, SETTINGS_DEFAULTS, SETTINGS_ERRORS, settingsChanges, settingsToInput, validateSettingsInput, type SettingsInput } from './settings'
 
 beforeEach(() => { vi.spyOn(console, 'error').mockImplementation(() => {}) })
-afterEach(() => { vi.restoreAllMocks() })
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
 const INPUT: SettingsInput = {
   users: 'ana@avenuez.com', admins: '', section1: 'Category data', section2: 'Competitive visibility',
@@ -76,5 +76,16 @@ test('under the contract kill switch a malformed users or admins list still make
   expect(bad({ users: Array.from({ length: 51 }, (_, i) => `p${i}@avenuez.com`) })).toEqual(expected)
   expect(bad({ admins: [`${'a'.repeat(190)}@avenuez.com`] })).toEqual(expected)
   expect(bad({}).invalid).toBe(false)
-  vi.unstubAllEnvs()
+})
+
+test('a refused users or admins list logs one line naming the field and never a value', () => {
+  resolveSettings({ ...ROW, users: 'bob@avenuez.com' })
+  expect(vi.mocked(console.error).mock.calls.map((c) => String(c[0]))).toEqual(['[aeo-outbound] settings row refused field=users'])
+  vi.mocked(console.error).mockClear()
+  resolveSettings({ ...ROW, users: ['x@gmail.com'], admins: 'y@avenuez.com' })
+  expect(vi.mocked(console.error).mock.calls.map((c) => String(c[0]))).toEqual(['[aeo-outbound] settings row refused field=users,admins'])
+  vi.mocked(console.error).mockClear()
+  resolveSettings({ ...ROW, admins: {} })
+  expect(vi.mocked(console.error).mock.calls.map((c) => String(c[0]))).toEqual(['[aeo-outbound] settings row refused field=admins'])
+  for (const c of vi.mocked(console.error).mock.calls) expect(String(c[0])).not.toContain('@')
 })
