@@ -1,6 +1,7 @@
 # Renaissance on locked months (Organic Social only): design
 
-Status: draft for review and approval before any code. Written 2026-10-12 against `origin/dev` `e39e393b` (tree
+Status: for Paul's review and approval before any code. Two review rounds done; the one round-2 major (how the sidebars
+know a client is locked) was decided 2026-10-12 (4.2b). Written 2026-10-12 against `origin/dev` `e39e393b` (tree
 `5dac44b3`, the tree production runs). Approved in principle on 2026-10-12: Renaissance may use locked months like the
 outline clients. Scope is the **Organic Social section only**.
 
@@ -87,6 +88,12 @@ Social, so the section opens on its default month instead of a range that would 
 range, logged as a hidden-month attempt, `reporting-months.ts:216-221`). Organic Social's own tab links keep `dateRange`.
 "Current section is Organic Social" includes the deep-link route `/reports/organic-social` (`[reportSlug]/page.tsx:97,
 125-126`). Everything else in the sidebars is unchanged.
+How the sidebars know (decided 2026-10-12): the condition is `hasReportingMonths(client)` (pure, client-safe,
+`lib/organic-social/reporting-months.ts:75-79`), the page's own predicate (`app/dashboard/[clientSlug]/reports/page.tsx:183`).
+The portal sidebar is a client component that receives only `PortalSidebarClient` (`lib/portal/sidebar-client.ts:8-13`),
+so `toPortalSidebarClient` gains one boolean, `lockedMonths`, and never the raw setting, keeping what reaches a client's
+browser as small as today. The dashboard sidebar derives the same boolean from the row it already holds
+(`components/layout/sidebar.tsx:346`).
 
 ### 4.3 What Renaissance's users will see change (Organic Social only)
 | Before | After |
@@ -161,6 +168,9 @@ months before `firstMonth`, because the locked day ignores `firstMonth` (`lock-d
 - 4.2b, both sidebars: for a locked client, links out of and into Organic Social carry no `dateRange`/`compareRange`;
   Organic Social's own tab links keep it; the deep-link route counts as Organic Social; for a client without
   `reportingMonths` every link is unchanged (the portal golden snapshot is unchanged for those clients).
+- The portal sidebar mapper exposes exactly one new field, `lockedMonths: boolean` (true only when
+  `hasReportingMonths(client)`), and never the `reportingMonths` setting (`lib/portal/sidebar-client.test.ts` pins the
+  new shape).
 - Existing suites unchanged, including the lock-key pin test and every outline-client test.
 
 ## 8. Rollout
