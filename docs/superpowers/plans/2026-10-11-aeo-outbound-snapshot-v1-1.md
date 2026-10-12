@@ -9370,3 +9370,19 @@ Do not change `aivx/*`. Tests (first, frame tests running the real `AIVX_JS` the
 stubbed mid-page, AIVx's choice stands (05 not forced); clicking the 03 link in preview marks 03 active; in edit mode
 (a `[data-slot][contenteditable]` present) a click marks nothing new. Commit subject:
 `Highlight 05 in the menu at the bottom of the report`.
+
+### Task 24: Methodology section heading and Next step on its own line (spec v1.1 §17.13)
+
+**Files:** `lib/aeo-outbound/render.ts` (the methodology section, about `:270-272`), `lib/aeo-outbound/render.test.ts`,
+`lib/aeo-outbound/v1-compat.test.ts`.
+
+Replace the methodology section with exactly the markup in spec §17.13 (the `section-label` with `fixed('05 / ')` and
+`mirror('page.method_nav', p.method_nav)`, the `h2.section-title` with the same mirror, and the `.method-note` holding two
+`div`s, the second with `style="margin-top:10px"`). Change nothing else.
+
+Tests (first): in draft, preview and final the methodology section's `.section-label` text is "05 / Methodology" and its
+`h2.section-title` text is "Methodology" (with a renamed `method_nav`, both follow it); in draft both carry
+`data-mirror="page.method_nav"`; the `.method-note` has two child `div`s, the first holding `page.method_label` and
+`methodology`, the second `page.next_label` and `next_step`; the existing slot-coverage tests pass unchanged; v1-compat
+records the new section markup as a deliberate difference with an exact transform and occurrence assertion. Commit subject:
+`Give Methodology a section heading and put Next step on its own line`.

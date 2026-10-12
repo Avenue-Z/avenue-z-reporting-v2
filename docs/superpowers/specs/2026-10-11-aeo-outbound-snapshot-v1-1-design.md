@@ -838,3 +838,23 @@ listener so it runs second on each scroll:
 Uses AIVx's own selectors and class (`.sidebar-nav a[href^="#"]`, `active`). Reports already sent keep the old behaviour
 (frozen pages). Tests (frame, stubbed scroll metrics): at the bottom the last link alone is `active`, also after AIVx's
 handler ran; not at the bottom AIVx's choice stands; a click on 03 marks 03; in edit mode a click marks nothing.
+
+### 17.13 Methodology gets a section heading, Next step its own line (added 2026-10-12, approved from a mock)
+
+AIVx shows Methodology as a lone `.method-note` box (base spec row 9), while sections 02 to 04 carry a "0X / NAME" label and
+a title, so 05 read as orphaned. The section (`render.ts:270-272`) becomes:
+
+```
+<section id="methodology" class="section">
+  <div class="section-label">${fixed('05 / ')}${mirror('page.method_nav', p.method_nav)}</div>
+  <h2 class="section-title">${mirror('page.method_nav', p.method_nav)}</h2>
+  <div class="method-note"><div>${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)}</div><div style="margin-top:10px">${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div></div>
+</section>
+```
+
+The label and title mirror the menu word (`page.method_nav`, edited in the menu where it first appears), as section 02's
+label mirrors its title. No new page word, no new slot, no change to the methodology or next-step text. Nothing in
+`aivx/*` changes. Tests: the section has the label "05 / {method_nav}" and an `h2.section-title` with the menu word in every
+mode; in draft both are `data-mirror="page.method_nav"` and the existing "every visible text is a slot, mirror, fixed or
+chart" and "one editable element per path" tests pass; the methodology and next-step slots sit in two separate blocks; the
+version 1 golden records the new markup as a deliberate difference.
