@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
 import { FRAME_SCRIPT_JS, PAGE_JS, renderSnapshotHtml, type RenderMode } from './render'
 import { AIVX_SHARE_BLOCK } from './aivx/share'
+import { AIVX_JS } from './aivx/js'
 import { sourceDonutFigure } from './charts'
 import { V1_DATA, V1_SLOTS } from './__fixtures__/v1-row'
 import type { Slots } from './slots'
@@ -289,4 +290,55 @@ test('donut: no Plotly or no element means no throw and no call', () => {
   expect(JSON.stringify(el.data)).toBe(JSON.stringify(sourceDonutFigure(MIX).data))
   const none = bootDonut({ noEl: true })
   expect(none.react).not.toHaveBeenCalled()
+})
+
+// The menu highlights 05 at the bottom of the page (v1.1 §17.12). AIVx's real scroll-spy runs first, then PAGE_JS, as in
+// the page. getBoundingClientRect is stubbed so the sections sit where the test says; the scroll metrics are stubbed too.
+const SECTION_IDS = ['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology']
+function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean }) {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, mode, 'Oct 8, 2026'), 'text/html')
+  if (o.edit) doc.querySelector('[data-slot]')!.setAttribute('contenteditable', 'true')
+  const tops = o.tops ?? [-900, -600, 0, 400, 700]
+  SECTION_IDS.forEach((id, i) => {
+    const el = doc.getElementById(id)!
+    el.classList.add('section')
+    el.getBoundingClientRect = () => ({ top: tops[i] }) as DOMRect
+  })
+  Object.defineProperty(doc.documentElement, 'scrollHeight', { configurable: true, value: 3000 })
+  win = Object.assign(new EventTarget(), { innerHeight: 800, scrollY: o.bottom ? 2200 : 500 })
+  new Function('window', 'document', AIVX_JS)(win, doc)
+  new Function('window', 'document', PAGE_JS)(win, doc)
+}
+const actives = () => [...doc.querySelectorAll('.sidebar-nav a.active')].map((a) => a.getAttribute('href'))
+
+test('at the bottom a scroll leaves only the 05 link active, after AIVx chose 04', () => {
+  bootSpy('final', { bottom: true })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#methodology'])
+})
+
+test('mid-page a scroll leaves AIVx choice standing and does not force 05', () => {
+  bootSpy('final', { bottom: false })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#competitive-visibility'])
+})
+
+test('a short page already at the bottom on load highlights 05 without a scroll', () => {
+  bootSpy('final', { bottom: true })
+  win.dispatchEvent(new Event('load'))
+  expect(actives()).toEqual(['#methodology'])
+})
+
+test('clicking the 03 link in preview marks 03 active at once', () => {
+  stubScroll()
+  bootSpy('preview', { bottom: false, tops: [-900, -600, 700, 800, 900] })
+  click(link('competitive-visibility'))
+  expect(actives()).toEqual(['#competitive-visibility'])
+})
+
+test('in edit mode a click marks nothing new', () => {
+  stubScroll()
+  bootSpy('draft', { bottom: false, tops: [-900, -600, 700, 800, 900], edit: true })
+  click(link('competitive-visibility'))
+  expect(actives()).toEqual(['#category-data'])
 })

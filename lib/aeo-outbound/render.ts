@@ -111,10 +111,15 @@ export const PAGE_CSS = [
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
  *  the phone donut shows percentages (§17.2). Registered before the frame script's listener, so it runs first. */
 export const PAGE_JS = String.raw`(function(){
+var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
+function setActive(h){for(var i=0;i<nav.length;i++){if(nav[i].getAttribute('href')===h)nav[i].classList.add('active');else nav[i].classList.remove('active')}}
+function atBottom(){var d=document.documentElement;return window.innerHeight+window.scrollY>=d.scrollHeight-2}
+function bottomRule(){if(nav.length&&atBottom())setActive(nav[nav.length-1].getAttribute('href'))}
+window.addEventListener('scroll',bottomRule,{passive:true});
 document.addEventListener('click',function(e){
 var n=e.target;if(!n||!n.closest)return;
 var a=n.closest('a[href^="#"]');
-if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
+if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(a.closest('.sidebar-nav'))setActive(a.getAttribute('href'));if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
 },true);
 var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
 function copy(x){return JSON.parse(JSON.stringify(x))}
@@ -125,7 +130,7 @@ var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],total=0
 t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{percent:.1%}':''});t.labels=lab.map(function(x,i){return x+' '+(100*v[i]/total).toFixed(1)+'%'});
 if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');draw(d,l)}
 function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};if(!window.matchMedia)return;var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
-if(document.readyState==='complete')init();else window.addEventListener('load',init);
+if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}
 })();`
 const PAGE_SCRIPT = `<script>${PAGE_JS}</script>`
 
