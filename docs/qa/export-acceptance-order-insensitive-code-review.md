@@ -83,7 +83,11 @@ The PR is test infrastructure only. No app code changes.
 - #2: overlap-based grouping, if a mis-clustered line is ever seen.
 - #3: a narrower stamp strip, if a run ever straddles midnight.
 
-**Merge order:** independent of the open PDF export PRs (#348, #350, #352, #354). None of them touch these lines, and their staff = client checks use the same `body()`, so they pick this up.
+**Merge order:** after the PDF export stack (#348 → #350 → #352 → #354) and before #364. This was corrected in round 2, after first claiming "independent".
+- **Against the stack (`origin/feat/pdf-export-executive-overview`):** it conflicts in `e2e/export/acceptance.mts` and `e2e/export/pdf-check.ts`. The stack adds three staff = client pairs on the old `body()` and the `&apos;` decoder fix on the old `readPdf`.
+- **Against #364:** it conflicts in `acceptance.mts` and `vitest.config.ts`.
+
+Checked with `git merge-tree`. When it lands, its branch first merges `dev` (with the stack in it): the stack's pairs move to `sameExport()`/`printedDifference`, and the two `&apos;` fixes reconcile into `parseBbox`.
 
 ---
 
@@ -105,5 +109,7 @@ Thomas approved with nits, and two record corrections. All are resolved on the b
 - `npx vitest run`: 2476/2476, with 15 `pdf-check` tests. Lint is clean.
 - **Real PDF pairs:** the read-order flake compares equal, the real cache-refresh difference still fails, and every other pair matches.
 
-**Merge note:** the stacked export PRs (#350, #352, #354) each add a staff = client check using the old `body()` string. When they meet this on `dev`, those lines move to `sameExport()`.
+**Merge note:** see §5. The round-1 note understated the conflicts; corrected in round 2.
+
+**Round 2 (Thomas):** approved on the code. The merge note understated the conflicts: #356 doesn't merge independently. It conflicts with #348, #350, #352 and #354 (their merged head) and with #364, so it lands after the stack and before #364 (§5).
 
