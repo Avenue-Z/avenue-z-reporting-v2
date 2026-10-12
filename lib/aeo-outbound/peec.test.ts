@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
-import { isPeecTimeout, PeecClient, PeecError, retryDelayMs, rowsOf } from './peec'
+import { isPeecRowCap, isPeecTimeout, PeecClient, PeecError, retryDelayMs, rowsOf } from './peec'
 
 const KEY = 'skc-test-key-123'
 
@@ -276,4 +276,22 @@ test('isPeecTimeout is true for a deadline and a timeout from the client, false 
   expect(isPeecTimeout(repeat)).toBe(false)
   expect(isPeecTimeout(new Error('timed out after 5ms'))).toBe(false)
   expect(new PeecError('x').timeout).toBe(false)
+})
+
+test('rowCap is true only for the row-cap error; isPeecRowCap agrees', async () => {
+  let n = 0
+  const capFetch = vi.fn(async () => json({ data: [{ id: `r${n++}` }, { id: `r${n++}` }] }))
+  const cap = await new PeecClient(KEY, { fetch: capFetch, maxRows: 3 }).all<{ id: string }>('GET', '/x', {}, (r) => r.id, 2).catch((e: unknown) => e)
+  expect((cap as Error).message).toContain('more than 3 rows')
+  expect((cap as PeecError).rowCap).toBe(true)
+  expect(isPeecRowCap(cap)).toBe(true)
+  const page = vi.fn(async () => json({ data: [{ id: 'a' }, { id: 'a' }] }))
+  const repeat = await new PeecClient(KEY, { fetch: page }).all<{ id: string }>('GET', '/x', {}, (r) => r.id, 10).catch((e: unknown) => e)
+  expect((repeat as PeecError).rowCap).toBe(false)
+  expect(isPeecRowCap(repeat)).toBe(false)
+  const http = await new PeecClient(KEY, { fetch: vi.fn(async () => new Response('bad', { status: 400 })) }).call('GET', '/x').catch((e: unknown) => e)
+  expect((http as Error).message).toContain('HTTP 400')
+  expect(isPeecRowCap(http)).toBe(false)
+  expect(isPeecRowCap(new Error('more than 3 rows'))).toBe(false)
+  expect(new PeecError('x').rowCap).toBe(false)
 })

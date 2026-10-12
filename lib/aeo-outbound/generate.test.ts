@@ -7,7 +7,7 @@ beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
 afterEach(() => { vi.restoreAllMocks() })
 
 type Route = (url: URL, body: Record<string, unknown> | null) => unknown
-function fakePeec(routes: Record<string, Route>, opts: { deadline?: number; now?: () => number } = {}) {
+function fakePeec(routes: Record<string, Route>, opts: { deadline?: number; now?: () => number; maxRows?: number } = {}) {
   const seen: { path: string; body: Record<string, unknown> | null }[] = []
   const fetch = async (u: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(u)); const path = url.pathname.replace('/customer/v1', '')
@@ -146,4 +146,26 @@ test('a picked range reaches Peec, and a range with no data fails with the pull 
   expect(!r.ok && r.error).toContain('has any Peec data')
   const sent = f.seen.find((s) => s.path === '/reports/domains')!
   expect(sent.body).toMatchObject({ start_date: '2026-09-01', end_date: '2026-09-07' })
+})
+
+const timeoutRoutes: Record<string, Route> = { ...base, '/reports/domains': () => { throw { abort: true } } }
+const ADVICE = 'Timed out at step 4. Pick a start and end date, at most 90 days.'
+
+test('a default-range step-4 timeout asks for a picked range, and a picked range keeps the plain message', async () => {
+  const mk = () => ({ peec: fakePeec(timeoutRoutes).client, glean: vi.fn(), deadline: NOW + 270_000, now: () => NOW })
+  expect(await generateSnapshot('or_a', mk())).toMatchObject({ ok: false, error: ADVICE })
+  expect(await generateSnapshot('or_a', mk(), null)).toMatchObject({ ok: false, error: ADVICE })
+  expect(await generateSnapshot('or_a', mk(), { start: '2026-09-01', end: '2026-09-07' })).toMatchObject({ ok: false, error: 'Timed out at step 4' })
+})
+
+test('a default-range timeout before step 4 keeps the plain message', async () => {
+  const r = await generateSnapshot('or_a', { peec: new PeecClient('skc-x', { now: () => 10, deadline: 5 }), glean: vi.fn(), deadline: 5, now: () => 10 })
+  expect(r).toMatchObject({ ok: false, error: 'Timed out at step 1' })
+})
+
+test('a default-range row cap at step 4 reaches the report as the pick-a-range message', async () => {
+  const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
+  const peec = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, { maxRows: 3 }).client
+  const r = await generateSnapshot('or_a', { peec, glean: vi.fn(), deadline: NOW + 270_000, now: () => NOW })
+  expect(r).toMatchObject({ ok: false, error: 'This project has too much history for one snapshot. Pick a start and end date, at most 90 days.' })
 })

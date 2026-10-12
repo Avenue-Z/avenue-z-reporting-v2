@@ -30,7 +30,8 @@ export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
-/** Report window, in UTC calendar days (spec §7 step 4). */
-export const DEFAULT_WINDOW_DAYS = 30
+/** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */
 export const MAX_WINDOW_DAYS = 90
 export const MAX_LOOKBACK_DAYS = 400
+/** A brand shown above this visibility gets a notes-panel warning (spec §7): common-word names match unrelated answers. */
+export const IMPLAUSIBLE_VISIBILITY_PCT = 90

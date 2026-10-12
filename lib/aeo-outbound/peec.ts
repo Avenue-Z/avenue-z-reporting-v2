@@ -12,15 +12,19 @@ export const MAX_ENDPOINT_ROWS = 250_000
 export class PeecError extends Error {
   /** True only for an exhausted time budget: the deadline passed or a call timed out. */
   readonly timeout: boolean
-  constructor(message: string, timeout = false) {
+  /** True only for the MAX_ENDPOINT_ROWS cap, never for a repeated row or an HTTP error. */
+  readonly rowCap: boolean
+  constructor(message: string, timeout = false, rowCap = false) {
     super(message)
     this.name = 'PeecError'
     this.timeout = timeout
+    this.rowCap = rowCap
   }
 }
 
 /** Optional calls rethrow these instead of turning them into a warning. */
 export const isPeecTimeout = (e: unknown): boolean => e instanceof PeecError && e.timeout
+export const isPeecRowCap = (e: unknown): boolean => e instanceof PeecError && e.rowCap
 
 export interface PeecClientOptions {
   fetch?: typeof globalThis.fetch
@@ -169,7 +173,7 @@ export class PeecClient {
         seen.add(k)
       }
       rows.push(...page)
-      if (rows.length > this.maxRows) throw new PeecError(`[PEEC API] ${path}: more than ${this.maxRows} rows, stopping`)
+      if (rows.length > this.maxRows) throw new PeecError(`[PEEC API] ${path}: more than ${this.maxRows} rows, stopping`, false, true)
     }
   }
 }

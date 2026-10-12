@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { PeecClient } from './peec'
+import { PeecClient, PeecError } from './peec'
 import { listProjects, pullSnapshot } from './pull'
 
 // The client logs each retry; keep the file quiet.
@@ -7,7 +7,7 @@ beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
 afterEach(() => { vi.restoreAllMocks() })
 
 type Route = (url: URL, body: Record<string, unknown> | null) => unknown
-function fakePeec(routes: Record<string, Route>, opts: { deadline?: number; now?: () => number } = {}) {
+function fakePeec(routes: Record<string, Route>, opts: { deadline?: number; now?: () => number; maxRows?: number } = {}) {
   const seen: { path: string; body: Record<string, unknown> | null }[] = []
   const fetch = async (u: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(u)); const path = url.pathname.replace('/customer/v1', '')
@@ -64,9 +64,9 @@ test('pulls every step over one window from the days that carry data', async () 
   expect(pull.models).toEqual(['ChatGPT UI'])
   expect(pull.actions.map((a) => a.title)).toEqual(['Give this page an H1 heading'])
   expect(pull.promptCount).toBe(100)
-  expect(pull.requested).toEqual({ start: '2026-09-09', end: '2026-10-08' })
+  expect(pull.requested).toEqual({ start: '2025-09-03', end: '2026-10-08' })
   const discovery = seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!
-  expect(discovery.body).toMatchObject({ start_date: '2026-09-09', end_date: '2026-10-08' })
+  expect(discovery.body).toMatchObject({ start_date: '2025-09-03', end_date: '2026-10-08' })
   for (const s of seen.filter((s) => s.path.startsWith('/reports/') && !(s.body?.dimensions as string[] | undefined)?.includes('date'))) {
     expect(s.body).toMatchObject({ project_id: 'or_a', start_date: '2026-10-05', end_date: '2026-10-06' })
     expect(s.body).not.toHaveProperty('filters')
@@ -114,7 +114,7 @@ test('a picked range is what step 4 sends, and the no-data message names it', as
 test('a null range falls back to the default', async () => {
   const { client, seen } = fakePeec(base)
   await pullSnapshot(client, 'or_a', NOW, undefined, null)
-  expect(seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!.body).toMatchObject({ start_date: '2026-09-09', end_date: '2026-10-08' })
+  expect(seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!.body).toMatchObject({ start_date: '2025-09-03', end_date: '2026-10-08' })
 })
 
 test('a failing prompt count is non-fatal: null and a warning', async () => {
@@ -165,4 +165,33 @@ test('rangePicked is true only when a range argument was passed', async () => {
   expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW)).rangePicked).toBe(false)
   expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW, undefined, null)).rangePicked).toBe(false)
   expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' })).rangePicked).toBe(true)
+})
+
+const DISCOVERY_ROWS = Array.from({ length: 4 }, (_, i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
+const capRoutes: Record<string, Route> = { ...base, '/reports/domains': (_u, b) => (b?.dimensions ? DISCOVERY_ROWS : []) }
+
+test('a default-range row cap at step 4 asks for a picked range', async () => {
+  const { client } = fakePeec(capRoutes, { maxRows: 3 })
+  const e = await pullSnapshot(client, 'or_a', NOW).catch((x: unknown) => x)
+  expect(e).toBeInstanceOf(PeecError)
+  expect((e as Error).message).toBe('This project has too much history for one snapshot. Pick a start and end date, at most 90 days.')
+  const viaNull = await pullSnapshot(fakePeec(capRoutes, { maxRows: 3 }).client, 'or_a', NOW, undefined, null).catch((x: unknown) => x)
+  expect((viaNull as Error).message).toContain('too much history')
+})
+
+test('a picked-range row cap at step 4 keeps the client message', async () => {
+  const { client } = fakePeec(capRoutes, { maxRows: 3 })
+  await expect(pullSnapshot(client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' })).rejects.toThrow('more than 3 rows')
+})
+
+test('a default-range repeated-row or HTTP error at step 4 keeps its message', async () => {
+  const repeat = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [DISCOVERY_ROWS[0], DISCOVERY_ROWS[0]] : []) })
+  await expect(pullSnapshot(repeat.client, 'or_a', NOW)).rejects.toThrow('repeats a row')
+  const http = fakePeec({ ...base, '/reports/domains': () => { throw { status: 400 } } })
+  await expect(pullSnapshot(http.client, 'or_a', NOW)).rejects.toThrow('HTTP 400')
+})
+
+test('a row cap after step 4 keeps the client message even on the default range', async () => {
+  const late = fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [1, 2, 3, 4].map((i) => ({ brand: { id: `kw_${i}`, name: `B${i}` }, visibility: 0.1 }))) }, { maxRows: 3 })
+  await expect(pullSnapshot(late.client, 'or_a', NOW)).rejects.toThrow('more than 3 rows')
 })

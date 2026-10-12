@@ -72,9 +72,9 @@ test('refreshes every 5s only while a row is generating', async () => {
   expect(refresh).toHaveBeenCalledTimes(1)
 })
 
-test('the empty-date helper names the default window', async () => {
+test('the empty-date helper names the full history', async () => {
   render(<OutboundHub rows={[]} />)
-  expect(screen.getByText('Left empty, the report covers the last 30 days.')).toBeInTheDocument()
+  expect(screen.getByText("Left empty, the report covers the project's full history, up to 400 days back.")).toBeInTheDocument()
   await screen.findByRole('option', { name: 'Acme pitch' })
 })
 

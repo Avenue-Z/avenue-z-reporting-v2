@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { copySnapshotAsDraftAction, discardSnapshotAction, revokeSnapshotAction } from '@/app/actions/aeo-outbound'
-import { DEFAULT_WINDOW_DAYS } from '@/lib/aeo-outbound/config'
+import { MAX_LOOKBACK_DAYS } from '@/lib/aeo-outbound/config'
 import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
 import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { requestGenerate, type GenerateBody } from './generate-client'
@@ -177,7 +177,7 @@ export function OutboundHub({ rows }: { rows: HubRow[] }) {
             Generate
           </button>
         </div>
-        <p className="mt-2 text-xs text-text-muted">Left empty, the report covers the last {DEFAULT_WINDOW_DAYS} days.</p>
+        <p className="mt-2 text-xs text-text-muted">Left empty, the report covers the project's full history, up to {MAX_LOOKBACK_DAYS} days back.</p>
         {message && <p className="mt-2 text-sm text-[#FF6B6B]">{message}</p>}
       </section>
 

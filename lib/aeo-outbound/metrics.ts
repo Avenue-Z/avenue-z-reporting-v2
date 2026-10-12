@@ -1,5 +1,5 @@
 // Turns a Peec pull into the numbers the page shows and Glean writes from (spec §5a, §7).
-import { DECISIONS } from './config'
+import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT } from './config'
 import type { PeecPull } from './pull'
 
 /** The three DECISIONS this file reads; a parameter so tests can cover both settings of each. */
@@ -115,6 +115,12 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
     else if (noData > 1) notes.push(`${noData} tracked brands have no Peec data in this window and count as zero visibility.`)
   } else {
     notes.push('No competitors tracked in this Peec project')
+  }
+  // Spec §7: a note only. Never on the page, in the Data block or in the copy, and it never blocks Approve.
+  for (const b of brands) {
+    if (b.visibilityPct > IMPLAUSIBLE_VISIBILITY_PCT) {
+      notes.push(`${b.name} shows ${b.visibilityPct.toFixed(1)}% AI visibility, which is unusually high. Check this brand's setup in Peec before sending: a name that is a common word can match unrelated answers.`)
+    }
   }
   if (pull.rangePicked && (pull.requested.start !== pull.window.start || pull.requested.end !== pull.window.end)) {
     notes.push(`Requested ${pull.requested.start} to ${pull.requested.end}; Peec data covers ${pull.window.start} to ${pull.window.end}.`)

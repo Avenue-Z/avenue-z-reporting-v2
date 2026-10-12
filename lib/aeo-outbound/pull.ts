@@ -1,7 +1,7 @@
 // Spec §7 steps 1-8 over one window. Every report call sends project_id, start_date and end_date and no
 // model filter (all models; T3 confirmed). Guards fail with a reason Ryan can act on.
 import { DECISIONS, PITCH_STATUSES } from './config'
-import { isPeecTimeout, PeecClient, PeecError, rowsOf } from './peec'
+import { isPeecRowCap, isPeecTimeout, PeecClient, PeecError, rowsOf } from './peec'
 import { defaultRange, type DayRange } from './range'
 
 export interface PeecProject { id: string; name: string; status: string }
@@ -73,9 +73,16 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   // Not validated here: generate validates a fresh request, and a rerun's stored range is used as stored (spec §7a).
   const requested = range ?? defaultRange(nowMs)
   const { start, end } = requested
-  const dated = await client.all<{ domain: string; date?: string; retrieved_chat_count?: number | null }>(
-    'POST', '/reports/domains', { project_id: projectId, start_date: start, end_date: end, dimensions: ['date'] },
-    (r) => `${r.domain}|${r.date}`, 10_000)
+  let dated: { domain: string; date?: string; retrieved_chat_count?: number | null }[]
+  try {
+    dated = await client.all<{ domain: string; date?: string; retrieved_chat_count?: number | null }>(
+      'POST', '/reports/domains', { project_id: projectId, start_date: start, end_date: end, dimensions: ['date'] },
+      (r) => `${r.domain}|${r.date}`, 10_000)
+  } catch (e) {
+    // Only the full-history default turns the cap into advice; a picked range keeps the client's message.
+    if (range == null && isPeecRowCap(e)) throw new PeecError('This project has too much history for one snapshot. Pick a start and end date, at most 90 days.')
+    throw e
+  }
   const days = dated.filter((r) => (r.retrieved_chat_count ?? 0) > 0).map((r) => String(r.date ?? '').slice(0, 10)).filter(Boolean).sort()
   if (!days.length) throw new PeecError(`No day between ${start} and ${end} has any Peec data for this project`)
   const window = { start: days[0], end: days[days.length - 1] }

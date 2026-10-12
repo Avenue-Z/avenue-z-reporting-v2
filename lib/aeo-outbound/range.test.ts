@@ -8,9 +8,12 @@ test('today is the UTC calendar day, not the local one', () => {
   expect(todayUtc(Date.parse('2026-10-09T00:00:00Z'))).toBe('2026-10-09')
 })
 
-test('the default range is 30 inclusive days ending today (UTC)', () => {
-  expect(defaultRange(NOW)).toEqual({ start: '2026-09-09', end: '2026-10-08' })
-  expect(defaultRange(Date.parse('2026-03-05T01:00:00Z'))).toEqual({ start: '2026-02-04', end: '2026-03-05' })
+test('the default range is today minus 400 days through today (UTC), the earliest day a picked range may start', () => {
+  expect(defaultRange(NOW)).toEqual({ start: '2025-09-03', end: '2026-10-08' })
+  expect(defaultRange(Date.parse('2026-03-05T01:00:00Z'))).toEqual({ start: '2025-01-29', end: '2026-03-05' })
+  const r = defaultRange(NOW)
+  expect(checkRange({ start: r.start, end: '2025-09-03' }, NOW).ok).toBe(true)
+  expect(checkRange({ start: '2025-09-02', end: '2025-09-03' }, NOW).ok).toBe(false)
 })
 
 test('neither date means no range', () => {
@@ -74,5 +77,5 @@ test('the day boundary: at 00:00 UTC today is the new day', () => {
   const midnight = Date.parse('2026-10-08T00:00:00Z')
   expect(checkRange({ start: '2026-10-01', end: '2026-10-08' }, midnight).ok).toBe(true)
   expect(checkRange({ start: '2026-10-01', end: '2026-10-09' }, midnight)).toEqual({ ok: false, error: "The end date can't be in the future." })
-  expect(defaultRange(midnight)).toEqual({ start: '2026-09-09', end: '2026-10-08' })
+  expect(defaultRange(midnight)).toEqual({ start: '2025-09-03', end: '2026-10-08' })
 })

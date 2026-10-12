@@ -257,3 +257,41 @@ test('a one-day window reads as that day alone, a longer one as X to Y', () => {
   expect(buildSnapshotData({ ...PULL, window: { start: '2026-10-05', end: '2026-10-05' } }, '2026-10-08T15:00:00Z').windowLabel).toBe('Oct 5, 2026')
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').windowLabel).toBe('Oct 1, 2026 to Oct 8, 2026')
 })
+
+const WARN = (name: string, v: string) => `${name} shows ${v}% AI visibility, which is unusually high. Check this brand's setup in Peec before sending: a name that is a common word can match unrelated answers.`
+const withVis = (own: number, ...others: [string, number][]) => {
+  const roster = [REF('kw_own', 'Own', true), ...others.map(([n]) => REF(`kw_${n}`, n))]
+  const brands = [ROW('kw_own', 'Own', own), ...others.map(([n, v]) => ROW(`kw_${n}`, n, v))]
+  return buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
+}
+
+test('a competitor above 90% displayed visibility adds the warning note, after the rank notes', () => {
+  const d = withVis(0.2, ['Ace', 0.9051])
+  expect(d.notes).toContain(WARN('Ace', '90.5'))
+})
+
+test('90.0% exactly does not warn, 90.1% does', () => {
+  expect(withVis(0.2, ['Ace', 0.9]).notes.filter((n) => n.includes('unusually high'))).toEqual([])
+  expect(withVis(0.2, ['Ace', 0.901]).notes).toContain(WARN('Ace', '90.1'))
+})
+
+test('95 prints as 95.0, and the own brand is warned too', () => {
+  const d = withVis(0.95, ['Ace', 0.3])
+  expect(d.notes).toContain(WARN('Own', '95.0'))
+  expect(d.notes.filter((n) => n.includes('unusually high'))).toHaveLength(1)
+})
+
+test('two brands above 90% give two notes, placed after the rank notes and before the window note', () => {
+  const d = withVis(0.95, ['Ace', 0.986])
+  const warns = d.notes.filter((n) => n.includes('unusually high'))
+  expect(warns).toHaveLength(2)
+  expect(warns).toContain(WARN('Own', '95.0'))
+  expect(warns).toContain(WARN('Ace', '98.6'))
+  const rank = d.notes.findIndex((n) => n.startsWith('Rank is by visibility'))
+  expect(d.notes.indexOf(warns[0])).toBeGreaterThan(rank)
+})
+
+test('the warning stays out of the page data: kpis, brands and copy inputs are unchanged', () => {
+  const hot = withVis(0.95, ['Ace', 0.986])
+  expect(JSON.stringify({ ...hot, notes: null })).not.toContain('unusually high')
+})
