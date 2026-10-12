@@ -662,18 +662,16 @@ test('D8: the copied link uses the brand as saved in this session, not the stale
 
 test('Minimize closes the panel and leaves a pill with the current count; the pill reopens it', async () => {
   await setup({ needsValidation: ['market', 'category'] })
-  expect(screen.getAllByRole('button', { name: 'Before you send (3)' })).toHaveLength(1)
+  expect(screen.queryByRole('button', { name: /^Show Before you send/ })).not.toBeInTheDocument()
   fireEvent.click(within(panel()).getByRole('button', { name: 'Minimize' }))
   expect(screen.queryByRole('complementary', { name: 'Before you send' })).not.toBeInTheDocument()
-  const pills = screen.getAllByRole('button', { name: 'Before you send (3)' })
-  expect(pills).toHaveLength(2)
-  fireEvent.click(pills[1])
+  fireEvent.click(screen.getByRole('button', { name: /^Show Before you send \(3\)$/ }))
   expect(panel()).toBeInTheDocument()
-  expect(screen.getAllByRole('button', { name: 'Before you send (3)' })).toHaveLength(1)
+  expect(screen.queryByRole('button', { name: /^Show Before you send/ })).not.toBeInTheDocument()
 })
 
-test('a live report has no Before you send pill when the panel is closed', async () => {
-  await setup({ status: 'live', token: 'tok_123', needsValidation: ['market'] })
+test.each(['live', 'revoked'] as const)('a %s report has no Before you send pill when the panel is closed', async (status) => {
+  await setup({ status, token: 'tok_123', needsValidation: ['market'] })
   expect(screen.queryByRole('complementary', { name: 'Before you send' })).not.toBeInTheDocument()
-  expect(screen.getAllByRole('button', { name: /^Before you send/ })).toHaveLength(1)
+  expect(screen.queryByRole('button', { name: /^Show Before you send/ })).not.toBeInTheDocument()
 })
