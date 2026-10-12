@@ -9,6 +9,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts'
+import { useExportMode } from '@/components/export/export-mode'
 import { CHART_COLORS } from '@/lib/constants'
 import { usd } from '@/lib/supermetrics/format'
 import { money } from '@/lib/paid-media/format'
@@ -30,8 +31,11 @@ export function BarChart({ data, xKey, yKeys, height = 300, valueFormat }: BarCh
       : valueFormat === 'currency-cents'
         ? (n: number) => money(n)
         : undefined
+  // In the PDF export the bars must be complete on first paint (no grow-in animation to catch half way), and the
+  // panel keeps the dark theme its colours were chosen for (app/export/export-theme.css).
+  const exportMode = useExportMode()
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6" {...(exportMode ? { 'data-export-chart': '' } : {})}>
       <ResponsiveContainer width="100%" height={height}>
         <RechartsBarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -64,6 +68,7 @@ export function BarChart({ data, xKey, yKeys, height = 300, valueFormat }: BarCh
               name={series.label ?? series.key}
               fill={series.color ?? CHART_COLORS.primary}
               radius={[4, 4, 0, 0]}
+              {...(exportMode ? { isAnimationActive: false } : {})}
             />
           ))}
         </RechartsBarChart>

@@ -24,7 +24,8 @@ const DOMAIN_TYPE_COLORS: Record<string, string> = {
 
 function DomainTypesChart({ types, source }: { types: { type: string; percentage: number }[]; source: 'peec' | 'profound' }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
+    // One dark block in the PDF export: its bar colours are the brand accents, unreadable on white (export-theme.css).
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5" data-export-block="" data-export-chart="">
       <div className="flex items-center gap-1.5 mb-4">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">What kinds of sources do AI models cite?</p>
         <InfoTooltip text={`Distribution of domain types across all sources cited by AI models. ${AVENUE_Z.domainTypes.text}`} />

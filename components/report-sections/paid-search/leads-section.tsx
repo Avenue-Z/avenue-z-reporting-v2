@@ -16,7 +16,7 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
   return (
     <div className="space-y-6">
       {/* Weekly leads chart */}
-      <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
+      <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5" data-export-block="" data-export-chart="">
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-widest text-text-muted">
           Leads Over Time
         </h3>
@@ -30,13 +30,13 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
 
       {/* By-action breakdown grouped by category */}
       <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
-        <h3 className="mb-4 text-sm font-semibold uppercase tracking-widest text-text-muted">
+        <h3 className="mb-4 text-sm font-semibold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
           Leads by Action
         </h3>
         {/* Total Leads at the top — sum of the category subtotals (Req 2). Uses
             the already-computed total; unaffected by the keyword ≥10 filter,
             which lives on a separate table and data path (comment [e]/[f]). */}
-        <div className="mb-4 flex items-center justify-between border-b border-white/[0.12] pb-3">
+        <div className="mb-4 flex items-center justify-between border-b border-white/[0.12] pb-3" data-export-keep-with-next="">
           <span className="text-sm font-bold text-white">Total Leads</span>
           <span className="tabular-nums text-base font-bold text-white">
             {data.totalLeads.toLocaleString('en-US')}
@@ -52,7 +52,7 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
                 : '0.0%'
 
             return (
-              <div key={category}>
+              <div key={category} data-export-block="">
                 {/* Category header */}
                 <div className="mb-2 flex items-center justify-between border-b border-white/[0.08] pb-2">
                   <span className="text-xs font-extrabold uppercase tracking-widest text-text-muted">

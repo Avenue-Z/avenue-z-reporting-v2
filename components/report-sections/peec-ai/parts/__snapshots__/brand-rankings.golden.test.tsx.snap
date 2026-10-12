@@ -6,6 +6,7 @@ exports[`brand-rankings@1 golden 1`] = `
 >
   <div
     class="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4"
+    data-export-keep-with-next=""
   >
     <p
       class="text-xs font-bold uppercase tracking-widest text-text-muted"

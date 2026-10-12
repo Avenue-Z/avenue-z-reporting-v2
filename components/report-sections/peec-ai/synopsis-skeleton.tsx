@@ -8,7 +8,8 @@ import { Sparkles } from 'lucide-react'
  */
 export function SynopsisSkeleton() {
   return (
-    <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
+    // "Still loading" to the PDF export's readiness check (lib/export/readiness.ts).
+    <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6" data-export-pending="">
       <header className="mb-4 flex items-center gap-2">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#60FF80]/10">
           <Sparkles className="h-4 w-4 text-[#60FF80]" />

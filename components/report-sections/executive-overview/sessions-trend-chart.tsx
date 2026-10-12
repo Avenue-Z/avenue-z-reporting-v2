@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { useExportMode } from '@/components/export/export-mode'
 import { NoData, LoadFailed } from './no-data'
 
 export interface TrendRow {
@@ -63,7 +64,7 @@ const CHART_TOOLTIP_TEXT =
 
 function InlineTooltip({ text }: { text: string }) {
   return (
-    <div className="group relative flex-shrink-0">
+    <div className="group relative flex-shrink-0" data-export-hide="">
       <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">
         ?
       </span>
@@ -185,6 +186,7 @@ export function SessionsTrendChart({ data, compareLabel, failed }: SessionsTrend
     newUsers: true,
   })
   const [smoothed, setSmoothed] = useState(false)
+  const exportMode = useExportMode()
 
   const toggle = (key: SeriesKey) =>
     setActive((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -227,7 +229,7 @@ export function SessionsTrendChart({ data, compareLabel, failed }: SessionsTrend
   }
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6" data-export-block="" data-export-chart="">
       {/* Header */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
@@ -235,47 +237,59 @@ export function SessionsTrendChart({ data, compareLabel, failed }: SessionsTrend
           <InlineTooltip text={CHART_TOOLTIP_TEXT} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 7-day avg toggle */}
-          <ButtonTooltip hint="Smooths each data point into a 7-day rolling average, making trends easier to read by reducing day-to-day noise.">
-            <button
-              onClick={() => setSmoothed((v) => !v)}
-              className={cn(
-                'rounded-md border px-2.5 py-1 text-xs font-semibold transition-all duration-150',
-                smoothed
-                  ? 'border-white/20 bg-white/10 text-white'
-                  : 'border-white/10 bg-white/[0.04] text-text-muted hover:text-white/60'
-              )}
-            >
-              7d avg
-            </button>
-          </ButtonTooltip>
-
-          <div className="hidden h-4 w-px bg-white/10 sm:block" />
-
-          {/* Series toggles — subtle tab style */}
-          <div className="flex flex-wrap gap-1 rounded-lg bg-white/[0.04] p-1">
+        {exportMode ? (
+          // PDF export: the default view (every series on, unsmoothed), named as a static legend.
+          <div className="flex flex-wrap items-center gap-3" data-export-toggle-label="">
             {SERIES.map((s) => (
-              <ButtonTooltip key={s.key} hint={s.hint}>
-                <button
-                  onClick={() => toggle(s.key)}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150',
-                    active[s.key]
-                      ? 'bg-white/10 text-white'
-                      : 'text-text-muted hover:text-white/60'
-                  )}
-                >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full transition-opacity"
-                    style={{ backgroundColor: s.color, opacity: active[s.key] ? 1 : 0.35 }}
-                  />
-                  {s.label}
-                </button>
-              </ButtonTooltip>
+              <span key={s.key} className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                {s.label}
+              </span>
             ))}
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 7-day avg toggle */}
+            <ButtonTooltip hint="Smooths each data point into a 7-day rolling average, making trends easier to read by reducing day-to-day noise.">
+              <button
+                onClick={() => setSmoothed((v) => !v)}
+                className={cn(
+                  'rounded-md border px-2.5 py-1 text-xs font-semibold transition-all duration-150',
+                  smoothed
+                    ? 'border-white/20 bg-white/10 text-white'
+                    : 'border-white/10 bg-white/[0.04] text-text-muted hover:text-white/60'
+                )}
+              >
+                7d avg
+              </button>
+            </ButtonTooltip>
+
+            <div className="hidden h-4 w-px bg-white/10 sm:block" />
+
+            {/* Series toggles — subtle tab style */}
+            <div className="flex flex-wrap gap-1 rounded-lg bg-white/[0.04] p-1">
+              {SERIES.map((s) => (
+                <ButtonTooltip key={s.key} hint={s.hint}>
+                  <button
+                    onClick={() => toggle(s.key)}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all duration-150',
+                      active[s.key]
+                        ? 'bg-white/10 text-white'
+                        : 'text-text-muted hover:text-white/60'
+                    )}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full transition-opacity"
+                      style={{ backgroundColor: s.color, opacity: active[s.key] ? 1 : 0.35 }}
+                    />
+                    {s.label}
+                  </button>
+                </ButtonTooltip>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Compare period legend */}
@@ -361,6 +375,7 @@ export function SessionsTrendChart({ data, compareLabel, failed }: SessionsTrend
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, fill: s.color, strokeWidth: 0 }}
+                isAnimationActive={!exportMode}
               />
             ) : null
           )}
