@@ -202,4 +202,12 @@ contract nullability and failure per boundary; the package.json amendment with z
 Cheap MINORs fixed in the same edit (CSP string, slot count, index citation, measured duration, ua_family, about-data
 wording, hub columns and counts, actions page cap, Back-link dialog, migration dry runs and numbering, CSS-only chip,
 header clone in every mode, the extra tests).
+Round 2 (`c738ed07`, changed lines): 19 of the 20 round-1 fixes RESOLVED; the BLOCKER (bullet add and remove) NOT
+RESOLVED end to end. New: 0 BLOCKER, 7 MAJOR, 16 MINOR. MAJOR: M1 a key shown in several places is edited in one only
+(the frame keeps one element per path, `render.ts:18`); M2 the KPI comparison has no rule for the rank card
+("#3 of 12 brands"); M3 `progress_step` needs `integer not null default 0` or the guard never passes; M4 cloning the table
+header drops the edit listeners unless the clone runs first or the script delegates; M5 a contract break shows the Peec
+error text, so it needs its own `contract_violation` code with the field; M6 no frame-to-parent message asks for add or
+remove; M7 a structural PATCH outside the save queue leaves the queue's revision stale (`save-queue.ts:22-27,73`).
+Per my rule (a MAJOR after round 2 stops the loop), these go to me as decisions; no round 3.
 
