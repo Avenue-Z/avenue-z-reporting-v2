@@ -71,7 +71,7 @@ test('draft: every slot is marked, none is editable until the frame says so, the
 test('preview and final carry no editing markup at all', () => {
   for (const mode of ['preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 8, 2026')
-    // PAGE_JS (every mode) names the selector [data-slot][contenteditable], so those two are checked as attributes.
+    // PAGE_JS (every mode) names the selector [data-slot][contenteditable]: remove that one known occurrence, then check the bare words.
     const parts = h.split(`<script>${PAGE_JS}</script>`)
     expect(parts, mode).toHaveLength(2)
     const rest = parts.join('')
