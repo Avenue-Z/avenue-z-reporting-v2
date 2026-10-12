@@ -338,20 +338,21 @@ are to `feat/aeo-outbound-parts` at `0ac4b5b9`. Where this section and an earlie
 
 ### 16.1 Ryan's answers
 
-Each answer is a `DECISIONS` value in `lib/aeo-outbound/config.ts:3-28`. Q1, Q2, Q5, Q7 and Q10 are settings defaults
-under §8; Q3, Q4, Q8 and Q9 stay code constants (§8). Q1, Q2, Q4, Q6, Q8 and Q9 match today's values and change
+Each answer is a `DECISIONS` value in `lib/aeo-outbound/config.ts:3-28`. Q1, Q2, Q5, Q6, Q7 and Q10 are settings
+defaults under §8; Q3, Q4, Q8 and Q9 stay code constants (§8). Q1, Q2, Q4, Q6, Q8 and Q9 match today's values and change
 nothing. Q4's answer adds "only confirmed Peec numbers": the Data block carries only Peec's figures (`prompt.ts:45-58`),
-and a number Ryan types that is not in it is a "Check these" item before sending (§3). Four answers change:
+and a number Ryan types that is not in it is a "Check these" item before sending (§3, §4 `number_not_in_data`). Four answers change:
 
 - **Q3, a specific category: `writeSpecificCategory` becomes `true`.** The prompt already asks for `category` when it is
-  on (`prompt.ts:90`); that line also states "at most 80 characters". Generation uses Glean's `category` only when it is
+  on (`prompt.ts:90`); Task 3b adds "at most 80 characters" to that line. Generation uses Glean's `category` only when it is
   a string that is 1 to 80 characters after `cleanValue` (`slots.ts:26`; `MAX_LEAD`, `slots.ts:21`). Anything else,
   including a missing key, keeps Peec's category or "Needs validation" (`generate.ts:30`) and is never a retry or a
   failure: today a non-string is ignored (`generate.ts:59`), and a category problem must not fail a run whose other
   fields are good (`generate.ts:61,70`). Ryan's edit limit for `category` becomes 80 too (today 1,000, `slots.ts:41`).
   Numbers and domains in `category` are already checked on every row (`grounding.ts:36-37`); the only exemption is the
-  long-dash check (`CODE_SET`, `grounding.ts:14,38`). On a version 2 row `category` leaves that exemption, so a long
-  dash in a written category is flagged; a version 1 row keeps it.
+  long-dash check (`CODE_SET`, `grounding.ts:14,38`). On a version 2 row `category` keeps that exemption only while it
+  equals the code value (`data.category ?? NEEDS_VALIDATION`, which Glean can't fix), so a long dash in a written or
+  edited category is flagged; a version 1 row keeps the exemption always.
 - **Q5, Peec recommendations only when relevant: `peecOpportunityRows` keeps the value 1 but becomes a ceiling.** The
   prompt's rule (`prompt.ts:88`, today "exactly N of the 3 must be based on those actions") becomes: "If the Peec
   recommended actions list is not "none", you may base at most N of the 3 on those actions, and only where an action fits
@@ -415,16 +416,18 @@ and a number Ryan types that is not in it is a "Check these" item before sending
 - **Shown.** A checklist of eight rows (steps 1 to 6, 8 and 9; at step 10 the last row reads "Writing the copy, second
   attempt"): finished rows ticked, the current row with a spinner, later rows muted. Step 0 (the row exists, Peec not
   yet called), and the time before the row exists, show every row muted with "Starting…". Above it: a bar filled to
-  finished rows ÷ 8, the elapsed clock (m:ss from the row's `created_at`, or from the click before the row exists; a
-  browser clock behind the server shows 0:00, never a negative), and "Usually 35 to 45 seconds". After 90 seconds the line
+  finished rows ÷ 8, the elapsed clock (m:ss; in the tab whose request started the run, from the click, so it never
+  jumps back when the row appears; anywhere else from the row's `created_at`; a browser clock behind the server shows
+  0:00, never a negative), and "Usually 35 to 45 seconds". After 90 seconds the line
   under it reads "Taking longer than usual. It stops by itself after 4 minutes 30 seconds." (`GENERATION_DEADLINE_MS`,
   `config.ts:31`). "Keep this tab open until it finishes." stays. A one-line form, the current step's label then "…" and the
   clock ("Reading the brands tracked… 0:04"; "Starting… 0:01" at step 0), remains for hub rows Ryan did not start in
   this tab. This replaces the two-stage text the plan's Task 9 specifies.
 - **Live.** A read-only `GET /api/aeo-outbound/progress` takes exactly one of `id` (must pass `isReportId`) or
-  `projectId` (a non-empty string of at most 200 characters); both, neither or a malformed value answers 400
-  `{ error: 'bad-request' }`. No session or no access answers 403 `{ error: 'forbidden' }` (`outboundAccess`, §8). A
-  database error answers 503 `{ error: 'unavailable' }` and logs one line without the ids' owner email. Otherwise 200,
+  `projectId` (a non-empty string of at most 200 characters); access is checked first: no session or no access answers 403
+  `{ error: 'forbidden' }` (`outboundAccess`, §8), then both, neither or a malformed value answers 400
+  `{ error: 'bad-request' }`. A database error answers 503 `{ error: 'unavailable' }` and logs one line,
+  `[aeo-outbound] progress read failed reason=<errorLabel>` (`lib/aeo-outbound/log.ts`), with no ids or emails. Otherwise 200,
   `Cache-Control: no-store`, with `{ id: string, step: number, createdAt: string (ISO) }` for the matching row while
   `status = 'generating'` and it is younger than `STALE_GENERATING_MS` (`config.ts:32`; an older one is shown as failed
   by `displayStatus`, `store.ts:271-272`, so it is never reported as running), else `{ step: null }`. At most one
@@ -436,8 +439,12 @@ and a number Ryan types that is not in it is a "Check these" item before sending
   row with a new id) polls by `projectId` every second while that request is in flight; the editor of a row that is
   itself generating polls by `id`. The row is created several seconds after the click (after the session, body, rerun
   and Peec project checks, `app/api/aeo-outbound/generate/route.ts:33-76`), so `{ step: null }` before any row has been
-  seen means "not started yet" and polling continues. Polling stops when the request answers; when `{ step: null }`
-  follows a row that was seen (it finished); or 300 seconds after the poll started (the deadline plus 30 seconds). A
+  seen means "not started yet" and polling continues; a row whose `createdAt` is more than 5 seconds before the click is
+  another tab's run and is ignored the same way (until the request answers 409 and the hub opens that row,
+  `route.ts:79-81`). Polling by `projectId` stops when the request answers; when `{ step: null }` follows a row that was
+  seen (it finished); or 300 seconds after the poll started (the deadline plus 30 seconds). Polling by `id` starts from a
+  row already known to be generating, so any `{ step: null }` means it finished. While the editor's Rerun request is in
+  flight, the checklist replaces the editor's action bar until the request answers. A
   failed poll keeps the last shown state and tries again on the next tick. When the editor's poll by `id` sees the row
   finish it calls `router.refresh()` at once instead of waiting for its 5-second refresh (`editor.tsx:134-139`).
 
@@ -451,18 +458,24 @@ to 3 are built. The plan gains three tasks and its later tasks are edited where 
   80-character edit limit (`slots.ts:41`); grounding's dash exemption per row (`grounding.ts:14`: `category` only on
   version 1, `next_step` only while it equals the fixed sentence); the "Powered by" rule in today's `render.ts:66-67`;
   the two version 1 golden differences (`v1-compat.test.ts`); and updates `prompt.test.ts:123` ("exactly 2 of the 3").
-  Flipping the values in this task, before Tasks 6 and 7, is why it also changes the two places that read `DECISIONS`
-  directly today (`render.ts:66`, `grounding.ts:14`).
+  Flipping the values in this task, before Tasks 5 to 7, is why it also changes the places that read `DECISIONS`
+  directly today (`render.ts:66`, `grounding.ts:14`). `generate.ts:32` also reads `DECISIONS.fixedNextStep`: from Task
+  3b until Task 5 passes settings through (plan:2704), new rows get the fixed sentence while their `settingsUsed` still
+  records null, so the prompt still asks Glean for a `next_step` that is discarded. That gap is on the branch only and
+  closes in Task 5.
 - **New Task 3c, the share link (built after 3b).** `shareOrigin()`, the origin constants, `shareUrl`, the slug, the
   route's segment rule for GET and HEAD, the pages passing `shareOrigin` and the nullable `brand_name`, today's hub and
   editor callers, `status.test.ts:24-25`, and `.env.example`.
-- **Task 4 edit:** step 10, after the skip check (`generate.ts:41`).
+- **Task 4 edits:** step 10, after the skip check (`generate.ts:41`); and its wholesale `generate.ts` replacement keeps
+  Task 3b's category accept rule (plan:2100 restores the old one).
 - **Task 9 edit:** `progress.ts` becomes the §16.3 labels, the checklist model and the one-line form, replacing
   `PULLING`/`WRITING` and their tests (plan:4394, 4443-4451, 4637-4660).
 - **New Task 11b, live progress (after Task 11).** The progress endpoint, the checklist component, polling in the hub
   (Generate and Rerun) and in the editor (Rerun, and by id while generating), and the refresh when the row finishes.
 - **Edits to Tasks 5, 6, 7, 10, 11 and 12:** the settings defaults test (plan:2266: `fixedNextStep`, `sidebarWordmark`
-  'Avenue Z'); the settings label (plan:2474, test plan:7453) becomes "Most opportunities from Peec recommendations";
+  'Avenue Z') and its `INPUT` (plan:2259-2261, compared with the defaults at plan:2286); Task 6's wholesale `slots.ts`
+  keeps the 80-character `category` limit (`limitFor`, plan:2998-3002, and its test, plan:2818-2826); Task 12's tests
+  built from the defaults (plan:7332-7333, 7374-7381, 7406-7408, 7451); the settings label (plan:2474, test plan:7453) becomes "Most opportunities from Peec recommendations";
   the Task 6 `codeSet` (plan:3238) takes the per-row rule from Task 3b; the Task 7 render (plan:4046-4047) keeps the
   "Powered by" rule and skips grounding the hidden line; the Task 10 and 11 link code and tests (plan:5501, 5762, 6674,
   6959, 7194 and the `snapshotUrl` callers at plan:5421, 6866) use the `shareOrigin` prop and `shareUrl`; the Task 12
@@ -481,6 +494,7 @@ to 3 are built. The plan gains three tasks and its later tasks are edited where 
 | Glean skips `category` or returns one over 80 characters | No retry, no failure: Peec's category or "Needs validation". |
 | A written category with a number not in Peec's data | A "Check these" item, as on every row today (`grounding.ts:37`). |
 | The hub's first polls, before the row exists | "Starting…" with the click's clock; polling continues. |
+| Another tab already generating this project | Its row is ignored by the poll; the request's 409 opens it (`route.ts:79-81`). |
 | An abandoned generating row older than 6 minutes | Not reported as running; the hub follows the new row once it exists. |
 | Peec has actions but none fits | No opportunity based on one; nothing fails. |
 | Wordmark edited to "avenue z " | Treated as Avenue Z: no "Powered by" line. |
@@ -500,5 +514,7 @@ bad token; `shareOrigin` for production, staging, preview and unset; the hub and
 is set, and label a test link when it is null; a null `brand_name` gives a bare-token link. Progress: step 10 written before the second attempt
 only; every label; the checklist's ticked, current and muted rows and the bar for each step; the over-90-seconds line;
 the endpoint's 400 (both, neither, malformed), 403, 503, `{ step: null }` (none, and a row older than 6 minutes) and row
-answers; null before any row keeps polling; the hub and the editor's Rerun poll only while their request is in flight
+answers; null before any row keeps polling; a poll by id stops on the first null and refreshes; another tab's row is
+ignored; the clock counts from the click in the starting tab and never jumps back; a Peec category with a long dash is not
+flagged on a version 2 row; the hub and the editor's Rerun poll only while their request is in flight
 and stop on each of the three rules; the editor polls by id only while generating and refreshes when the row finishes.
