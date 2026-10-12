@@ -177,7 +177,7 @@ Thomas approved with minor feedback, a timeout note and three record corrections
 | R2 | `contact-pacing.tsx:187` | The CRM bars printed neon green on white, about 1.4:1, with the in-progress week nearly invisible. | **Fixed**: theme rules scoped to an inert `data-export-bars` marker darken the bars to `#15803d`. This covers the contact bars, the in-progress week (25% alpha plus its dashed cap) and the pipeline owner bars. Tested on the server's own markup with the stylesheet's selectors. Not yet seen live (§5). |
 | R3 | `reports/page.tsx:298` | The button posted ranges this page ignores, so a bad stale `?compareRange` could 400. | **Fixed**: it posts `last_30_days` and no compare range (both routes), pinned in the parity test. |
 | R4 | `acceptance.mts:244` | The "own window label" check covered only the 30-day label. | **Fixed**: renamed, and the year-to-date and as-of-today labels are checked whenever the CRM loaded. A run whose CRM didn't load prints a note instead of passing quietly. |
-| R5 | Salesforce 60 s vs the 40 s ready budget (not anchored) | A slow CRM meant a 504. | **Fixed**: the export passes `crmDeadlineMs: 25_000`. Past it, the CRM block prints "Couldn't load", a warn line names the fetch, and the fetch carries on, warming the cache. The live page passes none. It is a named drift in the parity test, and a 20 ms deadline test pins it. |
+| R5 | Salesforce 60 s vs the 40 s ready budget (not anchored) | A slow CRM meant a 504. | **Fixed**: the export passes `crmDeadlineMs: 25_000`. Past it, the CRM block prints "Couldn't load", a warn line names the fetch, and the fetch isn't cancelled: if it completes it may fill the cache for the next export, which is best effort, not guaranteed (wording corrected in `2f4a203` after round 2). The live page passes none. It is a named drift in the parity test, and a 20 ms deadline test pins it. |
 | R6 | record lines 34, 47, 135 | Overstated "appear nowhere else"; only the 30-day label checked; code comments contradicted §4. | Corrected above; comments fixed in `96bb444`. |
 
 **Verification:**
@@ -186,4 +186,8 @@ Thomas approved with minor feedback, a timeout note and three record corrections
 - **Live acceptance**, at the top of the stack (`018c422`): every check passed, 246. The CRM-label check printed its note, because the CRM returned 403 locally.
 
 **Found during the fixes:** the acceptance reader didn't decode `&apos;`, so the CRM-loaded test read the "Couldn't load" cards as absent. Fixed at the base of the stack in `81ff587`.
+
+**Round 2 (Thomas):** approved. One wording nit, applied in `2f4a203` (comments only): a fetch past the deadline is not cancelled, so if it completes it may fill the cache, but nothing guarantees it.
+
+**Merge order:** after #348, #350 and #352, as the top of the stack. Then #362, then #356, then #364 (see #357 and #365).
 
