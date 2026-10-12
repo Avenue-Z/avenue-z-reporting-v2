@@ -4,7 +4,7 @@
 // per generating row, opens split into likely people and likely automated, and in-app dialogs. The table comes from the
 // database through the page; this component refreshes it (on mount, after every action, every 5s while a row is
 // generating), because the client Router Cache would otherwise keep a stale list for 180s.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
@@ -27,6 +27,7 @@ import { cleanSearch } from './search-text'
 import { KEEP_OPEN, USUALLY, progressText } from './progress'
 import { ProgressChecklist } from './progress-checklist'
 import { ProjectPicker, type PickerProject } from './project-picker'
+import { RowMenu, type RowMenuItem } from './row-menu'
 import { useGenerationProgress } from './use-generation-progress'
 import { STATUS_UI, actionsFor } from './status'
 import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
@@ -50,14 +51,14 @@ type Tab = 'all' | 'draft' | 'live' | 'revoked' | 'failed'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'all', label: 'All' }, { id: 'draft', label: 'Drafts' }, { id: 'live', label: 'Sent' }, { id: 'revoked', label: 'Revoked' }, { id: 'failed', label: 'Failed' },
 ]
-type SortKey = 'brand' | 'project' | 'status' | 'created' | 'sent' | 'recipient' | 'opens'
+type SortKey = 'brand' | 'status' | 'created' | 'sent' | 'opens'
 const COLUMNS: { key: SortKey | null; label: string }[] = [
-  { key: 'brand', label: 'Brand' }, { key: 'project', label: 'Peec project' }, { key: 'status', label: 'Status' }, { key: 'created', label: 'Created' },
-  { key: 'sent', label: 'Sent' }, { key: 'recipient', label: 'Sent to' }, { key: 'opens', label: 'Opens' }, { key: null, label: 'Actions' },
+  { key: 'brand', label: 'Brand' }, { key: 'status', label: 'Status' }, { key: 'created', label: 'Created' },
+  { key: 'sent', label: 'Sent' }, { key: 'opens', label: 'Opens' }, { key: null, label: 'Actions' },
 ]
 const SORT_VALUE: Record<SortKey, (r: HubRow) => string | number> = {
-  brand: (r) => r.brand.toLowerCase(), project: (r) => r.projectName.toLowerCase(), status: (r) => r.status, created: (r) => r.createdAt,
-  sent: (r) => r.approvedAt ?? '', recipient: (r) => (r.recipient ?? '').toLowerCase(), opens: (r) => r.openCount,
+  brand: (r) => r.brand.toLowerCase(), status: (r) => r.status, created: (r) => r.createdAt,
+  sent: (r) => r.approvedAt ?? '', opens: (r) => r.openCount,
 }
 const PAGE_SIZE = 50
 type Pending = { projectName: string; startedAt: string; rerunOf: string | null }
@@ -73,12 +74,18 @@ export function StatusPill({ status, error }: { status: DisplayStatus; error?: s
   )
 }
 
+/** The count and the breakdown of a row's opens, for the two lines of the Opens cell (v1.1 §17.9). */
+export function opensParts(r: Pick<HubRow, 'openCount' | 'opensPerson' | 'opensAutomated'>): { head: string; detail: string | null } {
+  if (r.openCount === 0) return { head: NO_OPENS_SHORT, detail: null }
+  const detail = `${r.opensPerson} likely ${r.opensPerson === 1 ? 'person' : 'people'}, ${r.opensAutomated} likely automated`
+  const rest = r.openCount - r.opensPerson - r.opensAutomated
+  return { head: `${r.openCount} ${r.openCount === 1 ? 'open' : 'opens'}`, detail: rest > 0 ? `${detail}, ${rest} not classified` : detail }
+}
+
 /** "3 opens: 1 likely person, 2 likely automated", plus opens from before v1.1 as "not classified" (v1.1 §6). */
 export function opensSummary(r: Pick<HubRow, 'openCount' | 'opensPerson' | 'opensAutomated'>): string {
-  if (r.openCount === 0) return NO_OPENS_SHORT
-  const head = `${r.openCount} ${r.openCount === 1 ? 'open' : 'opens'}: ${r.opensPerson} likely ${r.opensPerson === 1 ? 'person' : 'people'}, ${r.opensAutomated} likely automated`
-  const rest = r.openCount - r.opensPerson - r.opensAutomated
-  return rest > 0 ? `${head}, ${rest} not classified` : head
+  const { head, detail } = opensParts(r)
+  return head + (detail ? ': ' + detail : '')
 }
 
 /** The local row for a Generate request in flight in this tab: polls by project, clock from the click (spec v1.1 §16.3). */
@@ -262,6 +269,41 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
   const localPending = Object.entries(pending).filter(([pid]) => !rows.some((r) => r.projectId === pid && r.status === 'generating'))
   const generatingHere = !!projectId && (!!pending[projectId] || rows.some((r) => r.projectId === projectId && r.status === 'generating'))
   const rerunPending = (id: string) => Object.values(pending).some((p) => p.rerunOf === id)
+  function actionsCell(r: HubRow) {
+    const disabled = busy === r.id
+    const menu: RowMenuItem[] = []
+    let open: ReactNode = null
+    let copy: ReactNode = null
+    for (const a of actionsFor(r.status)) {
+      switch (a) {
+        case 'open':
+          open = <Link key={a} href={`/tools/new-business/${r.id}`} className={btnCls}>{OPEN}</Link>
+          break
+        case 'copy':
+          copy = r.token && origin ? <CopyLink key={a} url={shareUrl(origin, r.linkBrand, r.token)} /> : null
+          break
+        case 'revoke':
+          menu.push({ label: 'Revoke', disabled, onSelect: () => setDialog({ kind: 'revoke', row: r }) })
+          break
+        case 'edit':
+          menu.push({ label: 'Edit a copy', disabled, onSelect: () => void runAction(r.id, () => copySnapshotAsDraftAction(r.id), true) })
+          break
+        case 'rerun':
+          menu.push({ label: 'Rerun', disabled: disabled || rerunPending(r.id), onSelect: () => void generate({ projectId: r.projectId, rerunOf: r.id }, r.projectName) })
+          break
+        case 'discard':
+          menu.push({ label: 'Discard', disabled, onSelect: () => setDialog({ kind: 'discard', row: r }) })
+          break
+      }
+    }
+    return (
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
+        {open}
+        {copy}
+        {menu.length > 0 && <RowMenu items={menu} />}
+      </div>
+    )
+  }
   const progress = (step: number, startedAt: string) => (
     <div className="mt-1 text-xs text-text-muted">
       <div>{progressText(step, startedAt, now)}</div>
@@ -316,8 +358,6 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
           <input type="search" className={`${inputCls} w-72`} placeholder={SEARCH_PLACEHOLDER} value={search} onChange={(e) => onSearchInput(e.target.value)} />
         </label>
       </div>
-      <p className="mb-2 text-xs text-text-muted">{OPENS_CAVEAT}</p>
-      {shareOrigin === null && rows.some((r) => r.token) && <p className="mb-2 text-xs text-text-muted">{TEST_LINK_NOTE}</p>}
 
       <div className={`${cardCls} overflow-x-auto p-0`}>
         <table className="w-full text-left text-sm text-white">
@@ -334,19 +374,18 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
             {localPending.map(([pid, p]) => (
               <tr key={`pending-${pid}`} className="border-t border-white/[0.06] align-top">
                 <td className="px-4 py-3">{p.projectName}</td>
-                <td className="px-4 py-3">{p.projectName}</td>
                 <td className="px-4 py-3"><StatusPill status="generating" /><PendingProgress projectId={pid} startedAt={p.startedAt} /></td>
-                <td colSpan={5} />
+                <td colSpan={4} />
               </tr>
             ))}
             {shown.map((r) => {
               const sentRow = r.status === 'live' || r.status === 'revoked'
               return (
                 <tr key={r.id} data-testid={`row-${r.id}`} className="border-t border-white/[0.06] align-top">
-                  <td className="px-4 py-3 font-semibold">{r.brand}</td>
-                  <td className="px-4 py-3 text-text-muted">
-                    <div>{r.projectName}</div>
-                    {r.requestedStart && r.requestedEnd && <div className="text-xs">{`${fmtDay(r.requestedStart)} to ${fmtDay(r.requestedEnd)}`}</div>}
+                  <td className="px-4 py-3">
+                    <div className="font-semibold">{r.brand}</div>
+                    <div className="mt-0.5 text-xs text-text-muted">{r.projectName}</div>
+                    {r.requestedStart && r.requestedEnd && <div className="text-xs text-text-muted">{`${fmtDay(r.requestedStart)} to ${fmtDay(r.requestedEnd)}`}</div>}
                   </td>
                   <td className="px-4 py-3">
                     <StatusPill status={r.status} error={r.error} />
@@ -357,44 +396,27 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
                     )}
                   </td>
                   <td className="px-4 py-3 text-text-muted">
-                    <div>{fmtEasternDateTime(new Date(r.createdAt))}</div>
-                    <div className="text-xs">{createdByLine(r.createdBy)}</div>
+                    <div className="whitespace-nowrap">{fmtEasternDateTime(new Date(r.createdAt))}</div>
+                    <span className="block max-w-[180px] truncate text-xs" title={r.createdBy}>{createdByLine(r.createdBy)}</span>
                   </td>
-                  <td className="px-4 py-3 text-text-muted">{sentRow && r.approvedAt ? fmtEasternDateTime(new Date(r.approvedAt)) : ''}</td>
-                  <td className="px-4 py-3">{sentRow ? r.recipient ?? '' : ''}</td>
-                  <td className="px-4 py-3">
-                    {sentRow && (
-                      <div>
-                        <div>{opensSummary(r)}</div>
-                        {r.firstOpenedAt && <div className="text-xs text-text-muted">{firstOpened(fmtEasternDateTime(new Date(r.firstOpenedAt)))}</div>}
-                        {r.lastOpenedAt && <div className="text-xs text-text-muted">{lastOpened(fmtEasternDateTime(new Date(r.lastOpenedAt)))}</div>}
-                      </div>
-                    )}
+                  <td className="px-4 py-3 text-text-muted">
+                    {sentRow && r.approvedAt && <div className="whitespace-nowrap">{fmtEasternDateTime(new Date(r.approvedAt))}</div>}
+                    {sentRow && r.recipient && <div className="text-xs">{`to ${r.recipient}`}</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {actionsFor(r.status).map((a) => {
-                        const disabled = busy === r.id
-                        switch (a) {
-                          case 'open':
-                            return <Link key={a} href={`/tools/new-business/${r.id}`} className={btnCls}>{OPEN}</Link>
-                          case 'copy':
-                            return r.token && origin ? <CopyLink key={a} url={shareUrl(origin, r.linkBrand, r.token)} /> : null
-                          case 'revoke':
-                            return <button key={a} type="button" className={btnCls} disabled={disabled} onClick={() => setDialog({ kind: 'revoke', row: r })}>Revoke</button>
-                          case 'edit':
-                            return <button key={a} type="button" className={btnCls} disabled={disabled} onClick={() => void runAction(r.id, () => copySnapshotAsDraftAction(r.id), true)}>Edit a copy</button>
-                          case 'rerun':
-                            return (
-                              <button key={a} type="button" className={btnCls} disabled={disabled || rerunPending(r.id)}
-                                onClick={() => void generate({ projectId: r.projectId, rerunOf: r.id }, r.projectName)}>Rerun</button>
-                            )
-                          case 'discard':
-                            return <button key={a} type="button" className={btnCls} disabled={disabled} onClick={() => setDialog({ kind: 'discard', row: r })}>Discard</button>
-                        }
-                      })}
-                    </div>
+                    {sentRow && (() => {
+                      const o = opensParts(r)
+                      return (
+                        <div>
+                          <div className="font-medium">{o.head}</div>
+                          {o.detail && <div className="text-xs text-text-muted">{o.detail}</div>}
+                          {r.firstOpenedAt && <div className="text-xs text-text-muted">{firstOpened(fmtEasternDateTime(new Date(r.firstOpenedAt)))}</div>}
+                          {r.lastOpenedAt && <div className="text-xs text-text-muted">{lastOpened(fmtEasternDateTime(new Date(r.lastOpenedAt)))}</div>}
+                        </div>
+                      )
+                    })()}
                   </td>
+                  <td className="px-4 py-3">{actionsCell(r)}</td>
                 </tr>
               )
             })}
@@ -408,6 +430,8 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
           </p>
         )}
       </div>
+      <p className="mt-2 text-xs text-text-muted">{OPENS_CAVEAT}</p>
+      {shareOrigin === null && rows.some((r) => r.token) && <p className="mt-2 text-xs text-text-muted">{TEST_LINK_NOTE}</p>}
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted">
         {pages > 1 && (

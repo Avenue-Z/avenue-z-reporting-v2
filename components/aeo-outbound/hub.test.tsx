@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { OutboundHub, opensSummary, type HubRow, type OutboundHubProps } from './hub'
+import { OutboundHub, opensParts, opensSummary, type HubRow, type OutboundHubProps } from './hub'
 
 const { refresh, push, actions } = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -61,6 +61,11 @@ async function pickAndGenerate(rows: HubRow[] = []) {
   return r
 }
 const rowEl = (id: string) => within(screen.getByTestId(`row-${id}`))
+const moreBtn = (id: string) => rowEl(id).getByRole('button', { name: 'More' })
+const openMore = (id: string) => { if (!rowEl(id).queryByRole('menu')) fireEvent.click(moreBtn(id)) }
+const item = (id: string, name: string) => { openMore(id); return rowEl(id).getByRole('menuitem', { name }) }
+const menuLabels = (id: string) => { openMore(id); const l = rowEl(id).getAllByRole('menuitem').map((e) => e.textContent); fireEvent.keyDown(document, { key: 'Escape' }); return l }
+const choose = (id: string, name: string) => fireEvent.click(item(id, name))
 
 test('the header has the title and subtitle, refreshes on mount, and admins get a Settings link', async () => {
   hub()
@@ -226,7 +231,7 @@ test('Rerun posts only the project and the row id, and opens the new draft', asy
   hub({ rows: [row({ status: 'live', token: 'tok', approvedAt: '2026-10-02T15:00:00.000Z', recipient: 'Jane Doe, Acme' })], counts: { ...COUNTS, all: 1, live: 1 } })
   await loaded()
   fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-09-01' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Rerun' }))
+  choose(ID(1), 'Rerun')
   await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${ID(9)}`))
   expect(bodies()).toEqual([{ projectId: 'p1', rerunOf: ID(1) }])
 })
@@ -241,32 +246,113 @@ test('each status shows exactly its actions; a failed row gets Open and shows it
   ], counts: { ...COUNTS, all: 5 } })
   const labels = (id: string) => Array.from(rowEl(id).getAllByRole('cell').at(-1)!.querySelectorAll('a,button')).map((e) => e.textContent)
   await loaded()
-  expect(labels(ID(1))).toEqual(['Open', 'Rerun', 'Discard'])
-  expect(labels(ID(2))).toEqual(['Open', 'Copy link', 'Revoke', 'Edit a copy', 'Rerun'])
-  expect(labels(ID(3))).toEqual(['Open', 'Edit a copy', 'Rerun'])
-  expect(labels(ID(4))).toEqual(['Open', 'Rerun', 'Discard'])
+  expect(labels(ID(1))).toEqual(['Open', 'More'])
+  expect(menuLabels(ID(1))).toEqual(['Rerun', 'Discard'])
+  expect(labels(ID(2))).toEqual(['Open', 'Copy link', 'More'])
+  expect(menuLabels(ID(2))).toEqual(['Revoke', 'Edit a copy', 'Rerun'])
+  expect(labels(ID(3))).toEqual(['Open', 'More'])
+  expect(menuLabels(ID(3))).toEqual(['Edit a copy', 'Rerun'])
+  expect(labels(ID(4))).toEqual(['Open', 'More'])
+  expect(menuLabels(ID(4))).toEqual(['Rerun', 'Discard'])
   expect(labels(ID(5))).toEqual([])
   expect(rowEl(ID(4)).getByRole('link', { name: 'Open' })).toHaveAttribute('href', `/tools/new-business/${ID(4)}`)
   expect(rowEl(ID(4)).getByText("In Peec, mark exactly one brand as the client's own brand, then Rerun.")).toBeInTheDocument()
 })
 
-test('the columns: created with who, sent as date and time, sent to, the requested range, and opens split by likely people and automated', async () => {
+test('the columns: brand over project and window, created with who, sent date over the recipient, and opens as a headline and a detail', async () => {
   hub({ rows: [
     row({ id: ID(1), status: 'draft', requestedStart: '2026-09-01', requestedEnd: '2026-09-30' }),
     row({ id: ID(2), status: 'live', token: 't', recipient: 'Jane Doe, Acme', approvedAt: '2026-10-02T15:00:00.000Z', openCount: 3, opensPerson: 1, opensAutomated: 2, firstOpenedAt: '2026-10-03T15:00:00.000Z', lastOpenedAt: '2026-10-05T15:00:00.000Z' }),
   ], counts: { ...COUNTS, all: 2 } })
   const cells = (id: string) => rowEl(id).getAllByRole('cell')
-  expect(cells(ID(1))[1]).toHaveTextContent('Sep 1, 2026 to Sep 30, 2026')
-  for (const i of [4, 5, 6]) expect(cells(ID(1))[i].textContent).toBe('')
-  expect(cells(ID(2))[3]).toHaveTextContent('Oct 1, 2026, 11:00 AM')
-  expect(cells(ID(2))[3]).toHaveTextContent('by ryan@avenuez.com')
-  expect(cells(ID(2))[4].textContent).toBe('Oct 2, 2026, 11:00 AM')
-  expect(cells(ID(2))[5].textContent).toBe('Jane Doe, Acme')
-  expect(cells(ID(2))[6]).toHaveTextContent('3 opens: 1 likely person, 2 likely automated')
-  expect(cells(ID(2))[6]).toHaveTextContent('First opened Oct 3, 2026, 11:00 AM')
-  expect(cells(ID(2))[6]).toHaveTextContent('Last opened Oct 5, 2026, 11:00 AM')
-  expect(screen.getByText('Email security scanners can open links automatically. Opens marked automated are likely scanners. The marking is best effort.')).toBeInTheDocument()
+  expect(cells(ID(1))).toHaveLength(6)
+  expect(cells(ID(1))[0]).toHaveTextContent('Acme pitch')
+  expect(cells(ID(1))[0]).toHaveTextContent('Sep 1, 2026 to Sep 30, 2026')
+  for (const i of [3, 4]) expect(cells(ID(1))[i].textContent).toBe('')
+  expect(cells(ID(2))[2]).toHaveTextContent('Oct 1, 2026, 11:00 AM')
+  expect(cells(ID(2))[2]).toHaveTextContent('by ryan@avenuez.com')
+  expect(within(cells(ID(2))[2]).getByText('by ryan@avenuez.com')).toHaveAttribute('title', 'ryan@avenuez.com')
+  expect(within(cells(ID(2))[3]).getByText('Oct 2, 2026, 11:00 AM')).toHaveClass('whitespace-nowrap')
+  expect(within(cells(ID(2))[3]).getByText('to Jane Doe, Acme')).toBeInTheDocument()
+  expect(within(cells(ID(2))[4]).getByText('3 opens')).toHaveClass('font-medium')
+  expect(within(cells(ID(2))[4]).getByText('1 likely person, 2 likely automated')).toHaveClass('text-xs')
+  expect(cells(ID(2))[4]).toHaveTextContent('First opened Oct 3, 2026, 11:00 AM')
+  expect(cells(ID(2))[4]).toHaveTextContent('Last opened Oct 5, 2026, 11:00 AM')
   await loaded()
+})
+
+test('the table has six column headers, and the Peec project and Sent to headers are gone', async () => {
+  hub()
+  expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Brand', 'Status', 'Created', 'Sent', 'Opens', 'Actions'])
+  await loaded()
+})
+
+test('a sent row without a recipient shows no "to" line', async () => {
+  hub({ rows: [row({ status: 'live', token: 't', recipient: null, approvedAt: '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 1 } })
+  expect(rowEl(ID(1)).queryByText(/^to /)).not.toBeInTheDocument()
+  await loaded()
+})
+
+test('Open and Copy link are direct buttons; Revoke, Edit a copy, Rerun and Discard wait inside More', async () => {
+  hub({ rows: [row({ status: 'live', token: 't', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 1 } })
+  await loaded()
+  expect(rowEl(ID(1)).getByRole('link', { name: 'Open' })).toBeInTheDocument()
+  expect(rowEl(ID(1)).getByRole('button', { name: 'Copy link' })).toBeInTheDocument()
+  for (const n of ['Revoke', 'Edit a copy', 'Rerun', 'Discard']) expect(screen.queryByText(n)).not.toBeInTheDocument()
+  fireEvent.click(moreBtn(ID(1)))
+  expect(screen.getAllByRole('menuitem').map((e) => e.textContent)).toEqual(['Revoke', 'Edit a copy', 'Rerun'])
+})
+
+test('a generating row has no More; neither does a row with no secondary action', async () => {
+  hub({ rows: [row({ id: ID(1), status: 'generating' })], counts: { ...COUNTS, all: 1 } })
+  expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+  await loaded()
+})
+
+test('Escape closes the menu and focuses More; a click outside closes it; a second row opening closes the first', async () => {
+  hub({ rows: [row({ id: ID(1), status: 'draft' }), row({ id: ID(2), status: 'draft' })], counts: { ...COUNTS, all: 2 } })
+  await loaded()
+  openMore(ID(1))
+  expect(moreBtn(ID(1))).toHaveAttribute('aria-expanded', 'true')
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  expect(moreBtn(ID(1))).toHaveFocus()
+  openMore(ID(1))
+  fireEvent.mouseDown(document.body)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  openMore(ID(1))
+  openMore(ID(2))
+  expect(screen.getAllByRole('menu')).toHaveLength(1)
+  expect(rowEl(ID(2)).getByRole('menu')).toBeInTheDocument()
+})
+
+test('after Revoke opens its dialog, Keep link and Escape both give focus back to that row\'s More button', async () => {
+  hub({ rows: [row({ id: ID(1), status: 'draft' }), row({ id: ID(2), status: 'live', token: 't', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 2 } })
+  await loaded()
+  choose(ID(2), 'Revoke')
+  expect(screen.getByRole('dialog')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Keep link' }))
+  expect(moreBtn(ID(2))).toHaveFocus()
+  choose(ID(2), 'Revoke')
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(moreBtn(ID(2))).toHaveFocus()
+})
+
+test('a pending Generate row spans the six columns, and the two notes sit after the table', async () => {
+  generate = () => new Promise(() => {})
+  progress = async () => json(200, { step: null })
+  const { container } = await pickAndGenerate([row({ status: 'live', token: 't', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })])
+  const tr = container.querySelector('tbody tr') as HTMLElement
+  const tds = Array.from(tr.querySelectorAll('td'))
+  expect(tds.reduce((n, td) => n + td.colSpan, 0)).toBe(6)
+  expect(tds[0]).toHaveTextContent('Acme pitch')
+  expect(tds.at(-1)!.colSpan).toBe(4)
+  const table = container.querySelector('table')!
+  for (const text of ['Email security scanners can open links automatically. Opens marked automated are likely scanners. The marking is best effort.', 'Test link: it works on this environment only.']) {
+    const note = screen.getByText(text)
+    expect(table.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  }
 })
 
 test('opensSummary: people and automated, and opens from before v1.1 counted as not classified', () => {
@@ -274,6 +360,23 @@ test('opensSummary: people and automated, and opens from before v1.1 counted as 
   expect(opensSummary({ openCount: 3, opensPerson: 1, opensAutomated: 2 })).toBe('3 opens: 1 likely person, 2 likely automated')
   expect(opensSummary({ openCount: 1, opensPerson: 0, opensAutomated: 0 })).toBe('1 open: 0 likely people, 0 likely automated, 1 not classified')
   expect(opensSummary({ openCount: 5, opensPerson: 2, opensAutomated: 1 })).toBe('5 opens: 2 likely people, 1 likely automated, 2 not classified')
+})
+
+test('opensParts splits opensSummary into a head and a detail, and joins back to it', () => {
+  const cases = [
+    { openCount: 0, opensPerson: 0, opensAutomated: 0 },
+    { openCount: 1, opensPerson: 1, opensAutomated: 0 },
+    { openCount: 3, opensPerson: 1, opensAutomated: 2 },
+    { openCount: 1, opensPerson: 0, opensAutomated: 0 },
+    { openCount: 5, opensPerson: 2, opensAutomated: 1 },
+  ]
+  for (const c of cases) {
+    const { head, detail } = opensParts(c)
+    expect(head + (detail ? ': ' + detail : '')).toBe(opensSummary(c))
+  }
+  expect(opensParts(cases[0])).toEqual({ head: 'No opens yet', detail: null })
+  expect(opensParts(cases[1])).toEqual({ head: '1 open', detail: '1 likely person, 0 likely automated' })
+  expect(opensParts(cases[4])).toEqual({ head: '5 opens', detail: '2 likely people, 1 likely automated, 2 not classified' })
 })
 
 test('a generating row shows its step and time', async () => {
@@ -327,7 +430,7 @@ test('columns sort: Created newest first by default; Brand ascending, then desce
     row({ id: ID(2), brand: 'alpha', createdAt: '2026-10-03T15:00:00.000Z' }),
     row({ id: ID(3), brand: 'Gamma', createdAt: '2026-10-02T15:00:00.000Z' }),
   ], counts: { ...COUNTS, all: 3 } })
-  const order = () => screen.getAllByTestId(/^row-/).map((r) => within(r).getAllByRole('cell')[0].textContent)
+  const order = () => screen.getAllByTestId(/^row-/).map((r) => within(r).getAllByRole('cell')[0].querySelector('div')!.textContent)
   expect(order()).toEqual(['alpha', 'Gamma', 'Beta'])
   fireEvent.click(screen.getByRole('button', { name: 'Brand' }))
   expect(order()).toEqual(['alpha', 'Beta', 'Gamma'])
@@ -384,10 +487,10 @@ test('pending generation is per project; Rerun is disabled only on the row being
   expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
   await pick('Globex pitch')
   expect(screen.getByRole('button', { name: 'Generate' })).toBeEnabled()
-  expect(rowEl(ID(1)).getByRole('button', { name: 'Rerun' })).toBeEnabled()
-  fireEvent.click(rowEl(ID(2)).getByRole('button', { name: 'Rerun' }))
-  expect(rowEl(ID(2)).getByRole('button', { name: 'Rerun' })).toBeDisabled()
-  expect(rowEl(ID(1)).getByRole('button', { name: 'Rerun' })).toBeEnabled()
+  expect(item(ID(1), 'Rerun')).toBeEnabled()
+  choose(ID(2), 'Rerun')
+  expect(item(ID(2), 'Rerun')).toBeDisabled()
+  expect(item(ID(1), 'Rerun')).toBeEnabled()
   await act(async () => release(json(200, { id: ID(9), status: 'draft' })))
 })
 
@@ -449,15 +552,15 @@ test('Revoke and Discard open in-app dialogs naming the brand and recipient, the
   actions.discardSnapshotAction.mockResolvedValue({ ok: true })
   hub({ rows: [row({ id: ID(2), status: 'live', token: 't', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' }), row({ id: ID(4), status: 'failed', error: 'Timed out' })], counts: { ...COUNTS, all: 2 } })
   await loaded()
-  fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+  choose(ID(2), 'Revoke')
   expect(screen.getByRole('dialog')).toHaveTextContent("Revoke the link for Acme sent to R? It stops working right away and can't be turned back on.")
   fireEvent.click(screen.getByRole('button', { name: 'Keep link' }))
   expect(actions.revokeSnapshotAction).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+  choose(ID(2), 'Revoke')
   fireEvent.click(screen.getByRole('button', { name: 'Revoke link' }))
   await waitFor(() => expect(actions.revokeSnapshotAction).toHaveBeenCalledWith(ID(2)))
   await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2))
-  fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+  choose(ID(4), 'Discard')
   expect(screen.getByRole('dialog')).toHaveTextContent('Discard the snapshot for Acme? It is removed from the hub.')
   fireEvent.click(screen.getByRole('button', { name: 'Discard snapshot' }))
   await waitFor(() => expect(actions.discardSnapshotAction).toHaveBeenCalledWith(ID(4)))
@@ -472,10 +575,10 @@ test.each([
   actions[action].mockResolvedValue({ ok: false, error: 'unavailable' })
   hub({ rows: [row({ status, token: status === 'draft' ? null : 't', recipient: status === 'draft' ? null : 'R', approvedAt: status === 'draft' ? null : '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 1 } })
   await loaded()
-  fireEvent.click(screen.getByRole('button', { name }))
+  choose(ID(1), name)
   if (verb) fireEvent.click(screen.getByRole('button', { name: verb }))
   expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name })).toBeEnabled()
+  expect(item(ID(1), name)).toBeEnabled()
 })
 
 test('Edit a copy is disabled while pending and opens the new draft; a refusal shows its error', async () => {
@@ -483,13 +586,13 @@ test('Edit a copy is disabled while pending and opens the new draft; a refusal s
   actions.copySnapshotAsDraftAction.mockReturnValueOnce(new Promise((r) => { release = r }))
   hub({ rows: [row({ status: 'revoked', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 1 } })
   await loaded()
-  const btn = screen.getByRole('button', { name: 'Edit a copy' })
-  fireEvent.click(btn)
-  await waitFor(() => expect(btn).toBeDisabled())
+  choose(ID(1), 'Edit a copy')
+  await waitFor(() => expect(item(ID(1), 'Edit a copy')).toBeDisabled())
   await act(async () => release({ ok: true, id: ID(8) }))
   await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${ID(8)}`))
   actions.copySnapshotAsDraftAction.mockResolvedValueOnce({ ok: false, error: 'forbidden' })
-  fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
+  await waitFor(() => expect(item(ID(1), 'Edit a copy')).toBeEnabled())
+  choose(ID(1), 'Edit a copy')
   expect(await screen.findByText('This tool is limited to the New Business team.')).toBeInTheDocument()
 })
 
@@ -498,12 +601,12 @@ test('a revoke or Edit a copy that throws shows a message and unlocks the row', 
   actions.copySnapshotAsDraftAction.mockRejectedValue(new Error('dropped'))
   hub({ rows: [row({ status: 'live', token: 't', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 1 } })
   await loaded()
-  fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+  choose(ID(1), 'Revoke')
   fireEvent.click(screen.getByRole('button', { name: 'Revoke link' }))
   expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Revoke' })).toBeEnabled()
-  fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Edit a copy' })).toBeEnabled())
+  expect(item(ID(1), 'Revoke')).toBeEnabled()
+  choose(ID(1), 'Edit a copy')
+  await waitFor(() => expect(item(ID(1), 'Edit a copy')).toBeEnabled())
   expect(push).not.toHaveBeenCalled()
 })
 
@@ -541,7 +644,7 @@ test('a discarded row loaded by Show older leaves the list once the refreshed pr
   const { rerender } = render(<OutboundHub {...base} />)
   fireEvent.click(screen.getByRole('button', { name: 'Show older' }))
   await screen.findByText('Older Co')
-  fireEvent.click(within(screen.getByTestId(`row-${ID(6)}`)).getByRole('button', { name: 'Discard' }))
+  choose(ID(6), 'Discard')
   fireEvent.click(screen.getByRole('button', { name: 'Discard snapshot' }))
   await waitFor(() => expect(actions.discardSnapshotAction).toHaveBeenCalledWith(ID(6)))
   rerender(<OutboundHub {...base} />)
@@ -561,10 +664,10 @@ test('a discard refused with not found says the snapshot is gone; Edit a copy pa
   actions.discardSnapshotAction.mockResolvedValue({ ok: false, error: 'not found' })
   actions.copySnapshotAsDraftAction.mockResolvedValue({ ok: true, id: ID(8) })
   hub({ rows: [row({ id: ID(4), status: 'failed', error: 'Timed out' }), row({ id: ID(3), status: 'revoked', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 2 } })
-  fireEvent.click(within(screen.getByTestId(`row-${ID(4)}`)).getByRole('button', { name: 'Discard' }))
+  choose(ID(4), 'Discard')
   fireEvent.click(screen.getByRole('button', { name: 'Discard snapshot' }))
   expect(await screen.findByText('This snapshot no longer exists.')).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
+  choose(ID(3), 'Edit a copy')
   await waitFor(() => expect(actions.copySnapshotAsDraftAction).toHaveBeenCalledWith(ID(3)))
 })
 
