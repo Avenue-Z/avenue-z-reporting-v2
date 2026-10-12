@@ -216,3 +216,17 @@ BLOCKER); one editable spot per key with mirrors (M1); the rank-card token rule 
 default 0` (M3); header clone before the editor script plus a delegated listener (M4); a `contract_violation` code carried
 on the error object (M5). The 16 round-2 MINORs go to the plan.
 
+
+## v1.1 amendment 5 (§16), 2026-10-12
+
+Ryan's answers, the share link, live progress. Draft `22c39ba6`.
+
+- **Round 1** (opus, whole amendment, fixed checklist): 1 BLOCKER, 4 MAJOR, 14 MINOR. BLOCKER: the hub's progress poll
+  stopped on the first `{ step: null }`, which arrives before the generating row exists (`generate/route.ts:33-76`).
+  MAJORs: the editor's Rerun got no progress; the category fallback contradicted itself; the server-only origin had no
+  path to the client components; no plan lines named. All fixed in `2b71690d` with targeted edits, plus the minors that
+  were wrong statements.
+- **Round 2** (opus, changed lines only): BLOCKER and 4 of 5 MAJORs resolved. 2 new MAJOR, 11 MINOR. N1: Task 4 replaces
+  `generate.ts` wholesale and its plan:2100 restores the old category rule. N2: Task 6 replaces `slots.ts` wholesale and
+  its `limitFor` (plan:2998-3002) gives `category` 1,000. Both are missing plan lines in §16.4, no design change. Per my
+  regimen, a MAJOR after round 2 goes to Thomas as a decision. The 11 MINORs (N3 to N13) go to the plan edits.
