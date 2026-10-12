@@ -9193,3 +9193,93 @@ Tests (write first, see them fail):
 - The rendered draft, preview and final pages each carry each of the five rules exactly once (count occurrences).
 - `lib/aeo-outbound/v1-compat.test.ts:37` swaps in the whole `PAGE_CSS`, so it should need no change; if it fails, stop
   and report. Commit subject: `Close up the empty space beside the two charts without touching them`.
+
+### Task 18: Settings page layout, Back and Save bar, and a shared leave guard (spec v1.1 §17.9 Settings)
+
+**Files:** create `components/aeo-outbound/use-leave-guard.ts`; modify `components/aeo-outbound/editor.tsx` (replace its two
+effects at about `:304-330` with the hook; nothing else), `components/aeo-outbound/settings-form.tsx`,
+`components/aeo-outbound/messages.ts` (append the card strings below), and tests (`settings-form.test.tsx`, a new
+`use-leave-guard.test.ts`; `editor.test.tsx` must pass unchanged).
+
+- `useLeaveGuard(unsaved: boolean, ask: (go: () => void) => void): void`: while `unsaved`, register `beforeunload`
+  (`e.preventDefault(); e.returnValue = ''`) and the capture click listener on `document` copied exactly from
+  `editor.tsx` (same modifier, `_blank`, dialog and origin checks), calling `ask(() => router.push(path))`. It takes the
+  router from `useRouter()` itself. Both listeners are removed when `unsaved` turns false or on unmount.
+- Editor: `useLeaveGuard(unsaved, (go) => setDialog({ kind: 'leave', then: go }))`. Its explicit Back link `onClick` stays.
+- Settings, messages (append verbatim): `REPORT_WORDS = 'Report words'`, `REPORT_WORDS_NOTE = 'Names and titles printed on
+  every new report.'`, `REPORT_CONTENT = 'Report content'`, `REPORT_CONTENT_NOTE = 'What each new report says and how it
+  ranks the brand.'`, `WHO_CAN_USE = 'Who can use it'`, `WHO_CAN_USE_NOTE = 'People who can open the tool, and who can
+  change these settings.'`.
+- Settings layout (§17.9): root `<div>`; the sticky bar with exactly the editor's bar classes
+  (`sticky top-0 z-20 -mx-8 -mt-8 mb-4 border-b border-white/[0.06] bg-black px-8 py-3`), holding a `Link` to
+  `/tools/new-business` with `ArrowLeft` and "Back" (the editor's classes), `<span className="text-sm font-semibold
+  text-white">Settings</span>`, a `ml-auto` group with the saving / saved / error texts (and the conflict Reload button)
+  and the Save settings button. Then the h1 and note, the read-failed and invalid lines, then the grid
+  `grid items-start gap-6 lg:grid-cols-2` with two column `div`s (`space-y-6`) holding the four cards in the §17.9 order.
+  Each card: `cardCls` plus `space-y-4`, starting with `<div><h2 className="text-base font-semibold text-white">{title}</h2>
+  <p className="mt-1 text-xs text-text-muted">{note}</p></div>`. Recent changes keeps its current heading and list.
+  The next-step textarea gets `rows={4}`. Fields keep their ids, labels, `maxLength`, `disabled` rules and errors.
+- Unsaved: keep `saved` (the `SettingsInput` last loaded or saved) in state; `unsaved = JSON.stringify(form) !==
+  JSON.stringify(saved)`; on a successful save set `saved` to the form that was sent. `useLeaveGuard(unsaved, (go) =>
+  setLeave(() => go))`; render `ConfirmDialog` (`LEAVE_UNSAVED`, `LEAVE`, `STAY`) while `leave` is set. The Back link
+  needs no own handler: the hook's capture listener covers it.
+
+Tests (first): the bar has a link "Back" with href `/tools/new-business` and the Save settings button; the four card
+headings in order; every existing settings test passes; change a field, click Back: the dialog shows, Stay closes it and
+`router.push` is not called, Leave calls `router.push('/tools/new-business')`; unchanged form: Back is not prevented;
+after a successful save, Back is not prevented; `beforeunload` listener added only while unsaved (spy on
+`window.addEventListener`); the hook's own tests for the modifier keys, `_blank`, another origin and a link inside a
+dialog. `editor.test.tsx` passes unchanged. Mock `next/navigation`'s `useRouter` the way `editor.test.tsx` does.
+Commit subject: `Give Settings a full-width layout, a Back and Save bar, and the editor's leave guard`.
+
+### Task 19: The hub table: six columns, a More menu, one-line dates (spec v1.1 §17.9 Hub table)
+
+**Files:** `components/aeo-outbound/hub.tsx` (the columns, the row cells, the pending row, the two notes),
+`components/aeo-outbound/hub.test.tsx`, and a new `components/aeo-outbound/row-menu.tsx` with its test.
+
+- `COLUMNS` becomes Brand (`brand`), Status (`status`), Created (`created`), Sent (`sent`), Opens (`opens`), Actions
+  (null). Drop `'project'` and `'recipient'` from `SortKey` and `SORT_VALUE`.
+- Brand cell: `<div className="font-semibold">{r.brand}</div>`, then `<div className="mt-0.5 text-xs text-text-muted">`
+  with the project name, then the requested window line as today (same text).
+- Created: `<div className="whitespace-nowrap">` date; creator line `max-w-[180px] truncate text-xs` with
+  `title={r.createdBy}` and today's `createdByLine` text.
+- Sent: for sent rows the date in `whitespace-nowrap`, then `<div className="text-xs">to {r.recipient}</div>` when there
+  is a recipient (`text-text-muted` cell as today).
+- Opens: export `opensParts(r): { head: string; detail: string | null }` next to `opensSummary`, with
+  `head + (detail ? ': ' + detail : '') === opensSummary(r)` for every input. The cell shows head in `font-medium`, the
+  detail in `text-xs text-text-muted`, then the first and last opened lines as today. `opensSummary` stays unchanged.
+- Actions cell: `<div className="flex items-center gap-1.5 whitespace-nowrap">`: Open (`Link`), Copy link (as today),
+  then `<RowMenu items={...} />` only if at least one of revoke, edit, rerun, discard applies, each item `{ label,
+  onSelect, disabled }` running exactly today's handler and `disabled` rule.
+- `RowMenu`: `'use client'`; a `btnCls` button "More" with a small chevron (`ChevronDown` from lucide-react,
+  `aria-hidden`), `aria-haspopup="menu"`, `aria-expanded`; when open, an absolutely positioned list (`right-0 top-full
+  z-30 mt-1 min-w-[160px]`, `cardCls`-like surface `rounded-md border border-white/[0.08] bg-bg-surface p-1 shadow-lg`)
+  with `role="menu"` and one `role="menuitem"` button per item (`block w-full rounded px-3 py-1.5 text-left text-xs
+  text-white hover:bg-white/[0.06] disabled:opacity-50`). Choosing an item closes the menu and then calls `onSelect`.
+  Escape closes it and focuses the More button; a `mousedown` outside the wrapper closes it; opening one menu closes any
+  other (a module-level "close the open one" callback or a custom event; keep it simple and tested). The wrapper is
+  `relative inline-block`.
+- Pending rows: brand cell with the project name, the status cell as today, then `<td colSpan={4} />`.
+- `OPENS_CAVEAT` and `TEST_LINK_NOTE` move to just after the table card, `mt-2 text-xs text-text-muted`.
+
+Tests (first): six `columnheader`s with those names; the brand cell shows the project name; a sent row's Sent cell shows
+"to {recipient}"; Open and Copy link are visible without opening anything; "Revoke", "Edit a copy", "Rerun", "Discard"
+are not in the document until More is clicked, then are `menuitem`s; clicking Revoke opens the existing revoke dialog,
+Discard the discard dialog, Edit a copy and Rerun call their existing actions; Escape closes and focuses More; a click
+outside closes; opening a second row's menu closes the first; a row with no secondary action has no More; `opensParts`
+round-trips `opensSummary` for 0 opens, 1 open, several, and with unclassified opens; the two notes come after the table.
+Update existing hub tests that click secondary actions to open More first; change no assertion's intent.
+Commit subject: `Tidy the hub table: six columns, a More menu and one-line dates`.
+
+### Task 20: A branded not-found page for a missing snapshot (spec v1.1 §17.9 Not found)
+
+**Files:** create `app/tools/new-business/[reportId]/not-found.tsx` and its test; append to
+`components/aeo-outbound/messages.ts`: `SNAPSHOT_GONE = 'This snapshot no longer exists'`, `SNAPSHOT_GONE_NOTE = 'It may
+have been discarded, or the link is wrong.'`, `BACK_TO_HUB = 'Back to New Business'`.
+
+- A server component, no data: `<section className={cardCls}>` (`max-w-xl`) with `<h1 className="text-xl font-bold
+  text-white">{SNAPSHOT_GONE}</h1>`, `<p className="mt-2 text-sm text-text-muted">{SNAPSHOT_GONE_NOTE}</p>`, and a
+  `Link` to `/tools/new-business` with `primaryBtnCls` and `mt-4 inline-block`, reading `BACK_TO_HUB`.
+
+Tests (first): render it and find the heading, the line and the link with its href. Commit subject: `Show a branded page
+when a snapshot no longer exists`.

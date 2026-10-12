@@ -709,3 +709,54 @@ Tests: `PAGE_CSS` contains each of the five rules verbatim; none of them names `
 `aeo-chart-` id; the `.chart-wrap` rule's whole body is `margin-bottom:0`; no rule outside the media query sets `height`,
 `min-height`, `padding`, `border` or `overflow`; `charts.ts` output is unchanged (the chart goldens stay byte for byte);
 the version 1 golden needs no change (it swaps in the whole `PAGE_CSS`).
+
+### 17.9 UI pass: Settings, the hub table, and a branded not-found page (added 2026-10-12 after my dev QA)
+
+I asked for a UI/UX pass before testing further. Each part was mocked on the live dev page and approved from screenshots.
+No data, query, action or permission changes: layout, grouping and copy only.
+
+**Settings** (`components/aeo-outbound/settings-form.tsx`; today `max-w-2xl`, one card, no way back):
+- A sticky top bar like the editor's (`editor.tsx:392`, same classes): `← Back` to `/tools/new-business`, the word
+  "Settings", then on the right the saving / saved / error text and the **Save settings** button. The h1 and note stay below.
+- Full width of the tools layout (`app/tools/layout.tsx`, `max-w-7xl`), in `grid items-start gap-6 lg:grid-cols-2`, one
+  column under `lg`. Left: card **Report words** ("Names and titles printed on every new report.": Top-left name and
+  Report name side by side, then First and Second section title) and card **Report content** ("What each new report says
+  and how it ranks the brand.": Next step with a 4-row sentence box, Rank the brand among, Most opportunities from Peec,
+  the Methodology checkbox). Right: card **Who can use it** ("People who can open the tool, and who can change these
+  settings.": both people lists) and card **Recent changes**.
+- Leaving with unsaved changes asks first, as the editor does: unsaved means the form differs from the last loaded or
+  saved values. The editor's guard (`editor.tsx:304-330`: `beforeunload`, and a capture click listener on same-origin
+  links) moves into a shared hook used by both, with the editor's behaviour and tests unchanged; the dialog is the
+  existing `ConfirmDialog` with `LEAVE_UNSAVED`, `LEAVE`, `STAY`.
+- Every field keeps its id, label, limits and error; the save path is unchanged.
+
+**Hub table** (`components/aeo-outbound/hub.tsx:319-400`; today 8 columns, buttons and dates wrap to 3 or 4 lines):
+- 6 columns: **Brand** (brand in bold, then the Peec project name and the requested window in small muted text), Status,
+  **Created** (date on one line, creator on a muted line cut with an ellipsis at 180px, full address in `title`),
+  **Sent** (sent date on one line, then "to {recipient}" muted), **Opens**, Actions. The "Peec project" and "Sent to"
+  sort headers go; search still covers both (`searchWhere`, `lib/aeo-outbound/store.ts:185-188`, server-side).
+- Opens: the count in medium weight ("1 open", "3 opens", or "No opens yet"), then the breakdown in small muted text
+  ("1 likely person, 2 likely automated", plus ", 1 not classified" when any), then the first and last opened lines.
+  `opensSummary` keeps its exact output (its callers and tests); a sibling splits it into head and detail.
+- Actions: **Open** always; **Copy link** when the row has a link to copy (today's rule); every other action (Revoke,
+  Edit a copy, Rerun, Discard) in a **More** menu button, shown only when the row has at least one. The menu: a button
+  with `aria-haspopup="menu"` and `aria-expanded`, a list with `role="menu"` of `role="menuitem"` buttons running exactly
+  today's handlers (the Revoke and Discard dialogs unchanged); it closes on Escape (focus back to the button), on a click
+  outside, and after an item is chosen; one menu open at a time.
+- The scanner note and the test-link note move under the table.
+- Pending rows (a Generate in flight) span the new 6 columns.
+- Measured in the mock at 1440 wide: the table fits its card (scroll width = card width, 1,118px), rows 67 to 145px tall.
+
+**Not found** (`app/tools/new-business/[reportId]/page.tsx` calls `notFound()` for a bad id or a missing row, which today
+shows Next's white 404): a `not-found.tsx` in that segment, inside the dark tools layout: a card titled "This snapshot no
+longer exists", the line "It may have been discarded, or the link is wrong.", and a **Back to New Business** link to
+`/tools/new-business`.
+
+Tests: Settings: the bar has Back (href `/tools/new-business`) and Save; the four card headings; every existing field test
+still passes; with unsaved changes, Back opens the dialog and Leave navigates, Stay keeps the page; with none, Back
+navigates; `beforeunload` is registered only while unsaved; after a successful save the form is clean. Editor: its
+existing leave-guard tests pass unchanged. Hub: 6 header cells; the brand cell shows the project; the sent cell shows "to
+{recipient}"; Open and Copy link are direct buttons; Revoke, Edit a copy, Rerun and Discard appear only after opening More
+and run their handlers (Revoke and Discard still open their dialogs); Escape closes the menu and refocuses its button; a
+row with no secondary action has no More; `opensSummary` output unchanged; the notes sit after the table. Not found: the
+page renders the title, the line and the Back link.
