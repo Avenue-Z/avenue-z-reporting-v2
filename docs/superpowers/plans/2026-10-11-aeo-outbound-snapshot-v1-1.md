@@ -9161,3 +9161,29 @@ their labels; `settingsChanges` logs a `series` change; `saveSettingsSql`'s inse
 stores `page.series` "AEO Lens Report"; the 0028 SQL is exactly the one statement; the existing settings and access tests
 are updated for the new field (rows gain `series`). Commit subject: `Make the report name and the top-left name free-text settings (migration 0028)`.
 Do not apply 0028 anywhere.
+
+### Task 17: Less empty space beside the two charts, charts untouched (spec v1.1 §17.8)
+
+**Files:** `lib/aeo-outbound/render.ts` (`PAGE_CSS`, about `:87`: append the five rules below as their own array entries,
+outside the `@media (max-width: 900px){` block), `lib/aeo-outbound/render.test.ts` and any test that pins the `PAGE_CSS`
+media-query rule, plus `lib/aeo-outbound/v1-compat.test.ts` only if its `PAGE_CSS` transform needs the new text.
+
+Add exactly these five strings to `PAGE_CSS` (verbatim, in this order) right after the existing
+`'.aeo-share-mobile{display:none}'` entry and before the `'@media (max-width: 900px){'` entry:
+
+```
+#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}
+#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}
+#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;justify-content:center}
+#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}
+#category-data .chart-wrap,#competitive-visibility .chart-wrap{margin-bottom:0}
+```
+
+Do not change `lib/aeo-outbound/charts.ts`, any figure, `lib/aeo-outbound/aivx/*`, the chart goldens, or the section
+markup.
+
+Tests (write first, see them fail): `PAGE_CSS` contains each of the five rules verbatim and they sit outside the
+`(max-width: 900px)` block; the existing "every rule except `aeo-long` sits inside the media query" test is narrowed to
+allow exactly `aeo-long`, `.aeo-share-mobile{display:none}` and these five, and still fails on any other rule outside it;
+no new rule names `plotly`, `svg` or `aeo-chart-`; the rendered draft, preview and final pages each carry the five rules
+once. Commit subject: `Close up the empty space beside the two charts without touching them`.

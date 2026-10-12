@@ -674,3 +674,33 @@ characters.") and with a long dash; the form's labels; `series` defaults, round 
 `pageDefaults` sets `series`; `showsPowered` for "AIVx", "AEO Lens", "Avenue Z" and "Avenue Z AEO"; grounding skips the
 number and domain checks on `page.series` and `page.sidebar_wordmark` and still flags a long dash in them; `0028` adds only that column; a settings read on a database without the column
 falls back to the env list (the access test with a throwing read already covers the path).
+
+### 17.8 Less empty space beside the two charts (added 2026-10-12 after my dev QA)
+
+On my dev draft (1280 wide, measured in the browser; finding `findings/2026-10-12-dead-space-trial.md` in the notes repo):
+each chart card in Category data and Competitive visibility is 484px tall, while the bullet box beside it holds two bullets
+(148px and 245px), top-aligned, so up to 348px of empty black sits under the bullets; and 121px and 153px separate a chart
+card from the next section's label and the "Why it matters" box. Those come from AIVx's CSS: `.insight-box` margin
+`12px 0`, `.chart-wrap` margin `24px 0`, `.two-col` margin-bottom `32px`.
+
+The charts do not change: no figure, height, margin or legend is touched (my rule: don't distort the charts). Only the
+spacing around them changes, through `PAGE_CSS` (every mode), scoped to `#category-data` and `#competitive-visibility`:
+
+```
+#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}
+#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}
+#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;justify-content:center}
+#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}
+#category-data .chart-wrap,#competitive-visibility .chart-wrap{margin-bottom:0}
+```
+
+Result in the trial: the bullet box's top and bottom line up with the chart card (0px difference both ends, both
+sections), the bullets sit centred in it, both figures stay 420 by 415px, the gaps become 65px and 97px (the page's usual
+section rhythm), and the page is 112px shorter. Under 900px the columns stack as before; the box is its content's height
+with no sideways scroll. The draft's "Add bullet" button keeps its own width (`align-self:flex-start`), not stretched.
+
+These rules sit outside the phone media query on purpose, so the §17.7 test "every `PAGE_CSS` rule except `aeo-long` sits
+inside `(max-width: 900px)`" changes to allow exactly these five rules (and the existing `.aeo-share-mobile{display:none}`).
+Tests: `PAGE_CSS` contains each of the five rules verbatim; none of them names `.plotly`, `.js-plotly-plot`, `svg` or an
+`aeo-chart-` id; `charts.ts` output is unchanged (the chart goldens stay byte for byte); the version 1 golden comparison
+gains these rules only inside the already-allowed `PAGE_CSS` difference.
