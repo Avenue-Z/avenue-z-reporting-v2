@@ -277,7 +277,7 @@ describe('the ga4Config gate', () => {
 
 // Thomas, #354: Salesforce queries time out at 60 s, past the export's 40 s ready budget, and this page has no Suspense, so
 // a slow CRM made every export answer "still loading". The export passes a deadline; past it the CRM blocks print their
-// "Couldn't load" cards (the fetch carries on and warms the cache). The live page passes none and waits as before.
+// "Couldn't load" cards (the fetch isn't cancelled, so it may still fill the cache: best effort). The live page passes none and waits as before.
 describe('a CRM deadline (the PDF export)', () => {
   beforeEach(() => (getClientBySlug as Mock).mockResolvedValue(client(undefined)))
 

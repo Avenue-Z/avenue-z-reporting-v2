@@ -41,7 +41,8 @@ interface ExecutiveOverviewProps {
   clientSlug: string
   /** The PDF export's deadline for the CRM fetches. Salesforce's own timeout (60 s) outlasts the export's 40 s ready
    *  budget, and this page has no Suspense, so a slow CRM would hold the whole export at "still loading". Past the
-   *  deadline the fetch counts as failed (its block prints "Couldn't load") and carries on, warming the cache. The live
+   *  deadline the fetch counts as failed (its block prints "Couldn't load") but isn't cancelled: if it still completes,
+   *  it may fill the cache for the next export (best effort, not guaranteed). The live
    *  page passes none and waits as before. */
   crmDeadlineMs?: number
 }
