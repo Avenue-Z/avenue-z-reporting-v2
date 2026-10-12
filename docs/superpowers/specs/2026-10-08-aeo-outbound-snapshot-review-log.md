@@ -186,3 +186,20 @@ generate.test.ts; a peec.test.ts case that the cap error sets `rowCap` and a rep
 means generating a new report from the hub, not Rerun (a rerun can't take a range); hub.tsx's import switches to
 `MAX_LOOKBACK_DAYS`.
 
+## v1.1 design (`2026-10-11-aeo-outbound-snapshot-v1-1-design.md`), 2026-10-11
+
+My requests: everything on the page editable, an Edit button, an itinerary, 100% self-service, data contracts, opens done
+properly; plus the three-auditor review (`aeo-outbound-audit-notes/findings/2026-10-11-three-auditor-review.md`).
+Draft `66c5073f`; review round 1 (whole spec): 1 BLOCKER, 19 MAJOR, 14 MINOR. Fixed as targeted edits: the bullet add and
+remove contract (BLOCKER); defaults resolved at creation so settings never alter existing drafts; a full page-key list
+with one key per repeated phrase and the fixed-by-design exemptions; no wrappers or attributes in preview and final, with
+a v1.0 parity golden; the frame handshake (ready, mode, locked, focus); links cancelled in edit mode; the edited brand
+used everywhere and written to brand_name; grounding on every slot with avenuez.com allowed and the KPI comparison rule;
+structured note kinds, groups, PATCH response and the count; per-project pending in the hub; an error_code table;
+the unawaited progress_step guard; one CTE for opens; async outboundAccess with the env floor and fallback; settings
+limits and a log table; pitchOnly stays in code (bound measured on pitch only); schema_version and a version 1 reader;
+contract nullability and failure per boundary; the package.json amendment with zod pinned; the donut golden carve-out.
+Cheap MINORs fixed in the same edit (CSP string, slot count, index citation, measured duration, ua_family, about-data
+wording, hub columns and counts, actions page cap, Back-link dialog, migration dry runs and numbering, CSS-only chip,
+header clone in every mode, the extra tests).
+
