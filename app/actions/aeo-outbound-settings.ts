@@ -2,7 +2,7 @@
 // Saves the tool's settings (spec v1.1 §8). Admins only, same host only. Every change is one statement with its log rows,
 // guarded by the updated_at the page loaded, so the second of two concurrent saves is told to reload.
 import { headers } from 'next/headers'
-import { updateTag } from 'next/cache'
+import { refresh } from 'next/cache'
 import { auth } from '@/auth'
 import { isAvenueZEmail } from '@/lib/commentary/permissions'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
@@ -39,6 +39,6 @@ export async function saveSettingsAction(input: SettingsInput, expectedUpdatedAt
     return { ok: false, error: 'unavailable' }
   }
   if (!saved) return { ok: false, error: SETTINGS_ERRORS.conflict }
-  updateTag('db')
+  refresh()
   return { ok: true, updatedAt: now.toISOString() }
 }

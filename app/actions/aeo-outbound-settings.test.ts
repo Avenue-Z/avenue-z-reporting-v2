@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers({ host: 'app.example' })) }))
 const m = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn() }))
 vi.mock('@/lib/aeo-outbound/settings-store', () => ({ readSettingsRow: m.read, saveSettings: m.save }))
 
 import { auth } from '@/auth'
 import { headers } from 'next/headers'
-import { updateTag } from 'next/cache'
+import { refresh } from 'next/cache'
 import { SETTINGS_DEFAULTS, settingsToInput } from '@/lib/aeo-outbound/settings'
 import { saveSettingsAction } from './aeo-outbound-settings'
 
@@ -53,7 +53,7 @@ test('an env admin can save even with no settings row; the save inserts with no 
   expect(changes).toEqual([{ field: 'users', oldValue: [], newValue: ['ana@avenuez.com'] }])
   expect([by, expected]).toEqual(['ryan@avenuez.com', null])
   expect(r.ok && r.updatedAt).toBe((now as Date).toISOString())
-  expect(updateTag).toHaveBeenCalledWith('db')
+  expect(refresh).toHaveBeenCalled()
 })
 
 test('a save logs each changed field, against the updated_at the page loaded', async () => {
@@ -72,7 +72,7 @@ test('concurrent saves: a page loaded before another save, or a write that match
   expect(m.save).not.toHaveBeenCalled()
   m.save.mockResolvedValue(false)
   expect(await saveSettingsAction({ ...settingsToInput(STORED), section2: 'Gaps' }, AT)).toEqual(conflict)
-  expect(updateTag).not.toHaveBeenCalled()
+  expect(refresh).not.toHaveBeenCalled()
 })
 
 test('validation errors come back per field and nothing is written', async () => {

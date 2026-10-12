@@ -1,7 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { updateTag } from 'next/cache'
+import { refresh } from 'next/cache'
 import { auth } from '@/auth'
 import { DECISIONS } from '@/lib/aeo-outbound/config'
 import { errorLabel } from '@/lib/aeo-outbound/log'
@@ -70,7 +70,7 @@ export async function approveSnapshotAction(id: string, revision: number, recipi
       done = await write(newShareToken())
     }
     if (!done.length || !done[0].shareToken) return STALE
-    updateTag('db')
+    refresh()
     return { ok: true as const, token: done[0].shareToken }
   })
 }
@@ -82,7 +82,7 @@ export async function revokeSnapshotAction(id: string): Promise<{ ok: true } | F
   return guarded('revoke', id, async () => {
     const done = await revokeQuery(id, email, new Date())
     if (!done.length) return NOT_FOUND
-    updateTag('db')
+    refresh()
     return { ok: true as const }
   })
 }
@@ -94,7 +94,7 @@ export async function discardSnapshotAction(id: string): Promise<{ ok: true } | 
   return guarded('discard', id, async () => {
     const done = await discardQuery(id, email, new Date())
     if (!done.length) return NOT_FOUND
-    updateTag('db')
+    refresh()
     return { ok: true as const }
   })
 }
@@ -106,7 +106,7 @@ export async function copySnapshotAsDraftAction(id: string): Promise<{ ok: true;
   return guarded('copy', id, async () => {
     const newId = await copyAsDraft(id, email, new Date())
     if (!newId) return NOT_FOUND
-    updateTag('db')
+    refresh()
     return { ok: true as const, id: newId }
   })
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 vi.mock('@/lib/aeo-outbound/settings-store', () => ({ readSettingsRow: vi.fn(async () => null) }))
-vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
+vi.mock('next/cache', () => ({ refresh: vi.fn() }))
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers({ host: 'app.example' })) }))
 vi.mock('@/lib/aeo-outbound/store', async () => {
   const actual = await vi.importActual<typeof import('@/lib/aeo-outbound/store')>('@/lib/aeo-outbound/store')
@@ -13,7 +13,7 @@ vi.mock('@/lib/aeo-outbound/store', async () => {
 
 import { auth } from '@/auth'
 import { headers } from 'next/headers'
-import { updateTag } from 'next/cache'
+import { refresh } from 'next/cache'
 import * as store from '@/lib/aeo-outbound/store'
 import { DECISIONS } from '@/lib/aeo-outbound/config'
 import { RECIPIENT_ERROR } from '@/lib/aeo-outbound/recipient'
@@ -51,7 +51,7 @@ const TOKEN = 'AAAAAAAAAAAAAAAAAAAAAAAA'
 const as = (role: string, email: string | null = 'writer@avenuez.com') =>
   (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { role, email } })
 const writes = () => [store.approveQuery, store.revokeQuery, store.discardQuery, store.copyAsDraft]
-const noWrites = () => { for (const w of writes()) expect(w).not.toHaveBeenCalled(); expect(updateTag).not.toHaveBeenCalled() }
+const noWrites = () => { for (const w of writes()) expect(w).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled() }
 const setHost = (origin?: string) =>
   vi.mocked(headers).mockResolvedValue(new Headers({ host: 'app.example', ...(origin ? { origin } : {}) }) as never)
 
@@ -140,10 +140,10 @@ test('approve: a Needs validation slot is refused when the decision blocks, and 
 test('approve: a stale revision (no rows) gives stale and no cache tag', async () => {
   vi.mocked(store.approveQuery).mockResolvedValue([] as never)
   expect(await approveSnapshotAction(ID, 1, 'Ada')).toEqual({ ok: false, error: 'stale' })
-  expect(updateTag).not.toHaveBeenCalled()
+  expect(refresh).not.toHaveBeenCalled()
 })
 
-test('approve success: final HTML, a 24-character token, the cleaned recipient, the caller, and updateTag', async () => {
+test('approve success: final HTML, a 24-character token, the cleaned recipient, the caller, and refresh', async () => {
   vi.mocked(store.getReport).mockResolvedValue({ ...DRAFT, revision: 3 } as never)
   vi.mocked(store.approveQuery).mockImplementation(((_id: string, _rev: number, v: { token: string }) => Promise.resolve([{ id: ID, shareToken: v.token }])) as never)
   const r = await approveSnapshotAction(ID, 3, '  Ada   Lovelace ')
@@ -157,7 +157,7 @@ test('approve success: final HTML, a 24-character token, the cleaned recipient, 
   expect(v.recipient).toBe('Ada Lovelace')
   expect(v.by).toBe('writer@avenuez.com')
   expect(v.token).toBe(r.token)
-  expect(updateTag).toHaveBeenCalledWith('db')
+  expect(refresh).toHaveBeenCalled()
 })
 
 const collision = () => Object.assign(new Error('dup'), { code: '23505', constraint: store.SHARE_TOKEN_UNIQUE })
@@ -182,7 +182,7 @@ test('approve: a second collision is unavailable, and a 23505 on another constra
   vi.mocked(store.approveQuery).mockRejectedValue(Object.assign(new Error('other'), { code: '23505', constraint: 'something_else' }))
   expect(await approveSnapshotAction(ID, 1, 'Ada')).toEqual(UNAVAILABLE)
   expect(store.approveQuery).toHaveBeenCalledTimes(1)
-  expect(updateTag).not.toHaveBeenCalled()
+  expect(refresh).not.toHaveBeenCalled()
 })
 
 // A Drizzle query error carries the SQL params in its message (drizzle-orm/errors.js:10-13): an email, a share token, a recipient.
@@ -205,7 +205,7 @@ test.each([
   const log = vi.spyOn(console, 'log').mockImplementation(() => {})
   arrange()
   expect(await call()).toEqual(UNAVAILABLE)
-  expect(updateTag).not.toHaveBeenCalled()
+  expect(refresh).not.toHaveBeenCalled()
   const lines = err.mock.calls.map((c) => c.map(String).join(' '))
   expect(lines).toEqual([`[aeo-outbound] ${name} failed id=${ID} reason=57P01`])
   for (const arg of [...err.mock.calls, ...warn.mock.calls, ...log.mock.calls].flat().map(String)) {
@@ -220,23 +220,23 @@ test('revoke and discard call their queries, tag the cache and return ok; no row
   expect(await discardSnapshotAction(ID)).toEqual({ ok: true })
   expect(store.revokeQuery).toHaveBeenCalledWith(ID, 'writer@avenuez.com', expect.any(Date))
   expect(store.discardQuery).toHaveBeenCalledWith(ID, 'writer@avenuez.com', expect.any(Date))
-  expect(updateTag).toHaveBeenCalledTimes(2)
-  vi.mocked(updateTag).mockClear()
+  expect(refresh).toHaveBeenCalledTimes(2)
+  vi.mocked(refresh).mockClear()
   vi.mocked(store.revokeQuery).mockResolvedValue([] as never)
   vi.mocked(store.discardQuery).mockResolvedValue([] as never)
   expect(await revokeSnapshotAction(ID)).toEqual(NOT_FOUND)
   expect(await discardSnapshotAction(ID)).toEqual(NOT_FOUND)
-  expect(updateTag).not.toHaveBeenCalled()
+  expect(refresh).not.toHaveBeenCalled()
 })
 
 test('copy as draft returns the new id and tags the cache; an undefined result is not found', async () => {
   expect(await copySnapshotAsDraftAction(ID)).toEqual({ ok: true, id: 'c7d8e0a1-2222-4222-8222-222222222222' })
   expect(store.copyAsDraft).toHaveBeenCalledWith(ID, 'writer@avenuez.com', expect.any(Date))
-  expect(updateTag).toHaveBeenCalledWith('db')
-  vi.mocked(updateTag).mockClear()
+  expect(refresh).toHaveBeenCalled()
+  vi.mocked(refresh).mockClear()
   vi.mocked(store.copyAsDraft).mockResolvedValue(undefined)
   expect(await copySnapshotAsDraftAction(ID)).toEqual(NOT_FOUND)
-  expect(updateTag).not.toHaveBeenCalled()
+  expect(refresh).not.toHaveBeenCalled()
 })
 
 test('approve: a page word still saying Needs validation is refused too, and an unreadable row is not found', async () => {

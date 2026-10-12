@@ -299,8 +299,8 @@ each on my written go, before the code reaches that environment.
 Each environment only on my written go, dev first, then staging, then production. That script
 applies every unrecorded migration in journal order and does not check which database it points
 at, so a host guard runs first and refuses any host that is not the one I named for that run.
-Before: a read-only dry run that lists what is pending. On dev and staging it must show exactly
-`0026_aeo_outbound_reports` and nothing else. On production `0025_chart_notes` is also unapplied,
+Before: a read-only dry run that lists what is pending. 0026 is applied on dev (2026-10-11). For every environment's dry run now that
+0027 is in the journal, see the 0027 entry below. On production `0025_chart_notes` is also unapplied,
 so production needs 0025 applied first, on my go, or the dry run will show both and the script
 would apply both. After: a read-only read-back of the `aeo_outbound_reports` table with its four
 open-tracking columns, its two date columns (`requested_start`, `requested_end`), its four checks (the approved check
@@ -317,3 +317,25 @@ than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0026_aeo_outb
 `aeo_outbound_delete_only_draft_failed`, `aeo_outbound_range_both_or_neither`, `aeo_outbound_revoke_only_approved`); the
 `share_token` unique constraint; both indexes, with `aeo_outbound_one_generating`'s `WHERE status = 'generating'` intact; no
 rows; the ledger at 32 with nothing pending; `aeo_outbound_reports` the only table added. Staging and production: not applied.
+
+## Add the AEO Outbound v1.1 tables and columns (delivered, awaiting apply)
+
+`drizzle/0027_aeo_outbound_v1_1.sql` creates `aeo_outbound_opens` (one row per counted open of a live link: `report_id`
+with a foreign key to `aeo_outbound_reports`, `opened_at`, `ua_family`, `likely_automated`, `reason`; no IP address and no
+user agent), `aeo_outbound_settings` (at most one row: its key is `id boolean primary key default true` with the check
+`aeo_outbound_settings_single_row`) and `aeo_outbound_settings_log`, and adds `progress_step integer not null default 0`
+and `error_code text` to `aeo_outbound_reports`. Additive: no existing column, constraint or row changes, and only
+`lib/aeo-outbound/store.ts` and `lib/aeo-outbound/settings-store.ts` read these, so the `clients` 42703 risk above does
+not apply. Apply with the hash-checked `scripts/migrate-http.ts`, each environment only on my written go, dev first, with
+the same host guard as `0026`.
+
+Dry runs (read-only) before applying: dev must list exactly `0027_aeo_outbound_v1_1` (dev already has `0026`); staging
+lists `0026_aeo_outbound_reports` and `0027_aeo_outbound_v1_1`; production lists `0025_chart_notes`,
+`0026_aeo_outbound_reports` and `0027_aeo_outbound_v1_1`, and needs `0025` applied first, on my go. `0026` is applied on
+dev, so it keeps its number: if `dev` gains another `0026`, mine keeps its number and the other is renumbered.
+
+Read-back after applying: the three new tables with their columns, the foreign key, both new indexes and the single-row
+check; the two new `aeo_outbound_reports` columns, with `progress_step` 0 on every existing row; the ledger up by one
+with nothing pending. Until it is applied, the code that reads these tables must not reach that environment.
+
+Not applied anywhere yet.
