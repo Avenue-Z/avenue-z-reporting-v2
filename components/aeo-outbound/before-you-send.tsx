@@ -4,7 +4,8 @@
 // one label map; clicking an item with a field asks the editor to focus it.
 import { fieldLabel } from '@/lib/aeo-outbound/labels'
 import { noteGroup, noteText, type StoredNote } from '@/lib/aeo-outbound/notes'
-import { ABOUT_DATA, BEFORE_YOU_SEND, CHECK_THESE, FILL_THESE, LOOKS_RIGHT, NOTHING_TO_CHECK, NOTHING_TO_FILL, OWN_CHECKS_TITLE } from './messages'
+import { btnCls } from './ui'
+import { ABOUT_DATA, BEFORE_YOU_SEND, CHECK_THESE, FILL_THESE, LOOKS_RIGHT, MINIMIZE, NOTHING_TO_CHECK, NOTHING_TO_FILL, OWN_CHECKS_TITLE } from './messages'
 
 export interface AboutInfo { projectId: string; projectName: string; projectStatus: string | null; windowLabel: string; models: string[] }
 /** From Ryan's skill's QA gate (v1.1 §4). Ticked per session; never stored; never block. */
@@ -43,6 +44,7 @@ export interface BeforeYouSendProps {
   onTick: (key: string) => void
   onOwnTick: (index: number) => void
   onGoTo: (path: string) => void
+  onMinimize: () => void
 }
 
 const itemBtn = 'text-left text-xs text-white underline-offset-2 hover:underline'
@@ -53,7 +55,10 @@ export function BeforeYouSend(p: BeforeYouSendProps) {
   const checkKeys = checkTickKeys(p.notes)
   return (
     <aside aria-label={BEFORE_YOU_SEND} className="absolute right-0 top-0 z-10 max-h-full w-96 space-y-4 overflow-y-auto rounded-lg border border-white/[0.08] bg-bg-surface p-4 shadow-xl">
-      <h2 className="text-sm font-semibold text-white">{BEFORE_YOU_SEND}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-white">{BEFORE_YOU_SEND}</h2>
+        <button type="button" className={btnCls} onClick={p.onMinimize}>{MINIMIZE}</button>
+      </div>
       <section>
         <h3 className="mb-1 text-xs font-semibold text-[#FFFC60]">{FILL_THESE}</h3>
         {p.needsValidation.length ? (

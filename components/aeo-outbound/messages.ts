@@ -62,6 +62,7 @@ export const LOCKED_FIXED = 'This part is set automatically.'
 export const LOCKED_MIRROR = 'Edit this where it first appears on the page.'
 /** v1.1 §4: the Before you send panel. */
 export const BEFORE_YOU_SEND = 'Before you send'
+export const MINIMIZE = 'Minimize'
 export const FILL_THESE = 'Fill these in'
 export const CHECK_THESE = 'Check these'
 export const OWN_CHECKS_TITLE = 'Your own checks'

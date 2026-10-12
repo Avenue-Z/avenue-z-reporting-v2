@@ -9,7 +9,7 @@ import type { StoredNote } from '@/lib/aeo-outbound/notes'
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 const NOTES: StoredNote[] = [{ kind: 'number_not_in_data', text: 'Same note' }, { kind: 'number_not_in_data', text: 'Same note' }]
-function Harness({ notes }: { notes: StoredNote[] }) {
+function Harness({ notes, onMinimize = () => {} }: { notes: StoredNote[]; onMinimize?: () => void }) {
   const [ticks, setTicks] = useState<ReadonlySet<string>>(new Set())
   return (
     <>
@@ -17,7 +17,7 @@ function Harness({ notes }: { notes: StoredNote[] }) {
       <BeforeYouSend
         needsValidation={[]} notes={notes} titles={['A', 'B']} about={null} ticks={ticks} ownTicks={new Set()} highlight={null}
         onTick={(k) => setTicks((t) => { const n = new Set(t); if (n.has(k)) n.delete(k); else n.add(k); return n })}
-        onOwnTick={() => {}} onGoTo={() => {}}
+        onOwnTick={() => {}} onGoTo={() => {}} onMinimize={onMinimize}
       />
     </>
   )
@@ -38,4 +38,11 @@ test('D6: two identical notes render two items with separate ticks and no duplic
 
 test('D6: the first copy of a note keeps the plain tick key, so list ticks still drop by path', () => {
   expect(tickKey(NOTES[0])).toBe('number_not_in_data||Same note')
+})
+
+test('the header has a Minimize button that calls onMinimize', () => {
+  const onMinimize = vi.fn()
+  render(<Harness notes={NOTES} onMinimize={onMinimize} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Minimize' }))
+  expect(onMinimize).toHaveBeenCalledTimes(1)
 })

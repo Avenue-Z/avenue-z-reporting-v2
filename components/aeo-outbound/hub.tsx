@@ -288,11 +288,11 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
             <div className="flex gap-3">
               <label className="flex flex-col gap-1 text-xs text-text-muted">
                 Start date
-                <input id="aeo-start" type="date" className={inputCls} value={start} min={limits?.min} max={limits?.max} onChange={(e) => { setStart(e.target.value); setRangeError(null) }} />
+                <input id="aeo-start" type="date" className={`${inputCls} [color-scheme:dark]`} onClick={(e) => { try { e.currentTarget.showPicker?.() } catch { /* typing still works */ } }} value={start} min={limits?.min} max={limits?.max} onChange={(e) => { setStart(e.target.value); setRangeError(null) }} />
               </label>
               <label className="flex flex-col gap-1 text-xs text-text-muted">
                 End date
-                <input id="aeo-end" type="date" className={inputCls} value={end} min={limits?.min} max={limits?.max} onChange={(e) => { setEnd(e.target.value); setRangeError(null) }} />
+                <input id="aeo-end" type="date" className={`${inputCls} [color-scheme:dark]`} onClick={(e) => { try { e.currentTarget.showPicker?.() } catch { /* typing still works */ } }} value={end} min={limits?.min} max={limits?.max} onChange={(e) => { setEnd(e.target.value); setRangeError(null) }} />
               </label>
             </div>
             {rangeError && <p className="text-xs text-[#FF6B6B]">{rangeError}</p>}

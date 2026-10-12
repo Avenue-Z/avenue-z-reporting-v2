@@ -617,3 +617,25 @@ test("when the listed generating row replaces the local row, the moved checklist
   expect(within(box).getByText('Loading brand visibility and AI models…')).toBeInTheDocument()
   expect(within(box).queryByText('Starting…')).not.toBeInTheDocument()
 })
+
+test('both date inputs use the dark calendar and open it on click; a refusing browser leaves typing working', async () => {
+  const showPicker = vi.fn()
+  Object.defineProperty(HTMLInputElement.prototype, 'showPicker', { value: showPicker, configurable: true, writable: true })
+  try {
+    hub()
+    for (const label of ['Start date', 'End date']) {
+      const input = screen.getByLabelText(label)
+      expect(input.className).toContain('[color-scheme:dark]')
+      fireEvent.click(input)
+    }
+    expect(showPicker).toHaveBeenCalledTimes(2)
+    showPicker.mockImplementation(() => { throw new DOMException('not allowed', 'NotAllowedError') })
+    const start = screen.getByLabelText('Start date') as HTMLInputElement
+    expect(() => fireEvent.click(start)).not.toThrow()
+    fireEvent.change(start, { target: { value: '2026-09-01' } })
+    expect(start.value).toBe('2026-09-01')
+    await loaded()
+  } finally {
+    delete (HTMLInputElement.prototype as unknown as { showPicker?: unknown }).showPicker
+  }
+})

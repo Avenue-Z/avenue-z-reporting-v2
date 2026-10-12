@@ -464,8 +464,11 @@ export function OutboundEditor(props: OutboundEditorProps) {
               needsValidation={needsValidation} notes={notes} titles={titles} about={props.about} ticks={ticks} ownTicks={ownTicks} highlight={highlight}
               onTick={(key) => setTicks((t) => { const n = new Set(t); if (n.has(key)) n.delete(key); else n.add(key); return n })}
               onOwnTick={(i) => setOwnTicks((t) => { const n = new Set(t); if (n.has(i)) n.delete(i); else n.add(i); return n })}
-              onGoTo={goTo}
+              onGoTo={goTo} onMinimize={() => setPanelOpen(false)}
             />
+          )}
+          {!panelOpen && status === 'draft' && (
+            <button type="button" className="absolute right-2 top-2 z-10 rounded-full border border-white/[0.12] bg-bg-surface px-3 py-1 text-xs font-medium text-white shadow-lg" onClick={() => setPanelOpen(true)}>{`${BEFORE_YOU_SEND} (${count})`}</button>
           )}
         </div>
       )}
