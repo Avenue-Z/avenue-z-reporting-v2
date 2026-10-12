@@ -83,8 +83,51 @@ export const SHARE_BUTTON = `
       <span class="share-btn-label">Share Report</span>
     </button>`
 
-/** The "Powered by Avenue Z" line shows only under a wordmark that is not already Avenue Z (spec v1.1 §16.1, from Task 3b). */
-export const showsPowered = (wordmark: string): boolean => wordmark.trim().toLowerCase() !== 'avenue z'
+export const PAGE_CSS = [
+  '.kpi-value.aeo-long{font-size:24px;line-height:1.15}',
+  '.aeo-share-mobile{display:none}',
+  '@media (max-width: 900px){',
+  '.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}',
+  '.kpi-strip[data-kpis="3"]{grid-template-columns:repeat(2,1fr)!important}',
+  '.leaderboard-wrap{overflow-x:visible;border:none;border-radius:0}',
+  '.leaderboard thead{display:none}',
+  '.leaderboard,.leaderboard tbody,.leaderboard tr,.leaderboard td{display:block;width:100%}',
+  '.leaderboard tr{border:1px solid var(--border);border-radius:16px;margin-bottom:12px;padding:6px 0;background:rgba(255,255,255,0.02)}',
+  '.leaderboard td{padding:8px 20px}',
+  '.leaderboard td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px}',
+  '.aeo-share-mobile{display:flex;justify-content:center;padding:24px}',
+  ".aeo-share-mobile-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;padding:10px 16px;margin:0;background:rgba(96,255,234,0.06);border:1px solid rgba(96,255,234,0.35);border-radius:9999px;color:var(--cyan);font-family:'Avenir',sans-serif;font-size:12px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;user-select:none}",
+  '}',
+].join('\n')
+
+/** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
+ *  the phone donut shows percentages (§17.2). Registered before the frame script's listener, so it runs first. */
+export const PAGE_JS = String.raw`(function(){
+document.addEventListener('click',function(e){
+var n=e.target;if(!n||!n.closest)return;
+var a=n.closest('a[href^="#"]');
+if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
+var b=n.closest('.aeo-share-mobile-btn');if(b){var s=document.querySelector('.sidebar .share-btn');if(s)s.click()}
+},true);
+var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
+function copy(x){return JSON.parse(JSON.stringify(x))}
+function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
+function draw(d,l){try{var p=window.Plotly.react(el,d,l);if(p&&p.catch)p.catch(restore)}catch(err){restore()}}
+function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){draw(copy(orig.d),copy(orig.l));return}
+var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],total=0;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];
+t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{percent:.1%}':''});t.labels=lab.map(function(x,i){return x+' '+(100*v[i]/total).toFixed(1)+'%'});
+if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');draw(d,l)}
+function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};if(!window.matchMedia)return;var mq=window.matchMedia('(max-width: 900px)');apply(mq.matches);var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
+if(document.readyState==='complete')init();else window.addEventListener('load',init);
+})();`
+const PAGE_SCRIPT = `<script>${PAGE_JS}</script>`
+
+/** The phone Share button, final mode only, immediately before the footer. It forwards to the sidebar's .share-btn, which
+ *  AIVx's share block binds (v1.1 §17.2). Exported so the editor's preview of a frozen page can remove this exact string. */
+export const SHARE_MOBILE = '<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>'
+
+/** The "Powered by Avenue Z" line shows only when the top-left name does not already contain "avenue z", trimmed, any case (spec v1.1 §17.5). */
+export const showsPowered = (wordmark: string): boolean => !wordmark.trim().toLowerCase().includes('avenue z')
 
 export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: RenderMode, preparedOn: string): string {
   const draft = mode === 'draft'
@@ -130,9 +173,11 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
     return out + esc(text.slice(last))
   }
 
+  /** The column word a stacked phone card shows above each cell (v1.1 §17.2). */
+  const label = (word: string) => ` data-label="${esc(word)}"`
   const isLong = s.brand.length > 24 // renderer.py:1439-1458, read from the slot (v1.1 §3)
-  const kpiCards = s.kpis.map((k, i) => `<div class="kpi-card">${slot('div', `kpis.${i}.label`, k.label, 'kpi-label')}${slot('div', `kpis.${i}.value`, k.value, 'kpi-value')}</div>`).join('')
-  const kpiStrip = s.kpis.length === 4 ? '<div class="kpi-strip">' : `<div class="kpi-strip" style="grid-template-columns:repeat(${s.kpis.length}, 1fr)">`
+  const kpiCards = s.kpis.map((k, i) => `<div class="kpi-card">${slot('div', `kpis.${i}.label`, k.label, 'kpi-label')}${slot('div', `kpis.${i}.value`, k.value, k.value.trim().length > 7 ? 'kpi-value aeo-long' : 'kpi-value')}</div>`).join('')
+  const kpiStrip = s.kpis.length === 4 ? '<div class="kpi-strip">' : `<div class="kpi-strip"${s.kpis.length === 3 ? ' data-kpis="3"' : ''} style="grid-template-columns:repeat(${s.kpis.length}, 1fr)">`
   const t1 = p.section_1_title
   const t2 = p.section_2_title
   const brand = esc(s.brand)
@@ -204,7 +249,7 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   <div class="leaderboard-wrap">
     <table class="leaderboard">
       <thead><tr>${slot('th', 'page.opps_col_1', p.opps_col_1)}${slot('th', 'page.opps_col_2', p.opps_col_2)}${slot('th', 'page.opps_col_3', p.opps_col_3)}</tr></thead>
-      <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal)}${slot('td', `opportunities.${i}.opportunity`, o.opportunity)}${slot('td', `opportunities.${i}.workstream`, o.workstream)}</tr>`).join('')}</tbody>
+      <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal, '', label(p.opps_col_1))}${slot('td', `opportunities.${i}.opportunity`, o.opportunity, '', label(p.opps_col_2))}${slot('td', `opportunities.${i}.workstream`, o.workstream, '', label(p.opps_col_3))}</tr>`).join('')}</tbody>
     </table>
   </div>
   ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}
@@ -212,7 +257,7 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
 <section id="methodology" class="section">
   <div class="method-note">${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)} ${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div>
 </section>
-<footer class="footer">
+${mode === 'final' ? SHARE_MOBILE : ''}<footer class="footer">
   <div class="footer-grad-line"></div>
   <div class="footer-content">
     <div class="footer-brand">
@@ -242,14 +287,14 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   <script src="https://cdn.plot.ly/plotly-3.5.0.min.js" charset="utf-8" integrity="sha384-DPvk2KODrsA0CfBr4HTwAwhdDROPqqK2PvSSswJMQMpnUkwSTg4gLBxXc3wv2e5L" crossorigin="anonymous"></script>
   <meta name="description" content="${esc(p.series)} for ${brand}. Powered by Avenue Z AEO Intelligence.">
   <meta name="robots" content="noindex,nofollow">
-  <style>${AIVX_CSS}</style>${draft ? EDITOR_STYLE : ''}
+  <style>${AIVX_CSS}</style><style>${PAGE_CSS}</style>${draft ? EDITOR_STYLE : ''}
 </head>
 <body>
   ${sidebar}
   <div class="main">
     ${main}
   </div>
-  <script>${AIVX_JS}</script>${HEADER_CLONE}${mode === 'final' ? `\n${AIVX_SHARE_BLOCK}` : ''}${draft ? FRAME_SCRIPT : ''}
+  <script>${AIVX_JS}</script>${HEADER_CLONE}${PAGE_SCRIPT}${mode === 'final' ? `\n${AIVX_SHARE_BLOCK}` : ''}${draft ? FRAME_SCRIPT : ''}
 </body>
 </html>`
 }

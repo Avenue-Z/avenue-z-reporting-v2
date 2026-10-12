@@ -8,7 +8,7 @@ vi.mock('@/lib/aeo-outbound/store', async (o) => ({ ...(await o<object>()), getR
 import { GET } from './route'
 import { auth } from '@/auth'
 import type { SnapshotData } from '@/lib/aeo-outbound/metrics'
-import { SHARE_BUTTON, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
+import { SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { AIVX_SHARE_BLOCK } from '@/lib/aeo-outbound/aivx/share'
 import type { Slots } from '@/lib/aeo-outbound/slots'
 
@@ -90,7 +90,7 @@ test('draft: editing hooks and the three headers', async () => {
 
 test('draft with mode=preview: no data-slot and no share button', async () => {
   const h = await (await get(ID, '?mode=preview')).text()
-  expect(h).not.toContain('data-slot')
+  expect(h).not.toContain('data-slot=')
   expect(h).not.toContain('class="share-btn"')
 })
 
@@ -122,10 +122,11 @@ test('approved with mode=preview: the frozen HTML with exactly the share button 
   const res = await get(ID, '?mode=preview')
   expect(res.headers.get('Content-Security-Policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox')
   const h = await res.text()
-  expect(h).toBe(FROZEN.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, ''))
+  expect(h).toBe(FROZEN.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, '').replace(SHARE_MOBILE, ''))
+  expect(h).not.toContain('aeo-share-mobile"')
   expect(h).not.toContain('class="share-btn"')
   expect(h).not.toContain('share-toast" role')
-  expect(h).not.toContain('data-slot')
+  expect(h).not.toContain('data-slot=')
   expect(console.error).not.toHaveBeenCalled()
   expect(warn).not.toHaveBeenCalled()
 })
@@ -136,7 +137,7 @@ test('approved with mode=preview: a later render change cannot alter what the ed
   m.getReport.mockResolvedValue(approved(frozen))
   const h = await (await get(ID, '?mode=preview')).text()
   expect(h).toContain('Headline frozen at approval.')
-  expect(h).toBe(frozen.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, ''))
+  expect(h).toBe(frozen.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, '').replace(SHARE_MOBILE, ''))
 })
 
 test.each([
@@ -146,8 +147,26 @@ test.each([
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   m.getReport.mockResolvedValue(approved(html))
   const h = await (await get(ID, '?mode=preview')).text()
-  const style = '<style>.share-btn,.share-toast{display:none!important}</style>'
+  const style = '<style>.share-btn,.share-toast,.aeo-share-mobile{display:none!important}</style>'
   expect(h).toBe(html.replace('</head>', `${style}</head>`))
+  expect(warn.mock.calls.map((c) => c.join(' '))).toEqual([`[aeo-outbound] view share strip fallback id=${ID}`])
+})
+
+test('approved with mode=preview: an old row without the phone Share block is served without the fallback or a warning', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const old = FROZEN.replace(SHARE_MOBILE, '')
+  expect(old).not.toContain('class="aeo-share-mobile"')
+  m.getReport.mockResolvedValue(approved(old))
+  expect(await (await get(ID, '?mode=preview')).text()).toBe(old.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, ''))
+  expect(warn).not.toHaveBeenCalled()
+})
+
+test('approved with mode=preview and a twice-present phone Share block: the fallback hides it, with one log line', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const html = FROZEN.replace(SHARE_MOBILE, SHARE_MOBILE + SHARE_MOBILE)
+  m.getReport.mockResolvedValue(approved(html))
+  const h = await (await get(ID, '?mode=preview')).text()
+  expect(h).toBe(html.replace('</head>', '<style>.share-btn,.share-toast,.aeo-share-mobile{display:none!important}</style></head>'))
   expect(warn.mock.calls.map((c) => c.join(' '))).toEqual([`[aeo-outbound] view share strip fallback id=${ID}`])
 })
 
@@ -172,7 +191,7 @@ test('B3 follow-up: an approved row marked unreadable still serves its frozen HT
   expect(await full.text()).toBe(FROZEN)
   const preview = await get(ID, '?mode=preview')
   expect(preview.status).toBe(200)
-  expect(await preview.text()).toBe(FROZEN.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, ''))
+  expect(await preview.text()).toBe(FROZEN.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, '').replace(SHARE_MOBILE, ''))
   m.getReport.mockResolvedValue(row({ unreadable: true }))
   expect((await get()).status).toBe(404)
 })

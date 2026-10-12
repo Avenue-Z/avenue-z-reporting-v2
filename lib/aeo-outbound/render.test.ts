@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { AIVX_CSS } from './aivx/css'
-import { EDITOR_STYLE, FRAME_SCRIPT_JS, HEADER_CLONE_JS, SHARE_BUTTON, renderSnapshotHtml, showsPowered } from './render'
+import { EDITOR_STYLE, FRAME_SCRIPT_JS, HEADER_CLONE_JS, PAGE_CSS, PAGE_JS, SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml, showsPowered } from './render'
 import { AIVX_JS } from './aivx/js'
 import { slotEntries, withDefaults } from './slots'
 import { AIVX_SHARE_BLOCK } from './aivx/share'
@@ -38,8 +38,9 @@ test('final: AIVx head and stylesheet verbatim, no editing hooks, share button p
   expect(h).toContain('<title>AI Visibility Snapshot: Example &lt;Co&gt; &amp; &quot;Sons&quot; | Avenue Z</title>')
   expect(h).not.toContain('<link rel="canonical"')
   expect(h).not.toContain('report-editor')
-  expect(h).not.toContain('data-slot')
-  expect(h).not.toContain('contenteditable')
+  // PAGE_JS names the selector [data-slot][contenteditable], so the check is for the attributes themselves.
+  expect(h).not.toContain('data-slot=')
+  expect(h).not.toContain('contenteditable=')
   expect(h).toContain('class="share-btn"')
   expect(h).toContain('Prepared Oct 9, 2026')
 })
@@ -67,7 +68,8 @@ test('draft: every slot is marked, none is editable until the frame says so, the
 test('preview and final carry no editing markup at all', () => {
   for (const mode of ['preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 8, 2026')
-    for (const s of ['data-slot', 'data-mirror', 'data-locked', 'data-structure', 'aeo-w', 'aeo-ctl', 'contenteditable', FRAME_SCRIPT_JS, EDITOR_STYLE]) expect(h, `${mode} ${s.slice(0, 20)}`).not.toContain(s)
+    // PAGE_JS (every mode) names the selector [data-slot][contenteditable], so those two are checked as attributes.
+    for (const s of ['data-slot=', 'data-mirror', 'data-locked', 'data-structure', 'aeo-w', 'aeo-ctl', 'contenteditable=', FRAME_SCRIPT_JS, EDITOR_STYLE]) expect(h, `${mode} ${s.slice(0, 20)}`).not.toContain(s)
   }
   expect(renderSnapshotHtml(DATA, SLOTS, 'preview', 'x')).not.toContain('class="share-btn"')
 })
@@ -76,7 +78,7 @@ test('three KPI cards switch the strip to three columns', () => {
   const h4 = renderSnapshotHtml(DATA, SLOTS, 'final', 'x')
   expect(h4).toContain('<div class="kpi-strip">')
   const h3 = renderSnapshotHtml({ ...DATA, kpis: DATA.kpis.slice(0, 3) }, SLOTS, 'final', 'x')
-  expect(h3).toContain('<div class="kpi-strip" style="grid-template-columns:repeat(3, 1fr)">')
+  expect(h3).toContain('<div class="kpi-strip" data-kpis="3" style="grid-template-columns:repeat(3, 1fr)">')
 })
 
 test('sections, nav ids and roster bolding', () => {
@@ -294,4 +296,74 @@ test('the header clone removes the AIVx table sort from the opportunities table'
   } finally {
     if (!hadInnerText) delete (HTMLElement.prototype as { innerText?: unknown }).innerText
   }
+})
+
+test('showsPowered (v1.1 §17.5): shown under a name without "avenue z", hidden under any name that contains it', () => {
+  for (const w of ['AIVx', 'AEO Lens']) expect(showsPowered(w)).toBe(true)
+  for (const w of ['Avenue Z', '  avenue z ', 'Avenue Z AEO']) expect(showsPowered(w)).toBe(false)
+})
+
+test('PAGE_CSS follows the AIVx style and PAGE_JS follows the header clone, in draft, preview and final', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    const css = `<style>${AIVX_CSS}</style><style>${PAGE_CSS}</style>`
+    expect(h).toContain(css)
+    if (mode === 'draft') expect(h).toContain(`${css}${EDITOR_STYLE}`)
+    const clone = `<script>${HEADER_CLONE_JS}</script>`
+    expect(h).toContain(`${clone}<script>${PAGE_JS}</script>`)
+    const at = h.indexOf(`<script>${PAGE_JS}</script>`)
+    if (mode === 'final') expect(h.indexOf(AIVX_SHARE_BLOCK)).toBeGreaterThan(at)
+    if (mode === 'draft') expect(h.indexOf(FRAME_SCRIPT_JS)).toBeGreaterThan(at)
+  }
+})
+
+test('the phone Share block is in the final page only, immediately before the footer', () => {
+  expect(renderSnapshotHtml(DATA, SLOTS, 'final', 'x')).toContain(`</section>\n${SHARE_MOBILE}<footer class="footer">`)
+  for (const mode of ['draft', 'preview'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'x')).not.toContain('class="aeo-share-mobile"')
+  expect(SHARE_MOBILE).toBe('<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>')
+})
+
+test('every PAGE_CSS rule except aeo-long and the default hidden share block sits inside the phone media query', () => {
+  const open = '@media (max-width: 900px){'
+  const at = PAGE_CSS.indexOf(open)
+  expect(at).toBeGreaterThan(-1)
+  expect(PAGE_CSS.endsWith('}')).toBe(true)
+  const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
+  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', '.aeo-share-mobile{display:none}'])
+  const inside = PAGE_CSS.slice(at + open.length, -1).split('\n').filter(Boolean)
+  expect(inside.length).toBeGreaterThan(5)
+  expect(inside.every((r) => r.endsWith('}') && !r.includes('@media'))).toBe(true)
+  expect(PAGE_CSS.split('@media')).toHaveLength(2)
+  expect(inside).toContain('.kpi-strip[data-kpis="3"]{grid-template-columns:repeat(2,1fr)!important}')
+  expect(PAGE_CSS).not.toMatch(/[\u2013\u2014]/)
+})
+
+test('every opportunities cell carries data-label with its column word, escaped, in every mode', () => {
+  const slots: Slots = { ...SLOTS, page: { opps_col_1: 'Signal & proof', opps_col_2: 'Idea', opps_col_3: 'Team' } }
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const doc = parse(renderSnapshotHtml(DATA, slots, mode, 'x'))
+    const rows = [...doc.querySelectorAll('.leaderboard tbody tr')]
+    expect(rows).toHaveLength(3)
+    for (const r of rows) expect([...r.children].map((c) => c.getAttribute('data-label'))).toEqual(['Signal & proof', 'Idea', 'Team'])
+  }
+  expect(renderSnapshotHtml(DATA, slots, 'final', 'x')).toContain('<td data-label="Signal &amp; proof">s0</td>')
+})
+
+test('aeo-long on a KPI value longer than 7 characters after trimming, not on 7', () => {
+  const kpis = (v: string) => ({ ...SLOTS, kpis: DATA.kpis.map((k, i) => (i === 3 ? { ...k, value: v } : k)) }) as Slots
+  const cls = (v: string) => parse(renderSnapshotHtml(DATA, kpis(v), 'final', 'x')).querySelectorAll('.kpi-value')[3].className
+  expect(cls('#2 of 2')).toBe('kpi-value')
+  expect(cls('#2 of 22')).toBe('kpi-value aeo-long')
+  expect(cls('  #2 of 2  ')).toBe('kpi-value')
+  expect(parse(renderSnapshotHtml(DATA, SLOTS, 'final', 'x')).querySelectorAll('.kpi-value')[0].className).toBe('kpi-value')
+})
+
+test('data-kpis="3" on the strip only with exactly three cards', () => {
+  const strip = (n: number) => {
+    const slots = { ...SLOTS, kpis: DATA.kpis.slice(0, n) } as Slots
+    return parse(renderSnapshotHtml(DATA, slots, 'final', 'x')).querySelector('.kpi-strip')!
+  }
+  expect(strip(3).outerHTML.startsWith('<div class="kpi-strip" data-kpis="3" style="grid-template-columns:repeat(3, 1fr)">')).toBe(true)
+  for (const n of [1, 2, 4]) expect(strip(n).hasAttribute('data-kpis')).toBe(false)
+  expect(strip(2).getAttribute('style')).toBe('grid-template-columns:repeat(2, 1fr)')
 })

@@ -198,3 +198,13 @@ test('the brand_changed count ignores the new brand when it contains the old nam
   expect(groundingFlags(s, R, RT)).toEqual([])
   expect(groundingFlags({ ...s, headline: 'Example Co leads' }, R, RT)).toEqual([{ kind: 'brand_changed', path: 'brand', text: 'The copy still says Example Co in 1 place' }])
 })
+
+test('page.series and page.sidebar_wordmark skip the number and domain checks but keep the long-dash check (v1.1 §17.5)', () => {
+  const dash = String.fromCharCode(0x2014)
+  expect(groundingFlags({ ...plain, page: { series: 'AEO Snapshot 2026', sidebar_wordmark: 'Lens.io' } }, R, RT)).toEqual([])
+  const flags = groundingFlags({ ...plain, page: { series: `Snapshot ${dash} 2026`, sidebar_wordmark: `Lens${dash}io 7` } }, R, RT)
+  expect(flags).toEqual([
+    { kind: 'long_dash', path: 'page.series', text: 'contains a long dash; use a period or comma' },
+    { kind: 'long_dash', path: 'page.sidebar_wordmark', text: 'contains a long dash; use a period or comma' },
+  ])
+})

@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server'
 import { auth } from '@/auth'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { getReport, isReportId } from '@/lib/aeo-outbound/store'
-import { SHARE_BUTTON, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
+import { SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { AIVX_SHARE_BLOCK } from '@/lib/aeo-outbound/aivx/share'
 import { REPORT_CSP } from '@/lib/aeo-outbound/sandbox'
 import { errorLabel } from '@/lib/aeo-outbound/log'
@@ -14,12 +14,18 @@ const HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': '
 const unavailable = () => new Response('Unavailable', { status: 503, headers: { 'Cache-Control': 'no-store' } })
 const notFound = () => new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } })
 
-const HIDE_SHARE = '<style>.share-btn,.share-toast{display:none!important}</style>'
+const HIDE_SHARE = '<style>.share-btn,.share-toast,.aeo-share-mobile{display:none!important}</style>'
 const once = (html: string, part: string) => html.split(part).length === 2
 
-/** The frozen page minus its share button and share block, each removed only when it occurs exactly once; else CSS hides them. */
+/** The frozen page minus its share button and share block, each removed only when it occurs exactly once; else CSS hides
+ *  them. The phone Share block is removed when it occurs once, left alone when absent (rows approved before it existed),
+ *  and sends the page to the CSS fallback when it occurs more than once (v1.1 §17.2). */
 function withoutShare(html: string, id: string): string {
-  if (once(html, SHARE_BUTTON) && once(html, AIVX_SHARE_BLOCK)) return html.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, '')
+  const mobile = html.split(SHARE_MOBILE).length - 1
+  if (once(html, SHARE_BUTTON) && once(html, AIVX_SHARE_BLOCK) && mobile <= 1) {
+    const out = html.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, '')
+    return mobile === 1 ? out.replace(SHARE_MOBILE, '') : out
+  }
   console.warn(`[aeo-outbound] view share strip fallback id=${id}`)
   return html.includes('</head>') ? html.replace('</head>', `${HIDE_SHARE}</head>`) : HIDE_SHARE + html
 }

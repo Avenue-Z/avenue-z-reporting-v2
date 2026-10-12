@@ -95,8 +95,11 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     }
     let text = value
     for (const name of exemptNames) text = text.split(name).join(' ')
-    for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
-    for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
+    // The report name and the top-left name come from settings or Ryan's own edit, not from Glean (v1.1 §17.5): no domain or number check.
+    if (path !== 'page.series' && path !== 'page.sidebar_wordmark') {
+      for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
+      for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
+    }
     if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }
   if (d.brand && full.brand !== d.brand) {

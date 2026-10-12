@@ -153,7 +153,7 @@ test('approve success: final HTML, a 24-character token, the cleaned recipient, 
   const [id, rev, v] = vi.mocked(store.approveQuery).mock.calls[0]
   expect([id, rev]).toEqual([ID, 3])
   expect(v.html).toContain('class="share-btn"')
-  expect(v.html).not.toContain('data-slot')
+  expect(v.html).not.toContain('data-slot=')
   expect(v.recipient).toBe('Ada Lovelace')
   expect(v.by).toBe('writer@avenuez.com')
   expect(v.token).toBe(r.token)

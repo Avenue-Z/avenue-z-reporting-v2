@@ -4,7 +4,8 @@ import { V1_DATA, V1_DATA_BLOCK, V1_FLAGS, V1_SLOTS } from './__fixtures__/v1-ro
 import { dataBlock } from './prompt'
 import { groundingFlags } from './grounding'
 import { AIVX_JS } from './aivx/js'
-import { HEADER_CLONE_JS, renderSnapshotHtml } from './render'
+import { AIVX_CSS } from './aivx/css'
+import { HEADER_CLONE_JS, PAGE_CSS, PAGE_JS, SHARE_MOBILE, renderSnapshotHtml } from './render'
 
 // The v1.0 final page of V1_DATA and V1_SLOTS, generated once from the code at 06e68c0d (plan Task 1 Step 4).
 const GOLDEN = readFileSync('lib/aeo-outbound/__fixtures__/v1-0-final.html', 'utf8')
@@ -27,7 +28,20 @@ const v11 = (html: string) => {
   const aivx = `<script>${AIVX_JS}</script>`
   expect(html.split(aivx)).toHaveLength(2)
   expect(html.split(V10_LOGO)).toHaveLength(2)
-  return html.split('Citations: %{value}').join('Retrievals: %{value}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script>`).split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
+  const once = (h: string, from: string, to: string, n = 1) => {
+    expect(h.split(from)).toHaveLength(n + 1)
+    return h.split(from).join(to)
+  }
+  let out = html.split('Citations: %{value}').join('Retrievals: %{value}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script><script>${PAGE_JS}</script>`).split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
+  // v1.1 §17: the page stylesheet after AIVx's, the data-label on each opportunities cell, aeo-long on the long rank value, the phone Share block.
+  out = once(out, `<style>${AIVX_CSS}</style>`, `<style>${AIVX_CSS}</style><style>${PAGE_CSS}</style>`)
+  out = once(out, '<tr><td>', '<tr><td data-label="Signal">', 3)
+  out = once(out, '</td><td>Explore it</td><td>Technical', '</td><td data-label="Opportunity to explore">Explore it</td><td data-label="Likely workstream">Technical')
+  out = once(out, '</td><td>Investigate</td><td>PR / earned media', '</td><td data-label="Opportunity to explore">Investigate</td><td data-label="Likely workstream">PR / earned media')
+  out = once(out, '</td><td>Test content</td><td>Content / AEO', '</td><td data-label="Opportunity to explore">Test content</td><td data-label="Likely workstream">Content / AEO')
+  out = once(out, '<div class="kpi-value">#3 of 3 brands</div>', '<div class="kpi-value aeo-long">#3 of 3 brands</div>')
+  out = once(out, '</section>\n<footer class="footer">', `</section>\n${SHARE_MOBILE}<footer class="footer">`)
+  return out
 }
 // The footer description and disclaimer are one slot value each now, rendered on one line where v1.0 wrapped them over
 // several. Each wrapped block is rewritten to its one-line form, so every byte is compared exactly.
