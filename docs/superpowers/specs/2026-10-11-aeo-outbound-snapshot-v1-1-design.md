@@ -390,7 +390,8 @@ and a number Ryan types that is not in it is a "Check these" item before sending
   `staging`, branch `staging`) and `avenue-z-reporting-v2.vercel.app`; system environment variables are exposed
   (`autoExposeSystemEnvs: true`); Vercel documents `VERCEL_TARGET_ENV` as "the system or custom environment that the app
   is deployed and running on", with a custom environment's name as its value. `reports.avenuez.com`, named in two repo
-  documents, answers a Cloudflare 404 and is never used. The origins are constants in `config.ts`.
+  documents, answers a Cloudflare 404 and is never used. The origins are constants in
+  `lib/aeo-outbound/share-origin.ts`, a server-only module (built in Task 3c).
 - **Path.** `/snapshot/{slug}-{token}`, where the token is unchanged (`token.ts:4`, 24 URL-safe characters). The slug
   comes from the row's `brand_name` only (null gives no slug; never the Peec project name, which the pages show in its
   place, `app/tools/new-business/page.tsx:14`): Unicode NFKD, combining marks removed, lowercased, every run of characters outside

@@ -105,6 +105,7 @@ Modified files are listed in each task with the line ranges read at `feat/aeo-ou
 9. Shared UI pieces: failure text, progress, dialog, copy link, save-queue structural items
 10. The editor
 11. The hub and Show older
+11b. Live progress: the endpoint, the checklist and polling (amendment 5, spec v1.1 §16.3)
 12. Settings page
 13. Migration notes and the final gate
 
@@ -2187,7 +2188,7 @@ Covers v1.1 §7 (error codes on the error object, the `error_code` column, the u
 - Consumes: `peecContract`, `checkContract` (Task 1); `PeecError(message, timeout, rowCap, code)`, `isPeecContractViolation` (Task 1); `finishFailedQuery(id, error, brandName, now, code)`, `progressStepQuery(id, step)` (Task 2).
 - Produces:
   - `contracts.ts`: `REPORT_ID_RE`, `GLEAN_SLOTS`, `GENERATE_BODY`, `SLOTS_BODY` (zod schemas)
-  - `generate.ts`: `GenerationResult` failure `{ ok: false; error: string; code: ErrorCode; brandName: string | null }`; `deps.onStep?: (step: number) => void`; `WRITING_STEP = 9`
+  - `generate.ts`: `GenerationResult` failure `{ ok: false; error: string; code: ErrorCode; brandName: string | null }`; `deps.onStep?: (step: number) => void`; `WRITING_STEP = 9`; `SECOND_ATTEMPT_STEP = 10` (spec v1.1 §16.3)
   - generate route: `200 { id, status: 'failed', error, code }`; `502 { error: "Peec isn't configured on this server. Tell engineering." }` when the key is missing
 
 - [ ] **Step 1: Write the failing pull tests**
@@ -2446,6 +2447,20 @@ test('progress: pull reports steps 1 to 6 and 8, then generate reports 9 before 
   expect(steps.slice(0, 9)).toEqual([1, 2, 3, 4, 5, 6, 8, 9, -1])
 })
 
+test('progress: step 10 is reported before a second Glean attempt, and never when the second attempt is skipped (spec v1.1 §16.3)', async () => {
+  const steps: number[] = []
+  let calls = 0
+  const glean = vi.fn(async () => { steps.push(-1); return calls++ === 0 ? reply('not json') : reply(GOOD) })
+  await generateSnapshot('or_a', { ...deps(glean), onStep: (s) => steps.push(s) })
+  expect(steps.slice(7, 11)).toEqual([9, -1, 10, -1])
+  const skipped: number[] = []
+  let t = NOW
+  const slow = vi.fn(async () => { t += 230_000; skipped.push(-1); return reply('not json') })
+  await generateSnapshot('or_a', { ...deps(slow, () => t), onStep: (s) => skipped.push(s) })
+  expect(skipped).not.toContain(10)
+  expect(skipped.filter((s) => s === -1)).toHaveLength(1)
+})
+
 test('a reply that breaks its contract is retried once with the fields named', async () => {
   const glean = vi.fn().mockResolvedValueOnce(reply('{"headline":5}')).mockResolvedValueOnce(reply(GOOD))
   const r = await generateSnapshot('or_a', deps(glean))
@@ -2517,7 +2532,7 @@ import { isPeecTimeout, PeecClient, PeecError } from './peec'
 import { pullSnapshot } from './pull'
 import { buildPrompt, dataBlock, parseModelJson } from './prompt'
 import { groundingFlags } from './grounding'
-import { validateGeneratedSlots, type Slots } from './slots'
+import { cleanValue, MAX_LEAD, validateGeneratedSlots, type Slots } from './slots'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
 
@@ -2527,6 +2542,8 @@ export type GenerationResult =
 
 /** The step reported while Glean writes the copy (v1.1 §7). Pull reports 1 to 6 and 8; there is no step 7. */
 export const WRITING_STEP = 9
+/** The step reported just before Glean's second attempt, only when it runs (spec v1.1 §16.3). */
+export const SECOND_ATTEMPT_STEP = 10
 
 export async function generateSnapshot(
   projectId: string,
@@ -2554,6 +2571,7 @@ export async function generateSnapshot(
     for (let attempt = 1; attempt <= 2; attempt++) {
       const left = deps.deadline - deps.now()
       if (attempt === 2 && left < 60_000) break
+      if (attempt === 2) reach(SECOND_ATTEMPT_STEP)
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), Math.max(left, 1))
       let replyText: string
@@ -2574,7 +2592,11 @@ export async function generateSnapshot(
       const shape = checkContract('glean.slots', GLEAN_SLOTS, parsed)
       if (!shape.ok) { problems = shape.issues.map((i) => `${i.field}: ${i.issue}`); continue }
       const fixedNow = { ...fixed }
-      if (DECISIONS.writeSpecificCategory && typeof parsed?.category === 'string') fixedNow.category = parsed.category
+      if (DECISIONS.writeSpecificCategory && typeof parsed?.category === 'string') {
+        // Glean's category only when it fits (spec v1.1 §16.1, Task 3b); anything else keeps the code value and never retries or fails.
+        const written = cleanValue(parsed.category)
+        if (written && written.length <= MAX_LEAD) fixedNow.category = written
+      }
       const checked = validateGeneratedSlots(parsed, fixedNow)
       if (!checked.ok) { problems = checked.errors; continue }
       const flags = groundingFlags(checked.slots, data, block)
@@ -2734,13 +2756,13 @@ afterEach(() => { vi.restoreAllMocks() })
 
 const INPUT: SettingsInput = {
   users: 'ana@avenuez.com', admins: '', section1: 'Category data', section2: 'Competitive visibility',
-  nextStepMode: 'written', nextStep: '', rankMode: 'all', rankAmong: '', peecOpportunityRows: '1',
-  methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx',
+  nextStepMode: 'fixed', nextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankMode: 'all', rankAmong: '', peecOpportunityRows: '1',
+  methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z',
 }
 const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 7, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, sidebarWordmark: 'Avenue Z', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'boss@avenuez.com' }
 
 test('the defaults are the config.ts DECISIONS, and no row means the defaults', () => {
-  expect(SETTINGS_DEFAULTS).toEqual({ users: [], admins: [], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: null, rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx' })
+  expect(SETTINGS_DEFAULTS).toEqual({ users: [], admins: [], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z' })
   expect(resolveSettings(null)).toEqual({ settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false })
   expect(resolveSettings(undefined)).toEqual({ settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false })
 })
@@ -2948,7 +2970,7 @@ export const SETTINGS_FIELD_LABELS: Record<SettingsField, string> = {
   sectionTitles: 'Section titles',
   fixedNextStep: 'Next step',
   rankAmong: 'Rank the brand among',
-  peecOpportunityRows: 'Opportunities based on Peec recommendations',
+  peecOpportunityRows: 'Most opportunities from Peec recommendations',
   methodologyStatesPromptsAndModels: 'Methodology names the prompt count and the AI models',
   sidebarWordmark: 'Menu wordmark',
 }
@@ -3293,6 +3315,7 @@ test('a new row takes the section titles and wordmark from settings and every ot
 })
 
 test('every new path saves within its limit: 120 for page words, KPIs, brand and window label, 1,000 for the footer description and disclaimer', () => {
+  expect(limitFor('category')).toBe(80)
   for (const p of ['brand', 'window_label', 'kpis.0.label', 'kpis.1.value', 'page.series', 'page.opps_col_3']) {
     expect(limitFor(p)).toBe(120)
     expect(applySlotPatch(S, p, 'x'.repeat(120)).ok).toBe(true)
@@ -3470,12 +3493,13 @@ function checkValue(raw: unknown, limit: number): { ok: true; value: string } | 
   return { ok: true, value }
 }
 
-/** Characters allowed for a path (v1.1 §3): footer description and disclaimer 1,000; other page words, KPIs, brand and
- *  window label 120; a bullet lead 80; the rest of the copy 1,000. */
+/** Characters allowed for a path (v1.1 §3, §16.1): footer description and disclaimer 1,000; other page words, KPIs, brand
+ *  and window label 120; a bullet lead and the category 80; the rest of the copy 1,000. */
 export function limitFor(path: string): number {
   if (path === 'page.footer_desc' || path === 'page.footer_disclaimer') return MAX_VALUE
   if (path.startsWith('page.') || path.startsWith('kpis.') || path === 'brand' || path === 'window_label') return MAX_LABEL
-  return path.endsWith('.lead') ? MAX_LEAD : MAX_VALUE
+  // A bullet lead, and the category since Ryan's Q3 answer (spec v1.1 §16.1, Task 3b): 80.
+  return path.endsWith('.lead') || path === 'category' ? MAX_LEAD : MAX_VALUE
 }
 
 /** The page words a new row is created with: v1.0's, with the section titles and wordmark from settings (v1.1 §3). */
@@ -3599,7 +3623,7 @@ Run the slots and labels tests: PASS.
 In `lib/aeo-outbound/grounding.test.ts`:
 - Add `import type { Note } from './notes'` and after the imports: `const legacy = (ns: Note[]) => [...new Set(ns.map((n) => `${(n.path ?? '').split('.')[0]}: ${n.text}`))]` (v1.0's `"<top-level key>: <text>"` form).
 - Line 7 (`D`): add `brand: 'Example Co', windowLabel: 'Oct 1, 2026 to Oct 8, 2026', kpis: [],` inside the object.
-- In every existing assertion (lines 12 to 105) wrap each `groundingFlags(...)` call in `legacy(...)`, for example line 16 becomes `expect(legacy(groundingFlags(s, D, allowed))).toEqual(['why: "12.5%" is not in the Peec data'])` and line 48 becomes `const say = (why: string) => legacy(groundingFlags({ ...plain, why }, R, RT))`. The expected strings do not change.
+- In every existing assertion (lines 12 to 105, and Task 3b's appended test 'long-dash exemption (spec v1.1 §16.1): ...') wrap each `groundingFlags(...)` call in `legacy(...)`, for example line 16 becomes `expect(legacy(groundingFlags(s, D, allowed))).toEqual(['why: "12.5%" is not in the Peec data'])` and line 48 becomes `const say = (why: string) => legacy(groundingFlags({ ...plain, why }, R, RT))`. The expected strings do not change.
 - Append:
 ```ts
 const KPIS = [{ label: 'AI visibility', value: '15.5%' }, { label: 'AI share of voice', value: '15.9%' }, { label: 'Average answer position', value: '#3.1' }, { label: 'Competitive rank', value: '#3 of 12 brands' }]
@@ -3658,6 +3682,17 @@ test('next_step is set by code only when the row was generated with a fixed sent
   const fixed = { ...R, schemaVersion: 2, settingsUsed: { rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: `Book a call ${dash} soon` } } as unknown as SnapshotData
   expect(groundingFlags(s, fixed, dataBlock(fixed))).toEqual([])
 })
+
+test('the long-dash exemption compares cleaned values, and the hidden Powered by line is never checked (spec v1.1 §16.1)', () => {
+  const dash = String.fromCharCode(0x2014)
+  const v2 = { ...R, schemaVersion: 2, category: `Fin  ${dash} tech `, settingsUsed: { rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: ` Book a call  ${dash} soon` } } as unknown as SnapshotData
+  expect(groundingFlags({ ...plain, category: `Fin ${dash} tech`, next_step: `Book a call ${dash} soon` }, v2, RT)).toEqual([])
+  expect(groundingFlags({ ...plain, page: { sidebar_wordmark: 'Avenue Z', sidebar_powered: `Powered by 77 ${dash} x` } }, R, RT)).toEqual([])
+  expect(groundingFlags({ ...plain, page: { sidebar_wordmark: 'AIVx', sidebar_powered: `Powered by 77 ${dash} x` } }, R, RT)).toEqual([
+    { kind: 'number_not_in_data', path: 'page.sidebar_powered', text: '"77" is not in the Peec data' },
+    { kind: 'long_dash', path: 'page.sidebar_powered', text: 'contains a long dash; use a period or comma' },
+  ])
+})
 ```
 In `lib/aeo-outbound/v1-compat.test.ts` replace the flags test with:
 ```ts
@@ -3675,9 +3710,11 @@ Replace `lib/aeo-outbound/grounding.ts` with:
 // Post-generation checks (spec §6, v1.1 §3): numbers must appear in the Data block, domains must be Peec's, on every
 // slot. A KPI value is compared with Peec's value and the window label with Peec's label instead. Modeled on
 // lib/peec/content-impact-synopsis.ts:58-100. Runs on every save, so notes stay current. Flags are structured notes.
+import { NEEDS_VALIDATION } from './config'
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
-import { slotEntries, withDefaults, type Slots } from './slots'
+import { showsPowered } from './render'
+import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 
 const NUM = /#?\d[\d,]*(?:\.\d+)?%?/g
 const DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi
@@ -3708,11 +3745,25 @@ export function kpiDiffers(shown: string, peec: string): boolean {
   return sn.toFixed(places) !== Number(p).toFixed(places)
 }
 
+/**
+ * Paths whose long dash is not flagged because code set the text and Glean can't fix it (spec v1.1 §16.1, from Task 3b):
+ * market always; category on a version 1 row always, on a version 2 row only while it still equals the code value
+ * (Peec's category or "Needs validation"); next_step only while it still equals the row's fixed sentence. The fixed
+ * sentence is read from the row (the settings it was generated with), never live settings. Compared after cleanValue,
+ * the way every slot is stored.
+ */
+function dashExempt(path: string, s: { category: string; next_step: string }, d: SnapshotData): boolean {
+  if (path === 'market') return true
+  if (path === 'category') return d.schemaVersion !== 2 || cleanValue(s.category) === cleanValue(d.category ?? NEEDS_VALIDATION)
+  if (path === 'next_step') {
+    const fixed = settingsUsedOf(d).fixedNextStep
+    return fixed !== null && cleanValue(s.next_step) === cleanValue(fixed)
+  }
+  return false
+}
+
 export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string): Note[] {
   const full = withDefaults(slots, d)
-  // Set by code, not by Glean: a dash there comes from Peec or a fixed sentence. Read from the row's own data (the
-  // settings it was generated with), never from live settings, so a settings change never alters a draft's notes.
-  const codeSet = new Set(['category', 'market', ...(settingsUsedOf(d).fixedNextStep !== null ? ['next_step'] : [])])
   const allowedDomains = new Set([...d.ownDomains, ...d.gapDomains.map((g) => g.domain), ...(dataText.match(DOMAIN) ?? []), ...ALWAYS_ALLOWED_DOMAINS].map((x) => x.toLowerCase()))
   // With no competitors tracked the Data block names no outside brand, so its digits are not exempt either.
   const brandNames = (d.competitorsTracked === 0 ? d.brands.filter((b) => b.isOwn) : d.brands).map((b) => b.name)
@@ -3739,6 +3790,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     // The page hides the context box when no competitor is tracked (render.ts), so its text is never shown.
     if (path === 'context' && d.competitorsTracked === 0) continue
     if (path === 'brand') continue
+    // The page hides the Powered by line under an Avenue Z wordmark (spec v1.1 §16.1), so its text is never shown.
+    if (path === 'page.sidebar_powered' && !showsPowered(full.page.sidebar_wordmark)) continue
     const kpi = /^kpis\.(\d)\.value$/.exec(path)
     if (kpi) {
       const peec = d.kpis[Number(kpi[1])]
@@ -3753,7 +3806,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     for (const name of exemptNames) text = text.split(name).join(' ')
     for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
     for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
-    if (!codeSet.has(path) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
+    if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }
   if (d.brand && full.brand !== d.brand) {
     const n = entries.filter(([p, v]) => p !== 'brand' && v.includes(d.brand)).length
@@ -4123,11 +4176,23 @@ test('exactly one editable element per path, every path present, and every mirro
   const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x'))
   const paths = [...doc.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
   expect(paths.length).toBe(new Set(paths).size)
-  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(SLOTS, DATA)).map(([p]) => p)))
+  // The default wordmark is Avenue Z, so the Powered by line and its slot are not on the page (spec v1.1 §16.1).
+  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(SLOTS, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
   const mirrors = new Set([...doc.querySelectorAll('[data-mirror]')].map((e) => e.getAttribute('data-mirror')))
   expect(mirrors).toEqual(new Set(['brand', 'page.series', 'page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label']))
   for (const m of mirrors) expect(paths).toContain(m)
   expect(doc.querySelectorAll('[data-mirror][data-slot]')).toHaveLength(0)
+})
+
+test('the Powered by line and its slot appear only under a wordmark that is not Avenue Z (spec v1.1 §16.1)', () => {
+  const aivx = parse(renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: 'AIVx' } }, 'draft', 'x'))
+  expect(aivx.querySelector('[data-slot="page.sidebar_powered"]')?.textContent).toBe('Powered by Avenue Z')
+  for (const w of ['Avenue Z', ' avenue z ']) {
+    const h = renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: w } }, 'draft', 'x')
+    expect(h).not.toContain('data-slot="page.sidebar_powered"')
+    expect(h).not.toContain('<div class="powered"')
+  }
+  expect(renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: 'AIVx' } }, 'final', 'x')).toContain('<div class="aivx-brand">AIVx</div>\n    <div class="powered">Powered by Avenue Z</div>')
 })
 
 test('the brand slot is used in every place the brand shows: title, description, hero, sidebar, footer, bar label and bolding', () => {
@@ -4465,6 +4530,9 @@ export const SHARE_BUTTON = `
       <span class="share-btn-label">Share Report</span>
     </button>`
 
+/** The "Powered by Avenue Z" line shows only under a wordmark that is not already Avenue Z (spec v1.1 §16.1, from Task 3b). */
+export const showsPowered = (wordmark: string): boolean => wordmark.trim().toLowerCase() !== 'avenue z'
+
 export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: RenderMode, preparedOn: string): string {
   const draft = mode === 'draft'
   const s = withDefaults(stored, data)
@@ -4520,8 +4588,7 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   const sidebar = `
 <nav class="sidebar">
   <div class="sidebar-logo">
-    ${slot('div', 'page.sidebar_wordmark', p.sidebar_wordmark, 'aivx-brand')}
-    ${slot('div', 'page.sidebar_powered', p.sidebar_powered, 'powered')}
+    ${slot('div', 'page.sidebar_wordmark', p.sidebar_wordmark, 'aivx-brand')}${showsPowered(p.sidebar_wordmark) ? `\n    ${slot('div', 'page.sidebar_powered', p.sidebar_powered, 'powered')}` : ''}
   </div>
   <div class="sidebar-industry">
     ${mirror('page.series', p.series)}
@@ -4640,13 +4707,15 @@ Run the render and frame tests: PASS.
 
 In `lib/aeo-outbound/v1-compat.test.ts` add `import { AIVX_JS } from './aivx/js'` and `import { HEADER_CLONE_JS } from './render'`, and replace the `v11` helper and the render test with:
 ```ts
-// Deliberate differences from v1.0 (spec v1.1 §9), applied to the frozen v1.0 golden: the donut hover reads Retrievals,
-// and the header clone script follows the AIVx script.
+// Deliberate differences from v1.0 (spec v1.1 §9 and §16.1), applied to the frozen v1.0 golden: the donut hover reads
+// Retrievals, the header clone script follows the AIVx script, and (Task 3b) no AIVx wordmark and no Powered by line.
+const V10_LOGO = '<div class="aivx-brand">AIVx</div>\n    <div class="powered">Powered by Avenue Z</div>'
 const v11 = (html: string) => {
   expect(html.split('Citations: %{value}')).toHaveLength(2)
   const aivx = `<script>${AIVX_JS}</script>`
   expect(html.split(aivx)).toHaveLength(2)
-  return html.split('Citations: %{value}').join('Retrievals: %{value}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script>`)
+  expect(html.split(V10_LOGO)).toHaveLength(2)
+  return html.split('Citations: %{value}').join('Retrievals: %{value}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script>`).split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
 }
 // The footer description and disclaimer are one slot value each now, rendered on one line where v1.0 wrapped them over
 // several; HTML collapses whitespace, so the page reads the same. Every other byte is compared as is.
@@ -4868,7 +4937,7 @@ Covers v1.1 §7 (plain-words failure text per code with the next step and the ro
 - Produces:
   - `ui.ts`: `cardCls`, `btnCls`, `primaryBtnCls`, `inputCls` (hub.tsx re-exports `cardCls` and `btnCls`)
   - `failure-text.ts`: `failureText(code: string | null, error: string | null, id: string): string`
-  - `progress.ts`: `PULLING = 'Pulling Peec data…'`, `WRITING = 'Writing the copy…'`, `USUALLY = 'Usually 35 to 45 seconds'`, `KEEP_OPEN = 'Keep this tab open until it finishes.'`, `elapsedLabel(ms: number): string`, `progressText(step: number, startedAtIso: string, nowMs: number): string`
+  - `progress.ts` (spec v1.1 §16.3): `PROGRESS_STEPS` (the eight `{ step, label }` rows), `SECOND_ATTEMPT_LABEL`, `STARTING = 'Starting'`, `USUALLY = 'Usually 35 to 45 seconds'`, `SLOW_AFTER_MS = 90_000`, `SLOW`, `KEEP_OPEN = 'Keep this tab open until it finishes.'`, `type RowState = 'done' | 'current' | 'waiting'`, `interface ProgressView { rows: { label: string; state: RowState }[]; done: number; total: number; current: string }`, `progressView(step: number): ProgressView`, `isSlow(elapsedMs: number): boolean`, `elapsedLabel(ms: number): string`, `progressText(step: number, startedAtIso: string, nowMs: number): string` (the one-line form)
   - `confirm-dialog.tsx`: `ConfirmDialog(props: ConfirmDialogProps)` with `{ title: string; children?: ReactNode; confirmLabel: string; cancelLabel: string; onConfirm: () => void; onCancel: () => void; busy?: boolean; error?: string | null; confirmDisabled?: boolean; initialFocus?: 'cancel' | 'input' }`
   - `copy-link.tsx`: `CopyLink({ url, showField }: { url: string; showField?: boolean })`
   - `save-queue.ts`: `SaveState` gains `structuring: boolean`; `SaveQueue.structure(path: string): void`
@@ -4912,20 +4981,45 @@ test('every error code has its own words, and a row with no code shows its store
 Create `components/aeo-outbound/progress.test.ts`:
 ```ts
 import { expect, test } from 'vitest'
-import { elapsedLabel, progressText } from './progress'
+import { PROGRESS_STEPS, SECOND_ATTEMPT_LABEL, SLOW, elapsedLabel, isSlow, progressText, progressView } from './progress'
 
 const START = '2026-10-08T15:00:00.000Z'
 const at = (s: number) => Date.parse(START) + s * 1000
-test('steps 0 to 8 read Pulling Peec data, step 9 Writing the copy, with minutes and seconds', () => {
-  expect(progressText(4, START, at(18))).toBe('Pulling Peec data… 0:18')
-  expect(progressText(0, START, at(2))).toBe('Pulling Peec data… 0:02')
+test('every step label, in order (spec v1.1 §16.3); there is no step 7', () => {
+  expect(PROGRESS_STEPS.map((r) => [r.step, r.label])).toEqual([
+    [1, 'Finding the project in Peec'], [2, 'Reading the brands tracked'], [3, 'Reading the project profile'], [4, 'Finding the days with data'],
+    [5, 'Loading brand visibility and AI models'], [6, 'Loading the sources AI used'], [8, "Loading Peec's recommendations"], [9, 'Writing the copy'],
+  ])
+  expect(SECOND_ATTEMPT_LABEL).toBe('Writing the copy, second attempt')
+})
+test('the one-line form: the current step, an ellipsis, then minutes and seconds', () => {
+  expect(progressText(4, START, at(18))).toBe('Finding the days with data… 0:18')
+  expect(progressText(0, START, at(2))).toBe('Starting… 0:02')
+  expect(progressText(2, START, at(4))).toBe('Reading the brands tracked… 0:04')
   expect(progressText(9, START, at(41))).toBe('Writing the copy… 0:41')
-  expect(progressText(9, START, at(65))).toBe('Writing the copy… 1:05')
+  expect(progressText(10, START, at(65))).toBe('Writing the copy, second attempt… 1:05')
 })
 test('a client clock behind the server shows 0:00', () => {
-  expect(progressText(1, START, at(-5))).toBe('Pulling Peec data… 0:00')
+  expect(progressText(1, START, at(-5))).toBe('Finding the project in Peec… 0:00')
   expect(elapsedLabel(Number.NaN)).toBe('0:00')
-  expect(progressText(1, 'not a date', at(5))).toBe('Pulling Peec data… 0:00')
+  expect(progressText(1, 'not a date', at(5))).toBe('Finding the project in Peec… 0:00')
+})
+test('the checklist: rows before the step done, the step current, later rows waiting; the bar counts done rows of 8', () => {
+  const states = (step: number) => progressView(step).rows.map((r) => r.state)
+  expect(progressView(0)).toEqual({ rows: PROGRESS_STEPS.map((r) => ({ label: r.label, state: 'waiting' })), done: 0, total: 8, current: 'Starting' })
+  expect(states(1)).toEqual(['current', 'waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'waiting', 'waiting'])
+  expect(states(5)).toEqual(['done', 'done', 'done', 'done', 'current', 'waiting', 'waiting', 'waiting'])
+  expect([progressView(5).done, progressView(5).current]).toEqual([4, 'Loading brand visibility and AI models'])
+  expect(states(8)).toEqual(['done', 'done', 'done', 'done', 'done', 'done', 'current', 'waiting'])
+  expect(progressView(9).done).toBe(7)
+  expect(progressView(10).rows[7]).toEqual({ label: 'Writing the copy, second attempt', state: 'current' })
+  expect(progressView(10).done).toBe(7)
+  expect(progressView(Number.NaN).current).toBe('Starting')
+})
+test('slow after 90 seconds, with the stop time from the generation deadline', () => {
+  expect(isSlow(89_999)).toBe(false)
+  expect(isSlow(90_000)).toBe(true)
+  expect(SLOW).toBe('Taking longer than usual. It stops by itself after 4 minutes 30 seconds.')
 })
 ```
 
@@ -5113,13 +5207,33 @@ export function failureText(code: string | null, error: string | null, id: strin
 
 Create `components/aeo-outbound/progress.ts`:
 ```ts
-// What a generating row shows (spec v1.1 §7): the step in words and the time since it started. Usually 35 to 45 seconds
-// (measured: 34.7 s in the dev run, 35.8 s and 40.6 s in the trials).
-export const PULLING = 'Pulling Peec data…'
-export const WRITING = 'Writing the copy…'
+// What a generating row shows (spec v1.1 §16.3): every step in words as a checklist, and the time since it started.
+// Usually 35 to 45 seconds (measured: 34.7 s in the dev run, 35.8 s and 40.6 s in the trials).
+import { GENERATION_DEADLINE_MS } from '@/lib/aeo-outbound/config'
+
+/** The eight rows, each the progress_step it stands for: pull.ts reports 1 to 6 and 8, generate.ts 9 (WRITING_STEP)
+ *  and 10 (SECOND_ATTEMPT_STEP, shown on the last row). There is no step 7. */
+export const PROGRESS_STEPS = [
+  { step: 1, label: 'Finding the project in Peec' },
+  { step: 2, label: 'Reading the brands tracked' },
+  { step: 3, label: 'Reading the project profile' },
+  { step: 4, label: 'Finding the days with data' },
+  { step: 5, label: 'Loading brand visibility and AI models' },
+  { step: 6, label: 'Loading the sources AI used' },
+  { step: 8, label: "Loading Peec's recommendations" },
+  { step: 9, label: 'Writing the copy' },
+] as const
+export const SECOND_ATTEMPT_LABEL = 'Writing the copy, second attempt'
+/** Step 0: the row exists, or the request is on its way, and Peec has not been called yet. Shown with an ellipsis. */
+export const STARTING = 'Starting'
 export const USUALLY = 'Usually 35 to 45 seconds'
+export const SLOW_AFTER_MS = 90_000
+export const SLOW = `Taking longer than usual. It stops by itself after ${Math.floor(GENERATION_DEADLINE_MS / 60_000)} minutes ${(GENERATION_DEADLINE_MS % 60_000) / 1000} seconds.`
 /** Whether a generation survives a closed tab is unverified (main spec §7a), so the copy says to keep it open. */
 export const KEEP_OPEN = 'Keep this tab open until it finishes.'
+
+export type RowState = 'done' | 'current' | 'waiting'
+export interface ProgressView { rows: { label: string; state: RowState }[]; done: number; total: number; current: string }
 
 /** m:ss, never negative: a browser clock behind the server shows 0:00. */
 export function elapsedLabel(ms: number): string {
@@ -5127,9 +5241,22 @@ export function elapsedLabel(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-/** Steps 0 to 8 are the Peec pull; 9 is the copy (generate.ts WRITING_STEP). */
+export const isSlow = (elapsedMs: number): boolean => elapsedMs >= SLOW_AFTER_MS
+
+/** The checklist for a progress_step. Below 1 (or not a number): every row waiting, "Starting". 10 and above: the last row, second attempt. */
+export function progressView(step: number): ProgressView {
+  const s = Number.isFinite(step) ? step : 0
+  const at = Math.min(s, 9)
+  const rows = PROGRESS_STEPS.map((r) => ({
+    label: r.step === 9 && s >= 10 ? SECOND_ATTEMPT_LABEL : r.label,
+    state: (s < 1 ? 'waiting' : r.step < at ? 'done' : r.step === at ? 'current' : 'waiting') as RowState,
+  }))
+  return { rows, done: rows.filter((r) => r.state === 'done').length, total: rows.length, current: rows.find((r) => r.state === 'current')?.label ?? STARTING }
+}
+
+/** The one-line form, for rows not started in this tab: the current step, an ellipsis, then the clock. */
 export function progressText(step: number, startedAtIso: string, nowMs: number): string {
-  return `${step >= 9 ? WRITING : PULLING} ${elapsedLabel(nowMs - Date.parse(startedAtIso))}`
+  return `${progressView(step).current}… ${elapsedLabel(nowMs - Date.parse(startedAtIso))}`
 }
 ```
 
@@ -5405,7 +5532,7 @@ Covers v1.1 §2 (the Edit button, Preview by default, Done editing, the banner, 
 - Consumes: the frame protocol (Task 7); `SaveQueue.structure`, `SaveState.structuring` (Task 9); `ConfirmDialog`, `CopyLink`, `failureText`, `progressText`, `KEEP_OPEN`, `USUALLY`, `OPENS_CAVEAT` (Task 9); `fieldLabel` (Task 6); `isStructuralPath`, `cleanValue`, `withDefaults`, `needsValidationPaths` (Task 6); `noteGroup`, `noteText`, `isStoredNotes`, `StoredNote` (Task 3); `opensForReportQuery` (Task 2); `REPORT_SANDBOX` (Task 7); `fmtEasternDateTime` (Task 9); `outboundAccess` (Task 5).
 - Produces:
   - `before-you-send.tsx`: `interface AboutInfo { projectId: string; projectName: string; projectStatus: string | null; windowLabel: string; models: string[] }`, `OWN_CHECKS`, `tickKey(n: StoredNote): string`, `openCount(needsValidation: string[], notes: StoredNote[], ticks: ReadonlySet<string>): number`, `aboutHeader(a: AboutInfo): string`, `BeforeYouSend(props)`
-  - `editor.tsx`: `interface OpenEvent { openedAt: string; uaFamily: string; likelyAutomated: boolean; reason: string | null }`, `interface OutboundEditorProps { id; brand; projectId; status: DisplayStatus; revision; notes: StoredNote[]; needsValidation: string[]; token: string | null; error: string | null; errorCode: string | null; recipient: string | null; sectionTitles: [string, string]; about: AboutInfo | null; opens: OpenEvent[]; openCount: number; needsValidationBlocksApprove: boolean; unreadable: boolean; progressStep: number; createdAt: string }`
+  - `editor.tsx`: `interface OpenEvent { openedAt: string; uaFamily: string; likelyAutomated: boolean; reason: string | null }`, `interface OutboundEditorProps { id; brand; linkBrand: string | null; shareOrigin: string | null (Task 3c); projectId; status: DisplayStatus; revision; notes: StoredNote[]; needsValidation: string[]; token: string | null; error: string | null; errorCode: string | null; recipient: string | null; sectionTitles: [string, string]; about: AboutInfo | null; opens: OpenEvent[]; openCount: number; needsValidationBlocksApprove: boolean; unreadable: boolean; progressStep: number; createdAt: string }`
   - `store.ts`: `failureCode(row: Pick<AeoOutboundRow, 'status' | 'createdAt' | 'errorCode'>, nowMs: number): string | null`
 
 - [ ] **Step 1: Messages**
@@ -5465,13 +5592,14 @@ In `components/aeo-outbound/editor.test.tsx`:
 - Replace `base` (lines 35 to 38) with:
 ```ts
 const base: Props = {
-  id: ID, brand: 'Acme', projectId: 'p1', status: 'draft', revision: 4,
+  id: ID, brand: 'Acme', linkBrand: null, shareOrigin: null, projectId: 'p1', status: 'draft', revision: 4,
   notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], token: null, error: null, errorCode: null, recipient: null,
   sectionTitles: ['Category data', 'Competitive visibility'], about: null, opens: [], openCount: 0,
   needsValidationBlocksApprove: true, unreadable: false, progressStep: 0, createdAt: '2026-10-08T15:00:00.000Z',
 }
 const panel = () => screen.getByRole('complementary', { name: 'Before you send' })
 ```
+- In Task 3c's two appended tests ('a live snapshot copies the locked link with the brand slug (spec v1.1 §16.2)' and 'a live snapshot with no locked origin labels the link as a test link'): Copy link now awaits the clipboard, so the `writeText` assertion becomes `await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://reporting.avenuez.com/snapshot/example-co-tok_123'))`; the note assertions stay.
 - In `'a draft loads the editable view into a sandboxed iframe'` add at the end: `expect(within(screen.getByRole('toolbar', { name: 'Snapshot actions' })).getAllByRole('button')[0]).toHaveTextContent('Edit')`.
 - Replace `'Approve is disabled while Needs validation remains, and enables after a save returns none'` (lines 89 to 96) with:
 ```ts
@@ -5546,13 +5674,13 @@ test('a generating snapshot shows its progress, the usual time and the keep-open
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-10-08T15:00:18.000Z'))
   const { container } = render(<OutboundEditor {...base} status="generating" progressStep={4} />)
-  expect(screen.getByText('Pulling Peec data… 0:18')).toBeInTheDocument()
+  expect(screen.getByText('Finding the days with data… 0:18')).toBeInTheDocument()
   expect(screen.getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
   expect(screen.getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
   expect(container.querySelector('iframe')).toBeNull()
   await act(() => vi.advanceTimersByTimeAsync(10_000))
   expect(refresh).toHaveBeenCalledTimes(2)
-  expect(screen.getByText('Pulling Peec data… 0:28')).toBeInTheDocument()
+  expect(screen.getByText('Finding the days with data… 0:28')).toBeInTheDocument()
   expect(fetchMock).not.toHaveBeenCalled()
 })
 ```
@@ -5895,13 +6023,17 @@ import {
 } from './messages'
 import { KEEP_OPEN, USUALLY, progressText } from './progress'
 import { RETRY_MESSAGE, SaveQueue, type SaveState, type SendResult } from './save-queue'
-import { snapshotUrl } from './status'
+import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 import { btnCls, cardCls, inputCls, primaryBtnCls } from './ui'
 
 export interface OpenEvent { openedAt: string; uaFamily: string; likelyAutomated: boolean; reason: string | null }
 export interface OutboundEditorProps {
   id: string
   brand: string
+  /** The row's own brand_name for the link slug; null when Peec never named it (Task 3c, spec v1.1 §16.2). */
+  linkBrand: string | null
+  /** The locked origin for this deployment, or null on a preview or local server (Task 3c). */
+  shareOrigin: string | null
   projectId: string
   status: DisplayStatus
   revision: number
@@ -5975,7 +6107,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [busy, setBusy] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [origin, setOrigin] = useState('')
-  useEffect(() => { setOrigin(window.location.origin) }, [])
+  useEffect(() => { setOrigin(props.shareOrigin ?? window.location.origin) }, [props.shareOrigin])
 
   const showsReport = !props.unreadable && (status === 'draft' || status === 'live' || status === 'revoked')
   const toFrame = (m: unknown) => iframeRef.current?.contentWindow?.postMessage(m, '*')
@@ -6236,7 +6368,8 @@ export function OutboundEditor(props: OutboundEditorProps) {
             {status === 'draft' && (
               <button type="button" className={btnCls} disabled={approveDisabled} title={approveTitle} onClick={() => void onApprove()}>Approve</button>
             )}
-            {status === 'live' && token && origin && <CopyLink url={snapshotUrl(origin, token)} showField />}
+            {status === 'live' && token && origin && <CopyLink url={shareUrl(origin, props.linkBrand, token)} showField />}
+            {status === 'live' && token && props.shareOrigin === null && <span className="text-xs text-text-muted">{TEST_LINK_NOTE}</span>}
             {status === 'live' && <button type="button" className={btnCls} disabled={busy} onClick={() => setDialog({ kind: 'revoke' })}>Revoke</button>}
             {status !== 'generating' && <button type="button" className={btnCls} disabled={busy} onClick={onRerun}>Rerun</button>}
             {status === 'failed' && <button type="button" className={btnCls} disabled={busy} onClick={() => setDialog({ kind: 'discard' })}>Discard</button>}
@@ -6369,6 +6502,7 @@ import { DECISIONS, PAGE_WORDS_V1 } from '@/lib/aeo-outbound/config'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { displayStatus, failureCode, failureReason, getReport, isReportId, opensForReportQuery } from '@/lib/aeo-outbound/store'
 import { needsValidationPaths, withDefaults } from '@/lib/aeo-outbound/slots'
+import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
 import { OutboundEditor, type OpenEvent } from '@/components/aeo-outbound/editor'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
 
@@ -6409,6 +6543,8 @@ export default async function NewBusinessEditorPage({
       key={row.id}
       id={row.id}
       brand={row.brandName ?? row.peecProjectName}
+      linkBrand={row.brandName}
+      shareOrigin={shareOrigin()}
       projectId={row.peecProjectId}
       status={status}
       revision={row.revision}
@@ -6466,7 +6602,7 @@ Covers v1.1 §5 (the subtitle, status tabs with server counts, one server-side s
 - Produces:
   - `hub-rows.ts`: `interface HubRow { id; brand; projectId; projectName; status: DisplayStatus; createdAt: string; createdBy: string; approvedAt: string | null; error: string | null; errorCode: string | null; progressStep: number; token: string | null; recipient: string | null; openCount: number; opensPerson: number; opensAutomated: number; firstOpenedAt: string | null; lastOpenedAt: string | null; requestedStart: string | null; requestedEnd: string | null }`, `toHubRow(r: ReportSummary, nowMs: number): HubRow`, `MAX_SEARCH = 100`, `cleanSearch(q: unknown): string | null`
   - Show older: `GET /api/aeo-outbound/reports?before=<ISO time>&beforeId=<report id>&q=<search>` answers `200 { rows: HubRow[], cursor: { before: string, beforeId: string } | null }` (`cursor` null when nothing older is left), `400 { error: 'bad-request' }` for a missing or malformed cursor, `403 { error: 'forbidden' }`, `503 { error: 'unavailable' }`
-  - `hub.tsx`: `interface OutboundHubProps { rows: HubRow[]; counts: HubCounts; cursor: HubCursor | null; q: string; projectStats: Record<string, ProjectStat>; isAdmin: boolean }`, `OutboundHub`, `StatusPill` (unchanged), `opensSummary(r): string`, re-exports `HubRow`, `btnCls`, `cardCls`
+  - `hub.tsx`: `interface OutboundHubProps { rows: HubRow[]; counts: HubCounts; cursor: HubCursor | null; q: string; projectStats: Record<string, ProjectStat>; isAdmin: boolean; shareOrigin: string | null }`, `OutboundHub`, `StatusPill` (unchanged), `opensSummary(r): string`, re-exports `HubRow`, `btnCls`, `cardCls`
   - `project-picker.tsx`: `interface PickerProject { id: string; name: string; status: string }`, `projectLine(p, stat): string`, `ProjectPicker(props)`
   - `status.ts`: failed rows get `['open', 'rerun', 'discard']`
 
@@ -6606,6 +6742,8 @@ import { displayStatus, failureCode, failureReason, type DisplayStatus, type Rep
 export interface HubRow {
   id: string
   brand: string
+  /** The row's own brand_name for the link slug; null when Peec never named it (Task 3c, spec v1.1 §16.2). */
+  linkBrand: string | null
   projectId: string
   projectName: string
   status: DisplayStatus
@@ -6630,6 +6768,7 @@ export function toHubRow(r: ReportSummary, nowMs: number): HubRow {
   return {
     id: r.id,
     brand: r.brandName ?? r.peecProjectName,
+    linkBrand: r.brandName,
     projectId: r.peecProjectId,
     projectName: r.peecProjectName,
     status: displayStatus(r, nowMs),
@@ -6701,6 +6840,7 @@ import { requireStaff } from '@/lib/auth/page-access'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { cleanSearch, toHubRow } from '@/lib/aeo-outbound/hub-rows'
 import { hubCounts, listReportSummaries, projectStats } from '@/lib/aeo-outbound/store'
+import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
 import { OutboundHub } from '@/components/aeo-outbound/hub'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
 
@@ -6719,7 +6859,7 @@ export default async function NewBusinessHubPage({
   const [list, counts, stats] = await Promise.all([listReportSummaries({ q: search }), hubCounts(search, new Date(now)), projectStats()])
   // Every prop is plain data (strings, numbers, null, arrays and objects of those): nothing here may be a function (check:rsc).
   return (
-    <OutboundHub rows={list.rows.map((r) => toHubRow(r, now))} cursor={list.cursor} counts={counts} q={search ?? ''} projectStats={stats} isAdmin={access.admin} />
+    <OutboundHub rows={list.rows.map((r) => toHubRow(r, now))} cursor={list.cursor} counts={counts} q={search ?? ''} projectStats={stats} isAdmin={access.admin} shareOrigin={shareOrigin()} />
   )
 }
 ```
@@ -6746,12 +6886,12 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 const PROJECTS = [{ id: 'p1', name: 'Acme pitch', status: 'PITCH' }, { id: 'p2', name: 'Globex pitch', status: 'PITCH_ENDED' }]
 const COUNTS = { all: 0, draft: 0, live: 0, revoked: 0, failed: 0 }
 const row = (over: Partial<HubRow>): HubRow => ({
-  id: ID(1), brand: 'Acme', projectId: 'p1', projectName: 'Acme pitch', status: 'draft',
+  id: ID(1), brand: 'Acme', linkBrand: null, projectId: 'p1', projectName: 'Acme pitch', status: 'draft',
   createdAt: '2026-10-01T15:00:00.000Z', createdBy: 'ryan@avenuez.com', approvedAt: null, error: null, errorCode: null, progressStep: 0,
   token: null, recipient: null, openCount: 0, opensPerson: 0, opensAutomated: 0, firstOpenedAt: null, lastOpenedAt: null,
   requestedStart: null, requestedEnd: null, ...over,
 })
-const props = (over: Partial<OutboundHubProps> = {}): OutboundHubProps => ({ rows: [], counts: COUNTS, cursor: null, q: '', projectStats: {}, isAdmin: false, ...over })
+const props = (over: Partial<OutboundHubProps> = {}): OutboundHubProps => ({ rows: [], counts: COUNTS, cursor: null, q: '', projectStats: {}, isAdmin: false, shareOrigin: null, ...over })
 const hub = (over: Partial<OutboundHubProps> = {}) => render(<OutboundHub {...props(over)} />)
 
 let generate: () => Promise<Response>
@@ -6850,7 +6990,7 @@ test('Generate shows a local progress row with the keep-open advice, and 200 dra
   let release: (r: Response) => void = () => {}
   generate = () => new Promise((r) => { release = r })
   await pickAndGenerate()
-  expect(await screen.findByText(/^Pulling Peec data… 0:0\d$/)).toBeInTheDocument()
+  expect(await screen.findByText(/^Starting… 0:0\d$/)).toBeInTheDocument()
   expect(screen.getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
   expect(screen.getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
   expect(bodies()).toEqual([{ projectId: 'p1' }])
@@ -6882,7 +7022,7 @@ test.each([
   await pickAndGenerate()
   expect(await screen.findByText(text)).toBeInTheDocument()
   expect(push).not.toHaveBeenCalled()
-  expect(screen.queryByText(/^Pulling Peec data/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/^Starting…/)).not.toBeInTheDocument()
   expect(refresh).toHaveBeenCalledTimes(2)
 })
 
@@ -7150,6 +7290,23 @@ test('Copy link writes the public link and says Copied', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }))
   await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/snapshot/tok_123`))
   expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+  expect(screen.getByText('Test link: it works on this environment only.')).toBeInTheDocument()
+  await loaded()
+})
+
+test('Copy link uses the locked origin and the brand slug when the server passes them, with no test-link note (spec v1.1 §16.2)', async () => {
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  hub({ shareOrigin: 'https://reporting.avenuez.com', rows: [row({ status: 'live', token: 'tok_123', linkBrand: 'Example Co', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })], counts: { ...COUNTS, all: 1 } })
+  fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }))
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://reporting.avenuez.com/snapshot/example-co-tok_123'))
+  expect(screen.queryByText('Test link: it works on this environment only.')).not.toBeInTheDocument()
+  await loaded()
+})
+
+test('no test-link note when no row has a link', async () => {
+  hub({ rows: [row({ status: 'draft' })], counts: { ...COUNTS, all: 1 } })
+  expect(screen.queryByText('Test link: it works on this environment only.')).not.toBeInTheDocument()
   await loaded()
 })
 
@@ -7340,7 +7497,8 @@ import {
 } from './messages'
 import { KEEP_OPEN, USUALLY, progressText } from './progress'
 import { ProjectPicker, type PickerProject } from './project-picker'
-import { STATUS_UI, actionsFor, snapshotUrl } from './status'
+import { STATUS_UI, actionsFor } from './status'
+import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 import { btnCls, cardCls, inputCls, primaryBtnCls } from './ui'
 
 export { btnCls, cardCls }
@@ -7353,6 +7511,8 @@ export interface OutboundHubProps {
   q: string
   projectStats: Record<string, ProjectStat>
   isAdmin: boolean
+  /** The locked origin for this deployment, or null on a preview or local server (Task 3c, spec v1.1 §16.2). */
+  shareOrigin: string | null
 }
 
 type Tab = 'all' | 'draft' | 'live' | 'revoked' | 'failed'
@@ -7390,7 +7550,7 @@ export function opensSummary(r: Pick<HubRow, 'openCount' | 'opensPerson' | 'open
   return rest > 0 ? `${head}, ${rest} not classified` : head
 }
 
-export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin }: OutboundHubProps) {
+export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, shareOrigin }: OutboundHubProps) {
   const router = useRouter()
   const mounted = useRef(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
@@ -7433,7 +7593,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin }: 
   useEffect(() => {
     router.refresh()
     void loadProjects()
-    setOrigin(window.location.origin)
+    setOrigin(shareOrigin ?? window.location.origin)
     // v1.1 §9: the same bounds checkRange enforces, today minus MAX_LOOKBACK_DAYS through today (UTC).
     const r = defaultRange(Date.now())
     setLimits({ min: r.start, max: r.end })
@@ -7607,6 +7767,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin }: 
         </label>
       </div>
       <p className="mb-2 text-xs text-text-muted">{OPENS_CAVEAT}</p>
+      {shareOrigin === null && rows.some((r) => r.token) && <p className="mb-2 text-xs text-text-muted">{TEST_LINK_NOTE}</p>}
 
       <div className={`${cardCls} overflow-x-auto p-0`}>
         <table className="w-full text-left text-sm text-white">
@@ -7668,7 +7829,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin }: 
                           case 'open':
                             return <Link key={a} href={`/tools/new-business/${r.id}`} className={btnCls}>{OPEN}</Link>
                           case 'copy':
-                            return r.token && origin ? <CopyLink key={a} url={snapshotUrl(origin, r.token)} /> : null
+                            return r.token && origin ? <CopyLink key={a} url={shareUrl(origin, r.linkBrand, r.token)} /> : null
                           case 'revoke':
                             return <button key={a} type="button" className={btnCls} disabled={disabled} onClick={() => setDialog({ kind: 'revoke', row: r })}>Revoke</button>
                           case 'edit':
@@ -7741,6 +7902,518 @@ Co-Authored-By: Claude <model> <noreply@anthropic.com>
 Push.
 
 ---
+### Task 11b: Live progress: the progress endpoint, the checklist, and polling in the hub and editor (spec v1.1 §16.3)
+
+Covers v1.1 §16.3 ("Shown", "Live", "Who polls"), the Task 11b bullet of §16.4, the progress rows of §16.5 and the "Progress" tests of §16.6. Built after Task 11, on top of Task 9's `progress.ts`, Task 10's editor and Task 11's hub; find each place by the code quoted, not by line number.
+
+**Files:**
+- Modify: `lib/aeo-outbound/store.ts` (import `gt`; append `generationProgressQuery`), `lib/aeo-outbound/store.test.ts` (append)
+- Create: `app/api/aeo-outbound/progress/route.ts`, `app/api/aeo-outbound/progress/route.test.ts`
+- Create: `components/aeo-outbound/use-generation-progress.ts`, `components/aeo-outbound/use-generation-progress.test.ts`
+- Create: `components/aeo-outbound/progress-checklist.tsx`, `components/aeo-outbound/progress-checklist.test.tsx`
+- Modify: `components/aeo-outbound/hub.tsx` (the local pending row), `components/aeo-outbound/hub.test.tsx`
+- Modify: `components/aeo-outbound/editor.tsx` (the generating card, the Rerun in flight), `components/aeo-outbound/editor.test.tsx`
+
+**Interfaces:**
+- Consumes: `progressView`, `elapsedLabel`, `isSlow`, `SLOW`, `USUALLY`, `KEEP_OPEN` (Task 9, as amended by §16.3); `outboundAccess(user)` (Task 5); `isReportId`, `staleBefore`-style rule via `STALE_GENERATING_MS` (`config.ts`); `errorLabel` (`lib/aeo-outbound/log.ts`); `requestGenerate` (`generate-client.ts`).
+- Produces: `generationProgressQuery(by: { id: string } | { projectId: string }, now: Date)` (`store.ts`); `GET /api/aeo-outbound/progress` answering 403 `{ error: 'forbidden' }`, 400 `{ error: 'bad-request' }`, 503 `{ error: 'unavailable' }`, or 200 `{ id, step, createdAt }` / `{ step: null }` with `Cache-Control: no-store`; `useGenerationProgress(target: ProgressTarget | null, initialStep?: number, onFinished?: () => void): LiveProgress`, `type ProgressTarget = { id: string } | { projectId: string; clickedAt: number }`, `interface LiveProgress { step: number; createdAt: string | null; finished: boolean }`, `POLL_MS = 1000`, `POLL_LIMIT_MS = 300_000`, `OTHER_RUN_MS = 5000`; `ProgressChecklist({ step, startedAtMs })`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `lib/aeo-outbound/store.test.ts` (add `generationProgressQuery` to the `./store` import):
+```ts
+test('the progress read follows one generating row by id or by project, never a stale or deleted one (spec v1.1 §16.3)', () => {
+  const byId = generationProgressQuery({ id: ID }, NOW).toSQL()
+  expect(byId.sql).toBe(`select "id", "progress_step", "created_at" from ${T} where (${T}."id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
+  expect(byId.params).toEqual([ID, 'generating', STALE, 1])
+  const byProject = generationProgressQuery({ projectId: 'or_a' }, NOW).toSQL()
+  expect(byProject.sql).toBe(`select "id", "progress_step", "created_at" from ${T} where (${T}."peec_project_id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
+  expect(byProject.params).toEqual(['or_a', 'generating', STALE, 1])
+})
+```
+(`STALE` is the file's existing constant, `NOW` minus `STALE_GENERATING_MS`.)
+
+Create `app/api/aeo-outbound/progress/route.test.ts`:
+```ts
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+const m = vi.hoisted(() => ({ rows: vi.fn(), args: vi.fn() }))
+vi.mock('@/lib/aeo-outbound/settings-store', () => ({ readSettingsRow: vi.fn(async () => null) }))
+vi.mock('@/lib/aeo-outbound/store', async (o) => ({
+  ...(await o<object>()),
+  generationProgressQuery: (by: unknown, now: Date) => { m.args(by, now); return { then: (r: (v: unknown) => void, j: (e: unknown) => void) => { try { r(m.rows()) } catch (e) { j(e) } } } },
+}))
+import { GET } from './route'
+import { auth } from '@/auth'
+
+// Every id and email is invented.
+const ID = 'c7d8e0a1-1111-4111-8111-111111111111'
+const AT = new Date('2026-10-08T15:00:03.000Z')
+const get = (qs: string) => GET(new Request(`https://app.example/api/aeo-outbound/progress${qs}`))
+const as = (email: string | null) => vi.mocked(auth).mockResolvedValue((email ? { user: { role: 'INTERNAL_ANALYST', email } } : null) as never)
+let error: ReturnType<typeof vi.spyOn>
+
+beforeEach(() => { vi.stubEnv('AEO_OUTBOUND_USERS', 'ryan@avenuez.com'); m.rows.mockReturnValue([]); error = vi.spyOn(console, 'error').mockImplementation(() => {}) })
+afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); error.mockRestore() })
+
+test('403 without a session or access, checked before the query string', async () => {
+  as(null)
+  expect((await get('?id=nope')).status).toBe(403)
+  as('someone@avenuez.com')
+  const r = await get(`?id=${ID}`)
+  expect(r.status).toBe(403)
+  expect(await r.json()).toEqual({ error: 'forbidden' })
+  expect(m.args).not.toHaveBeenCalled()
+})
+
+test('400 for both, neither or a malformed value', async () => {
+  as('ryan@avenuez.com')
+  for (const qs of ['', `?id=${ID}&projectId=or_a`, '?id=not-a-uuid', '?projectId=', `?projectId=${'x'.repeat(201)}`]) {
+    const r = await get(qs)
+    expect(r.status).toBe(400)
+    expect(await r.json()).toEqual({ error: 'bad-request' })
+  }
+  expect(m.args).not.toHaveBeenCalled()
+})
+
+test('200 with the row by id or by project, or step null; never cached', async () => {
+  as('ryan@avenuez.com')
+  m.rows.mockReturnValue([{ id: ID, step: 5, createdAt: AT }])
+  const byId = await get(`?id=${ID}`)
+  expect(byId.status).toBe(200)
+  expect(byId.headers.get('cache-control')).toBe('no-store')
+  expect(await byId.json()).toEqual({ id: ID, step: 5, createdAt: '2026-10-08T15:00:03.000Z' })
+  expect(m.args).toHaveBeenLastCalledWith({ id: ID }, expect.any(Date))
+  m.rows.mockReturnValue([])
+  const none = await get('?projectId=or_a')
+  expect(await none.json()).toEqual({ step: null })
+  expect(m.args).toHaveBeenLastCalledWith({ projectId: 'or_a' }, expect.any(Date))
+})
+
+test('503 on a database error, logging one line with no ids or emails', async () => {
+  as('ryan@avenuez.com')
+  m.rows.mockImplementation(() => { throw Object.assign(new Error(`params ${ID} ryan@avenuez.com`), { code: '57P01' }) })
+  const r = await get(`?id=${ID}`)
+  expect(r.status).toBe(503)
+  expect(await r.json()).toEqual({ error: 'unavailable' })
+  expect(error.mock.calls.map((c) => String(c[0]))).toEqual(['[aeo-outbound] progress read failed reason=57P01'])
+})
+```
+
+Create `components/aeo-outbound/use-generation-progress.test.ts`:
+```ts
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { useGenerationProgress } from './use-generation-progress'
+
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+type Answer = () => Promise<Response>
+let answers: Answer[] = []
+// Each poll takes the next answer; the last one repeats.
+const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => (answers.length > 1 ? answers.shift()! : answers[0])())
+const CLICK = Date.parse('2026-10-08T15:00:00.000Z')
+const row = (step: number, createdAt = '2026-10-08T15:00:03.000Z'): Answer => async () => json(200, { id: 'r1', step, createdAt })
+const none: Answer = async () => json(200, { step: null })
+const tick = (ms = 1000) => act(() => vi.advanceTimersByTimeAsync(ms))
+
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(CLICK); fetchMock.mockClear(); vi.stubGlobal('fetch', fetchMock) })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+
+test('by project: null before any row keeps polling, each step shows, and null after a row means finished (spec v1.1 §16.3)', async () => {
+  answers = [none, none, row(2), row(9), none]
+  const onFinished = vi.fn()
+  const { result } = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }, 0, onFinished))
+  await tick()
+  expect(result.current).toEqual({ step: 0, createdAt: null, finished: false })
+  await tick()
+  expect(result.current.step).toBe(2)
+  await tick()
+  expect(result.current).toEqual({ step: 9, createdAt: '2026-10-08T15:00:03.000Z', finished: false })
+  await tick()
+  expect(result.current.finished).toBe(true)
+  expect(onFinished).toHaveBeenCalledTimes(1)
+  const calls = fetchMock.mock.calls.length
+  await tick(5000)
+  expect(fetchMock.mock.calls.length).toBe(calls)
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/aeo-outbound/progress?projectId=p1')
+})
+
+test("by project: a row created more than 5 seconds before the click is another tab's run and is ignored", async () => {
+  answers = [row(4, '2026-10-08T14:59:54.000Z')]
+  const { result } = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }))
+  await tick(3000)
+  expect(result.current.step).toBe(0)
+  answers = [row(4, '2026-10-08T14:59:56.000Z')]
+  await tick()
+  expect(result.current.step).toBe(4)
+})
+
+test('by id: the row is already known to be generating, so the first null means finished', async () => {
+  answers = [none]
+  const onFinished = vi.fn()
+  const { result } = renderHook(() => useGenerationProgress({ id: 'r1' }, 4, onFinished))
+  expect(result.current.step).toBe(4)
+  await tick()
+  expect(result.current.finished).toBe(true)
+  expect(onFinished).toHaveBeenCalledTimes(1)
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/aeo-outbound/progress?id=r1')
+})
+
+test('a failed or refused poll keeps the last state and tries again; polling stops 300 seconds after it started', async () => {
+  answers = [row(3), async () => { throw new TypeError('Failed to fetch') }, async () => json(503, { error: 'unavailable' }), async () => new Response('<html>', { status: 200 }), row(5)]
+  const { result } = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }))
+  await tick()
+  expect(result.current.step).toBe(3)
+  await tick(2000)
+  expect(result.current.step).toBe(3)
+  await tick()
+  expect(result.current.step).toBe(5)
+  await tick(300_000)
+  const calls = fetchMock.mock.calls.length
+  await tick(5000)
+  expect(fetchMock.mock.calls.length).toBe(calls)
+  expect(result.current.finished).toBe(false)
+})
+
+test('no target polls nothing', async () => {
+  renderHook(() => useGenerationProgress(null))
+  await tick(3000)
+  expect(fetchMock).not.toHaveBeenCalled()
+})
+```
+
+Create `components/aeo-outbound/progress-checklist.test.tsx`:
+```tsx
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { ProgressChecklist } from './progress-checklist'
+
+const START = Date.parse('2026-10-08T15:00:00.000Z')
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(START + 12_000) })
+afterEach(() => { cleanup(); vi.useRealTimers() })
+const box = () => screen.getByRole('status', { name: 'Generation progress' })
+const states = () => within(box()).getAllByRole('listitem').map((li) => li.getAttribute('data-state'))
+
+test('the current step, the clock, the bar, eight rows by state, the usual time and the keep-open advice (spec v1.1 §16.3)', () => {
+  render(<ProgressChecklist step={5} startedAtMs={START} />)
+  expect(within(box()).getByText('Loading brand visibility and AI models…')).toBeInTheDocument()
+  expect(within(box()).getByText('0:12')).toBeInTheDocument()
+  expect(states()).toEqual(['done', 'done', 'done', 'done', 'current', 'waiting', 'waiting', 'waiting'])
+  expect(within(box()).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '4')
+  expect(within(box()).getByRole('progressbar')).toHaveAttribute('aria-valuemax', '8')
+  expect(within(box()).getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
+  expect(within(box()).getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
+})
+
+test('step 0 reads Starting with every row waiting; step 10 names the second attempt', () => {
+  const { rerender } = render(<ProgressChecklist step={0} startedAtMs={START} />)
+  expect(within(box()).getByText('Starting…')).toBeInTheDocument()
+  expect(states()).toEqual(Array(8).fill('waiting'))
+  rerender(<ProgressChecklist step={10} startedAtMs={START} />)
+  expect(within(box()).getAllByText('Writing the copy, second attempt').length).toBeGreaterThan(0)
+})
+
+test('the clock ticks every second and the slow line replaces the usual time after 90 seconds', async () => {
+  render(<ProgressChecklist step={9} startedAtMs={START} />)
+  await act(() => vi.advanceTimersByTimeAsync(78_000))
+  expect(within(box()).getByText('1:30')).toBeInTheDocument()
+  expect(within(box()).getByText('Taking longer than usual. It stops by itself after 4 minutes 30 seconds.')).toBeInTheDocument()
+  expect(within(box()).queryByText('Usually 35 to 45 seconds')).not.toBeInTheDocument()
+})
+
+test('a browser clock behind the start shows 0:00', () => {
+  render(<ProgressChecklist step={1} startedAtMs={START + 60_000} />)
+  expect(within(box()).getByText('0:00')).toBeInTheDocument()
+})
+```
+
+In `components/aeo-outbound/hub.test.tsx`:
+- Add `let progress: (url: string) => Promise<Response>` next to `let older`, add `if (url.startsWith('/api/aeo-outbound/progress?')) return progress(url)` to `fetchMock` before the final `throw`, and `progress = async () => json(200, { step: null })` to `beforeEach`.
+- In `'Generate shows a local progress row with the keep-open advice, and 200 draft opens the new draft'`, replace `expect(await screen.findByText(/^Starting… 0:0\d$/)).toBeInTheDocument()` with:
+```ts
+  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  expect(within(box).getByText('Starting…')).toBeInTheDocument()
+  expect(within(box).getByText(/^0:0\d$/)).toBeInTheDocument()
+```
+- Append:
+```ts
+test('while its Generate request runs, the hub polls progress by project and shows each step, then stops when the request answers (spec v1.1 §16.3)', async () => {
+  let release: (r: Response) => void = () => {}
+  generate = () => new Promise((r) => { release = r })
+  const created = new Date(Date.now() + 1000).toISOString()
+  const answers = [{ step: null }, { id: ID(9), step: 2, createdAt: created }, { id: ID(9), step: 9, createdAt: created }]
+  progress = async () => json(200, answers.length > 1 ? answers.shift() : answers[0])
+  await pickAndGenerate()
+  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  await waitFor(() => expect(within(box).getByText('Reading the brands tracked…')).toBeInTheDocument(), { timeout: 3000 })
+  await waitFor(() => expect(within(box).getByText('Writing the copy…')).toBeInTheDocument(), { timeout: 3000 })
+  expect(fetchMock.mock.calls.some(([u]) => u === '/api/aeo-outbound/progress?projectId=p1')).toBe(true)
+  await act(async () => release(json(200, { id: ID(9), status: 'draft' })))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${ID(9)}`))
+  const calls = fetchMock.mock.calls.length
+  await new Promise((r) => setTimeout(r, 1500))
+  expect(fetchMock.mock.calls.slice(calls).filter(([u]) => String(u).startsWith('/api/aeo-outbound/progress'))).toHaveLength(0)
+}, 10_000)
+```
+
+In `components/aeo-outbound/editor.test.tsx`:
+- Add `if (url.startsWith('/api/aeo-outbound/progress?')) return progress(url)` to `fetchMock` before the final `throw`, with `let progress: (url: string) => Promise<Response> = async () => json(200, { step: null })` above it and `progress = async () => json(200, { id: ID, step: 4, createdAt: '2026-10-08T15:00:00.000Z' })` in `beforeEach`.
+- In `fetchMock`, the generate line becomes `if (url === '/api/aeo-outbound/generate') return generateAnswer()`, with `let generateAnswer: () => Promise<Response> = async () => json(200, { id: NEW_ID, status: 'draft' })` above `fetchMock` and the same assignment in `beforeEach` (so a test that holds the request open never leaks into the next one; `mockClear` keeps an implementation).
+- Replace `'a generating snapshot shows its progress, the usual time and the keep-open advice, and refreshes every 5s'` with:
+```ts
+test('a generating snapshot shows the checklist, polls its row by id every second, and refreshes at once when it finishes (spec v1.1 §16.3)', async () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-10-08T15:00:18.000Z'))
+  const answers: unknown[] = [{ id: ID, step: 4, createdAt: '2026-10-08T15:00:00.000Z' }, { id: ID, step: 6, createdAt: '2026-10-08T15:00:00.000Z' }, { step: null }]
+  progress = async () => json(200, answers.length > 1 ? answers.shift() : answers[0])
+  const { container } = render(<OutboundEditor {...base} status="generating" progressStep={4} />)
+  const box = screen.getByRole('status', { name: 'Generation progress' })
+  expect(within(box).getByText('Finding the days with data…')).toBeInTheDocument()
+  expect(within(box).getByText('0:18')).toBeInTheDocument()
+  expect(within(box).getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
+  expect(within(box).getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
+  expect(container.querySelector('iframe')).toBeNull()
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(within(box).getByText('Loading the sources AI used…')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledWith(`/api/aeo-outbound/progress?id=${ID}`, { cache: 'no-store' })
+  const before = refresh.mock.calls.length
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(refresh.mock.calls.length).toBe(before + 1)
+  expect(fetchMock.mock.calls.filter(([u]) => u.includes('/view'))).toHaveLength(0)
+})
+
+test("while the editor's Rerun request runs, the checklist replaces the action bar and polls by project (spec v1.1 §16.3)", async () => {
+  let release: (r: Response) => void = () => {}
+  generateAnswer = () => new Promise<Response>((r) => { release = r })
+  progress = async () => json(200, { id: NEW_ID, step: 3, createdAt: new Date(Date.now() + 1000).toISOString() })
+  await setup({ status: 'failed', errorCode: 'no_data', error: 'x' })
+  fireEvent.click(screen.getByRole('button', { name: 'Rerun' }))
+  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  expect(screen.queryByRole('toolbar', { name: 'Snapshot actions' })).not.toBeInTheDocument()
+  await waitFor(() => expect(within(box).getByText('Reading the project profile…')).toBeInTheDocument(), { timeout: 3000 })
+  expect(fetchMock.mock.calls.some(([u]) => u === '/api/aeo-outbound/progress?projectId=p1')).toBe(true)
+  await act(async () => release(json(200, { id: NEW_ID, status: 'draft' })))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${NEW_ID}`))
+  expect(screen.queryByRole('status', { name: 'Generation progress' })).not.toBeInTheDocument()
+}, 10_000)
+```
+(`setup`, `NEW_ID`, `push`, `refresh`, `json` and `fetchMock` are the file's existing helpers. If `setup` waits for a view request that a failed row never makes, render with `render(<OutboundEditor {...base} status="failed" errorCode="no_data" error="x" />)` instead and say so in the report.)
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `perl -e 'alarm 590; exec @ARGV' -- npx vitest run lib/aeo-outbound/store.test.ts "app/api/aeo-outbound/progress/route.test.ts" components/aeo-outbound/use-generation-progress.test.ts components/aeo-outbound/progress-checklist.test.tsx components/aeo-outbound/hub.test.tsx components/aeo-outbound/editor.test.tsx`
+Expected: FAIL (the query, the route, the hook and the checklist don't exist; the hub and editor still show the one-line form).
+
+- [ ] **Step 3: Implement**
+
+`lib/aeo-outbound/store.ts`: add `gt` to the `drizzle-orm` import, and append after `findGeneratingFor`:
+```ts
+/**
+ * The generating row a progress poll follows (spec v1.1 §16.3): by report id, or the project's one generating row (the
+ * partial unique index allows one). A row older than STALE_GENERATING_MS is shown as failed by displayStatus, so it is
+ * never reported as running.
+ */
+export function generationProgressQuery(by: { id: string } | { projectId: string }, now: Date) {
+  return db.select({ id: t.id, step: t.progressStep, createdAt: t.createdAt }).from(t)
+    .where(and('id' in by ? eq(t.id, by.id) : eq(t.peecProjectId, by.projectId), eq(t.status, 'generating'), isNull(t.deletedAt), gt(t.createdAt, staleBefore(now))))
+    .limit(1)
+}
+```
+
+Create `app/api/aeo-outbound/progress/route.ts`:
+```ts
+// GET /api/aeo-outbound/progress?id=… or ?projectId=… (spec v1.1 §16.3): the live step of one generation, polled every
+// second while a Generate request is in flight or a row is generating. Outside the proxy matcher, so it checks the
+// session itself, before it reads the query. Read-only: one select of one row.
+import { NextResponse } from 'next/server'
+import { auth } from '@/auth'
+import { outboundAccess } from '@/lib/aeo-outbound/access'
+import { errorLabel } from '@/lib/aeo-outbound/log'
+import { generationProgressQuery, isReportId } from '@/lib/aeo-outbound/store'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+const NO_STORE = { 'Cache-Control': 'no-store' }
+const PROJECT_ID_MAX = 200
+
+export async function GET(req: Request) {
+  const session = await auth()
+  if (!(await outboundAccess(session?.user)).ok) return NextResponse.json({ error: 'forbidden' }, { status: 403, headers: NO_STORE })
+  const qs = new URL(req.url).searchParams
+  const id = qs.get('id')
+  const projectId = qs.get('projectId')
+  const by = id !== null && projectId === null && isReportId(id)
+    ? { id }
+    : projectId !== null && id === null && projectId.length >= 1 && projectId.length <= PROJECT_ID_MAX
+      ? { projectId }
+      : null
+  if (!by) return NextResponse.json({ error: 'bad-request' }, { status: 400, headers: NO_STORE })
+  try {
+    const r = (await generationProgressQuery(by, new Date()))[0]
+    return NextResponse.json(r ? { id: r.id, step: r.step, createdAt: r.createdAt.toISOString() } : { step: null }, { headers: NO_STORE })
+  } catch (e) {
+    console.error(`[aeo-outbound] progress read failed reason=${errorLabel(e)}`)
+    return NextResponse.json({ error: 'unavailable' }, { status: 503, headers: NO_STORE })
+  }
+}
+```
+
+Create `components/aeo-outbound/use-generation-progress.ts`:
+```ts
+'use client'
+// Live progress for one generation (spec v1.1 §16.3): polls GET /api/aeo-outbound/progress every second while a target is
+// set. By project (a Generate or Rerun request in flight): a null before any row was seen means "not started yet", a row
+// created more than OTHER_RUN_MS before the click is another tab's run, and a null after a row means it finished. By id (a
+// row already generating): the first null means it finished. A failed poll keeps the last state. Polling stops on finish,
+// when the target clears, or POLL_LIMIT_MS after it started (the generation deadline plus 30 seconds).
+import { useEffect, useRef, useState } from 'react'
+
+export const POLL_MS = 1000
+export const POLL_LIMIT_MS = 300_000
+export const OTHER_RUN_MS = 5000
+
+export type ProgressTarget = { id: string } | { projectId: string; clickedAt: number }
+export interface LiveProgress { step: number; createdAt: string | null; finished: boolean }
+
+export function useGenerationProgress(target: ProgressTarget | null, initialStep = 0, onFinished?: () => void): LiveProgress {
+  const [state, setState] = useState<LiveProgress>({ step: initialStep, createdAt: null, finished: false })
+  const finished = useRef(onFinished)
+  finished.current = onFinished
+  const key = target ? ('id' in target ? `id:${target.id}` : `project:${target.projectId}:${target.clickedAt}`) : null
+  useEffect(() => {
+    if (!target) return
+    setState({ step: initialStep, createdAt: null, finished: false })
+    const byId = 'id' in target
+    const url = byId ? `/api/aeo-outbound/progress?id=${encodeURIComponent(target.id)}` : `/api/aeo-outbound/progress?projectId=${encodeURIComponent(target.projectId)}`
+    const started = Date.now()
+    let seen = byId
+    let stopped = false
+    const stop = () => { stopped = true; clearInterval(timer) }
+    const poll = async () => {
+      if (stopped) return
+      if (Date.now() - started >= POLL_LIMIT_MS) return stop()
+      try {
+        const res = await fetch(url, { cache: 'no-store' })
+        if (res.status !== 200) return
+        const body: unknown = await res.json()
+        if (stopped || !body || typeof body !== 'object') return
+        const b = body as { step?: unknown; createdAt?: unknown }
+        if (b.step === null) {
+          if (!seen) return
+          stop()
+          setState((s) => ({ ...s, finished: true }))
+          finished.current?.()
+          return
+        }
+        if (typeof b.step !== 'number' || typeof b.createdAt !== 'string') return
+        if (!byId && Date.parse(b.createdAt) < target.clickedAt - OTHER_RUN_MS) return
+        seen = true
+        setState({ step: b.step, createdAt: b.createdAt, finished: false })
+      } catch { /* a failed poll keeps the last state; the next tick tries again */ }
+    }
+    const timer = setInterval(() => void poll(), POLL_MS)
+    void poll()
+    return stop
+    // The target is compared by its key, so a new object for the same run doesn't restart polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+  return state
+}
+```
+
+Create `components/aeo-outbound/progress-checklist.tsx`:
+```tsx
+'use client'
+// The step-by-step progress of one generation (spec v1.1 §16.3): the current step, the clock, a bar of finished rows out of
+// eight, every row ticked, current or waiting, then the usual time (or the slow line after 90 seconds) and the keep-open advice.
+import { useEffect, useState } from 'react'
+import { Check, Circle, Loader2 } from 'lucide-react'
+import { KEEP_OPEN, SLOW, USUALLY, elapsedLabel, isSlow, progressView } from './progress'
+
+export function ProgressChecklist({ step, startedAtMs }: { step: number; startedAtMs: number }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const v = progressView(step)
+  const elapsed = now - startedAtMs
+  return (
+    <div role="status" aria-label="Generation progress" className="mt-2 max-w-sm text-xs">
+      <div className="flex items-center justify-between gap-3 text-sm text-white">
+        <span>{`${v.current}…`}</span>
+        <span className="tabular-nums text-text-muted">{elapsedLabel(elapsed)}</span>
+      </div>
+      <div role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={v.total} aria-valuenow={v.done} className="mt-2 h-1.5 w-full rounded bg-white/10">
+        <div className="h-1.5 rounded bg-[#60FFEA] transition-[width]" style={{ width: `${(v.done / v.total) * 100}%` }} />
+      </div>
+      <ol className="mt-2 space-y-1">
+        {v.rows.map((r) => (
+          <li key={r.label} data-state={r.state} className={`flex items-center gap-2 ${r.state === 'waiting' ? 'text-text-muted' : 'text-white'}`}>
+            {r.state === 'done' && <Check className="h-3 w-3 text-[#60FF80]" aria-hidden />}
+            {r.state === 'current' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+            {r.state === 'waiting' && <Circle className="h-3 w-3" aria-hidden />}
+            {r.label}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-text-muted">{isSlow(elapsed) ? SLOW : USUALLY}</p>
+      <p className="text-text-muted">{KEEP_OPEN}</p>
+    </div>
+  )
+}
+```
+
+`components/aeo-outbound/hub.tsx`: add `import { ProgressChecklist } from './progress-checklist'` and `import { useGenerationProgress } from './use-generation-progress'`. Above `export function OutboundHub`, add:
+```tsx
+/** The local row for a Generate request in flight in this tab: polls by project, clock from the click (spec v1.1 §16.3). */
+function PendingProgress({ projectId, startedAt }: { projectId: string; startedAt: string }) {
+  const clickedAt = Date.parse(startedAt)
+  const live = useGenerationProgress({ projectId, clickedAt })
+  return <ProgressChecklist step={live.step} startedAtMs={clickedAt} />
+}
+```
+In the local pending row, replace `<td className="px-4 py-3"><StatusPill status="generating" />{progress(0, p.startedAt)}</td>` with `<td className="px-4 py-3"><StatusPill status="generating" /><PendingProgress projectId={pid} startedAt={p.startedAt} /></td>`. Rows not started in this tab keep `progress(r.progressStep, r.createdAt)` (the one-line form).
+
+`components/aeo-outbound/editor.tsx`: add the same two imports, and `const [rerunning, setRerunning] = useState<number | null>(null)` next to the other state. `doRerun` becomes:
+```ts
+  const doRerun = () => run(async () => {
+    // While the request runs, the checklist replaces the action bar and follows the new row by project (spec v1.1 §16.3).
+    setRerunning(Date.now())
+    try {
+      const out = await requestGenerate({ projectId, rerunOf: id })
+      if (out.kind === 'open') return router.push(`/tools/new-business/${out.id}`)
+      setMessage(out.text || null)
+      if (out.kind === 'message' && out.refresh) router.refresh()
+    } finally {
+      setRerunning(null)
+    }
+  })
+```
+Add, next to the other hooks:
+```ts
+  const rerunLive = useGenerationProgress(rerunning === null ? null : { projectId, clickedAt: rerunning })
+  // A row already generating: follow it by id, and refresh at once when it finishes (spec v1.1 §16.3).
+  const ownLive = useGenerationProgress(status === 'generating' ? { id } : null, props.progressStep, () => router.refresh())
+```
+Wrap the toolbar: replace `<div role="toolbar" aria-label="Snapshot actions" className="ml-auto flex flex-wrap items-center gap-1.5">` and its closing `</div>` (the one before `</div>\n        {status === 'draft' && mode === 'edit'`) so the element renders only when `rerunning === null`, and when `rerunning !== null` render `<div className="ml-auto"><ProgressChecklist step={rerunLive.step} startedAtMs={rerunning} /></div>` in its place. In the generating card, replace its three paragraphs (`progressText(...)`, `USUALLY`, `KEEP_OPEN`) with `<ProgressChecklist step={ownLive.step} startedAtMs={Date.parse(props.createdAt)} />`, and drop `progressText`, `USUALLY` and `KEEP_OPEN` from the `./progress` import if nothing else uses them. The existing 5-second refresh while generating stays.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run the Step 2 command, then the gate (`make check`). Expected: PASS, exit 0.
+
+- [ ] **Step 5: Commit and push**
+
+Commit every file this task touched, by name, with subject `Show generation progress step by step, live` and this edge-case list in the body (a new route reads the query string; the client polls across a network boundary):
+- external failure: a poll that throws, answers non-200, or answers a body that isn't the expected shape keeps the last state and tries again next second; the Generate request alone decides the outcome: fix
+- operator visibility: a database error answers 503 and logs one line with errorLabel, no ids or emails: fix
+- bounds: one poll a second per generation, stopping on finish, when the request answers, or 300 seconds after it started; the route reads one row: fix
+- input boundaries: exactly one of id (isReportId) or projectId (1 to 200 characters), else 400; access is checked first: fix
+- state and concurrency: a row created more than 5 seconds before the click is another tab's run and is ignored; a null before any row means not started; the hook restarts only when its target changes: fix
+- security: outboundAccess on every poll; the route returns only id, step and createdAt: fix
+
+Then push.
+
 ### Task 12: The Settings page
 
 Covers v1.1 §8 (a Settings page for tool admins at `/tools/new-business/settings`, every field and limit validated on save, every change logged, the env floor, the last-admin rule), §14 ("Last admin removes themself: refused, the env admins always remain"), round-2 MINOR 8 (the second of two concurrent saves gets "changed by someone else, reload").
@@ -7806,7 +8479,8 @@ import { saveSettingsAction } from './aeo-outbound-settings'
 
 // Every email is invented.
 const AT = '2026-10-10T09:00:00.000Z'
-const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: null, rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', updatedAt: new Date(AT), updatedBy: 'boss@avenuez.com' }
+// The stored row equals the defaults apart from the people (Ryan's answers, spec v1.1 §16.1), so a save that changes nothing logs nothing.
+const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', updatedAt: new Date(AT), updatedBy: 'boss@avenuez.com' }
 const STORED = { ...SETTINGS_DEFAULTS, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'] }
 const as = (email: string, role = 'INTERNAL_ANALYST') => vi.mocked(auth).mockResolvedValue({ user: { role, email } } as never)
 
@@ -7925,11 +8599,12 @@ test('the form shows the current settings, the env admins and the note', () => {
   expect(screen.getByLabelText('Who can use the tool')).toHaveValue('ana@avenuez.com')
   expect(screen.getByText('Always admins: ryan@avenuez.com.')).toBeInTheDocument()
   expect(screen.getByLabelText('First section title')).toHaveValue('Category data')
-  expect(screen.getByLabelText('Written for each report')).toBeChecked()
+  expect(screen.getByLabelText('The same sentence on every report')).toBeChecked()
+  expect(screen.getByLabelText('Next-step sentence')).toHaveValue('A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.')
   expect(screen.getByLabelText('Every brand tracked in Peec')).toBeChecked()
-  expect(screen.getByLabelText('Opportunities based on Peec recommendations')).toHaveValue('1')
+  expect(screen.getByLabelText('Most opportunities from Peec recommendations')).toHaveValue('1')
   expect(screen.getByLabelText('Methodology names the prompt count and the AI models')).toBeChecked()
-  expect(screen.getByLabelText('Menu wordmark')).toHaveValue('AIVx')
+  expect(screen.getByLabelText('Menu wordmark')).toHaveValue('Avenue Z')
   expect(screen.getByText('No changes yet.')).toBeInTheDocument()
 })
 
@@ -8228,6 +8903,32 @@ Covers v1.1 §13 (the `MIGRATIONS-PENDING.md` entry with the dry-run expectation
 - Modify: `MIGRATIONS-PENDING.md` (append after the `aeo_outbound_reports` entry, which ends at line 320)
 
 **Interfaces:** none.
+
+- [ ] **Step 0: Two production-audit follow-ups (2026-10-12)**
+
+The read-only production-safety audit of PR 368 (`aeo-outbound-audit-notes`, 2026-10-12) found two Minor items for this plan:
+
+1. **`updateTag('db')` empties the dashboard's shared client caches for nothing.** The feature's actions call it after
+   every Approve, Revoke, Discard and Edit a copy (`app/actions/aeo-outbound.ts:71,83,95,107` at `0ac4b5b9`), and Task 12's
+   settings action does the same. That tag also expires `getClientBySlug`, `getAllClients` and
+   `getClientsWithDashboards` (`lib/db/queries.ts:35,98,116`), so every client page re-queries Neon on its next request.
+   No feature read goes through that tag (no `cached(`, `unstable_cache` or `cacheTag` under `lib/aeo-outbound/`,
+   `app/api/aeo-outbound/`, `app/tools/new-business/`, `components/aeo-outbound/` or the two action files). Next 16.3.8's
+   `refresh()` (`node_modules/next/dist/server/web/spec-extension/revalidate.d.ts:22-26`: "refresh client cache from
+   server actions") is what these actions need. In `app/actions/aeo-outbound.ts` and `app/actions/aeo-outbound-settings.ts`,
+   replace the `updateTag` import with `import { refresh } from 'next/cache'` and every `updateTag('db')` with `refresh()`.
+   In `app/actions/aeo-outbound.test.ts` and `app/actions/aeo-outbound-settings.test.ts`, the mock becomes
+   `vi.mock('next/cache', () => ({ refresh: vi.fn() }))`, the import becomes `refresh`, every `updateTag` reference
+   becomes `refresh`, and every `.toHaveBeenCalledWith('db')` on it becomes `.toHaveBeenCalled()`. Then
+   `perl -e 'alarm 30; exec @ARGV' -- git grep -n "updateTag" -- app/actions/aeo-outbound.ts app/actions/aeo-outbound-settings.ts lib/aeo-outbound components/aeo-outbound app/api/aeo-outbound app/tools/new-business`
+   must print nothing.
+2. **The 0026 entry's dry-run sentence is now wrong.** `MIGRATIONS-PENDING.md:302-303` says dev and staging must show
+   "exactly `0026_aeo_outbound_reports` and nothing else", but 0027 is now in the journal and dev already has 0026. Replace
+   that sentence (from "On dev and staging it must show exactly" to "and nothing else.") with: "0026 is applied on dev
+   (2026-10-11). For every environment's dry run now that 0027 is in the journal, see the 0027 entry below." Leave the
+   rest of the 0026 entry as it is.
+
+Run the action tests and the settings action tests; expected PASS. Include both files' changes in this task's commit.
 
 - [ ] **Step 1: Append the 0027 entry**
 
