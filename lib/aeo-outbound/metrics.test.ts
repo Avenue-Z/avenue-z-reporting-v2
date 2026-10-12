@@ -3,6 +3,7 @@ import vectors from './round.vectors.json'
 import { buildSnapshotData, fmtDay, fmtEasternDay, pyRound, titleClassification } from './metrics'
 import type { MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
+import { dataBlock } from './prompt'
 
 test('pyRound matches Python round on every vector', () => {
   for (const v of vectors as { x: number; dp: number; py: number }[]) expect(pyRound(v.x, v.dp)).toBe(v.py)
@@ -265,9 +266,16 @@ const withVis = (own: number, ...others: [string, number][]) => {
   return buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
 }
 
-test('a competitor above 90% displayed visibility adds the warning note, after the rank notes', () => {
+test('a competitor above 90% displayed visibility adds the warning note, after the rank note and before the Requested note', () => {
   const d = withVis(0.2, ['Ace', 0.9051])
   expect(d.notes).toContain(WARN('Ace', '90.5'))
+  const at = d.notes.indexOf(WARN('Ace', '90.5'))
+  const rank = d.notes.findIndex((n) => n.startsWith('Rank is by visibility'))
+  const requested = d.notes.findIndex((n) => n.startsWith('Requested '))
+  expect(rank).toBeGreaterThanOrEqual(0)
+  expect(requested).toBeGreaterThanOrEqual(0)
+  expect(at).toBeGreaterThan(rank)
+  expect(at).toBeLessThan(requested)
 })
 
 test('90.0% exactly does not warn, 90.1% does', () => {
@@ -281,17 +289,24 @@ test('95 prints as 95.0, and the own brand is warned too', () => {
   expect(d.notes.filter((n) => n.includes('unusually high'))).toHaveLength(1)
 })
 
-test('two brands above 90% give two notes, placed after the rank notes and before the window note', () => {
+test('two brands above 90% give two notes, each after the rank note and before the Requested note', () => {
   const d = withVis(0.95, ['Ace', 0.986])
   const warns = d.notes.filter((n) => n.includes('unusually high'))
   expect(warns).toHaveLength(2)
   expect(warns).toContain(WARN('Own', '95.0'))
   expect(warns).toContain(WARN('Ace', '98.6'))
   const rank = d.notes.findIndex((n) => n.startsWith('Rank is by visibility'))
-  expect(d.notes.indexOf(warns[0])).toBeGreaterThan(rank)
+  const requested = d.notes.findIndex((n) => n.startsWith('Requested '))
+  expect(rank).toBeGreaterThanOrEqual(0)
+  expect(requested).toBeGreaterThanOrEqual(0)
+  for (const w of warns) {
+    expect(d.notes.indexOf(w)).toBeGreaterThan(rank)
+    expect(d.notes.indexOf(w)).toBeLessThan(requested)
+  }
 })
 
-test('the warning stays out of the page data: kpis, brands and copy inputs are unchanged', () => {
+test('the warning stays out of the page data and the Data block', () => {
   const hot = withVis(0.95, ['Ace', 0.986])
   expect(JSON.stringify({ ...hot, notes: null })).not.toContain('unusually high')
+  expect(dataBlock(hot)).not.toContain('unusually high')
 })

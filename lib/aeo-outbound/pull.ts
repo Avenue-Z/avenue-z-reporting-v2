@@ -1,6 +1,6 @@
 // Spec §7 steps 1-8 over one window. Every report call sends project_id, start_date and end_date and no
 // model filter (all models; T3 confirmed). Guards fail with a reason Ryan can act on.
-import { DECISIONS, PITCH_STATUSES } from './config'
+import { DECISIONS, MAX_WINDOW_DAYS, PITCH_STATUSES } from './config'
 import { isPeecRowCap, isPeecTimeout, PeecClient, PeecError, rowsOf } from './peec'
 import { defaultRange, type DayRange } from './range'
 
@@ -80,7 +80,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
       (r) => `${r.domain}|${r.date}`, 10_000)
   } catch (e) {
     // Only the full-history default turns the cap into advice; a picked range keeps the client's message.
-    if (range == null && isPeecRowCap(e)) throw new PeecError('This project has too much history for one snapshot. Pick a start and end date, at most 90 days.')
+    if (range == null && isPeecRowCap(e)) throw new PeecError(`This project has too much history for one snapshot. Pick a start and end date, at most ${MAX_WINDOW_DAYS} days.`)
     throw e
   }
   const days = dated.filter((r) => (r.retrieved_chat_count ?? 0) > 0).map((r) => String(r.date ?? '').slice(0, 10)).filter(Boolean).sort()

@@ -1,6 +1,6 @@
 // Spec §6 and §7a: pull, compute, write copy with at most two Glean attempts inside the deadline, enforce the
 // search guard and the shape check, keep grounding problems as notes.
-import { DECISIONS, NEEDS_VALIDATION } from './config'
+import { DECISIONS, MAX_WINDOW_DAYS, NEEDS_VALIDATION } from './config'
 import { buildSnapshotData, type SnapshotData } from './metrics'
 import { isPeecTimeout, PeecClient, PeecError } from './peec'
 import { pullSnapshot } from './pull'
@@ -69,7 +69,7 @@ export async function generateSnapshot(
     return { ok: false, error: 'Copy generation failed. Rerun.', brandName }
   } catch (e) {
     // Only this client's own exhausted budget counts (PeecError.timeout), never an upstream body that says "timed out".
-    if ((e as Error)?.name === 'AbortError' || isPeecTimeout(e)) return { ok: false, error: range == null && step === 4 ? 'Timed out at step 4. Pick a start and end date, at most 90 days.' : `Timed out at step ${step}`, brandName }
+    if ((e as Error)?.name === 'AbortError' || isPeecTimeout(e)) return { ok: false, error: range == null && step === 4 ? `Timed out at step 4. Pick a start and end date, at most ${MAX_WINDOW_DAYS} days.` : `Timed out at step ${step}`, brandName }
     if (e instanceof PeecError) return { ok: false, error: e.message, brandName }
     return { ok: false, error: `Generation failed at step ${step}: ${(e as Error)?.message ?? String(e)}`.slice(0, 300), brandName }
   }
