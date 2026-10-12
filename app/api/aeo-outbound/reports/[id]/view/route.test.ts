@@ -112,19 +112,46 @@ test('approved: row.html byte for byte, with the headers', async () => {
   expect(res.headers.get('Cache-Control')).toBe('no-store')
 })
 
-// A real final render of synthetic data: what approve stores in row.html.
-const FROZEN = renderSnapshotHtml(DATA, SLOTS, 'final', 'Oct 9, 2026')
+// A real final render of synthetic data: what approve stores in row.html now (v1.1 §17.11: no share markup).
+const NEW_FINAL = renderSnapshotHtml(DATA, SLOTS, 'final', 'Oct 9, 2026')
+// A row approved before §17.11: the same page with the three share pieces put back where the old render emitted them.
+const insert = (html: string, anchor: string, withPiece: string) => {
+  expect(html.split(anchor)).toHaveLength(2)
+  return html.replace(anchor, () => withPiece)
+}
+const SCRIPT_END = `<script>${PAGE_JS}</script>`
+const FROZEN = insert(insert(insert(NEW_FINAL,
+  '<div class="sidebar-footer">', `<div class="sidebar-footer">${SHARE_BUTTON}`),
+  '</section>\n<footer class="footer">', `</section>\n${SHARE_MOBILE}<footer class="footer">`),
+  SCRIPT_END, `${SCRIPT_END}\n${AIVX_SHARE_BLOCK}`)
 const approved = (html: string) => row({ status: 'approved', html, approvedAt: new Date('2026-10-09T14:00:00Z') })
 
-test('approved with mode=preview: the frozen HTML with exactly the share button and share block removed', async () => {
+test('a new final page carries none of the share pieces, and the old-row fixture carries each exactly once', () => {
+  for (const part of [SHARE_BUTTON, SHARE_MOBILE, AIVX_SHARE_BLOCK]) {
+    expect(NEW_FINAL).not.toContain(part)
+    expect(FROZEN.split(part)).toHaveLength(2)
+  }
+  for (const word of ['class="share-btn"', 'class="share-toast"', "querySelector('.share-btn')", 'aeo-share-mobile']) expect(NEW_FINAL).not.toContain(word)
+})
+
+test('approved with mode=preview and no share strings (a row approved after v1.1 §17.11): the stored page, unchanged, no warning', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  expect(FROZEN.split(SHARE_BUTTON)).toHaveLength(2)
-  expect(FROZEN.split(AIVX_SHARE_BLOCK)).toHaveLength(2)
+  m.getReport.mockResolvedValue(approved(NEW_FINAL))
+  const h = await (await get(ID, '?mode=preview')).text()
+  expect(h).toBe(NEW_FINAL)
+  expect(h).not.toContain('display:none!important')
+  expect(warn).not.toHaveBeenCalled()
+  expect(console.error).not.toHaveBeenCalled()
+})
+
+test('approved with mode=preview: an old row has exactly the share button and share block removed', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   m.getReport.mockResolvedValue(approved(FROZEN))
   const res = await get(ID, '?mode=preview')
   expect(res.headers.get('Content-Security-Policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox')
   const h = await res.text()
   expect(h).toBe(FROZEN.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, '').replace(SHARE_MOBILE, ''))
+  expect(h).toBe(NEW_FINAL.replace(`${SCRIPT_END}`, `${SCRIPT_END}\n`))
   expect(h).not.toContain('aeo-share-mobile"')
   expect(h).not.toContain('class="share-btn"')
   expect(h).not.toContain('share-toast" role')
@@ -145,7 +172,8 @@ test('approved with mode=preview: a later render change cannot alter what the ed
 })
 
 test.each([
-  ['no anchors', '<!DOCTYPE html><html><head><title>x</title></head><body><p>frozen</p></body></html>'],
+  ['the button but not the block', FROZEN.replace(AIVX_SHARE_BLOCK, '')],
+  ['the block but not the button', FROZEN.replace(SHARE_BUTTON, '')],
   ['a duplicated share button', FROZEN.replace(SHARE_BUTTON, SHARE_BUTTON + SHARE_BUTTON)],
 ])('approved with mode=preview and %s: the CSS fallback hides the share UI, with one log line', async (_n, html) => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

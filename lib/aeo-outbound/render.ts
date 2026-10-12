@@ -2,11 +2,10 @@
 // agent/renderer.py:2530-2556; blocks follow its builders. Every string is escaped; Peec text in figures is stripped of
 // < and >. In draft every visible word carries data-slot (editable), data-mirror (a copy of a slot, edited where it first
 // appears) or data-locked (a chart, or fixed by design). Preview and final carry none of that editing markup. Every mode
-// carries PAGE_CSS, PAGE_JS and data-label (phones and the menu links, v1.1 §17); final also carries SHARE_MOBILE.
+// carries PAGE_CSS, PAGE_JS and data-label (phones and the menu links, v1.1 §17). No mode carries a Share button (§17.11).
 import { AIVX_CSS } from './aivx/css'
 import { AIVX_JS } from './aivx/js'
 import { AIVX_FAVICON_TAG } from './aivx/favicon'
-import { AIVX_SHARE_BLOCK } from './aivx/share'
 import { embedFigure, sourceDonutFigure, visibilityBarFigure } from './charts'
 import { esc } from './html'
 import type { SnapshotData } from './metrics'
@@ -71,8 +70,9 @@ export const HEADER_CLONE_JS = "(function(){var h=document.querySelector('.leade
 const HEADER_CLONE = `<script>${HEADER_CLONE_JS}</script>`
 
 /**
- * The final page's share button, exactly as rendered (with its leading newline and indent). Exported so the editor's
- * preview of a frozen page can remove this exact string (app/api/aeo-outbound/reports/[id]/view/route.ts).
+ * The share button that final pages carried before v1.1 §17.11, exactly as it was rendered (with its leading newline and
+ * indent). No render emits it now. Exported so the editor's preview of a report approved before that change can remove
+ * this exact string (app/api/aeo-outbound/reports/[id]/view/route.ts).
  */
 export const SHARE_BUTTON = `
     <button class="share-btn" type="button" aria-label="Copy shareable link to this report">
@@ -86,7 +86,6 @@ export const SHARE_BUTTON = `
 
 export const PAGE_CSS = [
   '.kpi-value.aeo-long{font-size:24px;line-height:1.15}',
-  '.aeo-share-mobile{display:none}',
   'html{color-scheme:dark}',
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
   '#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}',
@@ -106,8 +105,6 @@ export const PAGE_CSS = [
   '.leaderboard tr{border:1px solid var(--border);border-radius:16px;margin-bottom:12px;padding:6px 0;background:rgba(255,255,255,0.02)}',
   '.leaderboard td{padding:8px 20px}',
   '.leaderboard td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px}',
-  '.aeo-share-mobile{display:flex;justify-content:center;padding:24px}',
-  ".aeo-share-mobile-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;padding:10px 16px;margin:0;background:rgba(96,255,234,0.06);border:1px solid rgba(96,255,234,0.35);border-radius:9999px;color:var(--cyan);font-family:'Avenir',sans-serif;font-size:12px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;user-select:none}",
   '}',
 ].join('\n')
 
@@ -118,7 +115,6 @@ document.addEventListener('click',function(e){
 var n=e.target;if(!n||!n.closest)return;
 var a=n.closest('a[href^="#"]');
 if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
-var b=n.closest('.aeo-share-mobile-btn');if(b){var s=document.querySelector('.sidebar .share-btn');if(s)s.click()}
 },true);
 var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
 function copy(x){return JSON.parse(JSON.stringify(x))}
@@ -133,8 +129,8 @@ if(document.readyState==='complete')init();else window.addEventListener('load',i
 })();`
 const PAGE_SCRIPT = `<script>${PAGE_JS}</script>`
 
-/** The phone Share button, final mode only, immediately before the footer. It forwards to the sidebar's .share-btn, which
- *  AIVx's share block binds (v1.1 §17.2). Exported so the editor's preview of a frozen page can remove this exact string. */
+/** The phone Share block that final pages carried (immediately before the footer) before v1.1 §17.11. No render emits it
+ *  now. Exported so the editor's preview of a report approved before that change can remove this exact string. */
 export const SHARE_MOBILE = '<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>'
 
 /** The "Powered by Avenue Z" line shows only when the top-left name does not already contain "avenue z", trimmed, any case (spec v1.1 §17.5). */
@@ -210,7 +206,7 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
     <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label)}</a>
     <a href="#methodology"><span class="nav-num"${fixedMark}>05</span> ${wrap('page.method_nav', p.method_nav)}</a>
   </nav>
-  <div class="sidebar-footer">${mode === 'final' ? SHARE_BUTTON : ''}
+  <div class="sidebar-footer">
     ${slot('a', 'page.sidebar_link', p.sidebar_link, '', ' href="https://avenuez.com" target="_blank" rel="noopener"')}
   </div>
 </nav>`
@@ -268,7 +264,7 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
 <section id="methodology" class="section">
   <div class="method-note">${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)} ${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div>
 </section>
-${mode === 'final' ? SHARE_MOBILE : ''}<footer class="footer">
+<footer class="footer">
   <div class="footer-grad-line"></div>
   <div class="footer-content">
     <div class="footer-brand">
@@ -305,7 +301,7 @@ ${mode === 'final' ? SHARE_MOBILE : ''}<footer class="footer">
   <div class="main">
     ${main}
   </div>
-  <script>${AIVX_JS}</script>${HEADER_CLONE}${PAGE_SCRIPT}${mode === 'final' ? `\n${AIVX_SHARE_BLOCK}` : ''}${draft ? FRAME_SCRIPT : ''}
+  <script>${AIVX_JS}</script>${HEADER_CLONE}${PAGE_SCRIPT}${draft ? FRAME_SCRIPT : ''}
 </body>
 </html>`
 }

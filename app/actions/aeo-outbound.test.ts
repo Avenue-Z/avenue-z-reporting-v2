@@ -153,7 +153,8 @@ test('approve success: final HTML, a 24-character token, the cleaned recipient, 
   expect(r.token).toHaveLength(24)
   const [id, rev, v] = vi.mocked(store.approveQuery).mock.calls[0]
   expect([id, rev]).toEqual([ID, 3])
-  expect(v.html).toContain('class="share-btn"')
+  expect(v.html).not.toContain('class="share-btn"')
+  expect(v.html).not.toContain('class="share-toast"')
   const parts = v.html.split(`<script>${PAGE_JS}</script>`)
   expect(parts).toHaveLength(2)
   expect(parts.join('')).not.toContain('data-slot')

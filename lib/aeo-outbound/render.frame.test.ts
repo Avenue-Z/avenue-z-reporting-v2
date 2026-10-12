@@ -215,21 +215,6 @@ test('a link to a hash with no section is not prevented', () => {
   expect(scrolled).not.toHaveBeenCalled()
 })
 
-test('the phone Share button clicks the sidebar share button, and AIVx then shows its toast', async () => {
-  bootPage('final', { isSecureContext: false, location: window.location })
-  const src = /<script>([\s\S]*)<\/script>/.exec(AIVX_SHARE_BLOCK)![1]
-  new Function('window', 'document', 'navigator', src)(win, doc, { clipboard: undefined })
-  const side = doc.querySelector('.sidebar .share-btn') as HTMLElement
-  const clicked = vi.fn()
-  side.addEventListener('click', clicked)
-  const toast = doc.querySelector('.share-toast')!
-  expect(toast.classList.contains('visible')).toBe(false)
-  click(doc.querySelector('.aeo-share-mobile-btn')!)
-  expect(clicked).toHaveBeenCalledTimes(1)
-  await vi.advanceTimersByTimeAsync(0)
-  expect(toast.classList.contains('visible')).toBe(true)
-})
-
 // The donut (v1.1 §17.2): Plotly and matchMedia are stubs; the tests prove the calls.
 const MIX = [{ label: 'Reference', weight: 4.8 }, { label: 'Corporate', weight: 60.3 }, { label: 'You', weight: 34.9 }]
 function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean } = {}) {

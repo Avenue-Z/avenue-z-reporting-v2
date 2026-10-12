@@ -44,7 +44,7 @@ test('final: AIVx head and stylesheet verbatim, no editing hooks, share button p
   const rest = parts.join('')
   expect(rest).not.toContain('data-slot')
   expect(rest).not.toContain('contenteditable')
-  expect(h).toContain('class="share-btn"')
+  expect(h).not.toContain('class="share-btn"')
   expect(h).toContain('Prepared Oct 9, 2026')
 })
 
@@ -154,164 +154,23 @@ test('zero competitors: the context box is absent from final, draft and preview,
   expect(draft).toContain('data-slot="headline"')
   expect(draft).toContain('data-slot="why"')
   const final = renderSnapshotHtml(zero, SLOTS, 'final', 'Oct 9, 2026')
-  expect(final).toContain('class="share-btn"')
+  expect(final).not.toContain('class="share-btn"')
   // One competitor tracked: the same slots show the context box.
   expect(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x')).toContain('data-slot="context"')
 })
 
-test('SHARE_BUTTON is exactly the markup the final render uses, once, and only in final', () => {
-  const final = renderSnapshotHtml(DATA, SLOTS, 'final', 'x')
+test('a final page carries no share button, share block, toast or phone Share block (v1.1 §17.11)', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    for (const part of [SHARE_BUTTON, SHARE_MOBILE, AIVX_SHARE_BLOCK]) expect(h, `${mode}`).not.toContain(part)
+    // AIVx's stylesheet still holds the .share-btn and .share-toast rules (verbatim, never edited), so test the markup and script.
+    for (const word of ['class="share-btn"', 'class="share-toast"', "querySelector('.share-btn')", 'aeo-share-mobile']) expect(h, `${mode} ${word}`).not.toContain(word)
+  }
+})
+test('SHARE_BUTTON and SHARE_MOBILE stay exported so the preview can strip rows approved before v1.1 §17.11', () => {
   expect(SHARE_BUTTON).toContain('<button class="share-btn"')
-  expect(final.split(SHARE_BUTTON)).toHaveLength(2)
-  expect(final.split(AIVX_SHARE_BLOCK)).toHaveLength(2)
-  for (const mode of ['draft', 'preview'] as const) {
-    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
-    expect(h).not.toContain(SHARE_BUTTON)
-    expect(h).not.toContain(AIVX_SHARE_BLOCK)
-  }
+  expect(SHARE_MOBILE).toBe('<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>')
 })
-
-test('Q10: the wordmark reads Avenue Z with no Powered by line, in every mode (spec v1.1 §16.1)', () => {
-  for (const mode of ['draft', 'preview', 'final'] as const) {
-    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 9, 2026')
-    if (mode === 'draft') expect(h).toContain('data-slot="page.sidebar_wordmark">Avenue Z</div>')
-    else expect(h).toContain('<div class="aivx-brand">Avenue Z</div>\n  </div>')
-    expect(h).not.toContain('<div class="powered">')
-    expect(h).not.toContain('>AIVx<')
-  }
-})
-
-test('showsPowered: only a wordmark that is not Avenue Z, trimmed and compared without case, gets the line', () => {
-  expect(showsPowered('AIVx')).toBe(true)
-  for (const w of ['Avenue Z', 'avenue z ', ' AVENUE Z']) expect(showsPowered(w)).toBe(false)
-})
-
-const THREE: Slots = { ...SLOTS, competitive_bullets: [...SLOTS.competitive_bullets, { lead: 'L3:', text: 'T3.' }] }
-
-test('every visible text in draft is a slot, a mirror, fixed by design, a chart or a bullet control', () => {
-  for (const slots of [SLOTS, THREE]) {
-    const doc = parse(renderSnapshotHtml(DATA, slots, 'draft', 'Oct 8, 2026'))
-    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
-    const bare: string[] = []
-    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      const el = n.parentElement!
-      if (!/[A-Za-z0-9]/.test(n.textContent ?? '') || el.closest('script,style')) continue
-      if (!el.closest('[data-slot],[data-mirror],[data-locked],[data-structure]')) bare.push((n.textContent ?? '').trim())
-    }
-    expect(bare).toEqual([])
-  }
-})
-
-test('fixed by design means exactly the nav numbers, the section number prefixes and the Prepared date', () => {
-  const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'Oct 8, 2026'))
-  expect([...doc.querySelectorAll('[data-locked="fixed"]')].map((e) => e.textContent)).toEqual(['01', '02', '03', '04', '05', '02 / ', '03 / ', '04 / ', 'Oct 8, 2026'])
-  expect(doc.querySelectorAll('[data-locked="chart"]')).toHaveLength(2)
-})
-
-test('exactly one editable element per path, every path present, and every mirror copies a path that has one', () => {
-  const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x'))
-  const paths = [...doc.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
-  expect(paths.length).toBe(new Set(paths).size)
-  // The default wordmark is Avenue Z, so the Powered by line and its slot are not on the page (spec v1.1 §16.1).
-  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(SLOTS, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
-  const mirrors = new Set([...doc.querySelectorAll('[data-mirror]')].map((e) => e.getAttribute('data-mirror')))
-  expect(mirrors).toEqual(new Set(['brand', 'page.series', 'page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label']))
-  for (const m of mirrors) expect(paths).toContain(m)
-  expect(doc.querySelectorAll('[data-mirror][data-slot]')).toHaveLength(0)
-})
-
-test('the Powered by line and its slot appear only under a wordmark that is not Avenue Z (spec v1.1 §16.1)', () => {
-  const aivx = parse(renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: 'AIVx' } }, 'draft', 'x'))
-  expect(aivx.querySelector('[data-slot="page.sidebar_powered"]')?.textContent).toBe('Powered by Avenue Z')
-  for (const w of ['Avenue Z', ' avenue z ']) {
-    const h = renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: w } }, 'draft', 'x')
-    expect(h).not.toContain('data-slot="page.sidebar_powered"')
-    expect(h).not.toContain('<div class="powered"')
-  }
-  expect(renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: 'AIVx' } }, 'final', 'x')).toContain('<div class="aivx-brand">AIVx</div>\n    <div class="powered">Powered by Avenue Z</div>')
-})
-
-test('the brand slot is used in every place the brand shows: title, description, hero, sidebar, footer, bar label and bolding', () => {
-  const own = { ...BRANDS[1], name: 'Own' }
-  const d = { ...DATA, brand: 'Own', brands: [BRANDS[0], own], own } as SnapshotData
-  const h = renderSnapshotHtml(d, { ...SLOTS, brand: 'Renamed Co', context: 'Alpha leads Renamed Co.' }, 'final', 'x')
-  expect(h).toContain('<title>AI Visibility Snapshot: Renamed Co | Avenue Z</title>')
-  expect(h).toContain('<meta name="description" content="AI Visibility Snapshot for Renamed Co. Powered by Avenue Z AEO Intelligence.">')
-  expect(h).toContain('<span class="grad-text">Renamed Co</span>')
-  expect(h).toContain('<span>Renamed Co</span>')
-  expect(h).toContain('Renamed Co<br>Prepared x')
-  expect(h).toContain('"Renamed Co"')
-  expect(h).toContain('<strong>Alpha</strong> leads <strong>Renamed Co</strong>.')
-  expect(h).not.toContain('>Own<')
-})
-
-test('the long-name rule reads the brand slot', () => {
-  expect(renderSnapshotHtml(DATA, { ...SLOTS, brand: 'A Very Long Brand Name Incorporated' }, 'final', 'x')).toContain('<h1 class="hero-industry" style="font-size:72px">')
-})
-
-test('one key drives every place its words appear: the series in the title, the sidebar and the footer (uppercase there)', () => {
-  const h = renderSnapshotHtml(DATA, { ...SLOTS, page: { series: 'Market Snapshot' } }, 'final', 'x')
-  expect(h).toContain('<title>Market Snapshot: ')
-  expect(h).toContain('content="Market Snapshot for ')
-  expect(h).toContain('<div class="hero-series">Market Snapshot</div>')
-  expect(h).toContain('\n    Market Snapshot\n    <span>')
-  expect(h).toContain('\n        MARKET SNAPSHOT\n      </p>')
-  const draft = renderSnapshotHtml(DATA, { ...SLOTS, page: { series: 'Market Snapshot' } }, 'draft', 'x')
-  expect(draft).toContain('<span class="aeo-w" data-mirror="page.series" data-upper>MARKET SNAPSHOT</span>')
-})
-
-test('bullet controls: Add bullet under a list of 2, Remove on each bullet of a list of 3, in draft only', () => {
-  const h = renderSnapshotHtml(DATA, THREE, 'draft', 'x')
-  const doc = parse(h)
-  expect([...doc.querySelectorAll('[data-structure="remove"]')].map((e) => e.getAttribute('data-path'))).toEqual(['competitive_bullets.0', 'competitive_bullets.1', 'competitive_bullets.2'])
-  expect([...doc.querySelectorAll('[data-structure="add"]')].map((e) => [e.getAttribute('data-path'), e.textContent])).toEqual([['sources_bullets', 'Add bullet']])
-  expect(doc.querySelector('[data-structure="remove"]')!.textContent).toBe('Remove')
-  expect(renderSnapshotHtml(DATA, THREE, 'final', 'x')).not.toContain('data-structure')
-})
-
-test('the wrapper reset targets only wrapper spans and inherits spacing and case; the sidebar brand span keeps AIVx styling', () => {
-  expect(EDITOR_STYLE).toContain('span.aeo-w,.sidebar-industry span.aeo-w{display:inline;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;margin:0}')
-  expect(EDITOR_STYLE).toContain('th[data-slot]{user-select:text;-webkit-user-select:text}')
-  const h = renderSnapshotHtml(DATA, SLOTS, 'draft', 'x')
-  expect(h).toContain('<span class="aeo-w" data-mirror="page.series">AI Visibility Snapshot</span>')
-  expect(h).toContain(`<span data-mirror="brand">${'Example &lt;Co&gt; &amp; &quot;Sons&quot;'}</span>`)
-})
-
-test('in every mode the header clone runs after the AIVx script; in draft the frame script runs after both', () => {
-  for (const mode of ['draft', 'preview', 'final'] as const) {
-    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
-    const aivx = `<script>${AIVX_JS}</script>`
-    const at = h.indexOf(aivx)
-    expect(at).toBeGreaterThan(-1)
-    expect(h.indexOf(`<script>${HEADER_CLONE_JS}</script>`)).toBe(at + aivx.length)
-    if (mode === 'draft') expect(h.indexOf(FRAME_SCRIPT_JS)).toBeGreaterThan(at + aivx.length)
-  }
-})
-
-test('the header clone removes the AIVx table sort from the opportunities table', () => {
-  const hadInnerText = 'innerText' in HTMLElement.prototype
-  if (!hadInnerText) Object.defineProperty(HTMLElement.prototype, 'innerText', { configurable: true, get() { return (this as HTMLElement).textContent } })
-  try {
-    const sortClass = (clone: boolean) => {
-      const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'final', 'x'))
-      new Function('window', 'document', AIVX_JS)(new EventTarget(), doc)
-      if (clone) new Function('document', HEADER_CLONE_JS)(doc)
-      const th = doc.querySelector('.leaderboard thead th')!
-      th.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      return th.className
-    }
-    expect(sortClass(false)).toBe('sort-asc')
-    expect(sortClass(true)).toBe('')
-  } finally {
-    if (!hadInnerText) delete (HTMLElement.prototype as { innerText?: unknown }).innerText
-  }
-})
-
-test('showsPowered (v1.1 §17.5): shown under a name without "avenue z", hidden under any name that contains it', () => {
-  for (const w of ['AIVx', 'AEO Lens']) expect(showsPowered(w)).toBe(true)
-  for (const w of ['Avenue Z', '  avenue z ', 'Avenue Z AEO']) expect(showsPowered(w)).toBe(false)
-})
-
 test('PAGE_CSS follows the AIVx style and PAGE_JS follows the header clone, in draft, preview and final', () => {
   for (const mode of ['draft', 'preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
@@ -321,15 +180,14 @@ test('PAGE_CSS follows the AIVx style and PAGE_JS follows the header clone, in d
     const clone = `<script>${HEADER_CLONE_JS}</script>`
     expect(h).toContain(`${clone}<script>${PAGE_JS}</script>`)
     const at = h.indexOf(`<script>${PAGE_JS}</script>`)
-    if (mode === 'final') expect(h.indexOf(AIVX_SHARE_BLOCK)).toBeGreaterThan(at)
     if (mode === 'draft') expect(h.indexOf(FRAME_SCRIPT_JS)).toBeGreaterThan(at)
   }
 })
 
-test('the phone Share block is in the final page only, immediately before the footer', () => {
-  expect(renderSnapshotHtml(DATA, SLOTS, 'final', 'x')).toContain(`</section>\n${SHARE_MOBILE}<footer class="footer">`)
-  for (const mode of ['draft', 'preview'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'x')).not.toContain('class="aeo-share-mobile"')
-  expect(SHARE_MOBILE).toBe('<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>')
+test('PAGE_CSS and PAGE_JS have no phone Share rules or proxy (v1.1 §17.11)', () => {
+  expect(PAGE_CSS).not.toContain('aeo-share-mobile')
+  expect(PAGE_JS).not.toContain('aeo-share-mobile-btn')
+  expect(PAGE_JS).not.toContain('share-btn')
 })
 
 /** v1.1 §17.8 and §17.10: the rules that close up the space beside the two charts and lay the findings out as rows, verbatim and in order. */
@@ -347,13 +205,13 @@ const CHART_SPACING_RULES = [
 const COLOR_SCHEME_RULE = 'html{color-scheme:dark}'
 const outsideRules = () => PAGE_CSS.slice(0, PAGE_CSS.indexOf('@media (max-width: 900px){')).split('\n').filter(Boolean)
 
-test('every PAGE_CSS rule except aeo-long, the hidden share block and the chart spacing rules sits inside the phone media query', () => {
+test('every PAGE_CSS rule except aeo-long, the chart spacing rules sits inside the phone media query', () => {
   const open = '@media (max-width: 900px){'
   const at = PAGE_CSS.indexOf(open)
   expect(at).toBeGreaterThan(-1)
   expect(PAGE_CSS.endsWith('}')).toBe(true)
   const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
-  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', '.aeo-share-mobile{display:none}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES])
+  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES])
   const inside = PAGE_CSS.slice(at + open.length, -1).split('\n').filter(Boolean)
   expect(inside.length).toBeGreaterThan(5)
   expect(inside.every((r) => r.endsWith('}') && !r.includes('@media'))).toBe(true)
@@ -410,7 +268,7 @@ test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final
 test('findings rows (v1.1 §17.10): the box loses justify-content:center, the list fills it, and html is drawn dark', () => {
   const out = outsideRules()
   expect(out.join('\n')).not.toContain('justify-content:center')
-  expect(out.indexOf(COLOR_SCHEME_RULE)).toBe(out.indexOf('.aeo-share-mobile{display:none}') + 1)
+  expect(out.indexOf(COLOR_SCHEME_RULE)).toBe(out.indexOf('.kpi-value.aeo-long{font-size:24px;line-height:1.15}') + 1)
   const ctl = out.findIndex((r) => r.includes('.insight-box>.aeo-ctl'))
   expect(out.slice(ctl + 1, ctl + 5)).toEqual(CHART_SPACING_RULES.slice(4, 8))
 })

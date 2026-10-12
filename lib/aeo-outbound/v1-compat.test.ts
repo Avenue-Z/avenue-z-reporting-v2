@@ -5,7 +5,8 @@ import { dataBlock } from './prompt'
 import { groundingFlags } from './grounding'
 import { AIVX_JS } from './aivx/js'
 import { AIVX_CSS } from './aivx/css'
-import { HEADER_CLONE_JS, PAGE_CSS, PAGE_JS, SHARE_MOBILE, renderSnapshotHtml } from './render'
+import { HEADER_CLONE_JS, PAGE_CSS, PAGE_JS, SHARE_BUTTON, renderSnapshotHtml } from './render'
+import { AIVX_SHARE_BLOCK } from './aivx/share'
 
 // The v1.0 final page of V1_DATA and V1_SLOTS, generated once from the code at 06e68c0d (plan Task 1 Step 4).
 const GOLDEN = readFileSync('lib/aeo-outbound/__fixtures__/v1-0-final.html', 'utf8')
@@ -23,6 +24,13 @@ test('a version 1 row keeps its version 1 grounding flags: the new keys read def
 // Deliberate differences from v1.0 (spec v1.1 §9 and §16.1), applied to the frozen v1.0 golden: the donut hover reads
 // Retrievals, the header clone script follows the AIVx script, and (Task 3b) no AIVx wordmark and no Powered by line.
 const V10_LOGO = '<div class="aivx-brand">AIVx</div>\n    <div class="powered">Powered by Avenue Z</div>'
+const removeShare = (html: string) => {
+  const block = `\n${AIVX_SHARE_BLOCK}`
+  expect(html.split(SHARE_BUTTON)).toHaveLength(2)
+  expect(html.split(block)).toHaveLength(2)
+  expect(html.split('<button class="share-btn"')).toHaveLength(2)
+  return html.split(SHARE_BUTTON).join('').split(block).join('')
+}
 const v11 = (html: string) => {
   expect(html.split('Citations: %{value}')).toHaveLength(2)
   const aivx = `<script>${AIVX_JS}</script>`
@@ -33,14 +41,16 @@ const v11 = (html: string) => {
     return h.split(from).join(to)
   }
   let out = html.split('Citations: %{value}').join('Retrievals: %{value}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script><script>${PAGE_JS}</script>`).split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
-  // v1.1 §17: the page stylesheet after AIVx's, the data-label on each opportunities cell, aeo-long on the long rank value, the phone Share block.
+  // v1.1 §17: the page stylesheet after AIVx's, the data-label on each opportunities cell, aeo-long on the long rank value.
+// v1.1 §17.11: a sent report carries no Share button, so the golden's three share pieces are removed (button once, toast
+// and script once each, as one contiguous block).
   out = once(out, `<style>${AIVX_CSS}</style>`, `<style>${AIVX_CSS}</style><style>${PAGE_CSS}</style>`)
   out = once(out, '<tr><td>', '<tr><td data-label="Signal">', 3)
   out = once(out, '</td><td>Explore it</td><td>Technical', '</td><td data-label="Opportunity to explore">Explore it</td><td data-label="Likely workstream">Technical')
   out = once(out, '</td><td>Investigate</td><td>PR / earned media', '</td><td data-label="Opportunity to explore">Investigate</td><td data-label="Likely workstream">PR / earned media')
   out = once(out, '</td><td>Test content</td><td>Content / AEO', '</td><td data-label="Opportunity to explore">Test content</td><td data-label="Likely workstream">Content / AEO')
   out = once(out, '<div class="kpi-value">#3 of 3 brands</div>', '<div class="kpi-value aeo-long">#3 of 3 brands</div>')
-  out = once(out, '</section>\n<footer class="footer">', `</section>\n${SHARE_MOBILE}<footer class="footer">`)
+  out = removeShare(out)
   return out
 }
 // The footer description and disclaimer are one slot value each now, rendered on one line where v1.0 wrapped them over
