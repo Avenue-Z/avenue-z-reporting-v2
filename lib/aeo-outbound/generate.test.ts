@@ -83,7 +83,7 @@ test('grounding-only problems still save as a draft, with notes', async () => {
   const bad = JSON.parse(GOOD); bad.why = 'Visibility rose 42.0% last year.'
   const glean = vi.fn(async (_prompt: string) => reply(JSON.stringify(bad)))
   const r = await generateSnapshot('or_a', deps(glean))
-  expect(r.ok && r.notes.join(' ')).toContain('"42.0%" is not in the Peec data')
+  expect(r.ok && r.notes.map((n) => (typeof n === 'string' ? n : n.text)).join(' ')).toContain('"42.0%" is not in the Peec data')
   expect(glean).toHaveBeenCalledTimes(2)
   expect(String(glean.mock.calls[1][0])).toContain('"42.0%" is not in the Peec data')
 })
@@ -265,4 +265,13 @@ test('with the default settings, settingsUsed records the fixed next step the ro
   const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))))
   expect(r.ok && r.data.settingsUsed?.fixedNextStep).toBe(DECISIONS.fixedNextStep)
   expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
+})
+
+test('a generated row stores every key: brand, window label and KPIs from its data, page words from the settings', async () => {
+  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))), null, { ...SETTINGS_DEFAULTS, sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z' })
+  if (!r.ok) throw new Error(r.error)
+  expect(r.slots.brand).toBe('Example Co')
+  expect(r.slots.window_label).toBe(r.data.windowLabel)
+  expect(r.slots.kpis).toEqual(r.data.kpis)
+  expect(r.slots.page).toMatchObject({ section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
 })

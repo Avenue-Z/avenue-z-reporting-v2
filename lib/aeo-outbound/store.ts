@@ -2,8 +2,9 @@
 import { and, desc, eq, ilike, inArray, isNull, lt, not, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { aeoOutboundOpens as o, aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
-import { STALE_GENERATING_MS } from './config'
-import { REPORT_ID_RE } from './contracts'
+import { STALE_GENERATING_MS, type ContractBoundary } from './config'
+import { checkContract, REPORT_ID_RE, STORED_DATA, STORED_NOTES, STORED_SLOTS } from './contracts'
+import type { ZodType } from 'zod'
 import type { SnapshotData } from './metrics'
 import type { StoredNote } from './notes'
 import type { Slots } from './slots'
@@ -13,9 +14,14 @@ import { isShareTokenShape } from './token'
 
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_GENERATING_MS)
 
-/** A row with its JSON columns typed. The schema keeps them untyped so it never imports this folder. */
-export type ReportRow = Omit<AeoOutboundRow, 'data' | 'slots' | 'notes'> & { data: SnapshotData | null; slots: Slots | null; notes: StoredNote[] | null }
-const typed = (r: AeoOutboundRow): ReportRow => r as unknown as ReportRow
+/** A row with its JSON columns typed. The schema keeps them untyped so it never imports this folder. unreadable is true
+ *  when a stored column breaks its contract (v1.1 §10): the editor then says so instead of rendering it. */
+export type ReportRow = Omit<AeoOutboundRow, 'data' | 'slots' | 'notes'> & { data: SnapshotData | null; slots: Slots | null; notes: StoredNote[] | null; unreadable?: boolean }
+const breaks = (boundary: ContractBoundary, schema: ZodType, value: unknown): boolean => value !== null && !checkContract(boundary, schema, value).ok
+function typed(r: AeoOutboundRow): ReportRow {
+  const unreadable = breaks('stored.data', STORED_DATA, r.data) || breaks('stored.slots', STORED_SLOTS, r.slots) || breaks('stored.notes', STORED_NOTES, r.notes)
+  return { ...(r as unknown as Omit<ReportRow, 'unreadable'>), unreadable }
+}
 
 export function markStaleGeneratingQuery(projectId: string, now: Date) {
   return db.update(t)

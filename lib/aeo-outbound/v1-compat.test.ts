@@ -12,8 +12,9 @@ test('a version 1 row keeps its version 1 Data block', () => {
   expect(dataBlock(V1_DATA)).toBe(V1_DATA_BLOCK)
 })
 
-test('a version 1 row keeps its version 1 grounding flags', () => {
-  expect(groundingFlags(V1_SLOTS, V1_DATA, V1_DATA_BLOCK)).toEqual(V1_FLAGS)
+test('a version 1 row keeps its version 1 grounding flags: the new keys read defaults that carry no numbers', () => {
+  const legacy = (ns: { path?: string; text: string }[]) => [...new Set(ns.map((n) => `${(n.path ?? '').split('.')[0]}: ${n.text}`))]
+  expect(legacy(groundingFlags(V1_SLOTS, V1_DATA, V1_DATA_BLOCK))).toEqual(V1_FLAGS)
 })
 
 // Deliberate differences from v1.0 (spec v1.1 §9 and §16.1), applied to the frozen v1.0 golden. Later tasks add to this list.

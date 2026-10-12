@@ -10,7 +10,7 @@ import { originAllowed } from '@/lib/aeo-outbound/permissions'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { cleanRecipient } from '@/lib/aeo-outbound/recipient'
 import { renderSnapshotHtml } from '@/lib/aeo-outbound/render'
-import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
+import { needsValidationPaths, withDefaults } from '@/lib/aeo-outbound/slots'
 import { SHARE_TOKEN_UNIQUE, approveQuery, copyAsDraft, discardQuery, getReport, isConstraintViolation, isReportId, revokeQuery } from '@/lib/aeo-outbound/store'
 import { newShareToken } from '@/lib/aeo-outbound/token'
 
@@ -53,12 +53,13 @@ export async function approveSnapshotAction(id: string, revision: number, recipi
     if (!row) return NOT_FOUND
     // The row exists but changed under the editor: approved, failed, or edited since it was shown.
     if (row.status !== 'draft' || row.revision !== revision) return STALE
-    if (!row.data || !row.slots) return NOT_FOUND
+    if (!row.data || !row.slots || row.unreadable) return NOT_FOUND
     const who = cleanRecipient(recipient)
     if (!who.ok) return { ok: false, error: who.error } as Fail
-    if (DECISIONS.needsValidationBlocksApprove && needsValidationPaths(row.slots).length) return { ok: false, error: 'Fill in every "Needs validation" first.' } as Fail
+    const slots = withDefaults(row.slots, row.data)
+    if (DECISIONS.needsValidationBlocksApprove && needsValidationPaths(slots).length) return { ok: false, error: 'Fill in every "Needs validation" first.' } as Fail
     const now = new Date()
-    const html = renderSnapshotHtml(row.data, row.slots, 'final', fmtEasternDay(now))
+    const html = renderSnapshotHtml(row.data, slots, 'final', fmtEasternDay(now))
     const write = (token: string) => approveQuery(id, revision, { html, token, recipient: who.value, by: email, now })
     let done
     try {

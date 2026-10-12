@@ -3,7 +3,9 @@
 // because contract-core is Python. Peec boundaries enforce their numeric fields and observe every other field they read.
 import { z } from 'zod'
 import { CONTRACT_MODES, type ContractBoundary, type ContractMode } from './config'
+import { NOTE_KINDS } from './notes'
 import { PeecError } from './peec'
+import { PAGE_KEYS } from './slots'
 
 export interface ContractIssue { field: string; issue: string }
 export type ContractResult = { ok: true } | { ok: false; issues: ContractIssue[] }
@@ -118,4 +120,34 @@ export const SETTINGS_ROW = z.looseObject({
   methodologyStatesPromptsAndModels: z.boolean(),
   sidebarWordmark: z.enum(['AIVx', 'Avenue Z']),
   updatedAt: z.date(),
+})
+
+const storedKpi = z.looseObject({ label: z.string(), value: z.string() })
+const storedBrand = z.looseObject({ id: z.string(), name: z.string(), isOwn: z.boolean(), visibilityPct: z.number(), sovPct: z.number().nullable(), position: z.number().nullable(), rank: z.number() })
+/** A row's notes: v1 strings or v1.1 Notes (spec v1.1 §4). */
+export const STORED_NOTES = z.array(z.union([z.string(), z.looseObject({ kind: z.enum(NOTE_KINDS), path: z.string().optional(), text: z.string() })]))
+/** Stored data, version 1 or 2 (v1.1 §10). Only the fields render, grounding and the editor read. */
+export const STORED_DATA = z.looseObject({
+  schemaVersion: z.literal(2).optional(),
+  projectId: z.string(), projectName: z.string(), brand: z.string(), generatedAt: z.string(),
+  window: z.looseObject({ start: z.string(), end: z.string() }), windowLabel: z.string(),
+  category: z.string().nullable(), market: z.string().nullable(),
+  brands: z.array(storedBrand), own: storedBrand, kpis: z.array(storedKpi),
+  competitorsTracked: z.number(), rankN: z.number(),
+  leaderGaps: z.array(z.looseObject({ name: z.string(), visibilityPoints: z.number(), sovPoints: z.number().nullable() })),
+  ownDomains: z.array(z.string()), ownRetrievedChats: z.number(), ownRetrievedPct: z.number().nullable(),
+  sourceMix: z.array(z.looseObject({ label: z.string(), weight: z.number(), pct: z.number() })),
+  gapDomains: z.array(z.looseObject({ domain: z.string(), retrievedChats: z.number() })),
+  actions: z.array(z.looseObject({ title: z.string(), impact: z.string(), type: z.string() })),
+  promptCount: z.number().nullable(), models: z.array(z.string()), notes: STORED_NOTES,
+})
+const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })
+/** Stored slots: the copy keys always, the v1.1 keys when the row has them. */
+export const STORED_SLOTS = z.looseObject({
+  category: z.string(), market: z.string(), headline: z.string(), summary: z.string(), context: z.string(),
+  competitive_bullets: z.array(storedBullet).min(2).max(3), sources_bullets: z.array(storedBullet).min(2).max(3),
+  why: z.string(), opportunities: z.array(z.looseObject({ signal: z.string(), opportunity: z.string(), workstream: z.string() })).length(3),
+  methodology: z.string(), next_step: z.string(),
+  brand: z.string().optional(), window_label: z.string().optional(), kpis: z.array(storedKpi).optional(),
+  page: z.partialRecord(z.enum(PAGE_KEYS), z.string()).optional(),
 })

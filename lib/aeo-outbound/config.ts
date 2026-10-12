@@ -60,3 +60,36 @@ export const CONTRACT_MODES = {
   'stored.notes': 'enforce',
 } as const satisfies Record<string, ContractMode>
 export type ContractBoundary = keyof typeof CONTRACT_MODES
+
+/** Every fixed word on the v1.0 page (render.ts at 06e68c0d), keyed by its page slot (spec v1.1 §3). The default of each
+ *  page.* slot on a row from before v1.1. A new row takes section titles and the wordmark from settings instead. None
+ *  contains a number, so grounding on a row's page words is unchanged until Ryan types one. */
+export const PAGE_WORDS_V1 = {
+  series: 'AI Visibility Snapshot',
+  headline_label: 'Headline signal',
+  section_1_title: DECISIONS.sectionTitles[0],
+  section_2_title: DECISIONS.sectionTitles[1],
+  opps_label: 'Opportunities',
+  method_nav: 'Methodology',
+  category_label: 'Category:',
+  market_label: 'Market:',
+  window_prefix: 'Data window:',
+  chart_1_title: 'Domain Types',
+  chart_2_title: 'Competitive Visibility',
+  why_title: 'Why it matters',
+  opps_title: 'Three opportunities to explore',
+  opps_col_1: 'Signal',
+  opps_col_2: 'Opportunity to explore',
+  opps_col_3: 'Likely workstream',
+  opps_takeaway: 'These are opportunity hypotheses for discussion, not a full roadmap.',
+  method_label: 'Methodology:',
+  next_label: 'Next step:',
+  prepared_label: 'Prepared',
+  footer_name: 'Avenue Z',
+  footer_desc: 'Avenue Z is a digital marketing and PR agency specializing in AI visibility and Answer Engine Optimization (AEO). We help brands earn citation authority with AI models through earned media, content strategy, and technical optimization.',
+  footer_link: 'avenuez.com ↗',
+  footer_disclaimer: 'Data reflects a Peec AI visibility snapshot for the stated window and is directional. Avenue Z makes no representations about future AI visibility outcomes.',
+  sidebar_wordmark: DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z',
+  sidebar_powered: 'Powered by Avenue Z',
+  sidebar_link: 'avenuez.com ↗',
+}

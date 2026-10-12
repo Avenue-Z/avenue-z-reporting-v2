@@ -5,18 +5,18 @@ import { DECISIONS, MAX_WINDOW_DAYS, NEEDS_VALIDATION } from './config'
 import { checkContract, GLEAN_SLOTS } from './contracts'
 import type { ErrorCode } from './error-codes'
 import { buildSnapshotData, type SnapshotData } from './metrics'
-import type { StoredNote } from './notes'
+import type { Note, StoredNote } from './notes'
 import { isPeecTimeout, PeecClient, PeecError } from './peec'
 import { pullSnapshot } from './pull'
 import { buildPrompt, dataBlock, parseModelJson } from './prompt'
 import { groundingFlags } from './grounding'
-import { cleanValue, MAX_LEAD, validateGeneratedSlots, type Slots } from './slots'
+import { cleanValue, MAX_LEAD, pageDefaults, validateGeneratedSlots, withDefaults, type FullSlots } from './slots'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
 import { SETTINGS_DEFAULTS, type GenerationSettings } from './settings'
 
 export type GenerationResult =
-  | { ok: true; brandName: string; data: SnapshotData; slots: Slots; notes: StoredNote[] }
+  | { ok: true; brandName: string; data: SnapshotData; slots: FullSlots; notes: StoredNote[] }
   | { ok: false; error: string; code: ErrorCode; brandName: string | null }
 
 /** The step reported while Glean writes the copy (v1.1 §7). Pull reports 1 to 6 and 8; there is no step 7. */
@@ -51,7 +51,7 @@ export async function generateSnapshot(
     let problems: string[] = []
     let lastSearched = false
     /** A shape-valid reply whose only problem was grounding: kept so a worse second attempt can't lose it. */
-    let groundedFallback: { slots: Slots; flags: string[] } | null = null
+    let groundedFallback: { slots: FullSlots; flags: Note[] } | null = null
     reach(WRITING_STEP)
     for (let attempt = 1; attempt <= 2; attempt++) {
       const left = deps.deadline - deps.now()
@@ -84,10 +84,12 @@ export async function generateSnapshot(
       }
       const checked = validateGeneratedSlots(parsed, fixedNow)
       if (!checked.ok) { problems = checked.errors; continue }
-      const flags = groundingFlags(checked.slots, data, block)
-      if (!flags.length) return { ok: true, brandName, data, slots: checked.slots, notes: data.notes }
-      groundedFallback = { slots: checked.slots, flags }
-      if (attempt === 1 && deps.deadline - deps.now() >= 60_000) { problems = flags; continue }
+      // v1.1 §3: the row is created with every key: brand, window label and KPIs from its data, words from settings.
+      const full: FullSlots = { ...withDefaults(checked.slots, data), page: pageDefaults(settings) }
+      const flags = groundingFlags(full, data, block)
+      if (!flags.length) return { ok: true, brandName, data, slots: full, notes: data.notes }
+      groundedFallback = { slots: full, flags }
+      if (attempt === 1 && deps.deadline - deps.now() >= 60_000) { problems = flags.map((f) => `${f.path ?? ''}: ${f.text}`); continue }
       break
     }
     if (groundedFallback) return { ok: true, brandName, data, slots: groundedFallback.slots, notes: [...data.notes, ...groundedFallback.flags] }

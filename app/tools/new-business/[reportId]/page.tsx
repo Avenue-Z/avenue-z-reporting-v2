@@ -3,7 +3,7 @@ import { requireStaff } from '@/lib/auth/page-access'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { displayStatus, failureReason, getReport, isReportId } from '@/lib/aeo-outbound/store'
-import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
+import { needsValidationPaths, withDefaults } from '@/lib/aeo-outbound/slots'
 import { OutboundEditor } from '@/components/aeo-outbound/editor'
 import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
@@ -39,7 +39,7 @@ export default async function NewBusinessEditorPage({
       status={displayStatus(row, now)}
       revision={row.revision}
       notes={row.notes ?? []}
-      needsValidation={row.slots ? needsValidationPaths(row.slots) : []}
+      needsValidation={row.slots && row.data && !row.unreadable ? needsValidationPaths(withDefaults(row.slots, row.data)) : []}
       token={row.status === 'approved' && !row.shareRevokedAt ? row.shareToken : null}
       error={failureReason(row, now)}
     />

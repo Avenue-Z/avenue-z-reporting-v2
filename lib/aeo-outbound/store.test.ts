@@ -293,3 +293,24 @@ test('the 0027 migration adds only the opens and settings tables and two report 
   expect(sqlText).not.toMatch(/\bDROP\b|ALTER COLUMN|RENAME/)
   expect(sqlText).not.toMatch(/\bip\b|user_agent/i)
 })
+
+test('a stored row that breaks its contract is read as unreadable, with one log line naming the field; a sound row is not', async () => {
+  vi.resetModules()
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const good = { id: ID, status: 'draft', data: null, slots: { category: 'c', market: 'm', headline: 'h', summary: 's', context: 'c', competitive_bullets: [{ lead: 'a', text: 'b' }, { lead: 'a', text: 'b' }], sources_bullets: [{ lead: 'a', text: 'b' }, { lead: 'a', text: 'b' }], why: 'w', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'm', next_step: 'n' }, notes: ['old note'] }
+  const bad = { ...good, slots: { ...good.slots, competitive_bullets: [{ lead: 'a', text: 'b' }] } }
+  const select = vi.fn()
+    .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([good]) }) }) })
+    .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([bad]) }) }) })
+  vi.doMock('@/lib/db/client', () => ({ db: { select } }))
+  try {
+    const store = await import('./store')
+    expect((await store.getReport(ID))?.unreadable).toBe(false)
+    expect((await store.getReport(ID))?.unreadable).toBe(true)
+    expect(error.mock.calls.map((c) => String(c[0]))).toEqual(['[aeo-outbound] contract boundary=stored.slots field=competitive_bullets issue=too_small count=1 mode=enforce'])
+  } finally {
+    vi.doUnmock('@/lib/db/client')
+    vi.resetModules()
+    error.mockRestore()
+  }
+})

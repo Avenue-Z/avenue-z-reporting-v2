@@ -238,3 +238,11 @@ test('copy as draft returns the new id and tags the cache; an undefined result i
   expect(await copySnapshotAsDraftAction(ID)).toEqual(NOT_FOUND)
   expect(updateTag).not.toHaveBeenCalled()
 })
+
+test('approve: a page word still saying Needs validation is refused too, and an unreadable row is not found', async () => {
+  vi.mocked(store.getReport).mockResolvedValueOnce({ ...DRAFT, slots: { ...SLOTS, page: { opps_title: 'Needs validation' } } } as never)
+  expect(await approveSnapshotAction(ID, 1, 'Ada')).toEqual({ ok: false, error: 'Fill in every "Needs validation" first.' })
+  vi.mocked(store.getReport).mockResolvedValueOnce({ ...DRAFT, unreadable: true } as never)
+  expect(await approveSnapshotAction(ID, 1, 'Ada')).toEqual(NOT_FOUND)
+  noWrites()
+})
