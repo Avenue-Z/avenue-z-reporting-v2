@@ -210,4 +210,9 @@ header drops the edit listeners unless the clone runs first or the script delega
 error text, so it needs its own `contract_violation` code with the field; M6 no frame-to-parent message asks for add or
 remove; M7 a structural PATCH outside the save queue leaves the queue's revision stale (`save-queue.ts:22-27,73`).
 Per my rule (a MAJOR after round 2 stops the loop), these go to me as decisions; no round 3.
+Thomas's decision (2026-10-11): "Yes, go ahead": apply my recommended fixes for the 7 round-2 MAJORs, no round 3, then plan
+and build. Applied as targeted edits: a `structure` frame message and structural items in the save queue (M6, M7, the
+BLOCKER); one editable spot per key with mirrors (M1); the rank-card token rule (M2); `progress_step integer not null
+default 0` (M3); header clone before the editor script plus a delegated listener (M4); a `contract_violation` code carried
+on the error object (M5). The 16 round-2 MINORs go to the plan.
 

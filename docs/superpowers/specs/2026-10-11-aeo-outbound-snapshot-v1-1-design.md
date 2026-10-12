@@ -29,8 +29,9 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
   frame script makes slots editable only in edit mode. Handshake: on load the frame posts `{type:'ready'}`; the parent
   answers `{type:'mode', edit}` and re-sends it on every `ready` (a reload after a structural change, §3). Switching modes
   flushes pending edits first and never reloads the frame. Frame to parent messages: `ready`, `dirty` and `edit` (with
-  `path`), `locked` (with `what`: `chart` or `fixed`); parent to frame: `mode`, `flush`, `focus` (with `path`). The parent
-  keeps its source check (only its own frame) and requires `path` only for `dirty` and `edit` (today it drops any message
+  `path`), `locked` (with `what`: `chart` or `fixed`), `structure` (with `op`: `add` or `remove`, and `path`: the list,
+  or the bullet to remove); parent to frame: `mode`, `flush`, `focus` (with `path`). The parent
+  keeps its source check (only its own frame) and requires `path` only for `dirty`, `edit` and `structure` (today it drops any message
   without one, `components/aeo-outbound/editor.tsx:125`).
 - In edit mode the frame script cancels clicks inside links and the sidebar nav, so clicking to edit never navigates; in
   Preview links work (the frame's sandbox adds `allow-popups allow-popups-to-escape-sandbox`).
@@ -58,6 +59,12 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
     window:"); `chart_1_title`, `chart_2_title`; `why_title`; `opps_title`; `opps_col_1` to `opps_col_3`; `opps_takeaway`;
     `method_label`; `next_label`; `prepared_label` ("Prepared"); `footer_name`; `footer_desc`; `footer_link`;
     `footer_disclaimer`; `sidebar_wordmark`; `sidebar_powered`; `sidebar_link`.
+  - One editable spot per key, the others mirror it: `series` is edited in the hero; each section title in its section
+    heading; `headline_label` in the headline label; `opps_label` in the section label; the brand in the hero. The other
+    copies render as plain text carrying `data-mirror="{path}"` (no `data-slot`, never editable); after a save the frame
+    updates every mirror of that path from the saved value (the footer series uppercased by CSS-free `toUpperCase` at
+    render). Clicking a mirror posts `locked` with `what: 'fixed'` and the message "Edit this where it first appears on the
+    page." The frame keeps exactly one element per editable path (today's `els[p]=el`, `render.ts:18`, stays correct).
   - Fixed by design, and shown as `fixed` when clicked: the nav numbers 01 to 05 and the "02 / " style prefixes
     (numbering), the Prepared date (set at approval), the share button (final page only, AIVx's own block). The `<title>`
     and meta description are built from `brand` and `series`.
@@ -68,9 +75,13 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
   - Bullet lists, per his skill ("two or three"): an **Add bullet** control under a list of 2, a **Remove** control on
     each bullet of a list of 3. Paths `<list>.add` and `<list>.<i>.remove` (i = 0 to 2), `value` the literal
     `"structure"` (ignored; keeps the §9a non-empty rule). A new bullet's lead and text are "Needs validation", which
-    blocks Approve until filled. A structural change flushes and drains the save queue, is its own PATCH with the current
-    revision, returns the new `slots`, and the editor re-fetches the frame (which posts `ready`, so the mode is re-sent);
-    notes and grounding recompute with the new indices.
+    blocks Approve until filled. The controls are inside the frame (edit mode only); a click posts `structure`. The editor
+    hands it to the save queue as a structural item: the queue first sends every pending edit, then sends the structural
+    PATCH as its next request with the queue's current revision, and on the 200 takes the returned revision exactly like any
+    save (so the next keystroke carries the right revision). The PATCH response for a structural path also carries
+    `slots`; the editor then re-fetches the frame (which posts `ready`, so the mode is re-sent) and drops per-session "Looks
+    right" ticks for that list. While a structural item is queued or in flight, the frame is read-only. Notes and
+    grounding recompute with the new indices.
 - Path grammar (closed, `slots.ts:24` extended): the existing paths plus `brand`, `window_label`, `kpis.<i>.label`,
   `kpis.<i>.value`, `page.<key>` for the listed keys, and the add and remove paths. Unknown paths stay a 400.
 - The AIVx look is unchanged: preview and final emit no `data-slot` and no wrapper element, so the final HTML of a
@@ -86,7 +97,9 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
   text is editable.
 - Numbers Ryan types are allowed, and never silently. The grounding check (spec §6) runs on every slot, with
   `avenuez.com` always an allowed domain. A KPI value is compared with Peec's after removing `%`, `#` and commas, as a
-  number at Peec's displayed precision ("16%" vs Peec 15.5% differs; "15.5" equals); `window_label` is compared as text
+  number at Peec's displayed precision ("16%" vs Peec 15.5% differs; "15.5" equals). The rank card ("#3 of 12 brands") is
+  compared by its number tokens in order: both must match Peec's (3 and 12), and the item reads "Competitive rank shows #2
+  of 12 brands but Peec says #3 of 12 brands". A KPI label is not compared; `window_label` is compared as text
   with Peec's label. A difference adds the "Check these" item "AI visibility shows 16% but Peec says 15.5%". It does not
   block Approve (my "zero drift" rule is met by making every difference visible before sending).
 
@@ -161,6 +174,7 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
   callback (`lib/aeo-outbound/pull.ts:54-60`) by one unawaited `UPDATE ... SET progress_step = $n WHERE id = $id AND
   status = 'generating' AND progress_step < $n` that never throws and logs one line on error, so it cannot slow the run
   or land out of order. Pull emits steps 1 to 6 and 8 (there is no step 7); `generate.ts` writes 9 before the Glean call.
+  The column is `integer not null default 0`.
   The hub and editor show "Pulling Peec data… 0:18" for 1 to 8 and "Writing the copy… 0:41" for 9, with "Usually 35 to 45
   seconds" (measured: 34.7s in the dev run, 35.8s and 40.6s in the trials).
 - Different projects can generate in parallel (the partial unique index allows one per project,
@@ -171,7 +185,8 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
 - Whether a generation survives a closed tab is unverified (spec §7a); until the first preview deploy proves it, the copy
   says "Keep this tab open until it finishes."
 - Failure reasons in plain words, each with a next step. A failed row stores a new `error_code` beside the existing
-  `error` text; the UI maps the code to display text (it knows the row id). Codes: `no_project` (`pull.ts:57`): "This Peec
+  `error` text. The code travels on the error object (`PeecError` gains an optional `code`; `generateSnapshot` returns
+  `{ok:false, error, code}`), never by matching message text; the UI maps the code to display text (it knows the row id). Codes: `no_project` (`pull.ts:57`): "This Peec
   project isn't available any more. Pick another."; `own_brand_count` (`:62`): "In Peec, mark exactly one brand as the
   client's own brand, then Rerun."; `no_data` (`:87`): "Peec has no data for this project in that period. Pick other
   dates."; `own_brand_no_row` (`:93`) and `zero_retrievals` (`:117`): "Peec's report for this period is empty. Pick other
@@ -179,7 +194,7 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
   on the full history. Pick a start and end date (90 days at most) and generate again."; `timeout` (any other timeout):
   "Peec or the copy writer took too long. Rerun."; `copy_failed` and `copy_outside_sources`: "Writing the copy failed.
   Rerun. If it fails twice, send engineering this id: {id}."; `peec_error`: "Peec returned an error. Rerun in a few
-  minutes."; `stale` (`store.ts:20`): "It stopped before finishing. Rerun."; `internal`: "Something went wrong on our side.
+  minutes."; `contract_violation`: "Peec's data changed shape ({field}). Send engineering this id: {id}."; `stale` (`store.ts:20`): "It stopped before finishing. Rerun."; `internal`: "Something went wrong on our side.
   Rerun, or send engineering this id: {id}." A row without a code (before v1.1) shows its stored text.
 
 ## 8. Self-service settings
@@ -225,7 +240,9 @@ Fixes from the data audit, each with a test:
 - Browser safety: the editor frame, the view route and the public page use exactly `sandbox allow-scripts allow-popups
   allow-popups-to-escape-sandbox` (CSP header and iframe attribute) so the avenuez.com links open; `contenteditable` falls back to `true` with plain-text paste where `plaintext-only` is unsupported; the
   AIVx table sort (which strips text cells to digits) is removed from the opportunities table, in every mode, by cloning
-  its header after the AIVx script runs.
+  its header after the AIVx script runs and before the edit script runs (render order: AIVx script, the clone, then the
+  editor script; the editor script also binds through one delegated listener on `document`, so a cloned or re-rendered
+  node never loses its handlers).
 
 ## 10. Data contracts
 
@@ -243,8 +260,8 @@ Fixes from the data audit, each with a test:
 - Field rules follow main spec §7: `visibility` is a required number 0 to 1; `share_of_voice` and `position` may be absent
   or null (position was missing on up to 25 of 52 brands, main spec line 224); counts are null or non-negative integers.
   Peec boundaries start in enforce for these fields and in observe for the rest.
-- Failure by boundary: a Peec violation in enforce throws a `PeecError` naming the field (generation fails with code
-  `peec_error`); a Glean reply violation is a shape problem fed to the existing retry once (`generate.ts:59-60`); a
+- Failure by boundary: a Peec violation in enforce throws a `PeecError` naming the field and carrying the code
+  `contract_violation` (generation fails with that code and the field in `error`); a Glean reply violation is a shape problem fed to the existing retry once (`generate.ts:59-60`); a
   request body violation keeps today's 400 bodies and messages; a stored row that fails its contract shows "This snapshot
   was saved by an older version and can't be shown. Rerun it." in the editor and a 404 on the public link is never
   produced by it (approved rows serve their frozen HTML, which is not re-validated).
