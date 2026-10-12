@@ -9300,3 +9300,28 @@ have been discarded, or the link is wrong.'`, `BACK_TO_HUB = 'Back to New Busine
 Tests (first): render it and find the heading, the line and the link with its href. Manual check on dev after the build
 (the controller): `/tools/new-business/not-a-uuid` and a well-formed id with no row both show it inside the dark layout.
 Commit subject: `Show a branded page when a snapshot no longer exists`.
+
+### Task 21: Findings as evenly spread rows, and a dark scrollbar (spec v1.1 §17.10)
+
+**Files:** `lib/aeo-outbound/render.ts` (`PAGE_CSS`), `lib/aeo-outbound/render.test.ts`.
+
+In `PAGE_CSS`, outside the media query:
+- Replace §17.8's rule
+  `#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;justify-content:center}`
+  with exactly
+  `#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}`.
+- Add, right after the existing `'.aeo-share-mobile{display:none}'` entry: `'html{color-scheme:dark}'`.
+- Add, right after the `.insight-box>.aeo-ctl` rule, these four, in order:
+  `#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}`
+  `#category-data .insight-box li,#competitive-visibility .insight-box li{font-size:16px;line-height:1.6;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.08)}`
+  `#category-data .insight-box li:last-child,#competitive-visibility .insight-box li:last-child{border-bottom:none}`
+  `#category-data .insight-box li strong,#competitive-visibility .insight-box li strong{display:block;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px}`
+
+Do not change `charts.ts`, `aivx/*`, the goldens, the `UL` constant or the section markup.
+
+Tests (first): update `CHART_SPACING_RULES` and the exact outside-rules `toEqual` to the new list and order; the
+`.chart-wrap` body stays `margin-bottom:0`; narrow the "no sizing or box property" test to rules whose selector (the
+text before `{`) matches `/chart-wrap|plotly|svg|aeo-chart-/`, and keep asserting none of those sets `height`,
+`min-height`, `padding`, `border` or `overflow`; `html{color-scheme:dark}` once in each of draft, preview and final; each
+new rule once per mode; in a 2-bullet and a 3-bullet draft the Add bullet / Remove buttons are still inside `.insight-box`.
+Commit subject: `Spread the findings as rows and draw the report's scrollbar dark`.

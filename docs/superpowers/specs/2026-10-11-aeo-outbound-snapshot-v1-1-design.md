@@ -764,3 +764,35 @@ existing leave-guard tests pass unchanged. Hub: 6 header cells; the brand cell s
 and run their handlers (Revoke and Discard still open their dialogs); Escape closes the menu and refocuses its button; a
 row with no secondary action has no More; `opensSummary` output unchanged; the notes sit after the table. Not found: the
 page renders the title, the line and the Back link.
+
+### 17.10 Findings as evenly spread rows, and a dark scrollbar (added 2026-10-12 after my dev QA)
+
+After §17.8 the bullet box matched the chart card (484px) but held about 123px of text, centred, so it still read as empty
+(measured on dev draft `ed7a587f`, 1280 wide). Approved from a mock on that draft:
+
+- Each finding is its own row: the lead becomes a small uppercase heading above its sentence, the sentence 16px (AIVx's box
+  text is 14px), thin dividers between rows, and the rows spread evenly down the box (`justify-content:space-evenly` on the
+  list, which grows to fill the box). The box keeps its yellow left rule and matches the chart card as in §17.8. The list's
+  inline style from `render.ts:16` (`margin-top:10px;padding-left:20px;display:flex;flex-direction:column;gap:4px`) stays.
+  Measured in the mock: Category data's list 416px in a 484px box, no overflow; Competitive visibility's three longer
+  findings fill it the same way. A box whose findings run longer than the chart grows the row, as in §17.8.
+- `html{color-scheme:dark}` so the browser draws the report's own scrollbar dark: in the editor that is the frame's
+  scrollbar, white today; on a sent report it is the page scrollbar on AIVx's black page.
+
+In `PAGE_CSS`, outside the phone media query, scoped to the two sections like §17.8. §17.8's `.insight-box` rule loses
+`justify-content:center` (the list now fills the box) and gains `padding:28px 32px`:
+
+```
+html{color-scheme:dark}
+#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}
+#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}
+#category-data .insight-box li,#competitive-visibility .insight-box li{font-size:16px;line-height:1.6;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.08)}
+#category-data .insight-box li:last-child,#competitive-visibility .insight-box li:last-child{border-bottom:none}
+#category-data .insight-box li strong,#competitive-visibility .insight-box li strong{display:block;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px}
+```
+
+The charts still do not change. §17.8's test that no rule outside the media query sets `height`, `min-height`, `padding`,
+`border` or `overflow` was broader than its purpose (guarding the chart card); it narrows to rules whose selector names
+`.chart-wrap`, `plotly`, `svg` or `aeo-chart-`, which must still set none of those. Tests: the rules verbatim and in place;
+the outside-rules list exact; the narrowed chart guard; each rule once per mode; the draft's Add bullet and Remove buttons
+still render inside the box.
