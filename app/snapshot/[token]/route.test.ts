@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-vi.mock('@/lib/aeo-outbound/store', () => ({ getLiveByToken: vi.fn(), recordOpenQuery: vi.fn() }))
+vi.mock('@/lib/aeo-outbound/store', () => ({ getLiveByToken: vi.fn(), recordOpen: vi.fn() }))
 
 import { auth } from '@/auth'
 import * as store from '@/lib/aeo-outbound/store'
@@ -9,6 +9,7 @@ import { GET, HEAD } from './route'
 // Every token, id, email and page is invented.
 const TOKEN = 'AAAAAAAAAAAAAAAAAAAAAAAA'
 const ID = 'c7d8e0a1-1111-4111-8111-111111111111'
+const APPROVED = new Date('2026-01-01T00:00:00Z')
 const HTML = '<!DOCTYPE html><html><body>Snapshot é <script>1</script></body></html>'
 const SESSION_COOKIE = 'authjs.session-token=abc'
 const authMock = auth as unknown as ReturnType<typeof vi.fn>
@@ -25,8 +26,8 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.useFakeTimers()
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML, approvedAt: null })
-  vi.mocked(store.recordOpenQuery).mockResolvedValue(undefined as never)
+  vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML, approvedAt: APPROVED })
+  vi.mocked(store.recordOpen).mockResolvedValue(undefined as never)
 })
 afterEach(() => { vi.useRealTimers(); warn.mockRestore() })
 
@@ -35,14 +36,14 @@ const settle = async (p: Promise<Response>, ms = 0) => { const done = p; await v
 test('unknown, malformed, revoked and discarded tokens get the identical 404', async () => {
   const bodies: string[] = []
   for (const [token, live] of [['short', true], [TOKEN, false], ['bad token with spaces!!', true]] as const) {
-    vi.mocked(store.getLiveByToken).mockResolvedValue(live ? { id: ID, html: HTML, approvedAt: null } : undefined)
+    vi.mocked(store.getLiveByToken).mockResolvedValue(live ? { id: ID, html: HTML, approvedAt: APPROVED } : undefined)
     const r = await settle(GET(req(), ctx(token)))
     expect(r.status).toBe(404)
     expect(r.headers.get('cache-control')).toBe('no-store')
     bodies.push(await r.text())
   }
   expect(new Set(bodies).size).toBe(1)
-  expect(store.recordOpenQuery).not.toHaveBeenCalled()
+  expect(store.recordOpen).not.toHaveBeenCalled()
   expect(authMock).not.toHaveBeenCalled()
 })
 
@@ -63,7 +64,7 @@ test('a failed lookup gives the same 404 bytes and headers as an unknown token, 
   const lines = logged(error)
   expect(lines).toEqual(['[aeo-outbound] snapshot lookup failed reason=57P01', '[aeo-outbound] snapshot lookup failed reason=57P01'])
   for (const l of lines) expect(l).not.toContain(TOKEN)
-  expect(store.recordOpenQuery).not.toHaveBeenCalled()
+  expect(store.recordOpen).not.toHaveBeenCalled()
   error.mockRestore()
 })
 
@@ -85,19 +86,19 @@ test('a GET with no cookie is counted without reading the session', async () => 
   const r = await settle(GET(req(), ctx()))
   expect(r.status).toBe(200)
   expect(authMock).not.toHaveBeenCalled()
-  expect(store.recordOpenQuery).toHaveBeenCalledWith(ID, expect.any(Date))
+  expect(store.recordOpen).toHaveBeenCalledWith(ID, expect.any(Date), { uaFamily: 'Other', linkFresh: false })
   expect(warn).not.toHaveBeenCalled()
 })
 
 test('HEAD gives the GET status and headers with no body, and never reads the session or records', async () => {
   const g = await settle(GET(req(), ctx()))
-  vi.mocked(store.recordOpenQuery).mockClear()
+  vi.mocked(store.recordOpen).mockClear()
   const h = await settle(HEAD(req({ method: 'HEAD', cookie: SESSION_COOKIE }), ctx()))
   expect(h.status).toBe(g.status)
   expect([...h.headers].sort()).toEqual([...g.headers].sort())
   expect(await h.text()).toBe('')
   expect(authMock).not.toHaveBeenCalled()
-  expect(store.recordOpenQuery).not.toHaveBeenCalled()
+  expect(store.recordOpen).not.toHaveBeenCalled()
   vi.mocked(store.getLiveByToken).mockResolvedValue(undefined)
   const h404 = await settle(HEAD(req({ method: 'HEAD' }), ctx()))
   expect(h404.status).toBe(404)
@@ -112,14 +113,14 @@ test('a link-preview bot, a staff session and a 404 are not counted', async () =
   expect(await staff.text()).toBe(HTML)
   vi.mocked(store.getLiveByToken).mockResolvedValue(undefined)
   await settle(GET(req(), ctx()))
-  expect(store.recordOpenQuery).not.toHaveBeenCalled()
+  expect(store.recordOpen).not.toHaveBeenCalled()
   expect(warn).not.toHaveBeenCalled()
 })
 
 test('a client-portal session IS counted', async () => {
   authMock.mockResolvedValue({ user: { role: 'CLIENT_VIEWER', email: 'someone@client.example' } })
   await settle(GET(req({ cookie: SESSION_COOKIE }), ctx()))
-  expect(store.recordOpenQuery).toHaveBeenCalledTimes(1)
+  expect(store.recordOpen).toHaveBeenCalledTimes(1)
 })
 
 test('a session read that resolves after the cap is not counted: one timeout line, same bytes', async () => {
@@ -128,7 +129,7 @@ test('a session read that resolves after the cap is not counted: one timeout lin
   await vi.advanceTimersByTimeAsync(2100)
   const r = await p
   expect(await r.text()).toBe(HTML)
-  expect(store.recordOpenQuery).not.toHaveBeenCalled()
+  expect(store.recordOpen).not.toHaveBeenCalled()
   expect(logged(warn)).toEqual([`[aeo-outbound] open not recorded id=${ID} reason=timeout`])
 })
 
@@ -144,9 +145,9 @@ const never = () => new Promise<never>(() => {})
 
 test.each([
   ['session', () => authMock.mockRejectedValue(new Error('boom')), SESSION_COOKIE],
-  ['error', () => vi.mocked(store.recordOpenQuery).mockRejectedValue(new Error('boom with ' + TOKEN)), undefined],
+  ['error', () => vi.mocked(store.recordOpen).mockRejectedValue(new Error('boom with ' + TOKEN)), undefined],
   ['timeout', () => authMock.mockImplementation(never), SESSION_COOKIE],
-  ['timeout', () => vi.mocked(store.recordOpenQuery).mockImplementation(never as never), undefined],
+  ['timeout', () => vi.mocked(store.recordOpen).mockImplementation(never as never), undefined],
 ])('not counted, one log line with reason=%s, same bytes', async (reason, arrange, cookie) => {
   const lines = await failure(arrange, cookie)
   expect(lines).toEqual([`[aeo-outbound] open not recorded id=${ID} reason=${reason}`])
@@ -173,4 +174,24 @@ test('a slugged segment resolves by its token for GET and HEAD; a bad slug shape
     expect(await r.text()).toBe(unknown)
   }
   expect(store.getLiveByToken).not.toHaveBeenCalled()
+})
+
+test('an open is classified: its browser family, and whether it came within a minute of the link being created', async () => {
+  vi.setSystemTime(new Date('2026-10-08T15:00:30Z'))
+  vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML, approvedAt: new Date('2026-10-08T15:00:00Z') })
+  const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
+  await settle(GET(req({ ua }), ctx()))
+  expect(store.recordOpen).toHaveBeenLastCalledWith(ID, expect.any(Date), { uaFamily: 'Chrome on Mac', linkFresh: true })
+  vi.setSystemTime(new Date('2026-10-08T15:01:01Z'))
+  await settle(GET(req({ ua }), ctx()))
+  expect(store.recordOpen).toHaveBeenLastCalledWith(ID, expect.any(Date), { uaFamily: 'Chrome on Mac', linkFresh: false })
+})
+
+test('the stored event gets the family only: never the IP address or the full user agent', async () => {
+  const ua = 'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0'
+  await settle(GET(new Request('https://app.example/snapshot/' + TOKEN, { headers: { 'user-agent': ua, 'x-forwarded-for': '203.0.113.7' } }), ctx()))
+  const args = JSON.stringify(vi.mocked(store.recordOpen).mock.calls)
+  expect(args).toContain('Firefox on Linux')
+  expect(args).not.toContain('203.0.113.7')
+  expect(args).not.toContain('rv:131.0')
 })

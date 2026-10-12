@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { approveQuery, hubCountsQuery, opensForReportQuery, progressStepQuery, projectStatsQuery, copyAsDraftQuery, discardQuery, displayStatus, failureReason, finishDraftQuery, finishFailedQuery, insertGeneratingQuery, isConstraintViolation, isReportId, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, ONE_GENERATING_INDEX, recentSummariesQuery, recordOpenQuery, recordOpenSql, revokeQuery, saveSlotsQuery, SHARE_TOKEN_UNIQUE } from './store'
+import { approveQuery, hubCountsQuery, opensForReportQuery, progressStepQuery, projectStatsQuery, copyAsDraftQuery, discardQuery, displayStatus, failureReason, finishDraftQuery, finishFailedQuery, insertGeneratingQuery, isConstraintViolation, isReportId, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, ONE_GENERATING_INDEX, recentSummariesQuery, recordOpenSql, revokeQuery, saveSlotsQuery, SHARE_TOKEN_UNIQUE } from './store'
 import type { AeoOutboundRow } from '@/lib/db/schema'
 import type { Slots } from './slots'
 import type { SnapshotData } from './metrics'
@@ -62,14 +62,6 @@ test('the token lookup requires approved, excludes revoked and deleted rows, and
   expect(q.sql).toBe(
     `select "id", "html", "approved_at" from ${T} where (${T}."share_token" = $1 and ${T}."status" = $2 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null) limit $3`)
   expect(q.params).toEqual(['tok', 'approved', 1])
-})
-
-test('recording an open bumps the count on a live link only and leaves updated_at alone', () => {
-  const q = recordOpenQuery(ID, NOW).toSQL()
-  expect(q.sql).toBe(
-    `update ${T} set "open_count" = ${T}."open_count" + 1, "first_opened_at" = coalesce(${T}."first_opened_at", $1::timestamptz), "last_opened_at" = $2 where (${T}."id" = $3 and ${T}."status" = $4 and ${T}."share_revoked_at" is null and ${T}."deleted_at" is null)`)
-  expect(q.params).toEqual([NOW_ISO, NOW_ISO, ID, 'approved'])
-  expect(q.sql).not.toContain('"updated_at"')
 })
 
 test('Edit a copy is one insert-select from an approved (live or revoked) row', () => {

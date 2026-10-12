@@ -4,8 +4,8 @@
 import { auth } from '@/auth'
 import { isStaff } from '@/lib/auth/route-access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
-import { hasSessionCookie, shouldCountOpen } from '@/lib/aeo-outbound/opens'
-import { getLiveByToken, recordOpenQuery } from '@/lib/aeo-outbound/store'
+import { hasSessionCookie, LINK_FRESH_MS, shouldCountOpen, uaFamily } from '@/lib/aeo-outbound/opens'
+import { getLiveByToken, recordOpen } from '@/lib/aeo-outbound/store'
 import { REPORT_CSP } from '@/lib/aeo-outbound/sandbox'
 import { tokenFromSegment } from '@/lib/aeo-outbound/share-link'
 
@@ -36,8 +36,9 @@ async function live(segment: string) {
   }
 }
 
-/** Counts the open when the viewer is a recipient. The session read and the UPDATE share one budget. Never throws. */
-async function recordOpen(req: Request, id: string): Promise<void> {
+/** Counts the open when the viewer is a recipient, as the counter and one event in one statement (v1.1 §6). The session
+ *  read and the write share one budget. Never throws. */
+async function countOpen(req: Request, found: { id: string; approvedAt: Date | null }): Promise<void> {
   let reason: Reason | null = null
   let expired = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -47,18 +48,20 @@ async function recordOpen(req: Request, id: string): Promise<void> {
       try { staff = isStaff((await auth())?.user ?? {}) } catch { reason = 'session'; return }
     }
     if (expired || !shouldCountOpen(req, staff)) return
-    try { await recordOpenQuery(id, new Date()) } catch { reason = 'error' }
+    const now = new Date()
+    const linkFresh = found.approvedAt ? now.getTime() - found.approvedAt.getTime() < LINK_FRESH_MS : false
+    try { await recordOpen(found.id, now, { uaFamily: uaFamily(req.headers.get('user-agent')), linkFresh }) } catch { reason = 'error' }
   })()
   const budget = new Promise<void>((resolve) => { timer = setTimeout(() => { expired = true; reason ??= 'timeout'; resolve() }, OPEN_BUDGET_MS) })
   try { await Promise.race([work, budget]) } finally { clearTimeout(timer) }
-  if (reason) console.warn(`[aeo-outbound] open not recorded id=${id} reason=${reason}`)
+  if (reason) console.warn(`[aeo-outbound] open not recorded id=${found.id} reason=${reason}`)
 }
 
 export async function GET(req: Request, ctx: Ctx) {
   const { token } = await ctx.params
   const found = await live(token)
   if (!found) return respond(undefined, true)
-  await recordOpen(req, found.id)
+  await countOpen(req, found)
   return respond(found.html, true)
 }
 

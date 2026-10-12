@@ -126,13 +126,6 @@ export async function getLiveByToken(token: string): Promise<{ id: string; html:
   return r?.html ? { id: r.id, html: r.html, approvedAt: r.approvedAt } : undefined
 }
 
-/** Counts one open of a live link. Leaves updated_at alone: an open is not an edit. Returns no rows. Replaced by recordOpen in Task 8. */
-export function recordOpenQuery(id: string, now: Date) {
-  return db.update(t)
-    .set({ openCount: sql`${t.openCount} + 1`, firstOpenedAt: sql`coalesce(${t.firstOpenedAt}, ${now.toISOString()}::timestamptz)`, lastOpenedAt: now })
-    .where(and(eq(t.id, id), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt)))
-}
-
 /**
  * One counted open as one statement (spec v1.1 §6): the counter update and the event insert both come from the same
  * live-row match, so they always agree, and the event's classification reads the previous open in that statement. Two

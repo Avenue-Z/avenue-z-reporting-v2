@@ -28,3 +28,31 @@ export const OPEN_REASONS = {
   quick: 'Opened within 10 seconds of the previous open',
   unknown: 'Not a known browser',
 } as const
+
+// The browser family of an open (spec v1.1 §6), from a fixed pattern list, first match wins. Edge and Opera carry
+// "Chrome/" too, so they are tested first; CriOS is Chrome and FxiOS is Firefox (iOS). A headless browser is not a
+// browser family. Only the family is stored: never the full user agent.
+const BROWSERS: [RegExp, string][] = [
+  [/\bEdg(?:e|A|iOS)?\//, 'Edge'],
+  [/\bOPR\/|\bOPiOS\/|\bOpera\b/, 'Opera'],
+  [/\bFirefox\/|\bFxiOS\//, 'Firefox'],
+  [/\bChrome\/|\bCriOS\//, 'Chrome'],
+  [/\bSafari\//, 'Safari'],
+]
+// iOS before Mac (an iPhone says "like Mac OS X"); Android before Linux (Android says "Linux").
+const SYSTEMS: [RegExp, string][] = [
+  [/iPhone|iPad|iPod/, 'iOS'],
+  [/Android/, 'Android'],
+  [/Windows/, 'Windows'],
+  [/Macintosh|Mac OS X/, 'Mac'],
+  [/Linux|X11/, 'Linux'],
+]
+
+export function uaFamily(ua: string | null | undefined): string {
+  const s = ua ?? ''
+  if (/HeadlessChrome/.test(s)) return 'Other'
+  const browser = BROWSERS.find(([re]) => re.test(s))?.[1]
+  if (!browser) return 'Other'
+  const system = SYSTEMS.find(([re]) => re.test(s))?.[1]
+  return system ? `${browser} on ${system}` : browser
+}
