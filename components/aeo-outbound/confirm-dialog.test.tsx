@@ -50,3 +50,23 @@ test('the verb button confirms; busy disables both and Escape', () => {
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
   expect(onCancel).not.toHaveBeenCalled()
 })
+
+test('after a click outside, Tab lands back on a dialog button', () => {
+  render(<Harness />)
+  fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+  ;(document.activeElement as HTMLElement).blur()
+  fireEvent.mouseDown(document.body)
+  expect(document.activeElement).toBe(document.body)
+  fireEvent.keyDown(document.body, { key: 'Tab' })
+  expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
+  expect(document.activeElement).toBeInstanceOf(HTMLButtonElement)
+})
+test('while busy, focus is on the dialog and Escape does not cancel', () => {
+  const onCancel = vi.fn()
+  const { rerender } = render(<ConfirmDialog title="t" confirmLabel="Go" cancelLabel="Stop" onConfirm={vi.fn()} onCancel={onCancel} />)
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Stop' }))
+  rerender(<ConfirmDialog title="t" confirmLabel="Go" cancelLabel="Stop" onConfirm={vi.fn()} onCancel={onCancel} busy />)
+  expect(document.activeElement).toBe(screen.getByRole('dialog'))
+  fireEvent.keyDown(document.body, { key: 'Escape' })
+  expect(onCancel).not.toHaveBeenCalled()
+})

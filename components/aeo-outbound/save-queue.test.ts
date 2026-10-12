@@ -202,3 +202,23 @@ test('a refused structural item is dropped with its error; a stop stops it', asy
   await flush()
   expect(stopped.state).toMatchObject({ stopped: true, error: 'This snapshot changed. Reload.' })
 })
+
+test('a structural save clears the errors and dirt of the list it changed, and leaves other lists alone', async () => {
+  const send = vi.fn(async (p: string, _v: string, r: number): Promise<SendResult> =>
+    p === 'sources_bullets.2.lead' ? { kind: 'bad', error: 'Too long.' } : { kind: 'ok', revision: r + 1 })
+  const q = new SaveQueue(send, 1, () => {})
+  q.markDirty('sources_bullets.2.lead'); q.edit('sources_bullets.2.lead', 'x')
+  await flush()
+  expect(q.state).toMatchObject({ dirty: true, badPaths: ['sources_bullets.2.lead'], error: 'Too long.' })
+  q.markDirty('competitive_bullets.0.lead'); q.edit('competitive_bullets.0.lead', 'y')
+  await flush()
+  q.markDirty('competitive_bullets.1.lead')
+  q.structure('sources_bullets.2.remove')
+  await flush()
+  expect(q.state.badPaths).toEqual([])
+  expect(q.state.error).toBeNull()
+  expect(q.state.dirty).toBe(true)
+  q.edit('competitive_bullets.1.lead', 'z')
+  await flush()
+  expect(q.state).toMatchObject({ dirty: false, badPaths: [], error: null })
+})

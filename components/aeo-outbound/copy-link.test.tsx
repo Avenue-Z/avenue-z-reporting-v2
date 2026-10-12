@@ -26,6 +26,7 @@ test("a clipboard failure says so and shows the link in a read-only field", asyn
   const field = screen.getByRole('textbox', { name: 'Link' })
   expect(field).toHaveValue(URL_)
   expect(field).toHaveAttribute('readonly')
+  expect(screen.getByRole('status')).toHaveTextContent("Couldn't copy. Select the link and copy it.")
 })
 
 test('showField shows the link next to the button from the start', () => {

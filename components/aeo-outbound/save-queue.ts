@@ -88,6 +88,11 @@ export class SaveQueue {
         if (r.kind === 'ok') {
           if (isStructure) {
             this.structural.shift()
+            // The list changed shape: its bullets' indices moved or vanished, so their errors and dirt describe nothing real.
+            const prefix = `${path.split('.')[0]}.`
+            for (const k of [...this.bad.keys()]) if (k.startsWith(prefix)) this.bad.delete(k)
+            for (const k of [...this.dirtyPaths]) if (k.startsWith(prefix)) this.dirtyPaths.delete(k)
+            for (const k of [...this.typed.keys()]) if (k.startsWith(prefix)) this.typed.delete(k)
           } else {
             if (this.pending.get(path) === item) this.pending.delete(path)
             if ((this.typed.get(path) ?? 0) === item.stamp && !this.pending.has(path)) this.dirtyPaths.delete(path)
