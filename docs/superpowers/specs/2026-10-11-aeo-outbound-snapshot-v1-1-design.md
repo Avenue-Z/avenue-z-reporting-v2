@@ -683,8 +683,10 @@ each chart card in Category data and Competitive visibility is 484px tall, while
 card from the next section's label and the "Why it matters" box. Those come from AIVx's CSS: `.insight-box` margin
 `12px 0`, `.chart-wrap` margin `24px 0`, `.two-col` margin-bottom `32px`.
 
-The charts do not change: no figure, height, margin or legend is touched (my rule: don't distort the charts). Only the
-spacing around them changes, through `PAGE_CSS` (every mode), scoped to `#category-data` and `#competitive-visibility`:
+The charts do not change (my rule: don't distort the charts): the figures, their layout margins, the legends, and the
+chart card's size, padding and border are untouched. Only spacing outside the card changes: the card's outer bottom
+margin (24px to 0), the row's bottom margin, and the bullet box. All through `PAGE_CSS` (every mode), scoped to
+`#category-data` and `#competitive-visibility` (ID specificity beats AIVx's class rules regardless of order):
 
 ```
 #category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}
@@ -696,11 +698,14 @@ spacing around them changes, through `PAGE_CSS` (every mode), scoped to `#catego
 
 Result in the trial: the bullet box's top and bottom line up with the chart card (0px difference both ends, both
 sections), the bullets sit centred in it, both figures stay 420 by 415px, the gaps become 65px and 97px (the page's usual
-section rhythm), and the page is 112px shorter. Under 900px the columns stack as before; the box is its content's height
-with no sideways scroll. The draft's "Add bullet" button keeps its own width (`align-self:flex-start`), not stretched.
+section rhythm), and the page is 112px shorter. Under 900px the columns stack as before (AIVx's
+`.two-col{grid-template-columns:1fr}`), with the box 12px lower than before and no sideways scroll. With three long
+bullets the box can be taller than the chart card: the row grows, the card keeps its own height, top-aligned, and the
+spare space sits under the chart instead. The draft's "Add bullet" button keeps its own width (`align-self:flex-start`), not stretched.
 
 These rules sit outside the phone media query on purpose, so the §17.7 test "every `PAGE_CSS` rule except `aeo-long` sits
 inside `(max-width: 900px)`" changes to allow exactly these five rules (and the existing `.aeo-share-mobile{display:none}`).
 Tests: `PAGE_CSS` contains each of the five rules verbatim; none of them names `.plotly`, `.js-plotly-plot`, `svg` or an
-`aeo-chart-` id; `charts.ts` output is unchanged (the chart goldens stay byte for byte); the version 1 golden comparison
-gains these rules only inside the already-allowed `PAGE_CSS` difference.
+`aeo-chart-` id; the `.chart-wrap` rule's whole body is `margin-bottom:0`; no rule outside the media query sets `height`,
+`min-height`, `padding`, `border` or `overflow`; `charts.ts` output is unchanged (the chart goldens stay byte for byte);
+the version 1 golden needs no change (it swaps in the whole `PAGE_CSS`).

@@ -9182,8 +9182,14 @@ Add exactly these five strings to `PAGE_CSS` (verbatim, in this order) right aft
 Do not change `lib/aeo-outbound/charts.ts`, any figure, `lib/aeo-outbound/aivx/*`, the chart goldens, or the section
 markup.
 
-Tests (write first, see them fail): `PAGE_CSS` contains each of the five rules verbatim and they sit outside the
-`(max-width: 900px)` block; the existing "every rule except `aeo-long` sits inside the media query" test is narrowed to
-allow exactly `aeo-long`, `.aeo-share-mobile{display:none}` and these five, and still fails on any other rule outside it;
-no new rule names `plotly`, `svg` or `aeo-chart-`; the rendered draft, preview and final pages each carry the five rules
-once. Commit subject: `Close up the empty space beside the two charts without touching them`.
+Tests (write first, see them fail):
+- The existing test at `lib/aeo-outbound/render.test.ts` (about `:332-345`) that asserts the rules outside the media query
+  with `toEqual([aeo-long rule, '.aeo-share-mobile{display:none}'])` becomes an exact `toEqual` of those two plus the five
+  new strings, in order, so any other rule outside the media query still fails. Keep its `split('@media')` length check.
+- No new rule names `plotly`, `svg` or `aeo-chart-`.
+- The `.chart-wrap` rule's whole declaration body is exactly `margin-bottom:0`.
+- No `PAGE_CSS` rule outside the media query sets `height`, `min-height`, `padding`, `border` or `overflow`.
+- In a 2-bullet draft, the "Add bullet" button is a direct child of `.insight-box` (pins the `.aeo-ctl` selector).
+- The rendered draft, preview and final pages each carry each of the five rules exactly once (count occurrences).
+- `lib/aeo-outbound/v1-compat.test.ts:37` swaps in the whole `PAGE_CSS`, so it should need no change; if it fails, stop
+  and report. Commit subject: `Close up the empty space beside the two charts without touching them`.
