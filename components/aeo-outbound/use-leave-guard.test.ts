@@ -20,10 +20,17 @@ function link(href: string, attrs: Record<string, string> = {}, inDialog = false
   anchors.push(root)
   return a
 }
+// A bubble listener on document cancels whatever the guard did not stop, so jsdom never tries to navigate. The guard
+// decides in the capture phase, and `defaultPrevented` is read from the guard's own cancel: see `stopped`.
 const click = (a: HTMLElement, init: MouseEventInit = {}) => {
   const e = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init })
+  let reached = false
+  const last = (ev: Event) => { reached = true; ev.preventDefault() }
+  document.addEventListener('click', last)
   a.dispatchEvent(e)
-  return e
+  document.removeEventListener('click', last)
+  // The guard calls stopPropagation, so the bubble listener is reached only when the guard left the click alone.
+  return { defaultPrevented: !reached }
 }
 
 test('while unsaved, a same-origin link click is stopped and asks; Leave pushes path, query and hash', () => {

@@ -82,77 +82,77 @@ export function SettingsForm(p: SettingsFormProps) {
         <div className="grid items-start gap-6 lg:grid-cols-2">
           <div className="space-y-6">
             <section className={`${cardCls} space-y-4`}>
-        <div><h2 className="text-base font-semibold text-white">{REPORT_WORDS}</h2><p className="mt-1 text-xs text-text-muted">{REPORT_WORDS_NOTE}</p></div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="s-wordmark" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.sidebarWordmark}</label>
-            <input id="s-wordmark" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.sidebarWordmark} onChange={(e) => set({ sidebarWordmark: e.target.value })} />
-            {err('sidebarWordmark')}
-          </div>
-          <div>
-            <label htmlFor="s-series" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.series}</label>
-            <input id="s-series" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.series} onChange={(e) => set({ series: e.target.value })} />
-            {err('series')}
-          </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="s-t1" className="block text-xs text-text-muted">{FIRST_SECTION}</label>
-            <input id="s-t1" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.section1} onChange={(e) => set({ section1: e.target.value })} />
-          </div>
-          <div>
-            <label htmlFor="s-t2" className="block text-xs text-text-muted">{SECOND_SECTION}</label>
-            <input id="s-t2" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.section2} onChange={(e) => set({ section2: e.target.value })} />
-          </div>
-        </div>
-        {err('sectionTitles')}
+              <div><h2 className="text-base font-semibold text-white">{REPORT_WORDS}</h2><p className="mt-1 text-xs text-text-muted">{REPORT_WORDS_NOTE}</p></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="s-wordmark" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.sidebarWordmark}</label>
+                  <input id="s-wordmark" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.sidebarWordmark} onChange={(e) => set({ sidebarWordmark: e.target.value })} />
+                  {err('sidebarWordmark')}
+                </div>
+                <div>
+                  <label htmlFor="s-series" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.series}</label>
+                  <input id="s-series" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.series} onChange={(e) => set({ series: e.target.value })} />
+                  {err('series')}
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="s-t1" className="block text-xs text-text-muted">{FIRST_SECTION}</label>
+                  <input id="s-t1" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.section1} onChange={(e) => set({ section1: e.target.value })} />
+                </div>
+                <div>
+                  <label htmlFor="s-t2" className="block text-xs text-text-muted">{SECOND_SECTION}</label>
+                  <input id="s-t2" className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.title} value={form.section2} onChange={(e) => set({ section2: e.target.value })} />
+                </div>
+              </div>
+              {err('sectionTitles')}
             </section>
             <section className={`${cardCls} space-y-4`}>
-        <div><h2 className="text-base font-semibold text-white">{REPORT_CONTENT}</h2><p className="mt-1 text-xs text-text-muted">{REPORT_CONTENT_NOTE}</p></div>
-        <fieldset>
-          <legend className="text-xs text-text-muted">{SETTINGS_FIELD_LABELS.fixedNextStep}</legend>
-          <label className="mr-4 text-sm text-white"><input type="radio" name="s-next" checked={form.nextStepMode === 'written'} onChange={() => set({ nextStepMode: 'written' })} /> {NEXT_WRITTEN}</label>
-          <label className="text-sm text-white"><input type="radio" name="s-next" checked={form.nextStepMode === 'fixed'} onChange={() => set({ nextStepMode: 'fixed' })} /> {NEXT_FIXED}</label>
-          <label htmlFor="s-next-text" className="mt-2 block text-xs text-text-muted">{NEXT_SENTENCE}</label>
-          <textarea id="s-next-text" rows={4} className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.nextStep} disabled={form.nextStepMode !== 'fixed'} value={form.nextStep} onChange={(e) => set({ nextStep: e.target.value })} />
-          {err('fixedNextStep')}
-        </fieldset>
-        <fieldset>
-          <legend className="text-xs text-text-muted">{SETTINGS_FIELD_LABELS.rankAmong}</legend>
-          <label className="mr-4 text-sm text-white"><input type="radio" name="s-rank" checked={form.rankMode === 'all'} onChange={() => set({ rankMode: 'all' })} /> {RANK_ALL}</label>
-          <label className="text-sm text-white"><input type="radio" name="s-rank" checked={form.rankMode === 'top'} onChange={() => set({ rankMode: 'top' })} /> {RANK_TOP}</label>
-          <label htmlFor="s-rank-n" className="mt-2 block text-xs text-text-muted">{RANK_COUNT}</label>
-          <input id="s-rank-n" type="number" min={SETTINGS_LIMITS.rankMin} max={SETTINGS_LIMITS.rankMax} className={`${inputCls} w-24`} disabled={form.rankMode !== 'top'} value={form.rankAmong} onChange={(e) => set({ rankAmong: e.target.value })} />
-          {err('rankAmong')}
-        </fieldset>
-        <div>
-          <label htmlFor="s-rows" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.peecOpportunityRows}</label>
-          <select id="s-rows" className={inputCls} value={form.peecOpportunityRows} onChange={(e) => set({ peecOpportunityRows: e.target.value })}>
-            {['0', '1', '2', '3'].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-          {err('peecOpportunityRows')}
-        </div>
-        <label className="flex items-center gap-2 text-sm text-white">
-          <input type="checkbox" checked={form.methodologyStatesPromptsAndModels} onChange={(e) => set({ methodologyStatesPromptsAndModels: e.target.checked })} />
-          {SETTINGS_FIELD_LABELS.methodologyStatesPromptsAndModels}
-        </label>
+              <div><h2 className="text-base font-semibold text-white">{REPORT_CONTENT}</h2><p className="mt-1 text-xs text-text-muted">{REPORT_CONTENT_NOTE}</p></div>
+              <fieldset>
+                <legend className="text-xs text-text-muted">{SETTINGS_FIELD_LABELS.fixedNextStep}</legend>
+                <label className="mr-4 text-sm text-white"><input type="radio" name="s-next" checked={form.nextStepMode === 'written'} onChange={() => set({ nextStepMode: 'written' })} /> {NEXT_WRITTEN}</label>
+                <label className="text-sm text-white"><input type="radio" name="s-next" checked={form.nextStepMode === 'fixed'} onChange={() => set({ nextStepMode: 'fixed' })} /> {NEXT_FIXED}</label>
+                <label htmlFor="s-next-text" className="mt-2 block text-xs text-text-muted">{NEXT_SENTENCE}</label>
+                <textarea id="s-next-text" rows={4} className={`${inputCls} w-full`} maxLength={SETTINGS_LIMITS.nextStep} disabled={form.nextStepMode !== 'fixed'} value={form.nextStep} onChange={(e) => set({ nextStep: e.target.value })} />
+                {err('fixedNextStep')}
+              </fieldset>
+              <fieldset>
+                <legend className="text-xs text-text-muted">{SETTINGS_FIELD_LABELS.rankAmong}</legend>
+                <label className="mr-4 text-sm text-white"><input type="radio" name="s-rank" checked={form.rankMode === 'all'} onChange={() => set({ rankMode: 'all' })} /> {RANK_ALL}</label>
+                <label className="text-sm text-white"><input type="radio" name="s-rank" checked={form.rankMode === 'top'} onChange={() => set({ rankMode: 'top' })} /> {RANK_TOP}</label>
+                <label htmlFor="s-rank-n" className="mt-2 block text-xs text-text-muted">{RANK_COUNT}</label>
+                <input id="s-rank-n" type="number" min={SETTINGS_LIMITS.rankMin} max={SETTINGS_LIMITS.rankMax} className={`${inputCls} w-24`} disabled={form.rankMode !== 'top'} value={form.rankAmong} onChange={(e) => set({ rankAmong: e.target.value })} />
+                {err('rankAmong')}
+              </fieldset>
+              <div>
+                <label htmlFor="s-rows" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.peecOpportunityRows}</label>
+                <select id="s-rows" className={inputCls} value={form.peecOpportunityRows} onChange={(e) => set({ peecOpportunityRows: e.target.value })}>
+                  {['0', '1', '2', '3'].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+                {err('peecOpportunityRows')}
+              </div>
+              <label className="flex items-center gap-2 text-sm text-white">
+                <input type="checkbox" checked={form.methodologyStatesPromptsAndModels} onChange={(e) => set({ methodologyStatesPromptsAndModels: e.target.checked })} />
+                {SETTINGS_FIELD_LABELS.methodologyStatesPromptsAndModels}
+              </label>
             </section>
           </div>
           <div className="space-y-6">
             <section className={`${cardCls} space-y-4`}>
-        <div><h2 className="text-base font-semibold text-white">{WHO_CAN_USE}</h2><p className="mt-1 text-xs text-text-muted">{WHO_CAN_USE_NOTE}</p></div>
-        <div>
-          <label htmlFor="s-users" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.users}</label>
-          <textarea id="s-users" rows={4} className={`${inputCls} w-full`} value={form.users} onChange={(e) => set({ users: e.target.value })} />
-          <p className="mt-1 text-xs text-text-muted">{USERS_HELP}</p>{err('users')}
-        </div>
-        <div>
-          <label htmlFor="s-admins" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.admins}</label>
-          <textarea id="s-admins" rows={3} className={`${inputCls} w-full`} value={form.admins} onChange={(e) => set({ admins: e.target.value })} />
-          <p className="mt-1 text-xs text-text-muted">{ADMINS_HELP}</p>
-          {p.envAdmins.length > 0 && <p className="text-xs text-text-muted">{alwaysAdmins(p.envAdmins)}</p>}
-          {err('admins')}
-        </div>
+              <div><h2 className="text-base font-semibold text-white">{WHO_CAN_USE}</h2><p className="mt-1 text-xs text-text-muted">{WHO_CAN_USE_NOTE}</p></div>
+              <div>
+                <label htmlFor="s-users" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.users}</label>
+                <textarea id="s-users" rows={4} className={`${inputCls} w-full`} value={form.users} onChange={(e) => set({ users: e.target.value })} />
+                <p className="mt-1 text-xs text-text-muted">{USERS_HELP}</p>{err('users')}
+              </div>
+              <div>
+                <label htmlFor="s-admins" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.admins}</label>
+                <textarea id="s-admins" rows={3} className={`${inputCls} w-full`} value={form.admins} onChange={(e) => set({ admins: e.target.value })} />
+                <p className="mt-1 text-xs text-text-muted">{ADMINS_HELP}</p>
+                {p.envAdmins.length > 0 && <p className="text-xs text-text-muted">{alwaysAdmins(p.envAdmins)}</p>}
+                {err('admins')}
+              </div>
             </section>
             <section className={cardCls}>
               <h2 className="mb-2 text-sm font-semibold text-white">{RECENT_CHANGES}</h2>
