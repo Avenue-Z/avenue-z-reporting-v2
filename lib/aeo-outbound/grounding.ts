@@ -1,7 +1,7 @@
 // Post-generation checks (spec §6): numbers must appear in the Data block, domains must be Peec's.
 // Modeled on lib/peec/content-impact-synopsis.ts:58-100. Runs on every save too, so notes stay current.
-import { DECISIONS } from './config'
-import type { SnapshotData } from './metrics'
+import { NEEDS_VALIDATION } from './config'
+import { settingsUsedOf, type SnapshotData } from './metrics'
 import { slotEntries, type Slots } from './slots'
 
 const NUM = /#?\d[\d,]*(?:\.\d+)?%?/g
@@ -10,8 +10,20 @@ const DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi
 const kindOf = (t: string): 'pct' | 'hash' | 'bare' => (t.endsWith('%') ? 'pct' : t.startsWith('#') ? 'hash' : 'bare')
 const digitsOf = (t: string) => t.replace(/[#%,]/g, '')
 const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`)
-/** Paths set by code, not by Glean: a dash there comes from Peec or a fixed sentence and Glean can't fix it. */
-const CODE_SET = new Set(['category', 'market', ...(DECISIONS.fixedNextStep !== null ? ['next_step'] : [])])
+/**
+ * Paths whose long dash is not flagged because code set the text and Glean can't fix it (spec v1.1 §16.1): market always;
+ * category on a version 1 row always, on a version 2 row only while it is still the code value (Peec's category or
+ * "Needs validation"); next_step only while it is still the row's fixed sentence.
+ */
+function dashExempt(path: string, slots: Slots, d: SnapshotData): boolean {
+  if (path === 'market') return true
+  if (path === 'category') return d.schemaVersion !== 2 || slots.category === (d.category ?? NEEDS_VALIDATION)
+  if (path === 'next_step') {
+    const fixed = settingsUsedOf(d).fixedNextStep
+    return fixed !== null && slots.next_step === fixed
+  }
+  return false
+}
 
 export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string): string[] {
   const allowedDomains = new Set([...d.ownDomains, ...d.gapDomains.map((g) => g.domain), ...(dataText.match(DOMAIN) ?? [])].map((x) => x.toLowerCase()))
@@ -35,7 +47,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     for (const name of exemptNames) text = text.split(name).join(' ')
     for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) flags.push(`${path.split('.')[0]}: "${m}" is not a domain in the Peec data`)
     for (const m of text.match(NUM) ?? []) if (!grounded(m)) flags.push(`${path.split('.')[0]}: "${m}" is not in the Peec data`)
-    if (!CODE_SET.has(path) && DASHES.test(text)) flags.push(`${path.split('.')[0]}: contains a long dash; use a period or comma`)
+    if (!dashExempt(path, slots, d) && DASHES.test(text)) flags.push(`${path.split('.')[0]}: contains a long dash; use a period or comma`)
   }
   return [...new Set(flags)]
 }

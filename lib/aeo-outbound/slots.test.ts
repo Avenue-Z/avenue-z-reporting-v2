@@ -89,3 +89,9 @@ test('an extra key in the reply is ignored: the fixed category wins', () => {
   expect(r.ok).toBe(true)
   expect(r.ok && r.slots.category).toBe('Fintech')
 })
+
+test('Q3: an edited category is limited to 80 characters; market keeps 1,000', () => {
+  expect(applySlotPatch(S, 'category', 'x'.repeat(80)).ok).toBe(true)
+  expect(applySlotPatch(S, 'category', 'x'.repeat(81))).toEqual({ ok: false, error: 'Keep this under 80 characters.' })
+  expect(applySlotPatch(S, 'market', 'x'.repeat(81)).ok).toBe(true)
+})

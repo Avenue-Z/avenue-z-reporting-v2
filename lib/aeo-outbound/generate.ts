@@ -6,7 +6,7 @@ import { isPeecTimeout, PeecClient, PeecError } from './peec'
 import { pullSnapshot } from './pull'
 import { buildPrompt, dataBlock, parseModelJson } from './prompt'
 import { groundingFlags } from './grounding'
-import { validateGeneratedSlots, type Slots } from './slots'
+import { cleanValue, MAX_LEAD, validateGeneratedSlots, type Slots } from './slots'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
 import type { StoredNote } from './notes'
@@ -56,7 +56,11 @@ export async function generateSnapshot(
       }
       const parsed = parseModelJson(replyText) as Record<string, unknown> | null
       const fixedNow = { ...fixed }
-      if (parsed && DECISIONS.writeSpecificCategory && typeof parsed.category === 'string') fixedNow.category = parsed.category
+      if (parsed && DECISIONS.writeSpecificCategory && typeof parsed.category === 'string') {
+        // Glean's category only when it fits (spec v1.1 §16.1); anything else keeps the code value and never retries or fails.
+        const written = cleanValue(parsed.category)
+        if (written && written.length <= MAX_LEAD) fixedNow.category = written
+      }
       const checked = validateGeneratedSlots(parsed, fixedNow)
       if (!checked.ok) { problems = checked.errors; continue }
       const flags = groundingFlags(checked.slots, data, block)

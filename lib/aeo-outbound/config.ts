@@ -11,20 +11,21 @@ export const DECISIONS = {
   /** The source-mix weighting (my call, not Ryan's): retrieval_count matches Peec's dashboard within 1 point;
    *  retrieved_chat_count is AIVx's method. */
   sourceMixWeight: 'retrieval_count' as 'retrieval_count' | 'retrieved_chat_count',
-  /** Q3: Glean writes a more specific category instead of using Peec's `industry`. */
-  writeSpecificCategory: false as boolean,
-  /** Q5: how many of the three opportunities come from Peec actions when any exist. */
+  /** Q3 (Ryan, 2026-10-12: yes): Glean writes a more specific category instead of using Peec's `industry` (spec v1.1 §16.1). */
+  writeSpecificCategory: true as boolean,
+  /** Q5 (Ryan, 2026-10-12: only when relevant): at most this many of the three opportunities may come from Peec actions, never forced (spec v1.1 §16.1). */
   peecOpportunityRows: 1 as number,
   /** Q6: the methodology states the prompt count and the models covered. */
   methodologyStatesPromptsAndModels: true as boolean,
-  /** Q7: one fixed next-step sentence for every report, or null for one written per brand. */
-  fixedNextStep: null as string | null,
+  /** Q7 (Ryan, 2026-10-12: "This looks repeatable, yes"): one fixed next-step sentence for every report, the one from his
+   *  own example; null would mean one written per brand (spec v1.1 §16.1). */
+  fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.' as string | null,
   /** Q8: Approve stays disabled while any slot still says "Needs validation". */
   needsValidationBlocksApprove: true as boolean,
   /** Q9: only PITCH and PITCH_ENDED projects can be used. */
   pitchOnly: true as boolean,
-  /** Q10: the sidebar wordmark reads "AIVx", as on AIVx reports. */
-  showAivxName: true as boolean,
+  /** Q10 (Ryan, 2026-10-12: leave AIVx off the report): false makes the sidebar wordmark read "Avenue Z" (spec v1.1 §16.1). */
+  showAivxName: false as boolean,
 }
 export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'

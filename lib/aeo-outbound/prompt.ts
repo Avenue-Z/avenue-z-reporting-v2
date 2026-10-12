@@ -85,9 +85,9 @@ Write these fields:
 - competitive_bullets: 2 or 3 bullets of validated strengths (category position, own-site presence, source use). Each has a short "lead" ending in a colon (at most 80 characters) and a "text".
 - sources_bullets: 2 or 3 bullets of gaps (visibility gaps to leaders, competitor domain gaps, source mix). Same lead and text shape.
 - why: one compact paragraph connecting the pattern to consideration and category discovery, without claiming causality.
-- opportunities: exactly 3 items, each { "signal", "opportunity", "workstream" }. Each connects a data signal to something to explore. Workstreams such as Content / AEO, PR / earned media, Technical AEO / SEO.${peecRows > 0 ? ` If the Peec recommended actions list is not "none", exactly ${peecRows} of the 3 must be based on those actions and its signal must start with "Peec recommends".` : ''}
+- opportunities: exactly 3 items, each { "signal", "opportunity", "workstream" }. Each connects a data signal to something to explore. Workstreams such as Content / AEO, PR / earned media, Technical AEO / SEO.${peecRows > 0 ? ` If the Peec recommended actions list is not "none", you may base at most ${peecRows} of the 3 on those actions, and only where an action fits the data. Never force one. An opportunity based on an action has a signal that starts with "Peec recommends".` : ''}
 - methodology: one sentence naming the data window, the comparison set${used.methodologyStatesPromptsAndModels ? ', the prompt count and the AI models covered' : ''}. Say results are directional.
-${used.fixedNextStep === null ? '- next_step: one sentence on a next step, such as a full AEO audit.\n' : ''}${DECISIONS.writeSpecificCategory ? '- category: a short, specific category for the brand based on the data.\n' : ''}
+${used.fixedNextStep === null ? '- next_step: one sentence on a next step, such as a full AEO audit.\n' : ''}${DECISIONS.writeSpecificCategory ? '- category: a short, specific category for the brand based on the data, at most 80 characters.\n' : ''}
 Output strictly valid JSON with exactly these keys and no markdown fences or commentary.${violations.length ? `\n\nIMPORTANT: A previous attempt had these problems: ${violations.join(' | ')}. Do not repeat them.` : ''}
 
 Data:

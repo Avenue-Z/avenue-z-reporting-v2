@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { AIVX_CSS } from './aivx/css'
-import { SHARE_BUTTON, renderSnapshotHtml } from './render'
+import { SHARE_BUTTON, renderSnapshotHtml, showsPowered } from './render'
 import { AIVX_SHARE_BLOCK } from './aivx/share'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
@@ -151,4 +151,18 @@ test('SHARE_BUTTON is exactly the markup the final render uses, once, and only i
     expect(h).not.toContain(SHARE_BUTTON)
     expect(h).not.toContain(AIVX_SHARE_BLOCK)
   }
+})
+
+test('Q10: the wordmark reads Avenue Z with no Powered by line, in every mode (spec v1.1 §16.1)', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 9, 2026')
+    expect(h).toContain('<div class="aivx-brand">Avenue Z</div>\n  </div>')
+    expect(h).not.toContain('<div class="powered">')
+    expect(h).not.toContain('>AIVx<')
+  }
+})
+
+test('showsPowered: only a wordmark that is not Avenue Z, trimmed and compared without case, gets the line', () => {
+  expect(showsPowered('AIVx')).toBe(true)
+  for (const w of ['Avenue Z', 'avenue z ', ' AVENUE Z']) expect(showsPowered(w)).toBe(false)
 })

@@ -104,3 +104,21 @@ test('a methodology naming a one-day window passes grounding', () => {
   const text = dataBlock(d)
   expect(groundingFlags({ ...plain, why: 'Peec data from Oct 5, 2026' }, d, text)).toEqual([])
 })
+
+test('long-dash exemption (spec v1.1 §16.1): category on version 1 always, on version 2 only while it is the code value; next_step only while it is the fixed sentence; market always', () => {
+  const dash = String.fromCharCode(0x2014)
+  const fixed = 'A fixed sentence.'
+  const v2 = { ...D, schemaVersion: 2, category: `Fin${dash}tech`, settingsUsed: { rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: fixed } } as unknown as SnapshotData
+  const flag = (path: string) => `${path}: contains a long dash; use a period or comma`
+  // Peec's own category, untouched, and the untouched fixed sentence: Glean can't fix either, so no flag.
+  expect(groundingFlags({ ...base, category: `Fin${dash}tech`, market: `U${dash}S`, next_step: fixed }, v2, allowed)).toEqual([])
+  // A written or edited category with a dash.
+  expect(groundingFlags({ ...base, category: `Consumer ${dash} lending`, next_step: fixed }, v2, allowed)).toEqual([flag('category')])
+  // An edited next step with a dash.
+  expect(groundingFlags({ ...base, category: `Fin${dash}tech`, next_step: `Book ${dash} soon` }, v2, allowed)).toEqual([flag('next_step')])
+  // No Peec category: the code value is Needs validation.
+  const noCategory = { ...v2, category: null } as unknown as SnapshotData
+  expect(groundingFlags({ ...base, category: 'Needs validation', next_step: fixed }, noCategory, allowed)).toEqual([])
+  // Version 1 (no schemaVersion, no settingsUsed): category always exempt; next_step never, its fixed sentence was null.
+  expect(groundingFlags({ ...base, category: `Consumer ${dash} lending`, next_step: `Book ${dash} soon` }, D, allowed)).toEqual([flag('next_step')])
+})

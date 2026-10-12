@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { PeecClient } from './peec'
 import { generateSnapshot } from './generate'
 import type { GleanReply } from './glean'
+import { DECISIONS } from './config'
 
 beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
 afterEach(() => { vi.restoreAllMocks() })
@@ -168,4 +169,22 @@ test('a default-range row cap at step 4 reaches the report as the pick-a-range m
   const peec = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, { maxRows: 3 }).client
   const r = await generateSnapshot('or_a', { peec, glean: vi.fn(), deadline: NOW + 270_000, now: () => NOW })
   expect(r).toMatchObject({ ok: false, error: 'This project has too much history for one snapshot. Pick a start and end date, at most 90 days.' })
+})
+
+test('Q3: a written category of 1 to 80 characters is used; a long, blank or non-string one keeps the code value, with no extra Glean call and no failure', async () => {
+  const baseline = vi.fn(async () => reply(GOOD))
+  await generateSnapshot('or_a', deps(baseline))
+  const used = await generateSnapshot('or_a', deps(vi.fn(async () => reply(JSON.stringify({ ...JSON.parse(GOOD), category: '  Consumer  lending ' })))))
+  expect(used.ok && used.slots.category).toBe('Consumer lending')
+  for (const category of ['x'.repeat(81), '   ', 42, null]) {
+    const glean = vi.fn(async () => reply(JSON.stringify({ ...JSON.parse(GOOD), category })))
+    const r = await generateSnapshot('or_a', deps(glean))
+    expect(r.ok && r.slots.category).toBe('Fintech')
+    expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
+  }
+})
+
+test('Q7: the fixed next step is written into next_step', async () => {
+  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))))
+  expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
 })

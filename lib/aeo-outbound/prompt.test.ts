@@ -120,7 +120,16 @@ test('the prompt and the Data block follow the settings the row was generated wi
   const d = { ...D2, settingsUsed: { rankAmong: null, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, fixedNextStep: 'Book a working session.' } } as unknown as SnapshotData
   expect(dataBlock(d)).not.toContain('Prompts tracked')
   const p = buildPrompt(d, [])
-  expect(p).toContain('exactly 2 of the 3 must be based on those actions')
+  expect(p).toContain('If the Peec recommended actions list is not "none", you may base at most 2 of the 3 on those actions, and only where an action fits the data. Never force one. An opportunity based on an action has a signal that starts with "Peec recommends".')
+  expect(p).not.toContain('exactly 2 of the 3')
   expect(p).not.toContain('- next_step:')
   expect(p).not.toContain('the prompt count and the AI models covered')
+})
+
+test('Q5: with 0 Peec rows the prompt says nothing about actions; Q3: the category line names the 80-character limit', () => {
+  const zero = { ...D2, settingsUsed: { rankAmong: null, peecOpportunityRows: 0, methodologyStatesPromptsAndModels: true, fixedNextStep: null } } as unknown as SnapshotData
+  const p = buildPrompt(zero, [])
+  expect(p).not.toContain('Peec recommends')
+  expect(p).not.toContain('at most 0')
+  expect(p).toContain('- category: a short, specific category for the brand based on the data, at most 80 characters.\n')
 })

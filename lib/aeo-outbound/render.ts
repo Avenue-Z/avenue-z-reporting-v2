@@ -31,6 +31,9 @@ export const SHARE_BUTTON = `
       <span class="share-btn-label">Share Report</span>
     </button>`
 
+/** The "Powered by Avenue Z" line shows only under a wordmark that is not already Avenue Z (spec v1.1 §16.1). */
+export const showsPowered = (wordmark: string): boolean => wordmark.trim().toLowerCase() !== 'avenue z'
+
 export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: RenderMode, preparedOn: string): string {
   const draft = mode === 'draft'
   /** A slot's text, escaped, inside its element; editable only in draft. */
@@ -60,11 +63,11 @@ export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: Rende
   const [t1, t2] = DECISIONS.sectionTitles
   const brand = esc(data.brand)
 
+  const wordmark = DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z'
   const sidebar = `
 <nav class="sidebar">
   <div class="sidebar-logo">
-    <div class="aivx-brand">${DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z'}</div>
-    <div class="powered">Powered by Avenue Z</div>
+    <div class="aivx-brand">${wordmark}</div>${showsPowered(wordmark) ? '\n    <div class="powered">Powered by Avenue Z</div>' : ''}
   </div>
   <div class="sidebar-industry">
     AI Visibility Snapshot

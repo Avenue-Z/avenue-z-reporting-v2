@@ -38,7 +38,7 @@ function checkValue(raw: unknown, limit: number): { ok: true; value: string } | 
 export function applySlotPatch(slots: Slots, path: string, raw: unknown): { ok: true; slots: Slots } | { ok: false; error: string } {
   const m = PATH.exec(path)
   if (!m) return { ok: false, error: 'unknown field' }
-  const checked = checkValue(raw, m[4] === 'lead' ? MAX_LEAD : MAX_VALUE)
+  const checked = checkValue(raw, m[4] === 'lead' || m[1] === 'category' ? MAX_LEAD : MAX_VALUE)
   if (!checked.ok) return checked
   const next: Slots = structuredClone(slots)
   if (m[1]) {
