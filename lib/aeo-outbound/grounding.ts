@@ -100,7 +100,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }
   if (d.brand && full.brand !== d.brand) {
-    const n = entries.filter(([p, v]) => p !== 'brand' && v.includes(d.brand)).length
+    const n = entries.filter(([p, v]) => p !== 'brand' && v.split(full.brand).join(' ').includes(d.brand)).length
     if (n > 0) add('brand_changed', 'brand', `The copy still says ${d.brand} in ${n} ${n === 1 ? 'place' : 'places'}`)
   }
   return out

@@ -24,7 +24,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try { body = await req.json() } catch { /* below */ }
   // v1.1 §10: the body is a contract; a violation keeps the v1.0 400 body.
   if (!checkContract('request.slots', SLOTS_BODY, body).ok) return NextResponse.json({ error: 'bad-request' }, { status: 400 })
-  const { path, value, revision } = body as { path: string; value: unknown; revision: number }
+  // The structural guard runs even when CONTRACT_DISABLED turns the contract off, so a bad body is a 400, never a TypeError.
+  const b = body as { path?: unknown; value?: unknown; revision?: unknown } | null
+  if (!b || typeof b !== 'object' || typeof b.path !== 'string' || !Number.isInteger(b.revision)) return NextResponse.json({ error: 'bad-request' }, { status: 400 })
+  const { path, value, revision } = b as { path: string; value: unknown; revision: number }
   if (!isReportId(id)) return NextResponse.json({ error: 'not-found' }, { status: 404 })
   let row: Awaited<ReturnType<typeof getReport>>
   try { row = await getReport(id) } catch (e) {

@@ -89,7 +89,9 @@ export async function generateSnapshot(
       const flags = groundingFlags(full, data, block)
       if (!flags.length) return { ok: true, brandName, data, slots: full, notes: data.notes }
       groundedFallback = { slots: full, flags }
-      if (attempt === 1 && deps.deadline - deps.now() >= 60_000) { problems = flags.map((f) => `${f.path ?? ''}: ${f.text}`); continue }
+      // Only flags on words Glean writes are worth a retry: page words, KPIs, brand, window label and market are code- or settings-set.
+      const fixable = flags.filter((f) => !/^(page\.|kpis\.)/.test(f.path ?? '') && !['brand', 'window_label', 'market'].includes(f.path ?? ''))
+      if (fixable.length && attempt === 1 && deps.deadline - deps.now() >= 60_000) { problems = fixable.map((f) => `${f.path ?? ''}: ${f.text}`); continue }
       break
     }
     if (groundedFallback) return { ok: true, brandName, data, slots: groundedFallback.slots, notes: [...data.notes, ...groundedFallback.flags] }

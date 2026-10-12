@@ -3,6 +3,11 @@ import { z } from 'zod'
 import { CONTRACT_MODES } from './config'
 import { checkContract, contractsDisabled, GENERATE_BODY, GLEAN_SLOTS, PEEC_CONTRACTS, peecContract, SLOTS_BODY } from './contracts'
 import { PeecError } from './peec'
+import { STORED_DATA, STORED_SLOTS } from './contracts'
+import { V1_DATA, V1_SLOTS } from './__fixtures__/v1-row'
+import { buildSnapshotData } from './metrics'
+import type { PeecPull } from './pull'
+import { withDefaults } from './slots'
 
 // Every value here is invented. SECRET stands for a prospect's data that must never reach a log line.
 const SECRET = 'Secret Prospect Name'
@@ -126,4 +131,31 @@ test('the Glean reply contract still rejects a missing headline, and accepts any
   const { headline: _h, ...noHeadline } = reply
   expect(checkContract('glean.slots', GLEAN_SLOTS, noHeadline, 'enforce', {})).toEqual({ ok: false, issues: [{ field: 'headline', issue: 'invalid_type' }] })
   for (const next_step of [undefined, '', null, 'x']) expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, next_step }, 'enforce', {}).ok).toBe(true)
+})
+
+const PULL: PeecPull = {
+  project: { id: 'or_a', name: 'Example pitch', status: 'PITCH' },
+  roster: [{ id: 'kw_own', name: 'Example Co', is_own: true, domains: ['example.com'] }, { id: 'kw_a', name: 'Alpha', is_own: false, domains: ['alpha.com'] }],
+  ownBrand: { id: 'kw_own', name: 'Example Co', is_own: true, domains: ['example.com'] },
+  profile: { industry: 'Fintech', markets: ['United States'] },
+  requested: { start: '2026-09-09', end: '2026-10-08' }, rangePicked: true,
+  window: { start: '2026-10-01', end: '2026-10-08' },
+  brands: [
+    { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.151, share_of_voice: 0.159, position: 3.06 },
+    { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },
+  ],
+  domains: [
+    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, retrieved_percentage: 0.2236 },
+    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, mentioned_brands: [{ id: 'kw_a' }] },
+  ],
+  actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
+  promptCount: 100, models: ['ChatGPT UI'], warnings: [],
+}
+
+test('the stored contracts accept what metrics and slots write today, version 1 and version 2', () => {
+  const v2 = buildSnapshotData(PULL, '2026-10-08T15:00:00Z')
+  const v2NoProfile = buildSnapshotData({ ...PULL, profile: null }, '2026-10-08T15:00:00Z')
+  for (const d of [V1_DATA, v2, v2NoProfile]) expect(checkContract('stored.data', STORED_DATA, JSON.parse(JSON.stringify(d)), 'enforce', {})).toEqual({ ok: true })
+  expect(checkContract('stored.slots', STORED_SLOTS, V1_SLOTS, 'enforce', {})).toEqual({ ok: true })
+  expect(checkContract('stored.slots', STORED_SLOTS, withDefaults(V1_SLOTS, v2), 'enforce', {})).toEqual({ ok: true })
 })

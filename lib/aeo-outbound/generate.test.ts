@@ -275,3 +275,13 @@ test('a generated row stores every key: brand, window label and KPIs from its da
   expect(r.slots.kpis).toEqual(r.data.kpis)
   expect(r.slots.page).toMatchObject({ section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
 })
+
+test('a flag on a page word Glean cannot fix costs no second attempt, and is still a stored note', async () => {
+  const dash = String.fromCharCode(0x2014)
+  const baseline = vi.fn(async (_prompt: string) => reply(GOOD))
+  await generateSnapshot('or_a', deps(baseline))
+  const glean = vi.fn(async (_prompt: string) => reply(GOOD))
+  const r = await generateSnapshot('or_a', deps(glean), null, { ...SETTINGS_DEFAULTS, sectionTitles: [`Strengths ${dash} 1`, 'Gaps'] })
+  expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
+  expect(r.ok && r.notes).toContainEqual({ kind: 'long_dash', path: 'page.section_1_title', text: 'contains a long dash; use a period or comma' })
+})

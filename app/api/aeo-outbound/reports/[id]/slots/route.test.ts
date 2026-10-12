@@ -203,3 +203,13 @@ test('a settings change never alters an existing draft: words and code-set field
   expect(body.notes).toContainEqual({ kind: 'long_dash', path: 'next_step', text: 'contains a long dash; use a period or comma' })
   expect(m.save.mock.calls[0][2].page.section_1_title).toBe('Strengths')
 })
+
+test('with the contract kill switch on, a null body and a string revision still answer 400 and save nothing', async () => {
+  vi.stubEnv('CONTRACT_DISABLED', '1')
+  for (const b of ['null', { path: 'headline', value: 'x', revision: '3' }]) {
+    const res = await patch(b)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'bad-request' })
+  }
+  expect(m.save).not.toHaveBeenCalled()
+})

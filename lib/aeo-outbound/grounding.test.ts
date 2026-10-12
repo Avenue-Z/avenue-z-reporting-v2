@@ -192,3 +192,9 @@ test('the long-dash exemption compares cleaned values, and the hidden Powered by
     { kind: 'long_dash', path: 'page.sidebar_powered', text: 'contains a long dash; use a period or comma' },
   ])
 })
+
+test('the brand_changed count ignores the new brand when it contains the old name', () => {
+  const s = { ...plain, brand: 'Example Co Inc', headline: 'Example Co Inc leads' }
+  expect(groundingFlags(s, R, RT)).toEqual([])
+  expect(groundingFlags({ ...s, headline: 'Example Co leads' }, R, RT)).toEqual([{ kind: 'brand_changed', path: 'brand', text: 'The copy still says Example Co in 1 place' }])
+})
