@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import type { PartImpl } from '@/lib/report-sections/types'
-import { fetchTopContentFrozen } from '@/lib/organic-social/frozen'
-import { fetchTopContent } from '@/lib/organic-social/top-content'
+import { fetchTopContentFrozenWithAuthors } from '@/lib/organic-social/top-content-authors'
 import { canSetDesignation } from '@/lib/organic-social/designations/permissions'
 import { getClientBySlug } from '@/lib/db/queries'
 import { hiddenInfluencerPlatforms, ignoredInfluencerKeys, influencerLabel, parseInfluencerSection } from '@/lib/organic-social/influencer-section'
@@ -19,9 +18,7 @@ import { groupPostsByPlatform, loadDesignations } from './top-content'
  *  deck-basis Instagram rate, the outline's heading). Unpublished: pinned per client. */
 export async function TopContentOutlineSection({ ctx, ownedLimit }: { ctx: OrganicSocialCtx; ownedLimit: number }) {
   const { clientSlug, dateRange, channel, role } = ctx
-  const r = await safe(fetchTopContentFrozen(clientSlug, dateRange, channel, {
-    fetchLive: (s, d, c) => fetchTopContent(s, d, c, { withAuthor: true, markUgc: true }),
-  }))
+  const r = await safe(fetchTopContentFrozenWithAuthors(clientSlug, dateRange, channel))
   if (!r.data) return <Fallback kind={r.error!} />
   // One client read for every setting. A failed read keeps today's rules: no own handles, the default section, no tab.
   const client = await getClientBySlug(clientSlug).catch(() => null)

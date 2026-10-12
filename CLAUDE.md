@@ -630,10 +630,13 @@ Still open:
 
 - [ ] **Validate the client's own Instagram handle when it is saved, instead of inferring trust
   from that month's post authors.** `handleMatchesNoAuthor`
-  (`lib/organic-social/outline-top-content.ts:53`) distrusts a stored handle whenever the window's
+  (`lib/organic-social/outline-top-content.ts:62`) distrusts a stored handle whenever the window's
   Instagram posts carry authors and none is that handle, then falls back to the `#ad` rule. Paul
   raised (PR #255, 2026-09-23) that this distrusts a CORRECT handle in any month whose only posts
-  are partner collabs, which puts collab posts without `#ad` into the client's owned Top 5. He is
+  are partner collabs, which puts collab posts without `#ad` into the client's owned Top 5. (Since
+  #358 this reaches Renaissance too once its handle is saved: top-content@2 then splits by author, so a
+  window in which Renaissance posted only collabs drops the handle and its co-authored posts without
+  `#ad` go back to Organic. Paul, #358 review.) He is
   right, and his suggested narrowing (distrust only when there is exactly one distinct author)
   **cannot be implemented**: a renamed account with one partner collab, and a correct handle in a
   month of partner collabs, need opposite answers and the rule cannot tell them apart, because it
@@ -710,8 +713,12 @@ Still open:
   snapshot of a finished window (`frozen.ts:74-75`). A window frozen before `markUgc`, or by
   `top-content@2` under the same key (`components/report-sections/organic-social/parts/top-content.tsx:67`),
   carries no `ugc` mark, so a tagged post falls back to the `#ad` rule. Post authors already have the
-  same gap, which the part logs (`top-content-outline.tsx:24-26`). No such client exists, and nothing
-  stops the pin. Either refuse the `top-content@3` pin without `reportingMonths`, or re-freeze a window
+  same gap, which the part logs (`top-content-outline.tsx:24-26`). No `top-content@3` client is in
+  this state, and nothing stops the pin. Since #358 Renaissance meets the same gap on top-content@2:
+  once its handle is saved it splits by author with UGC marks, has no locked months, and its windows
+  frozen before that (production, 2026-10-09: Instagram Sep, Aug, Jul; Overview Sep, Aug, Jul, Jun and
+  two longer ranges) carry neither, so they keep the `#ad` split. Accepted for now: no data work on
+  Renaissance's frozen rows (my decision, 2026-10-09; Paul, #358 review). Either refuse the `top-content@3` pin without `reportingMonths`, or re-freeze a window
   when the part version changes.
 - [ ] **The Views on Reels failure log names only `kind=error` or `kind=timeout`** (same review).
   `components/report-sections/organic-social/parts/outline-data.tsx:24` does not say whether it was

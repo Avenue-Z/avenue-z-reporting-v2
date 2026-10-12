@@ -26,6 +26,16 @@ test('the split rule follows the pinned Top Content version of the platform comp
   expect(influencerRulesFor({ order: [], labels: {}, thresholds: {} }, undefined)).toBe('designations') // no Top Content at all
 })
 
+test("a version 2 pin with a saved Instagram handle uses the author rule; everything else is unchanged (spec 2026-10-09 section 6)", () => {
+  const handle = { ownHandles: { instagram: 'renbenefits' } }
+  expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, undefined, handle)).toBe('author')
+  expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, undefined, { ownHandles: { instagram: '  ' } })).toBe('designations')
+  expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, undefined, {})).toBe('designations')
+  expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, { versions: { 'top-content': 3 } }, handle)).toBe('outline')
+  expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, { versions: { 'top-content': 1 } }, handle)).toBe('designations')
+  expect(influencerRulesFor({ order: [], labels: {}, thresholds: {} }, undefined, handle)).toBe('designations')
+})
+
 // Paul, #334 review item 1: hiding the tab the usual way (hidden_reports) removed the tab while both galleries still
 // dropped the Instagram influencer row, so those posts appeared nowhere.
 test('hiding the Influencer tab through hidden_reports turns the tab rule off', () => {

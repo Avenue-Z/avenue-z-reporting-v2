@@ -91,9 +91,12 @@ describe('recommendations keys', () => {
   })
 })
 
-test('the Influencer tab has its own Insights and Recommendations keys', () => {
+test('the Influencer tab keeps Insights and has no Recommendations key (Jasmine, 10/9)', () => {
   expect(isCommentaryViewKey('organic-social:influencer')).toBe(true)
-  expect(recommendationsViewKeyFor('organic-social:influencer')).toBe('organic-social:influencer:recommendations')
-  expect(isCommentaryViewKey('organic-social:influencer:recommendations')).toBe(true)
+  expect(recommendationsViewKeyFor('organic-social:influencer')).toBeNull()
+  expect(isCommentaryViewKey('organic-social:influencer:recommendations')).toBe(false)
   expect(COMMENTARY_VIEWS['organic-social:influencer'].label).toBe('Organic Social — Influencer')
+  // every other Organic Social box keeps its Recommendations key
+  expect(recommendationsViewKeyFor('organic-social')).toBe('organic-social:recommendations')
+  expect(recommendationsViewKeyFor('organic-social:instagram')).toBe('organic-social:instagram:recommendations')
 })

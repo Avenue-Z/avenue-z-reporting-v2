@@ -46,7 +46,9 @@ export function VisibilityChart({
   const labelEvery = Math.max(1, Math.ceil(n / 16))
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
+    // In the PDF export the chart is one unbreakable block on its dark panel (app/export/export-theme.css), printed at its
+    // default granularity: the subtitle names it, so the toggle is hidden there.
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5" data-export-block="" data-export-chart="">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-1.5">
@@ -56,7 +58,7 @@ export function VisibilityChart({
           {brandName && <p className="mt-0.5 text-xs text-text-muted">{brandName} · {granularity}</p>}
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">
+          <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5" data-export-hide="">
             {GRANULARITIES.map(({ id, label }) => (
               <button
                 key={id}

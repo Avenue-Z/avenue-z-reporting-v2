@@ -7,9 +7,16 @@ const client = (channels: string[] | undefined, hidden: string[] = [], influence
   ({ dashSocialConfig: { brandId: 1, channels, ...(influencerSection === undefined ? {} : { influencerSection }) }, hiddenReports: hidden } as unknown as Client)
 const ids = (c: OrganicTabsClient) => organicSocialSubsections(c).map((s) => s.id)
 
-test('the Influencer tab sits directly under Instagram, with no channel and the influencer view', () => {
-  const at = ORGANIC_SOCIAL_SUBSECTIONS.findIndex((s) => s.id === 'organic-instagram')
-  expect(ORGANIC_SOCIAL_SUBSECTIONS[at + 1]).toEqual({ id: 'organic-influencer', label: 'Influencer', channel: null, view: 'influencer' })
+test('the Influencer tab sits directly under Overview, with no channel and the influencer view (Jasmine, 10/9)', () => {
+  expect(ORGANIC_SOCIAL_SUBSECTIONS[0].id).toBeNull()
+  expect(ORGANIC_SOCIAL_SUBSECTIONS[1]).toEqual({ id: 'organic-influencer', label: 'Influencer', channel: null, view: 'influencer' })
+  expect(ORGANIC_SOCIAL_SUBSECTIONS[2].id).toBe('organic-instagram')
+})
+
+test('with Overview shown the order is Overview, Influencer, Instagram, and the report opens on Overview', () => {
+  const c = client(['instagram', 'facebook', 'linkedin'])
+  expect(ids(c)).toEqual([null, 'organic-influencer', 'organic-instagram', 'organic-facebook', 'organic-linkedin'])
+  expect(resolveOrganicSubsection(c).id).toBeNull()
 })
 
 test.each([

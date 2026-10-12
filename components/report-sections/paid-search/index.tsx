@@ -12,6 +12,7 @@ import { GeoSection } from './geo-section'
 import { KeywordsTable } from './keywords'
 import { SmTimeoutError } from '@/lib/supermetrics/client'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
+import { PaidMediaFallback } from '@/components/report-sections/paid-media/fallback'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
   try {
@@ -21,15 +22,6 @@ async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | '
   }
 }
 
-function Fallback({ kind }: { kind: 'timeout' | 'error' }) {
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-sm text-text-muted">
-      {kind === 'timeout'
-        ? 'Taking longer than usual — try a shorter date range.'
-        : "Couldn't load this section."}
-    </div>
-  )
-}
 
 export async function PaidSearchReport({
   clientSlug,
@@ -56,12 +48,12 @@ export async function PaidSearchReport({
   return (
     <div className="space-y-8">
       <SharedPartsHeader viewKey="paid-search" clientSlug={clientSlug} />
-      {hero.data ? <Hero points={hero.data} /> : <Fallback kind={hero.error!} />}
-      {kpis.data ? <KpiGrid kpis={kpis.data} /> : <Fallback kind={kpis.error!} />}
-      {campaigns.data ? <CampaignTable rows={campaigns.data} /> : <Fallback kind={campaigns.error!} />}
-      {leads.data ? <LeadsSection data={leads.data} /> : <Fallback kind={leads.error!} />}
-      {geo.data ? <GeoSection rows={geo.data} /> : <Fallback kind={geo.error!} />}
-      {keywords.data ? <KeywordsTable data={keywords.data} /> : <Fallback kind={keywords.error!} />}
+      {hero.data ? <Hero points={hero.data} /> : <PaidMediaFallback kind={hero.error!} />}
+      {kpis.data ? <KpiGrid kpis={kpis.data} /> : <PaidMediaFallback kind={kpis.error!} />}
+      {campaigns.data ? <CampaignTable rows={campaigns.data} /> : <PaidMediaFallback kind={campaigns.error!} />}
+      {leads.data ? <LeadsSection data={leads.data} /> : <PaidMediaFallback kind={leads.error!} />}
+      {geo.data ? <GeoSection rows={geo.data} /> : <PaidMediaFallback kind={geo.error!} />}
+      {keywords.data ? <KeywordsTable data={keywords.data} /> : <PaidMediaFallback kind={keywords.error!} />}
     </div>
   )
 }

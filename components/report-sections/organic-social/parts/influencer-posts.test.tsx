@@ -117,3 +117,32 @@ test('in the PDF the heading and totals are handed to the grid and hidden on the
   const lead = render(<>{(InfluencerGrid.mock.calls.at(-1) as unknown as [{ lead: React.ReactNode }])[0].lead}</>)
   expect(lead.container.textContent).toMatch(/^Influencer Posts.*Posts1.*Total Engagements4/)
 })
+
+const authorClient = { id: 'c1', slug: 'client-a', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' } }, reportSectionConfig: {} }
+
+// Spec 2026-10-09 section 6: a top-content@2 client with a saved handle (Renaissance once its handle is saved).
+test("a version 2 client with a saved handle: the Instagram tab's request with authors and UGC marks, split by author, rates untouched", async () => {
+  getClientBySlug.mockResolvedValue(authorClient)
+  fetchTopContentFrozen.mockResolvedValue([post(1, { author: 'brand_handle' }), post(2, { author: 'creator' }), post(3, { ugc: true }), post(4, { author: 'brand_handle', caption: 'x #ad' })])
+  render(await InfluencerPostsSection({ ctx: CTX }))
+  const injected = (fetchTopContentFrozen.mock.calls[0] as unknown[])[3] as { fetchLive: (...a: unknown[]) => unknown }
+  await injected.fetchLive('s', 'd', 'INSTAGRAM')
+  expect(fetchTopContent).toHaveBeenCalledWith('s', 'd', 'INSTAGRAM', { withAuthor: true, markUgc: true })
+  expect(shown().posts.map((p) => p.id)).toEqual([2, 3])
+  expect((shown().posts as unknown as { metrics: { engagementRate: number } }[]).map((p) => p.metrics.engagementRate)).toEqual([0.5, 0.5])
+})
+
+// Jasmine's 10/9 feedback (QA row 5): Total Views left out co-authored posts, which Dash gives public views, not views.
+test.each([['outline', outlineClient], ['designations', v2Client], ['author', authorClient]])('%s: a co-authored post with public views counts in Views and Total Views', async (_, c) => {
+  getClientBySlug.mockResolvedValue(c)
+  fetchTopContentFrozen.mockResolvedValue([
+    post(1, { author: 'creator', caption: 'x #ad', publicViews: 704013, metrics: { effectiveness: null, engagementRate: null, engagements: 29718, impressions: 0 } }),
+    post(2, { author: 'creator2', caption: 'y #ad', metrics: { effectiveness: null, engagementRate: null, engagements: 59, impressions: 0 } }),
+  ])
+  const { getByText } = render(await InfluencerPostsSection({ ctx: CTX }))
+  expect(getByText('Total Views').closest('div.rounded-lg')!.textContent).toContain('704,013')
+  const posts = shown().posts as unknown as { id: number; metrics: { impressions: number; engagementRate: number | null } }[]
+  expect(posts.find((p) => p.id === 1)!.metrics.impressions).toBe(704013)
+  expect(posts.find((p) => p.id === 1)!.metrics.engagementRate).toBeNull()
+  expect(posts.find((p) => p.id === 2)!.metrics.impressions).toBe(0)
+})

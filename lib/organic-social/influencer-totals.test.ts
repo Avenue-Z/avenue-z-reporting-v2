@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { influencerTotals } from './influencer-totals'
+import { influencerTotals, withPublicViews } from './influencer-totals'
 
 const p = (engagements: number, impressions: number) => ({ metrics: { engagements, impressions } })
 
@@ -14,4 +14,11 @@ test('views are null, not 0, when no post reports any (influencer and UGC posts 
 
 test('no posts: nothing to total', () => {
   expect(influencerTotals([])).toBeNull()
+})
+
+test('a post with no views takes its public views; a post with views keeps them; a post with neither stays 0', () => {
+  const p = (impressions: number, publicViews?: number) => ({ metrics: { engagements: 1, impressions }, ...(publicViews == null ? {} : { publicViews }) })
+  expect(withPublicViews([p(0, 704013), p(2051, 2044), p(0)]).map((x) => x.metrics.impressions)).toEqual([704013, 2051, 0])
+  expect(influencerTotals(withPublicViews([p(0, 704013), p(2051, 2044), p(0)]))!.views).toBe(706064)
+  expect(influencerTotals(withPublicViews([p(0), p(0)]))!.views).toBeNull()
 })

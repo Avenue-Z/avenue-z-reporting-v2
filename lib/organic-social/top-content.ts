@@ -111,6 +111,9 @@ export function normalizePost(post: DashContentPost, channel: DashChannel): TopC
   const effectivenessRaw = effectivenessField ? sub?.[effectivenessField] : undefined
   const rateRaw = sub?.[CONTENT_ENGAGEMENT_RATE_FIELD[channel]]
   const mediaType = MEDIA_TYPES.has(post.type) ? (post.type as TopContentPost['mediaType']) : 'IMAGE'
+  // Instagram's public view count, for the Influencer tab (spec 2026-10-09 section 5). Untrusted: only a finite
+  // number of zero or more is kept; anything else leaves the field absent.
+  const pv = channel === 'INSTAGRAM' ? sub?.public_views : undefined
   return {
     id: post.id,
     channel,
@@ -128,6 +131,7 @@ export function normalizePost(post: DashContentPost, channel: DashChannel): TopC
       impressions: n(sub?.[CONTENT_IMPRESSIONS_FIELD[channel]]),
     },
     sourceType: 'organic',
+    ...(typeof pv === 'number' && Number.isFinite(pv) && pv >= 0 ? { publicViews: pv } : {}),
   }
 }
 

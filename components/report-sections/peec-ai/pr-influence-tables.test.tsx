@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ExportModeProvider } from '@/components/export/export-mode'
 import { PRPlacementMatchbackTable, type PRPlacementMatchbackRow } from './pr-influence-tables'
 
 // FB-069 Req 4: the "N of M placements cited by AI (X%)" summary line above the
@@ -132,4 +133,11 @@ test('rows still render even if the flag is somehow set', () => {
     </TooltipProvider>,
   )
   expect(screen.getByText('Employee Benefit News')).toBeInTheDocument()
+})
+
+// PDF export (spec 2026-10-08 §6): each card's heading stays with the first rows of its table.
+test("in the export a table card's heading is kept with its table", () => {
+  const { container } = render(<TooltipProvider><ExportModeProvider><PRPlacementMatchbackTable rows={ROWS} /></ExportModeProvider></TooltipProvider>)
+  expect(container.querySelector('[data-export-keep-with-next] h3')).not.toBeNull()
+  expect(container.querySelector('[data-export-table]')).not.toBeNull()
 })

@@ -24,7 +24,6 @@ export type CommentaryViewKey =
   | OrgSocialChannelViewKey
   | OrgSocialRecommendationsViewKey
   | 'organic-social:influencer'
-  | 'organic-social:influencer:recommendations'
 
 /** The commentary key for a single Organic Social platform subpage. */
 export function orgSocialChannelViewKey(channel: DashChannel): OrgSocialChannelViewKey {
@@ -35,9 +34,11 @@ const RECOMMENDATIONS_SUFFIX = ':recommendations'
 /** The Recommendations key for an Organic Social box key, or null for any other section's key
  *  (and for a key that already is a Recommendations key). */
 export function recommendationsViewKeyFor(key: CommentaryViewKey): CommentaryViewKey | null {
-  if (key !== 'organic-social' && !key.startsWith('organic-social:')) return null
-  if (key.endsWith(RECOMMENDATIONS_SUFFIX)) return null
-  return `${key}${RECOMMENDATIONS_SUFFIX}` as CommentaryViewKey
+  // The registry decides (Paul, #358 review): a box gets a Recommendations key only when COMMENTARY_VIEWS lists one, so
+  // removing a key there (the Influencer tab's, Jasmine 10/9) is the only change needed, and no box can render under a
+  // key the write path would refuse (app/actions/commentary.ts:59). Other sections and Recommendations keys have none.
+  const k = `${key}${RECOMMENDATIONS_SUFFIX}`
+  return isCommentaryViewKey(k) ? k : null
 }
 
 /**
@@ -107,9 +108,9 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   'organic-social': { label: 'Organic Social', owner: 'Jasmine / Kyleah' },
   ...ORG_SOCIAL_CHANNEL_VIEWS,
   ...ORG_SOCIAL_RECOMMENDATION_VIEWS,
-  // The Influencer tab (10/6 calls): its own Insights and Recommendations streams.
+  // The Influencer tab (10/6 calls): its own Insights stream. No Recommendations (Jasmine, 10/9: we don't manage their
+  // influencer marketing).
   'organic-social:influencer': { label: 'Organic Social — Influencer', owner: 'Jasmine / Kyleah' },
-  'organic-social:influencer:recommendations': { label: 'Organic Social — Influencer — Recommendations', owner: 'Jasmine / Kyleah' },
 }
 
 /** Runtime guard: is this string one of the canonical view keys? Used to reject
