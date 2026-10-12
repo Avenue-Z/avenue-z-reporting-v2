@@ -605,3 +605,15 @@ test("a refresh that lists the generating row keeps this tab's checklist, the cl
   await new Promise((r) => setTimeout(r, 1500))
   expect(fetchMock.mock.calls.slice(calls).filter(([u]) => String(u).startsWith('/api/aeo-outbound/progress'))).toHaveLength(0)
 }, 10_000)
+
+test("when the listed generating row replaces the local row, the moved checklist starts at the server's step, never at Starting…", async () => {
+  generate = () => new Promise(() => {})
+  progress = async () => json(200, { step: null })
+  const { rerender } = await pickAndGenerate()
+  await screen.findByRole('status', { name: 'Generation progress' })
+  const listed = row({ id: ID(9), status: 'generating', projectId: 'p1', progressStep: 5 })
+  rerender(<OutboundHub {...props({ rows: [listed], counts: { ...COUNTS, all: 1 } })} />)
+  const box = within(screen.getByTestId(`row-${ID(9)}`)).getByRole('status', { name: 'Generation progress' })
+  expect(within(box).getByText('Loading brand visibility and AI models…')).toBeInTheDocument()
+  expect(within(box).queryByText('Starting…')).not.toBeInTheDocument()
+})

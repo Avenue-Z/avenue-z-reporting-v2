@@ -82,9 +82,9 @@ export function opensSummary(r: Pick<HubRow, 'openCount' | 'opensPerson' | 'open
 }
 
 /** The local row for a Generate request in flight in this tab: polls by project, clock from the click (spec v1.1 §16.3). */
-function PendingProgress({ projectId, startedAt }: { projectId: string; startedAt: string }) {
+function PendingProgress({ projectId, startedAt, initialStep = 0 }: { projectId: string; startedAt: string; initialStep?: number }) {
   const clickedAt = Date.parse(startedAt)
-  const live = useGenerationProgress({ projectId, clickedAt })
+  const live = useGenerationProgress({ projectId, clickedAt }, initialStep)
   return <ProgressChecklist step={live.step} startedAtMs={clickedAt} />
 }
 
@@ -351,7 +351,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
                   <td className="px-4 py-3">
                     <StatusPill status={r.status} error={r.error} />
                     {r.status === 'failed' && <p className="mt-1 max-w-xs text-xs text-[#FF6B6B]">{failureText(r.errorCode, r.error, r.id)}</p>}
-                    {r.status === 'generating' && (pending[r.projectId] ? <PendingProgress projectId={r.projectId} startedAt={pending[r.projectId].startedAt} /> : progress(r.progressStep, r.createdAt))}
+                    {r.status === 'generating' && (pending[r.projectId] ? <PendingProgress projectId={r.projectId} startedAt={pending[r.projectId].startedAt} initialStep={r.progressStep} /> : progress(r.progressStep, r.createdAt))}
                     {ready.has(r.id) && (
                       <p className="mt-1 text-xs text-[#60FF80]">{draftReady(r.brand)} <Link href={`/tools/new-business/${r.id}`} className="underline">{OPEN}</Link></p>
                     )}
