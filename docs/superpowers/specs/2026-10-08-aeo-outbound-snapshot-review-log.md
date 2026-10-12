@@ -180,4 +180,9 @@ Commit `cca3218a`; review round 1 (changed lines): 0 BLOCKER, 2 MAJOR, 5 MINOR.
 MINOR, fixed in the same edit: a `rowCap` flag instead of matching the message; `{v}` is `toFixed(1)` over
 `SnapshotData.brands`, after the rank notes; the parity row (§3 Data window) updated; the changed test expectations and the
 exact hub sentence listed in the plan; the default is today − 400, the same earliest day a picked range may start.
+Round 2 (`2952ec53`, changed lines): all 7 round-1 findings RESOLVED; 0 BLOCKER, 0 MAJOR, 4 MINOR. MINOR 1 (two phrases said
+"the last 400 days") fixed as a wording edit. MINOR, for the plan (Task T2 brief): the default-range timeout test lives in
+generate.test.ts; a peec.test.ts case that the cap error sets `rowCap` and a repeated-row error doesn't; the pick-a-range advice
+means generating a new report from the hub, not Rerun (a rerun can't take a range); hub.tsx's import switches to
+`MAX_LOOKBACK_DAYS`.
 

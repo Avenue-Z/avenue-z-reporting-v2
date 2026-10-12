@@ -541,7 +541,7 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
 | Two tabs editing | Revision conflict 409, reload prompt. |
 | Approve double-click | The second UPDATE matches 0 rows, so it's a no-op. |
 | Revoke while recipient has the page open | Their open page stays. The next load is 404 (`no-store`). |
-| No dates picked | The project's full history: the last 400 days ending today (UTC); the window is the days with data inside it. A discovery past the row cap fails asking Ryan to pick a range of at most 90 days. |
+| No dates picked | The project's full history: today − 400 through today (UTC); the window is the days with data inside it. A discovery past the row cap fails asking Ryan to pick a range of at most 90 days. |
 | A brand above 90% visibility | Generates; one notes-panel warning per such brand (§7); Approve is not blocked. |
 | No dates picked and step 4 times out | Fails with "Timed out at step 4. Pick a start and end date, at most 90 days." (a picked range keeps "Timed out at step 4"). |
 | Picked range invalid (bad or calendar-invalid date, only one date, an empty string, start after end, end in the future, start over 400 days back, over 90 days long) | `400` with `code: 'bad-range'` and the rule broken, shown inline; no row, no Peec call. |
@@ -608,7 +608,7 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
   - generate: unknown or non-pitch `projectId` 400, Peec failure at the re-check 502, a second generate for the same project 409 (also under a simulated race via the unique index), `rerunOf` stored and the original untouched, deadline → `failed` with the step named, shape failure → failed, grounding-only failure → draft with notes
   - projects route: Peec failure → 502
   - Peec client: at most 3 attempts on a 429, delay clamped to 0-20s; one retry after 1s on a 5xx or a network failure, none on a timeout or a 4xx, none past the deadline; a repeated key within one page is refused; Glean second attempt only with 60s or more left
-  - pull: default range is the last 400 days ending today (full history); a default-range discovery past the row cap fails with the pick-a-range message, a picked range past it keeps the client's message, and any other step-4 error keeps its own message; a default-range step-4 timeout gets the pick-a-range advice; a picked range is used as given; each invalid range is refused with its rule; `/prompts` failing leaves the count null with a warning
+  - pull: default range is today − 400 through today (full history); a default-range discovery past the row cap fails with the pick-a-range message, a picked range past it keeps the client's message, and any other step-4 error keeps its own message; a default-range step-4 timeout gets the pick-a-range advice; a picked range is used as given; each invalid range is refused with its rule; `/prompts` failing leaves the count null with a warning
   - metrics: a brand above 90% displayed visibility adds the warning note, 90.0% does not, own and competitor alike; gap sites exclude `COMPETITOR` and `OWN` classifications and every roster brand's domains; shared ranks on displayed ties; `n` counts roster brands with no row; no zero leader gaps
   - `needsValidationPaths` matches any letter case
   - opens: a request with a staff session isn't counted; a client-portal session and an anonymous request are
