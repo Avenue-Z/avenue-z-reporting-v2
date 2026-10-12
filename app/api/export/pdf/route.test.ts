@@ -142,8 +142,8 @@ test('a PDF too big for the platform is a 413 too-large, never logged as ok', as
 // refused before Chromium launches; the page's button still prints in the browser.
 test('a section not switched on for the export is a 400 and nothing renders', async () => {
   as('INTERNAL_ADMIN', 'avenue-z')
-  getClientBySlug.mockResolvedValue({ ...RENAISSANCE, enabledReports: ['organic-social', 'paid-media'] })
-  const res = await post({ ...body, section: 'paid-media' })
+  getClientBySlug.mockResolvedValue({ ...RENAISSANCE, enabledReports: ['organic-social', 'ga4'] })
+  const res = await post({ ...body, section: 'ga4' })
   expect(res.status).toBe(400)
   expect(renderPdf).not.toHaveBeenCalled()
 })

@@ -998,7 +998,7 @@ exports[`portal spa, renaissance-shaped: returned tree is unchanged 1`] = `
 
 exports[`renaissance-shaped: another section on the SPA routes is unchanged 1`] = `
 {
-  "dash": "f2b1ff469c439664",
-  "portal": "5ba7f6ebaf26fb39",
+  "dash": "213cf895b13b9c25",
+  "portal": "6eebdab405fdaaf3",
 }
 `;
