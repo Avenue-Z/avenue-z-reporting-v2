@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server'
 import { auth } from '@/auth'
-import { outboundEmail } from '@/lib/aeo-outbound/permissions'
+import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { getReport, isReportId } from '@/lib/aeo-outbound/store'
 import { SHARE_BUTTON, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { AIVX_SHARE_BLOCK } from '@/lib/aeo-outbound/aivx/share'
@@ -25,7 +25,7 @@ function withoutShare(html: string, id: string): string {
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!outboundEmail(session?.user)) return new Response('Forbidden', { status: 403 })
+  if (!(await outboundAccess(session?.user)).ok) return new Response('Forbidden', { status: 403 })
   const { id } = await ctx.params
   if (!isReportId(id)) return notFound()
   let row: Awaited<ReturnType<typeof getReport>>

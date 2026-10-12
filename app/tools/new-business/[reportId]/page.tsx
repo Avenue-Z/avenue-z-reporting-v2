@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { requireStaff } from '@/lib/auth/page-access'
-import { outboundEmail } from '@/lib/aeo-outbound/permissions'
+import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { displayStatus, failureReason, getReport, isReportId } from '@/lib/aeo-outbound/store'
 import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
@@ -15,7 +15,8 @@ export default async function NewBusinessEditorPage({
 }) {
   const { reportId } = await params
   const session = await requireStaff()
-  if (!outboundEmail(session.user)) return <NoAccess />
+  const access = await outboundAccess(session.user)
+  if (!access.ok) return <NoAccess admins={access.admins} />
   if (!isReportId(reportId)) notFound()
   let row: Awaited<ReturnType<typeof getReport>>
   try {

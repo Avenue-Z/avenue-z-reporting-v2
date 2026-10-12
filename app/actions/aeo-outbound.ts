@@ -6,7 +6,8 @@ import { auth } from '@/auth'
 import { DECISIONS } from '@/lib/aeo-outbound/config'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
-import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
+import { originAllowed } from '@/lib/aeo-outbound/permissions'
+import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { cleanRecipient } from '@/lib/aeo-outbound/recipient'
 import { renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
@@ -23,10 +24,10 @@ const UNAVAILABLE: Fail = { ok: false, error: 'unavailable' }
 /** The caller's email when they are allowlisted staff on a same-host request; otherwise null. */
 async function caller(): Promise<string | null> {
   const session = await auth()
-  const email = outboundEmail(session?.user)
-  if (!email) return null
+  const access = await outboundAccess(session?.user)
+  if (!access.ok) return null
   const h = await headers()
-  return originAllowed(h.get('origin'), h.get('host')) ? email : null
+  return originAllowed(h.get('origin'), h.get('host')) ? access.email : null
 }
 
 /**

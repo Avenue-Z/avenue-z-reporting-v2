@@ -4,8 +4,9 @@ import { NextRequest } from 'next/server'
 const m = vi.hoisted(() => ({
   listProjects: vi.fn(), generateSnapshot: vi.fn(), gleanOnce: vi.fn(), getReport: vi.fn(),
   insert: vi.fn(), insertArgs: vi.fn(), stale: vi.fn(), draft: vi.fn(), failed: vi.fn(), findGenerating: vi.fn(),
-  progress: vi.fn(), progressArgs: vi.fn(), failedArgs: vi.fn(),
+  progress: vi.fn(), progressArgs: vi.fn(), failedArgs: vi.fn(), readSettings: vi.fn<() => Promise<unknown>>(async () => null),
 }))
+vi.mock('@/lib/aeo-outbound/settings-store', () => ({ readSettingsRow: m.readSettings }))
 vi.mock('@/lib/aeo-outbound/pull', async (o) => ({ ...(await o<object>()), listProjects: m.listProjects }))
 vi.mock('@/lib/aeo-outbound/generate', () => ({ generateSnapshot: m.generateSnapshot }))
 vi.mock('@/lib/aeo-outbound/glean', async (o) => ({ ...(await o<object>()), gleanOnce: m.gleanOnce }))
@@ -176,9 +177,9 @@ test('a picked range reaches the insert and the pipeline; no range passes null',
   const start = d.toISOString().slice(0, 10)
   await post({ projectId: 'or_a', start, end })
   expect(m.insertArgs).toHaveBeenLastCalledWith(expect.objectContaining({ range: { start, end } }))
-  expect(m.generateSnapshot).toHaveBeenLastCalledWith('or_a', expect.anything(), { start, end })
+  expect(m.generateSnapshot).toHaveBeenLastCalledWith('or_a', expect.anything(), { start, end }, expect.anything())
   await post({ projectId: 'or_a' })
-  expect(m.generateSnapshot).toHaveBeenLastCalledWith('or_a', expect.anything(), null)
+  expect(m.generateSnapshot).toHaveBeenLastCalledWith('or_a', expect.anything(), null, expect.anything())
 })
 
 test('a rerun uses the stored range, even one older than the lookback', async () => {
@@ -188,7 +189,7 @@ test('a rerun uses the stored range, even one older than the lookback', async ()
   expect(res.status).toBe(200)
   const range = { start: '2020-01-01', end: '2020-01-07' }
   expect(m.insertArgs).toHaveBeenLastCalledWith(expect.objectContaining({ rerunOf: RERUN, range }))
-  expect(m.generateSnapshot).toHaveBeenLastCalledWith('or_a', expect.anything(), range)
+  expect(m.generateSnapshot).toHaveBeenLastCalledWith('or_a', expect.anything(), range, expect.anything())
 })
 
 test('glean acts as the session email, never a body field, and a failure logs the id and reason but no email', async () => {
@@ -261,4 +262,13 @@ test('with the contract kill switch on, a structurally bad body still answers 40
   }
   expect(m.insert).not.toHaveBeenCalled()
   expect(m.generateSnapshot).not.toHaveBeenCalled()
+})
+
+const SETTINGS_ROW = { id: true, users: ['ana@avenuez.com'], admins: [], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 5, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AIVx', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'ryan@avenuez.com' }
+test('a settings user can generate, and the request settings reach the pipeline', async () => {
+  m.readSettings.mockResolvedValueOnce(SETTINGS_ROW)
+  as('ana@avenuez.com')
+  expect((await post({ projectId: 'or_a' })).status).toBe(200)
+  expect(m.generateSnapshot.mock.calls[0][3]).toMatchObject({ rankAmong: 5, sectionTitles: ['Strengths', 'Gaps'] })
+  expect(m.insertArgs).toHaveBeenLastCalledWith(expect.objectContaining({ createdBy: 'ana@avenuez.com' }))
 })

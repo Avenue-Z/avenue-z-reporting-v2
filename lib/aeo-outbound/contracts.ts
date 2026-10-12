@@ -106,3 +106,16 @@ export const GLEAN_SLOTS = z.looseObject({
 export const GENERATE_BODY = z.looseObject({ projectId: z.string().min(1), rerunOf: z.string().regex(REPORT_ID_RE).nullish() })
 /** PATCH /api/aeo-outbound/reports/{id}/slots. path and value are checked by slots.ts, which owns their messages. */
 export const SLOTS_BODY = z.looseObject({ path: z.string(), value: z.unknown(), revision: z.number().int() })
+
+/** The settings row as Drizzle reads it (spec v1.1 §8 limits). A failure falls back to the config.ts defaults. */
+export const SETTINGS_ROW = z.looseObject({
+  users: z.array(z.string()).max(50),
+  admins: z.array(z.string()).max(50),
+  sectionTitles: z.array(z.string().min(1).max(60)).length(2),
+  fixedNextStep: z.string().min(1).max(300).nullable(),
+  rankAmong: z.number().int().min(2).max(50).nullable(),
+  peecOpportunityRows: z.number().int().min(0).max(3),
+  methodologyStatesPromptsAndModels: z.boolean(),
+  sidebarWordmark: z.enum(['AIVx', 'Avenue Z']),
+  updatedAt: z.date(),
+})

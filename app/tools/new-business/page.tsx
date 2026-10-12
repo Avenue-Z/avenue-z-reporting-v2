@@ -1,5 +1,5 @@
 import { requireStaff } from '@/lib/auth/page-access'
-import { outboundEmail } from '@/lib/aeo-outbound/permissions'
+import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { displayStatus, failureReason, listReportSummaries } from '@/lib/aeo-outbound/store'
 import { OutboundHub, type HubRow } from '@/components/aeo-outbound/hub'
 import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
@@ -7,7 +7,8 @@ import { NoAccess } from '@/components/aeo-outbound/no-access'
 
 export default async function NewBusinessHubPage() {
   const session = await requireStaff()
-  if (!outboundEmail(session.user)) return <NoAccess />
+  const access = await outboundAccess(session.user)
+  if (!access.ok) return <NoAccess admins={access.admins} />
   const now = Date.now()
   // Every prop is plain data (strings, numbers, null): nothing here may be a function (check:rsc).
   const rows: HubRow[] = (await listReportSummaries()).rows.map((r) => ({

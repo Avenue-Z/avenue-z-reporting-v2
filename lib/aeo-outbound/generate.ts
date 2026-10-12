@@ -13,6 +13,7 @@ import { groundingFlags } from './grounding'
 import { cleanValue, MAX_LEAD, validateGeneratedSlots, type Slots } from './slots'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
+import { SETTINGS_DEFAULTS, type GenerationSettings } from './settings'
 
 export type GenerationResult =
   | { ok: true; brandName: string; data: SnapshotData; slots: Slots; notes: StoredNote[] }
@@ -27,6 +28,7 @@ export async function generateSnapshot(
   projectId: string,
   deps: { peec: PeecClient; glean: (prompt: string, signal: AbortSignal) => Promise<GleanReply>; deadline: number; now: () => number; onStep?: (step: number) => void },
   range: DayRange | null = null,
+  settings: GenerationSettings = SETTINGS_DEFAULTS,
 ): Promise<GenerationResult> {
   let brandName: string | null = null
   let step = 0
@@ -34,11 +36,16 @@ export async function generateSnapshot(
   try {
     const pull = await pullSnapshot(deps.peec, projectId, deps.now(), reach, range)
     brandName = pull.ownBrand.name
-    const data = buildSnapshotData(pull, new Date(deps.now()).toISOString())
+    const data = buildSnapshotData(
+      pull,
+      new Date(deps.now()).toISOString(),
+      { rankAmong: settings.rankAmong, competitorSiteGaps: DECISIONS.competitorSiteGaps, sourceMixWeight: DECISIONS.sourceMixWeight },
+      { peecOpportunityRows: settings.peecOpportunityRows, methodologyStatesPromptsAndModels: settings.methodologyStatesPromptsAndModels, fixedNextStep: settings.fixedNextStep },
+    )
     const fixed = {
       category: data.category ?? NEEDS_VALIDATION,
       market: data.market ?? NEEDS_VALIDATION,
-      ...(DECISIONS.fixedNextStep !== null ? { next_step: DECISIONS.fixedNextStep } : {}),
+      ...(settings.fixedNextStep !== null ? { next_step: settings.fixedNextStep } : {}),
     }
     const block = dataBlock(data)
     let problems: string[] = []

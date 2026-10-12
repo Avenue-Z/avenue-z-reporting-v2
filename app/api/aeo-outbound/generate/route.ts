@@ -6,7 +6,8 @@ import { GENERATION_DEADLINE_MS } from '@/lib/aeo-outbound/config'
 import { checkContract, GENERATE_BODY, REPORT_ID_RE } from '@/lib/aeo-outbound/contracts'
 import { generateSnapshot } from '@/lib/aeo-outbound/generate'
 import { gleanOnce } from '@/lib/aeo-outbound/glean'
-import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
+import { originAllowed } from '@/lib/aeo-outbound/permissions'
+import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { peecFromEnv, PeecClient, PeecError } from '@/lib/aeo-outbound/peec'
 import { listProjects } from '@/lib/aeo-outbound/pull'
 import { checkRange, type DayRange } from '@/lib/aeo-outbound/range'
@@ -33,8 +34,9 @@ export async function POST(req: NextRequest) {
   const started = Date.now()
   const deadline = started + GENERATION_DEADLINE_MS
   const session = await auth()
-  const email = outboundEmail(session?.user)
-  if (!email || !originAllowed(req.headers.get('origin'), req.headers.get('host'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const access = await outboundAccess(session?.user)
+  if (!access.ok || !originAllowed(req.headers.get('origin'), req.headers.get('host'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const email = access.email
 
   let body: Record<string, unknown> | null = null
   try {
@@ -111,6 +113,7 @@ export async function POST(req: NextRequest) {
         },
       },
       range,
+      access.settings,
     )
     if (result.ok) {
       await finishDraftQuery(id, { brandName: result.brandName, data: result.data, slots: result.slots, notes: result.notes, now: new Date() })

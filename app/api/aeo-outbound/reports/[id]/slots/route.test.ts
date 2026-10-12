@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const m = vi.hoisted(() => ({ getReport: vi.fn(), save: vi.fn() }))
+vi.mock('@/lib/aeo-outbound/settings-store', () => ({ readSettingsRow: vi.fn(async () => null) }))
 vi.mock('@/lib/aeo-outbound/store', async (o) => ({ ...(await o<object>()), getReport: m.getReport, saveSlotsQuery: m.save }))
 
 import { PATCH } from './route'

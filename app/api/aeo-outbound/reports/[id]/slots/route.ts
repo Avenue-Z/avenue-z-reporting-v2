@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/auth'
-import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
+import { originAllowed } from '@/lib/aeo-outbound/permissions'
+import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { getReport, isReportId, saveSlotsQuery } from '@/lib/aeo-outbound/store'
 import { applySlotPatch, needsValidationPaths } from '@/lib/aeo-outbound/slots'
 import { groundingFlags } from '@/lib/aeo-outbound/grounding'
@@ -15,7 +16,7 @@ const refused = (id: string, reason: string) => console.warn(`[aeo-outbound] slo
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!outboundEmail(session?.user) || !originAllowed(req.headers.get('origin'), req.headers.get('host'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!(await outboundAccess(session?.user)).ok || !originAllowed(req.headers.get('origin'), req.headers.get('host'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   const { id } = await ctx.params
   let body: { path?: unknown; value?: unknown; revision?: unknown } | null = null
   try { body = await req.json() } catch { /* below */ }

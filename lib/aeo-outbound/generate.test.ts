@@ -3,6 +3,7 @@ import { PeecClient } from './peec'
 import { generateSnapshot } from './generate'
 import type { GleanReply } from './glean'
 import { DECISIONS } from './config'
+import { SETTINGS_DEFAULTS } from './settings'
 
 beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
 afterEach(() => { vi.restoreAllMocks() })
@@ -250,4 +251,18 @@ test('a Glean next_step of "" or null is ignored when a fixed next step is set, 
     expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
     expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
   }
+})
+
+test('the settings passed in shape the data, the prompt and the fixed next step', async () => {
+  const glean = vi.fn(async (_p: string) => reply(GOOD))
+  const r = await generateSnapshot('or_a', deps(glean), null, { ...SETTINGS_DEFAULTS, rankAmong: 2, peecOpportunityRows: 0, methodologyStatesPromptsAndModels: false, fixedNextStep: 'Book a working session.' })
+  expect(r.ok && r.data.settingsUsed).toEqual({ rankAmong: 2, peecOpportunityRows: 0, methodologyStatesPromptsAndModels: false, fixedNextStep: 'Book a working session.' })
+  expect(r.ok && r.slots.next_step).toBe('Book a working session.')
+  expect(String(glean.mock.calls[0][0])).not.toContain('Prompts tracked')
+})
+
+test('with the default settings, settingsUsed records the fixed next step the row carries', async () => {
+  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))))
+  expect(r.ok && r.data.settingsUsed?.fixedNextStep).toBe(DECISIONS.fixedNextStep)
+  expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
 })

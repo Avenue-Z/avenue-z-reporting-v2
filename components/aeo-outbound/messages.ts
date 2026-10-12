@@ -45,3 +45,7 @@ export const VIEW_FAILED = 'Lost connection.'
 export const ACTION_FAILED = 'Lost connection. Try again.'
 /** Leaving a draft with an edit not yet saved (Task 4.4 fix round 1, from the coordinator's review). */
 export const LEAVE_UNSAVED = 'You have unsaved edits. Leave anyway?'
+
+/** v1.1 §8: the no-access page names who to ask. */
+export const askAdmin = (admins: string[]): string =>
+  admins.length ? `Ask a New Business admin (${admins.join(', ')}) to add you.` : 'Ask a New Business admin to add you.'
