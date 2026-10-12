@@ -468,7 +468,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
             />
           )}
           {!panelOpen && status === 'draft' && (
-            <button type="button" className="absolute right-2 top-2 z-10 rounded-full border border-white/[0.12] bg-bg-surface px-3 py-1 text-xs font-medium text-white shadow-lg" aria-label={`Show ${BEFORE_YOU_SEND} (${count})`} onClick={() => setPanelOpen(true)}>{`${BEFORE_YOU_SEND} (${count})`}</button>
+            <button type="button" className="absolute right-6 top-2 z-10 rounded-full border border-white/[0.12] bg-bg-surface px-3 py-1 text-xs font-medium text-white shadow-lg" aria-label={`Show ${BEFORE_YOU_SEND} (${count})`} onClick={() => setPanelOpen(true)}>{`${BEFORE_YOU_SEND} (${count})`}</button>
           )}
         </div>
       )}

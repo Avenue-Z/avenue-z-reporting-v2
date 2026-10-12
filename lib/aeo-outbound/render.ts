@@ -1,7 +1,8 @@
 // The snapshot page in the AIVx design (spec §5; v1.1 §2, §3, §9). Head and body structure follow aivx-reports@ff18697
 // agent/renderer.py:2530-2556; blocks follow its builders. Every string is escaped; Peec text in figures is stripped of
 // < and >. In draft every visible word carries data-slot (editable), data-mirror (a copy of a slot, edited where it first
-// appears) or data-locked (a chart, or fixed by design). Preview and final carry none of it, so they stay AIVx.
+// appears) or data-locked (a chart, or fixed by design). Preview and final carry none of that editing markup. Every mode
+// carries PAGE_CSS, PAGE_JS and data-label (phones and the menu links, v1.1 §17); final also carries SHARE_MOBILE.
 import { AIVX_CSS } from './aivx/css'
 import { AIVX_JS } from './aivx/js'
 import { AIVX_FAVICON_TAG } from './aivx/favicon'

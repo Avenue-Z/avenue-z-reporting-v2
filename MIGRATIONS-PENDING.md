@@ -367,3 +367,11 @@ row, if any, reads that value); the ledger up by one with nothing pending.
 **Applied nowhere.** Any build whose `lib/db/schema.ts` has `series` must not reach an environment before `0028` is
 applied there: Drizzle names every column, so the settings read throws (42703), access falls back to `AEO_OUTBOUND_USERS`
 only, and every save is refused with the read-failed message.
+
+This branch's Vercel preview already runs that build. If previews read the dev database (ENGINEERS.md says the Preview
+`DATABASE_URL` is the dev Neon project; unverified from the repo), the preview is in that degraded state until `0028` is
+applied on dev. Apply it on dev before anyone reviews by clicking through the preview.
+
+Until this change merges to `dev`, keep the top-left name on dev to `AIVx` or `Avenue Z`. Older deployments that share the
+dev database still check it against the old two-value list, and a row outside it fails their settings contract, which
+drops Settings-only users and admins there.
