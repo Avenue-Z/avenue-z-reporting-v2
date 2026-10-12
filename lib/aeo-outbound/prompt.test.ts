@@ -82,3 +82,45 @@ test('a negative share of voice gap is not printed, a positive one is, null is u
   expect(gapLine(null)).toMatch(/: Persona 2\.3 points$/)
   expect(gapLine(0)).toMatch(/: Persona 2\.3 points$/)
 })
+
+// A version 2 row: same values as D plus the version 2 fields.
+const D2 = {
+  ...D, schemaVersion: 2, ownSites: [{ domain: 'example.com', retrievedChats: 1989, retrievedPct: 22.4 }],
+  settingsUsed: { rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: null },
+} as unknown as SnapshotData
+const line = (d: SnapshotData, start: string) => dataBlock(d).split('\n').find((l) => l.startsWith(start))
+
+test('version 2: gap points always print one decimal, and only the 5 nearest brands above are listed', () => {
+  const gaps = [30, 25, 20, 12, 11, 7, 3.4, 1].map((v, i) => ({ name: `Brand${String.fromCharCode(65 + i)}`, visibilityPoints: v, sovPoints: i === 7 ? 1 : null }))
+  expect(line({ ...D2, leaderGaps: gaps } as unknown as SnapshotData, 'Gap to each brand')).toBe(
+    'Gap to each brand ranked above (visibility points, share of voice points): BrandD 12.0 points; BrandE 11.0 points; BrandF 7.0 points; BrandG 3.4 points; BrandH 1.0 points, 1.0 points')
+})
+
+test('version 2: the own brand is always in the brands line, in place of the fifth', () => {
+  const many = Array.from({ length: 7 }, (_, i) => ({ id: `b${i}`, name: `Brand${String.fromCharCode(65 + i)}`, isOwn: i === 6, visibilityPct: 50 - i, sovPct: null, position: null, rank: i + 1 }))
+  expect(line({ ...D2, brands: many } as unknown as SnapshotData, 'Brands by AI visibility')).toBe(
+    'Brands by AI visibility (rank, name, visibility, share of voice): #1 BrandA 50.0%; #2 BrandB 49.0%; #3 BrandC 48.0%; #4 BrandD 47.0%; #7 BrandG 44.0%')
+  expect(dataBlock({ ...D, brands: many } as unknown as SnapshotData)).not.toContain('BrandG')
+})
+
+test('version 2: with no competitors tracked, share of voice leaves the Data block', () => {
+  const own = { id: 'o', name: 'Example Co', isOwn: true, visibilityPct: 15.1, sovPct: 100, position: 3.1, rank: 1 }
+  const d = { ...D2, competitorsTracked: 0, rankN: 1, brands: [own], leaderGaps: [], kpis: [{ label: 'AI visibility', value: '15.1%' }, { label: 'Average answer position', value: '#3.1' }] } as unknown as SnapshotData
+  expect(line(d, 'Brands by AI visibility')).toBe('Brands by AI visibility (rank, name, visibility, share of voice): Example Co 15.1%')
+  expect(dataBlock(d)).not.toContain('100.0%')
+})
+
+test('version 2: each own domain is listed with its own count and percentage, and the sum is not printed', () => {
+  const d = { ...D2, ownDomains: ['example.com', 'shop.example.com'], ownRetrievedChats: 2000, ownRetrievedPct: null, ownSites: [{ domain: 'example.com', retrievedChats: 1989, retrievedPct: 22.4 }, { domain: 'shop.example.com', retrievedChats: 11, retrievedPct: null }] } as unknown as SnapshotData
+  expect(line(d, 'Own site')).toBe('Own site retrievals by domain (answers that retrieved each site): example.com 1,989, which is 22.4% of answers; shop.example.com 11')
+  expect(dataBlock(d)).not.toContain('2,000')
+})
+
+test('the prompt and the Data block follow the settings the row was generated with, not live settings', () => {
+  const d = { ...D2, settingsUsed: { rankAmong: null, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, fixedNextStep: 'Book a working session.' } } as unknown as SnapshotData
+  expect(dataBlock(d)).not.toContain('Prompts tracked')
+  const p = buildPrompt(d, [])
+  expect(p).toContain('exactly 2 of the 3 must be based on those actions')
+  expect(p).not.toContain('- next_step:')
+  expect(p).not.toContain('the prompt count and the AI models covered')
+})

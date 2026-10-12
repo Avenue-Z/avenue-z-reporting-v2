@@ -9,9 +9,10 @@ import { groundingFlags } from './grounding'
 import { validateGeneratedSlots, type Slots } from './slots'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
+import type { StoredNote } from './notes'
 
 export type GenerationResult =
-  | { ok: true; brandName: string; data: SnapshotData; slots: Slots; notes: string[] }
+  | { ok: true; brandName: string; data: SnapshotData; slots: Slots; notes: StoredNote[] }
   | { ok: false; error: string; brandName: string | null }
 
 export async function generateSnapshot(

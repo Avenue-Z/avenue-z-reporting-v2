@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { approveSnapshotAction, copySnapshotAsDraftAction, discardSnapshotAction, revokeSnapshotAction } from '@/app/actions/aeo-outbound'
 import { DECISIONS, NEEDS_VALIDATION } from '@/lib/aeo-outbound/config'
+import { isStoredNotes, noteText, type StoredNote } from '@/lib/aeo-outbound/notes'
 import { MAX_RECIPIENT } from '@/lib/aeo-outbound/recipient'
 import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { requestGenerate } from './generate-client'
@@ -25,7 +26,7 @@ export interface OutboundEditorProps {
   projectId: string
   status: DisplayStatus
   revision: number
-  notes: string[]
+  notes: StoredNote[]
   needsValidation: string[]
   token: string | null
   error: string | null
@@ -93,7 +94,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
       if (res.status === 200) {
         const b = (await res.json()) as { revision?: unknown; notes?: unknown; needsValidation?: unknown }
         if (!Number.isInteger(b.revision)) return { kind: 'retry' }
-        if (isStrings(b.notes)) setNotes(b.notes)
+        if (isStoredNotes(b.notes)) setNotes(b.notes)
         if (isStrings(b.needsValidation)) setNeedsValidation(b.needsValidation)
         return { kind: 'ok', revision: b.revision as number }
       }
@@ -312,7 +313,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
               <h2 className="mb-2 text-sm font-semibold text-white">Notes</h2>
               <ul className="space-y-2 text-xs text-text-muted">
                 {needsValidation.map((p) => <li key={`nv-${p}`} className="text-[#FFFC60]">{NEEDS_VALIDATION}: {p}</li>)}
-                {notes.map((n, i) => <li key={i}>{n}</li>)}
+                {notes.map((n, i) => <li key={i}>{noteText(n)}</li>)}
               </ul>
             </aside>
           )}

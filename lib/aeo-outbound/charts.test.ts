@@ -19,10 +19,14 @@ for (const name of ['visibility_bar_12', 'visibility_bar_4']) {
   })
 }
 for (const name of ['sources_8_types', 'sources_3_types']) {
-  test(`${name}: identical to AIVx's content-source donut`, () => {
+  test(`${name}: identical to AIVx's content-source donut except the Retrievals hover`, () => {
     const eb = C[name].input.earned_breakdown as Record<string, { count: number }>
-    const ours = sourceDonutFigure(Object.entries(eb).map(([label, v]) => ({ label, weight: v.count })))
-    expect(plain(ours)).toEqual(plain(C[name].figure))
+    const ours = plain(sourceDonutFigure(Object.entries(eb).map(([label, v]) => ({ label, weight: v.count }))))
+    const gold = plain(C[name].figure)
+    // A deliberate difference from AIVx (spec v1.1 §9): the weight is retrievals, not citations.
+    expect(ours.data[0].hovertemplate).toBe('<b>%{label}</b><br>Retrievals: %{value}<extra></extra>')
+    for (const f of [ours, gold]) delete f.data[0].hovertemplate
+    expect(ours).toEqual(gold)
   })
 }
 test('the embed is the AIVx wrapper, with the figure height on the outer div', () => {
@@ -37,4 +41,17 @@ test('figure JSON cannot close the script and labels carry no tags', () => {
   expect(html.match(/<\/script>/g)?.length).toBe(1)
   const fig = visibilityBarFigure([{ name: '<b>Bold</b>', visibilityPct: 5 }])
   expect((fig.data[0] as { y: string[] }).y).toEqual(['bBold/b'])
+})
+
+test('the own brand outside the top 10 replaces the tenth bar', () => {
+  const brands = Array.from({ length: 12 }, (_, i) => ({ name: `Brand${i}`, visibilityPct: 60 - i, isOwn: i === 11 }))
+  const y = (visibilityBarFigure(brands).data[0] as { y: string[] }).y
+  expect(y).toHaveLength(10)
+  expect(y[0]).toBe('Brand11')
+  expect(y).not.toContain('Brand9')
+  expect(y.at(-1)).toBe('Brand0')
+})
+test('an own brand already in the top 10 changes nothing', () => {
+  const brands = Array.from({ length: 12 }, (_, i) => ({ name: `Brand${i}`, visibilityPct: 60 - i, isOwn: i === 3 }))
+  expect(plain(visibilityBarFigure(brands))).toEqual(plain(visibilityBarFigure(brands.map(({ isOwn: _o, ...b }) => b))))
 })

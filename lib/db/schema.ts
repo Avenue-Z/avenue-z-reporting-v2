@@ -501,7 +501,7 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
   status: aeoOutboundStatusEnum('status').notNull().default('generating'),
   data: jsonb('data').$type<Record<string, unknown>>(),
   slots: jsonb('slots').$type<Record<string, unknown>>(),
-  notes: jsonb('notes').$type<string[]>(),
+  notes: jsonb('notes').$type<unknown[]>(),
   revision: integer('revision').notNull().default(0),
   error: text('error'),
   html: text('html'),

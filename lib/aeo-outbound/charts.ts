@@ -41,8 +41,11 @@ function cycledDonutPalette(n: number): string[] {
 /** agent.py:2477-2487 */
 const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top' })
 
-export function visibilityBarFigure(brands: { name: string; visibilityPct: number }[]): Figure {
-  const top10 = [...brands.slice(0, 20)].sort((a, b) => b.visibilityPct - a.visibilityPct).slice(0, 10)
+export function visibilityBarFigure(brands: { name: string; visibilityPct: number; isOwn?: boolean }[]): Figure {
+  let top10 = [...brands.slice(0, 20)].sort((a, b) => b.visibilityPct - a.visibilityPct).slice(0, 10)
+  // v1.1 §9: the prospect always shows on its own chart, in place of the tenth bar.
+  const own = brands.find((b) => b.isOwn)
+  if (own && !top10.includes(own)) top10 = [...top10.slice(0, 9), own]
   const rev = [...top10].reverse()
   const n = rev.length
   const x = rev.map((b) => b.visibilityPct)
@@ -76,7 +79,7 @@ export function sourceDonutFigure(mix: { label: string; weight: number }[]): Fig
       textinfo: 'percent', textposition: 'auto', insidetextorientation: 'horizontal',
       insidetextfont: { family: 'Avenir', size: 14, color: contrastTextColors(colors) },
       outsidetextfont: { family: 'Avenir', size: 14, color: '#FFFFFF' },
-      hovertemplate: '<b>%{label}</b><br>Citations: %{value}<extra></extra>',
+      hovertemplate: '<b>%{label}</b><br>Retrievals: %{value}<extra></extra>',
     }],
     layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 90, r: 90, t: 28, b: 64 } },
     config: CONFIG,

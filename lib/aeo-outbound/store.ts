@@ -4,6 +4,7 @@ import { db } from '@/lib/db/client'
 import { aeoOutboundOpens as o, aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
 import { STALE_GENERATING_MS } from './config'
 import type { SnapshotData } from './metrics'
+import type { StoredNote } from './notes'
 import type { Slots } from './slots'
 import type { ErrorCode } from './error-codes'
 import { OPEN_REASONS } from './opens'
@@ -12,7 +13,7 @@ import { isShareTokenShape } from './token'
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_GENERATING_MS)
 
 /** A row with its JSON columns typed. The schema keeps them untyped so it never imports this folder. */
-export type ReportRow = Omit<AeoOutboundRow, 'data' | 'slots'> & { data: SnapshotData | null; slots: Slots | null }
+export type ReportRow = Omit<AeoOutboundRow, 'data' | 'slots' | 'notes'> & { data: SnapshotData | null; slots: Slots | null; notes: StoredNote[] | null }
 const typed = (r: AeoOutboundRow): ReportRow => r as unknown as ReportRow
 
 export function markStaleGeneratingQuery(projectId: string, now: Date) {
@@ -31,7 +32,7 @@ export function insertGeneratingQuery(v: { projectId: string; projectName: strin
     .returning({ id: t.id })
 }
 
-export function finishDraftQuery(id: string, v: { brandName: string; data: SnapshotData; slots: Slots; notes: string[]; now: Date }) {
+export function finishDraftQuery(id: string, v: { brandName: string; data: SnapshotData; slots: Slots; notes: StoredNote[]; now: Date }) {
   return db.update(t)
     .set({ status: 'draft', brandName: v.brandName, data: v.data as unknown as Record<string, unknown>, slots: v.slots as unknown as Record<string, unknown>, notes: v.notes, updatedAt: v.now })
     .where(and(eq(t.id, id), eq(t.status, 'generating')))
@@ -51,7 +52,7 @@ export function progressStepQuery(id: string, step: number) {
 }
 
 /** brandName is passed only for a save of the brand slot (spec v1.1 §3), so the hub and search use the edited name. */
-export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, notes: string[], brandName?: string) {
+export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, notes: StoredNote[], brandName?: string) {
   return db.update(t)
     .set({
       slots: slots as unknown as Record<string, unknown>, notes, revision: sql`${t.revision} + 1`, updatedAt: new Date(),

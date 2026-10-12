@@ -1,7 +1,7 @@
 // The prompt that replaces Ryan's Glean skill (spec §6). Rules restated from his skill's Writing rules and
 // Fixed document format, plus the strict number rules of lib/peec/content-impact-synopsis.ts:225-227.
 import { DECISIONS } from './config'
-import type { SnapshotData } from './metrics'
+import { settingsUsedOf, type BrandMetric, type SnapshotData } from './metrics'
 
 const n = (x: number) => x.toLocaleString('en-US')
 const p1 = (x: number) => `${x.toFixed(1)}%`
@@ -12,13 +12,36 @@ const one = (t: string) => t.replace(/\s+/g, ' ').trim()
 /** Peec's impact enum (VERY_HIGH) as plain words for client copy; an empty one says so. */
 const impactWords = (t: string) => one(t).replace(/_/g, ' ').toLowerCase() || 'impact not given'
 
+/** Version 2: the top five by rank, with the own brand in place of the fifth when it ranks lower (v1.1 §9). */
+function listedBrands(d: SnapshotData, v2: boolean): BrandMetric[] {
+  if (d.competitorsTracked === 0) return d.brands.filter((b) => b.isOwn).slice(0, 5)
+  const top = d.brands.slice(0, 5)
+  if (!v2 || top.some((b) => b.isOwn)) return top
+  const own = d.brands.find((b) => b.isOwn)
+  return own ? [...top.slice(0, 4), own] : top
+}
+/** Version 2: the 5 brands above with the smallest gaps, kept in rank order (v1.1 §9). */
+function listedGaps(d: SnapshotData, v2: boolean): SnapshotData['leaderGaps'] {
+  if (d.competitorsTracked === 0) return []
+  if (!v2) return d.leaderGaps
+  const keep = new Set([...d.leaderGaps].sort((a, b) => a.visibilityPoints - b.visibilityPoints).slice(0, 5))
+  return d.leaderGaps.filter((g) => keep.has(g))
+}
+
 export function dataBlock(d: SnapshotData): string {
+  // A version 1 row (no schemaVersion) keeps every version 1 line, so grounding on its saves is unchanged (v1.1 §10).
+  const v2 = d.schemaVersion === 2
   // No competitors tracked: Peec can still return a row for a brand outside the roster, and metrics counts it in
   // the rank and the comparison set. Name none of them, and print no rank.
   const noRivals = d.competitorsTracked === 0
-  const listed = noRivals ? d.brands.filter((b) => b.isOwn) : d.brands
-  const gaps = noRivals ? [] : d.leaderGaps
+  const listed = listedBrands(d, v2)
+  const gaps = listedGaps(d, v2)
+  const points = (x: number) => (v2 ? x.toFixed(1) : String(x))
+  const showSov = !(v2 && noRivals)
   const ownSite = d.ownDomains.length ? `answers that retrieved ${d.ownDomains.map(one).join(', ')}` : "answers that retrieved the brand's own site"
+  const ownLine = v2 && d.ownSites && d.ownSites.length
+    ? `Own site retrievals by domain (answers that retrieved each site): ${d.ownSites.map((s) => `${one(s.domain)} ${n(s.retrievedChats)}${s.retrievedPct !== null ? `, which is ${p1(s.retrievedPct)} of answers` : ''}`).join('; ')}`
+    : `Own site retrievals (${ownSite}): ${n(d.ownRetrievedChats)}${d.ownRetrievedPct !== null ? `, which is ${p1(d.ownRetrievedPct)} of answers` : ''}`
   const lines = [
     `Brand: ${one(d.brand)}`,
     `Category: ${d.category === null ? 'not in Peec' : one(d.category)}`,
@@ -27,19 +50,20 @@ export function dataBlock(d: SnapshotData): string {
     `Key metrics: ${d.kpis.map((k) => `${one(k.label)} ${one(k.value)}`).join('; ')}`,
     `Competitors tracked in Peec: ${d.competitorsTracked}`,
     ...(noRivals ? [] : [`Brands in the comparison set: ${d.rankN}`]),
-    `Brands by AI visibility (rank, name, visibility, share of voice): ${listed.slice(0, 5).map((b) => `${noRivals ? '' : `#${b.rank} `}${one(b.name)} ${p1(b.visibilityPct)}${b.sovPct !== null ? ` / ${p1(b.sovPct)}` : ''}`).join('; ') || 'none'}`,
-    `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${g.visibilityPoints} points${typeof g.sovPoints === 'number' && g.sovPoints > 0 ? `, ${g.sovPoints} points` : ''}`).join('; ') || 'none'}`,
-    `Own site retrievals (${ownSite}): ${n(d.ownRetrievedChats)}${d.ownRetrievedPct !== null ? `, which is ${p1(d.ownRetrievedPct)} of answers` : ''}`,
+    `Brands by AI visibility (rank, name, visibility, share of voice): ${listed.map((b) => `${noRivals ? '' : `#${b.rank} `}${one(b.name)} ${p1(b.visibilityPct)}${showSov && b.sovPct !== null ? ` / ${p1(b.sovPct)}` : ''}`).join('; ') || 'none'}`,
+    `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${points(g.visibilityPoints)} points${typeof g.sovPoints === 'number' && g.sovPoints > 0 ? `, ${points(g.sovPoints)} points` : ''}`).join('; ') || 'none'}`,
+    ownLine,
     `Source types by share of retrievals: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
     `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
     `Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ') || 'none'}`,
   ]
-  if (DECISIONS.methodologyStatesPromptsAndModels) lines.push(`Prompts tracked: ${d.promptCount ?? 'not reported'}`, `AI models covered: ${d.models.map(one).join(', ') || 'not reported'}`)
+  if (settingsUsedOf(d).methodologyStatesPromptsAndModels) lines.push(`Prompts tracked: ${d.promptCount ?? 'not reported'}`, `AI models covered: ${d.models.map(one).join(', ') || 'not reported'}`)
   return lines.join('\n')
 }
 
 export function buildPrompt(d: SnapshotData, violations: string[]): string {
-  const peecRows = DECISIONS.peecOpportunityRows
+  const used = settingsUsedOf(d)
+  const peecRows = used.peecOpportunityRows
   return `You write a client-facing one-page AI Visibility Snapshot for a prospect brand.
 
 Use ONLY the Data section below. Do not search company documents, Slack, email or any other source. If something is not in the Data section, leave it out.
@@ -62,8 +86,8 @@ Write these fields:
 - sources_bullets: 2 or 3 bullets of gaps (visibility gaps to leaders, competitor domain gaps, source mix). Same lead and text shape.
 - why: one compact paragraph connecting the pattern to consideration and category discovery, without claiming causality.
 - opportunities: exactly 3 items, each { "signal", "opportunity", "workstream" }. Each connects a data signal to something to explore. Workstreams such as Content / AEO, PR / earned media, Technical AEO / SEO.${peecRows > 0 ? ` If the Peec recommended actions list is not "none", exactly ${peecRows} of the 3 must be based on those actions and its signal must start with "Peec recommends".` : ''}
-- methodology: one sentence naming the data window, the comparison set${DECISIONS.methodologyStatesPromptsAndModels ? ', the prompt count and the AI models covered' : ''}. Say results are directional.
-${DECISIONS.fixedNextStep === null ? '- next_step: one sentence on a next step, such as a full AEO audit.\n' : ''}${DECISIONS.writeSpecificCategory ? '- category: a short, specific category for the brand based on the data.\n' : ''}
+- methodology: one sentence naming the data window, the comparison set${used.methodologyStatesPromptsAndModels ? ', the prompt count and the AI models covered' : ''}. Say results are directional.
+${used.fixedNextStep === null ? '- next_step: one sentence on a next step, such as a full AEO audit.\n' : ''}${DECISIONS.writeSpecificCategory ? '- category: a short, specific category for the brand based on the data.\n' : ''}
 Output strictly valid JSON with exactly these keys and no markdown fences or commentary.${violations.length ? `\n\nIMPORTANT: A previous attempt had these problems: ${violations.join(' | ')}. Do not repeat them.` : ''}
 
 Data:
