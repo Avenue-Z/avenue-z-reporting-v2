@@ -108,6 +108,9 @@ Modified files are listed in each task with the line ranges read at `feat/aeo-ou
 11b. Live progress: the endpoint, the checklist and polling (amendment 5, spec v1.1 §16.3)
 12. Settings page
 13. Migration notes and the final gate
+14. The report page on phones and the menu links (amendment 6, §17.1, §17.2)
+15. The calendar and a minimizable Before you send (§17.3, §17.4)
+16. The report name and top-left name settings, migration 0028 (§17.5)
 
 ---
 ### Task 1: Baseline, version 1 fixtures, zod, contracts core, `PeecError.code`
@@ -8998,3 +9001,163 @@ Interpretations the reviewer should confirm (the spec allows them but does not s
 - A mirror updates from the cleaned value the frame sends (Task 7), which equals the saved value for every save the server accepts; the frame has no "saved" message in the spec's protocol.
 - `window_label` drift is reported with the `kpi_changed` kind (Task 6): the spec's closed kind list has no separate kind for it.
 - Unverified until a database runs the statements: the open classification rules inside the SQL (10-second and unknown-browser rules) and the counter equalling the event count; the tests pin the statement text only.
+
+### Task 14: The report page: menu links, the phone layout, the donut on phones, the phone Share button (spec v1.1 §17.1, §17.2, §17.5 grounding and showsPowered)
+
+Covers §17.1, §17.2, the `showsPowered` and grounding bullets of §17.5, and their §17.7 tests. Line numbers cite
+`feat/aeo-outbound-parts` at `068b4976`; find places by the quoted code.
+
+**Files:**
+- Modify: `lib/aeo-outbound/render.ts` (exports `PAGE_CSS`, `PAGE_JS`, `SHARE_MOBILE`; the head at `:245`, the scripts at
+  `:252`, the KPI strip at `:134-135`, the opportunities cells at `:206`, the footer at `:215`, `showsPowered` at `:87`)
+- Modify: `lib/aeo-outbound/grounding.ts` (the number and domain checks, about `:96-99`)
+- Modify: `app/api/aeo-outbound/reports/[id]/view/route.ts:17-25` (`withoutShare`, `HIDE_SHARE`)
+- Tests: `lib/aeo-outbound/render.test.ts`, `lib/aeo-outbound/render.frame.test.ts`, `lib/aeo-outbound/v1-compat.test.ts`,
+  `lib/aeo-outbound/grounding.test.ts`, `app/api/aeo-outbound/reports/[id]/view/route.test.ts`
+
+**Exact code (use verbatim):**
+
+`PAGE_CSS` (exported string; emitted as `<style>${PAGE_CSS}</style>` immediately after `<style>${AIVX_CSS}</style>`, before
+`EDITOR_STYLE`, in every mode):
+```css
+.kpi-value.aeo-long{font-size:24px;line-height:1.15}
+.aeo-share-mobile{display:none}
+@media (max-width: 900px){
+.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}
+.kpi-strip[data-kpis="3"]{grid-template-columns:repeat(2,1fr)!important}
+.leaderboard-wrap{overflow-x:visible;border:none;border-radius:0}
+.leaderboard thead{display:none}
+.leaderboard,.leaderboard tbody,.leaderboard tr,.leaderboard td{display:block;width:100%}
+.leaderboard tr{border:1px solid var(--border);border-radius:16px;margin-bottom:12px;padding:6px 0;background:rgba(255,255,255,0.02)}
+.leaderboard td{padding:8px 20px}
+.leaderboard td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px}
+.aeo-share-mobile{display:flex;justify-content:center;padding:24px}
+.aeo-share-mobile-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;padding:10px 16px;margin:0;background:rgba(96,255,234,0.06);border:1px solid rgba(96,255,234,0.35);border-radius:9999px;color:var(--cyan);font-family:'Avenir',sans-serif;font-size:12px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;user-select:none}
+}
+```
+(Write it as a JS string the way `EDITOR_STYLE` is written; keep these declarations.)
+
+`SHARE_MOBILE` (exported string; in final mode only, emitted immediately before `<footer class="footer">`):
+```html
+<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>
+```
+
+`PAGE_JS` (exported string, `String.raw` like `FRAME_SCRIPT_JS`; emitted as `<script>${PAGE_JS}</script>` immediately after
+`HEADER_CLONE`, before the share block and the frame script, in every mode):
+```js
+(function(){
+document.addEventListener('click',function(e){
+var n=e.target;if(!n||!n.closest)return;
+var a=n.closest('a[href^="#"]');
+if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
+var b=n.closest('.aeo-share-mobile-btn');if(b){var s=document.querySelector('.sidebar .share-btn');if(s)s.click()}
+},true);
+var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
+function copy(x){return JSON.parse(JSON.stringify(x))}
+function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
+function draw(d,l){try{var p=window.Plotly.react(el,d,l);if(p&&p.catch)p.catch(restore)}catch(err){restore()}}
+function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){draw(copy(orig.d),copy(orig.l));return}
+var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],total=0;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];
+t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{percent:.1%}':''});t.labels=lab.map(function(x,i){return x+' '+(100*v[i]/total).toFixed(1)+'%'});
+if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');draw(d,l)}
+function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};if(!window.matchMedia)return;var mq=window.matchMedia('(max-width: 900px)');apply(mq.matches);var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
+if(document.readyState==='complete')init();else window.addEventListener('load',init);
+})();
+```
+
+Render changes:
+- KPI cards (`:134`): a value whose trimmed length is more than 7 gets the class `kpi-value aeo-long`, else `kpi-value`.
+- KPI strip (`:135`): when there are exactly 3 cards, the strip is `<div class="kpi-strip" data-kpis="3" style="grid-template-columns:repeat(3, 1fr)">`; other counts unchanged.
+- Opportunities cells (`:206`): each `td` gets `data-label` with its column word, escaped: column 1 `p.opps_col_1`, 2
+  `p.opps_col_2`, 3 `p.opps_col_3` (pass it through `slot`'s `attrs` argument as ` data-label="${esc(word)}"`).
+- `showsPowered` (`:87`): `(wordmark: string): boolean => !wordmark.trim().toLowerCase().includes('avenue z')`; update its
+  doc comment to the §17.5 rule.
+
+`grounding.ts`: for `page.series` and `page.sidebar_wordmark`, skip the domain and number checks; the long-dash check still
+runs (do not `continue` past it).
+
+`view/route.ts`: `HIDE_SHARE` becomes `'<style>.share-btn,.share-toast,.aeo-share-mobile{display:none!important}</style>'`.
+`withoutShare`: strip `SHARE_BUTTON` and `AIVX_SHARE_BLOCK` as today; then, for `SHARE_MOBILE` (import it from render):
+if it occurs exactly once remove it; if absent do nothing; if it occurs more than once use the fallback (warn and inject
+`HIDE_SHARE`). An old frozen row without `SHARE_MOBILE` is served with no warning.
+
+**Tests (write first; see them fail):**
+- `render.frame.test.ts` (run `PAGE_JS` in the harness the way `FRAME_SCRIPT_JS` is run; export what is needed): a click
+  on the `#headline` menu link in preview calls `scrollIntoView` on `#headline` with `{ behavior: 'smooth', block: 'start' }`
+  and is default-prevented; the same in a draft outside edit mode; in edit mode (after the frame script's `mode` with
+  `edit: true`) no scroll and `PAGE_JS` doesn't prevent it (the frame script still does); a link to `#nope` is not
+  prevented; a click on `.aeo-share-mobile-btn` calls `click()` on `.sidebar .share-btn`; with the real
+  `AIVX_SHARE_BLOCK` loaded, that click makes AIVx's `.share-toast` element gain the class `visible` (AIVx copies through
+  the clipboard only in a secure context and falls back otherwise, so assert the toast, not its wording).
+- Donut (frame harness with a stubbed `window.Plotly = { react: vi.fn(() => Promise.resolve()) }`, a `#aeo-chart-sources`
+  element carrying `data` and `layout` like `sourceDonutFigure`'s, and a stubbed `matchMedia`): matching: one `react` call
+  whose trace has `texttemplate` with `'%{percent:.1%}'` for slices of 5% or more and `''` below, labels like
+  `"Reference 4.8%"`, `customdata` the original labels, and a hover template containing `%{customdata}` and not
+  `%{label}`; a change event to not matching calls `react` with the original data; a `react` that returns a rejected
+  promise triggers one restore call with the originals; no `Plotly` or no element: no throw and no call.
+- `render.test.ts`: `<style>${PAGE_CSS}</style>` right after the AIVx style and `<script>${PAGE_JS}</script>` right after
+  the header clone in draft, preview and final; `SHARE_MOBILE` in final only, immediately before the footer; every
+  opportunities cell has `data-label` equal to its column word (with a column word containing `&` escaped);
+  `aeo-long` on a value of 8 characters and not on 7; `data-kpis="3"` with 3 cards and absent with 1, 2 and 4; every rule
+  of `PAGE_CSS` except `.kpi-value.aeo-long` and the first `.aeo-share-mobile{display:none}` sits inside the
+  `@media (max-width: 900px)` block (parse the string); `showsPowered` for "AIVx" (true), "AEO Lens" (true),
+  "Avenue Z" and "  avenue z " (false), "Avenue Z AEO" (false). Update Task 3b's and Task 7's existing Powered-by tests if
+  they assert the old rule's cases differently, keeping their intent.
+- `grounding.test.ts`: `page.series` "AEO Snapshot 2026" and `page.sidebar_wordmark` "Lens.io" add no note; a long dash in
+  either still adds a `long_dash` note.
+- `view/route.test.ts`: a preview of an approved row containing `SHARE_MOBILE` once has it removed and logs nothing; an old
+  approved row without it is served with no warning; one containing it twice falls back, warns once and hides
+  `.aeo-share-mobile`.
+- `v1-compat.test.ts`: extend `v11()` with the new deliberate differences (the `PAGE_CSS` style element, the `PAGE_JS`
+  script, `data-label` on the three opportunities cells of each row, `aeo-long` on the version 1 row's
+  "#3 of 3 brands", and `SHARE_MOBILE` before the footer), each asserted to apply exactly where expected, and keep the
+  byte-for-byte comparison.
+
+Commit subject: `Make the report work on phones and fix the menu links in the editor`. Edge-case list in the body.
+
+### Task 15: The calendar on the date fields, and a minimizable Before you send (spec v1.1 §17.3, §17.4)
+
+**Files:** `components/aeo-outbound/hub.tsx` (the two date inputs, about `:291,295`), `components/aeo-outbound/before-you-send.tsx`
+(the header, `:55-56`; a new `onMinimize` prop), `components/aeo-outbound/editor.tsx` (the panel block, about `:452-470`),
+`components/aeo-outbound/messages.ts` (append `MINIMIZE = 'Minimize'`), and their tests.
+
+- Date inputs: add the Tailwind class `[color-scheme:dark]` to each input's class list, and
+  `onClick={(e) => { try { e.currentTarget.showPicker?.() } catch { /* typing still works */ } }}`.
+- `BeforeYouSend` gains `onMinimize: () => void`; its header row shows the title and a small button "Minimize" (`btnCls`)
+  that calls it.
+- Editor: `onMinimize={() => setPanelOpen(false)}`. While `!panelOpen && status === 'draft' && showsReport`, render inside the
+  report's `relative` container a button at the top-right
+  (`className="absolute right-2 top-2 z-10 rounded-full border border-white/[0.12] bg-bg-surface px-3 py-1 text-xs font-medium text-white shadow-lg"`)
+  reading `${BEFORE_YOU_SEND} (${count})`, which calls `setPanelOpen(true)`. No pill on other statuses.
+
+Tests: both date inputs carry `[color-scheme:dark]`; a click calls `showPicker` (stub `HTMLInputElement.prototype.showPicker`);
+a `showPicker` that throws leaves the input usable (a change event still sets the value and no error escapes). Editor:
+Minimize closes the panel and shows the pill "Before you send (N)" with the current count on a draft; clicking the pill
+reopens the panel; a live report shows no pill. Commit subject: `Open the calendar on click and let Before you send be minimized`.
+
+### Task 16: The report name and the top-left name as settings, and migration 0028 (spec v1.1 §17.5)
+
+**Files:** `lib/db/schema.ts` (the `aeo_outbound_settings` table, near `:564`: add
+`series: text('series').notNull().default('AI Visibility Snapshot')`), `drizzle/0028_*.sql` and `drizzle/meta/0028_snapshot.json`
+and `_journal.json` (generated with `npx drizzle-kit generate --name aeo_outbound_settings_series`, which reads the schema and
+never connects; the SQL must be exactly one `ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series" text DEFAULT 'AI
+Visibility Snapshot' NOT NULL;`, else stop and report), `lib/aeo-outbound/settings-store.ts` (`SettingsValues` gains
+`series: string`, `sidebarWordmark: string`; `saveSettingsSql` writes `series` in both the insert and the update),
+`lib/aeo-outbound/settings.ts` (`SETTINGS_DEFAULTS.series = PAGE_WORDS_V1.series`; `GenerationSettings` adds `series`;
+`SETTINGS_FIELD_LABELS.series = 'Report name'` and `sidebarWordmark = 'Top-left name'`; `FIELDS` adds `series` after
+`sidebarWordmark`; `SETTINGS_ERRORS.wordmark = 'Use 1 to 60 characters.'`; `resolveSettings`, `validateSettingsInput`,
+`settingsToInput` and `SettingsInput` carry `series`; both names are `cleanValue`d, 1 to 60 characters, and refuse U+2013
+and U+2014 with `SETTINGS_ERRORS.longDash`), `lib/aeo-outbound/contracts.ts` (`SETTINGS_ROW`: `sidebarWordmark` and
+`series` each `z.string().min(1).max(60)`), `lib/aeo-outbound/slots.ts` (`pageDefaults` takes `series` and sets
+`page.series` from it), `components/aeo-outbound/settings-form.tsx` (the wordmark select becomes a text input labelled
+"Top-left name", maxLength 60; a "Report name" text input next to it, maxLength 60, with its error), `MIGRATIONS-PENDING.md`
+(a 0028 entry: what it adds, additive, the dry runs per §17.5, each environment on my written go with a host guard, not
+applied anywhere yet), and their tests.
+
+Tests: the defaults include `series: 'AI Visibility Snapshot'` and `sidebarWordmark: 'Avenue Z'`; both names accepted at 1
+and 60 characters and refused at 0 and 61 ("Use 1 to 60 characters.") and with a long dash; the form shows both inputs with
+their labels; `settingsChanges` logs a `series` change; `saveSettingsSql`'s insert and update text include `"series"`;
+`resolveSettings` maps `series`; `pageDefaults` sets `page.series`; a generation with settings `series: 'AEO Lens Report'`
+stores `page.series` "AEO Lens Report"; the 0028 SQL is exactly the one statement; the existing settings and access tests
+are updated for the new field (rows gain `series`). Commit subject: `Make the report name and the top-left name free-text settings (migration 0028)`.
+Do not apply 0028 anywhere.
