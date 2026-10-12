@@ -151,6 +151,8 @@ test('approved with mode=preview: an old row has exactly the share button and sh
   expect(res.headers.get('Content-Security-Policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox')
   const h = await res.text()
   expect(h).toBe(FROZEN.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, '').replace(SHARE_MOBILE, ''))
+  // The old block was emitted as '\n' + AIVX_SHARE_BLOCK; the strip removes the block but leaves that '\n' (as before §17.11), so the
+  // preview of an old row equals a new page plus one newline after the page script.
   expect(h).toBe(NEW_FINAL.replace(`${SCRIPT_END}`, `${SCRIPT_END}\n`))
   expect(h).not.toContain('aeo-share-mobile"')
   expect(h).not.toContain('class="share-btn"')
