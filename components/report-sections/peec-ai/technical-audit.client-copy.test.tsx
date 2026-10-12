@@ -20,7 +20,10 @@ const renderReport = async () => render(<TooltipProvider>{await TechnicalAuditRe
 // and named env vars. Clients read this page, and since the server PDF export it prints in their deliverables.
 // Setup text: config keys, env vars, "for client", and instructions to configure or upload. The footer's data-source
 // attribution (Screaming Frog, Sitebulb, Peec) stays: it's how a client learns where the numbers come from.
-const INTERNAL = /sfPrevCsvFileId|PEEC_AI_|CUSTOMER_TOKEN|PROJECT_ID|database|configured for client|for client|upload a prior crawl|Requires both/i
+const INTERNAL = /sfPrevCsvFileId|PEEC_AI_|CUSTOMER_TOKEN|PROJECT_ID|database|configured for client|for client|upload a prior crawl|Requires both|requires Screaming Frog/i
+// Thomas, #362: "changes appear after the next crawl" holds only if staff also set the prior-crawl CSV, so the copy says
+// what's true now (no earlier crawl to compare) and promises nothing.
+const PROMISE = /after the next crawl/i
 
 test('with no crawl and no bot analytics, the empty states say what is missing in client terms, with no setup detail', async () => {
   const { container } = await renderReport()
@@ -29,15 +32,17 @@ test('with no crawl and no bot analytics, the empty states say what is missing i
   expect(container.textContent).toContain("AI bot activity isn't available for this site yet.")
   expect(container.textContent).toContain("The AEO checklist isn't available for this site yet.")
   expect(container.textContent).toContain('Needs both site crawl data and AI bot activity.')
+  expect(container.textContent).toContain("The fix list needs site crawl data, which isn't available yet.")
   expect(container.textContent).toMatch(/Data sources: Screaming Frog CSV/)
 })
 
-test('with one crawl, the trend note says changes appear after the next crawl, with no setup detail', async () => {
+test('with one crawl, the notes say there is no earlier crawl to compare, promising nothing, with no setup detail', async () => {
   const snapshot: SFSnapshot = { crawlDate: '2026-09-01', totalUrls: 10, htmlUrls: 8, criticalCount: 0, highCount: 1, mediumCount: 2, lowCount: 3,
     totalIssues: 6, topIssues: [], issueSummaries: [] }
   getSFData.mockResolvedValueOnce({ current: snapshot, prev: null, delta: [], newIssues: 0, resolvedIssues: 0, persistentIssues: 0, weightedScore: 1, prevWeightedScore: null })
   const { container } = await renderReport()
   expect(container.textContent).not.toMatch(INTERNAL)
-  expect(container.textContent).toContain('Only one crawl so far. Changes over time appear after the next crawl.')
-  expect(container.textContent).toContain('Changes appear after the next crawl.')
+  expect(container.textContent).not.toMatch(PROMISE)
+  expect(container.textContent).toContain("Only one crawl so far, so there's no earlier crawl to compare.")
+  expect(container.textContent).toContain('No earlier crawl to compare yet.')
 })

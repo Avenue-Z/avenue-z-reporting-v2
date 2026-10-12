@@ -407,7 +407,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
             {!sfData.prev && (
               // Setup (staff): set the client's sfPrevCsvFileId (the prior crawl CSV) to trend between crawls.
               <p className="text-[11px] text-text-muted">
-                Only one crawl so far. Changes over time appear after the next crawl.
+                Only one crawl so far, so there's no earlier crawl to compare.
               </p>
             )}
           </>
@@ -489,7 +489,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           errorPageHits={agentData?.errorPageHits ?? null}
         />
       ) : (
-        <DataUnavailable label="Fix list requires Screaming Frog crawl data" />
+        <DataUnavailable label="The fix list needs site crawl data, which isn't available yet." />
       )}
 
       {/* Scoring methodology */}
