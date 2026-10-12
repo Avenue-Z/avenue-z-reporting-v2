@@ -52,11 +52,5 @@ export function toHubRow(r: ReportSummary, nowMs: number): HubRow {
   }
 }
 
-export const MAX_SEARCH = 100
-/** The hub's ?q=: the first value if repeated, control characters and runs of whitespace collapsed, capped; empty is none. */
-export function cleanSearch(q: unknown): string | null {
-  const raw = Array.isArray(q) ? q[0] : q
-  if (typeof raw !== 'string') return null
-  const s = raw.replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_SEARCH)
-  return s || null
-}
+// One rule for the box and the server (client-safe module, so the hub component can use it without the db).
+export { MAX_SEARCH, cleanSearch } from '../../components/aeo-outbound/search-text'

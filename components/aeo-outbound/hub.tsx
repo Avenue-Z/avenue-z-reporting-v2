@@ -19,10 +19,11 @@ import { CopyLink } from './copy-link'
 import { failureText } from './failure-text'
 import { requestGenerate, type GenerateBody } from './generate-client'
 import {
-  ACTION_FAILED, CLEAR_FILTERS, DISCARD_SNAPSHOT, EMPTY_FIRST, EMPTY_MATCH, HUB_SUBTITLE, KEEP_LINK, KEEP_SNAPSHOT, NEXT, OLDER_FAILED, OPEN,
+  ACTION_FAILED, CLEAR_FILTERS, DISCARD_SNAPSHOT, EMPTY_FIRST, EMPTY_MATCH, HUB_SUBTITLE, KEEP_LINK, KEEP_SNAPSHOT, NEXT, NO_OPENS_SHORT, OLDER_FAILED, OPEN,
   OPENS_CAVEAT, PREVIOUS, REVOKE_LINK, SEARCH_LABEL, SEARCH_PLACEHOLDER, SETTINGS, SHOW_OLDER, actionError, createdByLine, discardTitle,
   draftReady, firstOpened, lastOpened, pageOf, revokeTitle,
 } from './messages'
+import { cleanSearch } from './search-text'
 import { KEEP_OPEN, USUALLY, progressText } from './progress'
 import { ProjectPicker, type PickerProject } from './project-picker'
 import { STATUS_UI, actionsFor } from './status'
@@ -72,7 +73,7 @@ export function StatusPill({ status, error }: { status: DisplayStatus; error?: s
 
 /** "3 opens: 1 likely person, 2 likely automated", plus opens from before v1.1 as "not classified" (v1.1 §6). */
 export function opensSummary(r: Pick<HubRow, 'openCount' | 'opensPerson' | 'opensAutomated'>): string {
-  if (r.openCount === 0) return 'No opens yet'
+  if (r.openCount === 0) return NO_OPENS_SHORT
   const head = `${r.openCount} ${r.openCount === 1 ? 'open' : 'opens'}: ${r.opensPerson} likely ${r.opensPerson === 1 ? 'person' : 'people'}, ${r.opensAutomated} likely automated`
   const rest = r.openCount - r.opensPerson - r.opensAutomated
   return rest > 0 ? `${head}, ${rest} not classified` : head
@@ -129,14 +130,22 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadProjects])
 
-  // v1.1 §5: search is server-side, through ?q=, after a short pause.
-  useEffect(() => {
-    const next = search.trim()
-    if (next === q) return
-    const t = setTimeout(() => router.push(next ? `/tools/new-business?q=${encodeURIComponent(next)}` : '/tools/new-business'), 300)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, q])
+  // v1.1 §5: search is server-side, through ?q=. The box follows the page's q (Back and Forward change it), and a push
+  // starts only from typing, after a short pause, and only when the cleaned text differs from q.
+  const qRef = useRef(q)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopSearchTimer = () => { if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null } }
+  useEffect(() => { qRef.current = q; stopSearchTimer(); setSearch(q) }, [q])
+  useEffect(() => stopSearchTimer, [])
+  function onSearchInput(value: string) {
+    setSearch(value)
+    stopSearchTimer()
+    searchTimer.current = setTimeout(() => {
+      searchTimer.current = null
+      const next = cleanSearch(value) ?? ''
+      if (next !== qRef.current) router.push(next ? `/tools/new-business?q=${encodeURIComponent(next)}` : '/tools/new-business')
+    }, 300)
+  }
   useEffect(() => { setPage(1) }, [q, tab, sort])
 
   const anyGenerating = rows.some((r) => r.status === 'generating')
@@ -185,13 +194,16 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
     void generate(body, projects?.find((p) => p.id === projectId)?.name ?? projectId)
   }
 
-  async function runAction(id: string, run: () => Promise<{ ok: true; id?: string } | { ok: false; error: string }>, open?: boolean) {
+  async function runAction(id: string, run: () => Promise<{ ok: true; id?: string } | { ok: false; error: string }>, open?: boolean, onOk?: () => void) {
     setMessage(null)
     setBusy(id)
     try {
       const r = await run()
       if (!r.ok) setMessage(actionError(r.error))
-      else if (open && r.id) router.push(`/tools/new-business/${r.id}`)
+      else {
+        onOk?.()
+        if (open && r.id) router.push(`/tools/new-business/${r.id}`)
+      }
     } catch {
       setMessage(ACTION_FAILED)
     } finally {
@@ -234,9 +246,10 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
     })
   }, [all, tab, sort])
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  const shown = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const cur = Math.min(page, pages)
+  const shown = sorted.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'created' || key === 'sent' || key === 'opens' ? 'desc' : 'asc' }))
-  const clearFilters = () => { setTab('all'); setSearch(''); if (q) router.push('/tools/new-business') }
+  const clearFilters = () => { setTab('all'); stopSearchTimer(); setSearch(''); if (q) router.push('/tools/new-business') }
   const localPending = Object.entries(pending).filter(([pid]) => !rows.some((r) => r.projectId === pid && r.status === 'generating'))
   const generatingHere = !!projectId && (!!pending[projectId] || rows.some((r) => r.projectId === projectId && r.status === 'generating'))
   const rerunPending = (id: string) => Object.values(pending).some((p) => p.rerunOf === id)
@@ -291,7 +304,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
         </div>
         <label className="flex items-center gap-2 text-xs text-text-muted">
           {SEARCH_LABEL}
-          <input type="search" className={`${inputCls} w-72`} placeholder={SEARCH_PLACEHOLDER} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input type="search" className={`${inputCls} w-72`} placeholder={SEARCH_PLACEHOLDER} value={search} onChange={(e) => onSearchInput(e.target.value)} />
         </label>
       </div>
       <p className="mb-2 text-xs text-text-muted">{OPENS_CAVEAT}</p>
@@ -390,9 +403,9 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted">
         {pages > 1 && (
           <>
-            <button type="button" className={btnCls} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{PREVIOUS}</button>
-            <span>{pageOf(page, pages)}</span>
-            <button type="button" className={btnCls} disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>{NEXT}</button>
+            <button type="button" className={btnCls} disabled={cur <= 1} onClick={() => setPage(cur - 1)}>{PREVIOUS}</button>
+            <span>{pageOf(cur, pages)}</span>
+            <button type="button" className={btnCls} disabled={cur >= pages} onClick={() => setPage(cur + 1)}>{NEXT}</button>
           </>
         )}
         {nextCursor && <button type="button" className={btnCls} disabled={olderLoading} onClick={() => void showOlder()}>{SHOW_OLDER}</button>}
@@ -405,7 +418,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
       )}
       {dialog?.kind === 'discard' && (
         <ConfirmDialog title={discardTitle(dialog.row.brand)} confirmLabel={DISCARD_SNAPSHOT} cancelLabel={KEEP_SNAPSHOT}
-          onCancel={() => setDialog(null)} onConfirm={() => { const r = dialog.row; setDialog(null); void runAction(r.id, () => discardSnapshotAction(r.id)) }} />
+          onCancel={() => setDialog(null)} onConfirm={() => { const r = dialog.row; setDialog(null); void runAction(r.id, () => discardSnapshotAction(r.id), false, () => setOlder((o) => (o ? { ...o, rows: o.rows.filter((x) => x.id !== r.id) } : o))) }} />
       )}
     </>
   )
