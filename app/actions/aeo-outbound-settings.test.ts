@@ -109,3 +109,18 @@ test('a failed write is unavailable, with one log line and no value in it', asyn
   const lines = vi.mocked(console.error).mock.calls.map((c) => c.map(String).join(' '))
   expect(lines).toEqual(['[aeo-outbound] settings save failed reason=57P01'])
 })
+
+test('a malformed input (null, a string) is invalid with no field errors and writes nothing', async () => {
+  for (const bad of [null, 'users', 7, [1]]) {
+    expect(await saveSettingsAction(bad as never, AT)).toEqual({ ok: false, error: 'invalid', fieldErrors: {} })
+  }
+  expect(m.save).not.toHaveBeenCalled()
+})
+
+test('the last-admin floor counts only env entries that can sign in (@avenuez.com)', async () => {
+  process.env.AEO_OUTBOUND_USERS = 'someone@gmail.com'
+  expect(await saveSettingsAction({ ...settingsToInput(STORED), admins: '' }, AT)).toEqual({ ok: false, error: 'invalid', fieldErrors: { admins: 'Keep at least one admin.' } })
+  expect(m.save).not.toHaveBeenCalled()
+  process.env.AEO_OUTBOUND_USERS = 'ryan@avenuez.com'
+  expect((await saveSettingsAction({ ...settingsToInput(STORED), admins: '' }, AT)).ok).toBe(true)
+})
