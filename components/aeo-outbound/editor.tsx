@@ -82,7 +82,12 @@ export function OutboundEditor(props: OutboundEditorProps) {
   // Local status and token follow the server's on each refresh, and move ahead of it after an approve or revoke.
   const [status, setStatus] = useState(props.status)
   const [seenStatus, setSeenStatus] = useState(props.status)
-  if (props.status !== seenStatus) { setSeenStatus(props.status); setStatus(props.status) }
+  const [panelOpen, setPanelOpen] = useState(props.status === 'draft')
+  if (props.status !== seenStatus) {
+    // A generating row that becomes a draft opens the panel, the same as a draft loaded directly (v1.1 §4).
+    if (seenStatus === 'generating' && props.status === 'draft') setPanelOpen(true)
+    setSeenStatus(props.status); setStatus(props.status)
+  }
   const [approvedToken, setApprovedToken] = useState<string | null>(null)
   const token = approvedToken ?? props.token
 
@@ -106,7 +111,6 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [mode, setMode] = useState<Mode>('preview')
   const [locked, setLocked] = useState<{ text: string; n: number } | null>(null)
-  const [panelOpen, setPanelOpen] = useState(props.status === 'draft')
   const [ticks, setTicks] = useState<ReadonlySet<string>>(new Set())
   const [ownTicks, setOwnTicks] = useState<ReadonlySet<number>>(new Set())
   const [highlight, setHighlight] = useState<string | null>(null)
@@ -259,7 +263,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
       await sleep(POLL_MS)
       if (!q.state.dirty && !q.state.saving) break
     }
-    if (q.state.dirty || q.state.saving || q.state.stopped) return setMessage(FLUSH_WAIT)
+    if (q.state.dirty || q.state.saving || q.state.stopped || q.state.structuring) return setMessage(FLUSH_WAIT)
     setDialog({ kind: 'approve', recipient: '', error: null, sending: false })
   }
 
@@ -301,6 +305,35 @@ export function OutboundEditor(props: OutboundEditorProps) {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [unsaved])
+  // In-app links outside the editor (the sidebar) would unmount it and drop a queued edit: ask first. The browser Back
+  // button (popstate) is not guarded; only beforeunload covers a full unload.
+  useEffect(() => {
+    if (!unsaved) return
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const a = e.target instanceof Element ? e.target.closest('a') : null
+      if (!a || a.target === '_blank' || a.closest('[role="dialog"]')) return
+      const href = a.getAttribute('href')
+      if (!href) return
+      let url: URL
+      try { url = new URL(href, window.location.href) } catch { return }
+      if (url.origin !== window.location.origin) return
+      e.preventDefault()
+      e.stopPropagation()
+      setDialog({ kind: 'leave', then: () => router.push(`${url.pathname}${url.search}${url.hash}`) })
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unsaved])
+  // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
+  const wasStructuring = useRef(false)
+  useEffect(() => {
+    const now = !!save?.structuring
+    if (wasStructuring.current && !now) toFrame({ type: 'mode', edit: frameEditable() })
+    wasStructuring.current = now
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [save?.structuring])
   const guard = (then: () => void) => (unsaved ? setDialog({ kind: 'leave', then }) : then())
 
   const doRerun = () => run(async () => {
@@ -371,7 +404,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
                 <span className="text-xs text-text-muted">{EDIT_COPY_HINT}</span>
               </>
             )}
-            {status === 'draft' && (
+            {status === 'draft' && !props.unreadable && (
               <button type="button" className={btnCls} disabled={approveDisabled} title={approveTitle} onClick={() => void onApprove()}>Approve</button>
             )}
             {status === 'live' && token && origin && <CopyLink url={shareUrl(origin, props.linkBrand, token)} showField />}

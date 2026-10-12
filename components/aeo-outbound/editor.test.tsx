@@ -564,3 +564,42 @@ test('a failed row shows its reason in plain words with the next step', () => {
   render(<OutboundEditor {...base} status="failed" errorCode="no_data" error="No day between 2026-09-01 and 2026-09-07 has any Peec data for this project" />)
   expect(screen.getByText('Peec has no data for this project in that period. Pick other dates.')).toBeInTheDocument()
 })
+
+test('a plain in-app link outside the editor asks first while an edit is unsaved, and is left alone otherwise', async () => {
+  const { iframe } = await setup()
+  const seen = vi.fn((e: React.MouseEvent) => e.preventDefault())
+  render(<a href="/tools" onClick={seen}>Tools</a>)
+  fireEvent.click(screen.getByRole('link', { name: 'Tools' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(seen).toHaveBeenCalledTimes(1)
+  await fromFrame(iframe, { type: 'dirty', path: 'headline' })
+  expect(fireEvent.click(screen.getByRole('link', { name: 'Tools' }))).toBe(false)
+  expect(seen).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole('dialog')).toHaveTextContent('You have unsaved edits. Leave anyway?')
+  expect(push).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+  expect(push).toHaveBeenCalledWith('/tools')
+})
+
+test('a generating row that becomes a draft opens the Before you send panel', async () => {
+  const { rerender } = render(<OutboundEditor {...base} status="generating" notes={[]} />)
+  expect(screen.queryByRole('complementary', { name: 'Before you send' })).not.toBeInTheDocument()
+  rerender(<OutboundEditor {...base} status="draft" revision={1} notes={['An old note']} />)
+  await waitFor(() => expect(panel()).toBeInTheDocument())
+})
+
+test('a structure the server refuses hands edit mode back to the frame and shows the error', async () => {
+  patch = async () => json(400, { error: 'Keep at least two bullets.' })
+  const { iframe } = await setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  const post = vi.spyOn(iframe.contentWindow!, 'postMessage')
+  await fromFrame(iframe, { type: 'structure', op: 'remove', path: 'competitive_bullets.0' })
+  expect(post).toHaveBeenCalledWith({ type: 'mode', edit: false }, '*')
+  await waitFor(() => expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: true }, '*'))
+  expect(await screen.findByText(/Keep at least two bullets\./)).toBeInTheDocument()
+})
+
+test('Approve is not offered on an unreadable draft', () => {
+  render(<OutboundEditor {...base} unreadable />)
+  expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+})
