@@ -26,7 +26,7 @@ test('a first save inserts the row and its log entries in one statement, and doe
 
 test('a later save matches the updated_at the editor loaded, so a concurrent save matches nothing', () => {
   const q = new PgDialect().sqlToQuery(saveSettingsSql(V, CHANGES, 'admin@avenuez.com', NOW, '2026-10-10T09:00:00.000Z'))
-  expect(q.sql).toContain('"updated_at" = $9::timestamptz, "updated_by" = $10::text where "id" = true and "updated_at" = $11::timestamptz returning "id")')
+  expect(q.sql).toContain('"updated_at" = $9::timestamptz, "updated_by" = $10::text where "id" = true and date_trunc(\'milliseconds\', "updated_at") = $11::timestamptz returning "id")')
   expect(q.params[10]).toBe('2026-10-10T09:00:00.000Z')
 })
 

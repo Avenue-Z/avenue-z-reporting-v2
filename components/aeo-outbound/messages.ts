@@ -118,3 +118,27 @@ export const PROJECT_LABEL = 'Peec project'
 export const PICK_PROJECT = 'Pick a Peec project'
 export const LOADING_PROJECTS = 'Loading Peec projects…'
 export const NO_PROJECT_MATCH = 'No Peec project matches.'
+
+/** v1.1 §8: the Settings page. */
+export const SETTINGS_TITLE = 'Settings'
+export const SETTINGS_NOTE = 'Changes apply to snapshots generated from now on. Existing drafts and sent links keep their words.'
+export const SETTINGS_INVALID = "The saved settings couldn't be read, so the defaults are shown. Saving replaces them."
+export const NOT_ADMIN = 'Only New Business admins can change these settings.'
+export const adminsLine = (admins: string[]): string => (admins.length ? `Admins: ${admins.join(', ')}.` : '')
+export const USERS_HELP = 'One @avenuez.com email per line. People in AEO_OUTBOUND_USERS can always use the tool.'
+export const ADMINS_HELP = 'Admins can change these settings. People in AEO_OUTBOUND_USERS are always admins.'
+export const alwaysAdmins = (emails: string[]): string => (emails.length ? `Always admins: ${emails.join(', ')}.` : '')
+export const FIRST_SECTION = 'First section title'
+export const SECOND_SECTION = 'Second section title'
+export const NEXT_WRITTEN = 'Written for each report'
+export const NEXT_FIXED = 'The same sentence on every report'
+export const NEXT_SENTENCE = 'Next-step sentence'
+export const RANK_ALL = 'Every brand tracked in Peec'
+export const RANK_TOP = 'The brand and its top competitors'
+export const RANK_COUNT = 'Brands in all'
+export const SAVE_SETTINGS = 'Save settings'
+export const SAVING = 'Saving…'
+export const SAVED = 'Saved'
+export const RECENT_CHANGES = 'Recent changes'
+export const NO_CHANGES = 'No changes yet.'
+export const changeLine = (when: string, who: string, field: string): string => `${when}: ${who} changed ${field}`

@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import { NoAccess } from './no-access'
+import { NoAccess, NotAdmin } from './no-access'
 
 afterEach(() => cleanup())
 test('the no-access page names who to ask', () => {
@@ -11,4 +11,10 @@ test('the no-access page names who to ask', () => {
 test('with no admins known it still says who to ask', () => {
   render(<NoAccess admins={[]} />)
   expect(screen.getByText('Ask a New Business admin to add you.')).toBeInTheDocument()
+})
+
+test('the not-admin page says who the admins are', () => {
+  render(<NotAdmin admins={['boss@avenuez.com']} />)
+  expect(screen.getByText('Only New Business admins can change these settings.')).toBeInTheDocument()
+  expect(screen.getByText('Admins: boss@avenuez.com.')).toBeInTheDocument()
 })
