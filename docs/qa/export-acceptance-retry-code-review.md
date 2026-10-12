@@ -89,6 +89,12 @@ Every one re-ran green.
 ## §5 Follow-ups
 
 **Merge order**
-- #3 and #4: resolved when #350, #352, #354 and #356 meet this on `dev`. All of them are ours.
+- **Merge last:** after the stack (#348 → #350 → #352 → #354), then #362 and #356. Checked with `git merge-tree`:
+  - against the stack's head it conflicts in `e2e/export/acceptance.mts`;
+  - against #356 it conflicts in `acceptance.mts` and `vitest.config.ts`.
+- **Before it merges, its branch merges `dev`** (holding all of those). The AEO, Paid Media and Executive Overview pairs, where the flake was seen (#3), move onto `exportPair`, with `printedDifference` as its `differ` (#4). Until then, on `dev` it retries only the A Place for Mom pair.
 
 Nothing here blocks the ship.
+
+**Round 2 (Thomas):** approved, but merge it last. On `dev` it retries only the A Place for Mom pair, while the flakes it cites came from the AEO and Executive Overview pairs. It also conflicts with #356 and #354. Merge order stated in §5.
+
