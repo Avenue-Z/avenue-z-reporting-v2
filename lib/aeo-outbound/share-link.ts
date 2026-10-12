@@ -4,7 +4,7 @@
 export const SLUG_MAX = 40
 export const TEST_LINK_NOTE = 'Test link: it works on this environment only.'
 /** Combining marks left by NFKD in the Latin, extended and symbol mark blocks. ES2017 has no \p{M}. */
-const MARKS = /[̀-ͯ᪰-᫿᷀-᷿⃐-⃿︠-︯]/g
+const MARKS = /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]/g
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export const isShareTokenShape = (t: string): boolean => /^[A-Za-z0-9_-]{24}$/.test(t)

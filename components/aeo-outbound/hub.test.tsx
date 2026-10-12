@@ -327,7 +327,6 @@ test('an Edit a copy that throws shows a message', async () => {
   expect(push).not.toHaveBeenCalled()
 })
 
-
 test('Copy link uses the locked origin and the brand slug when the server passes them (spec v1.1 §16.2)', async () => {
   const writeText = vi.fn(async () => {})
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
