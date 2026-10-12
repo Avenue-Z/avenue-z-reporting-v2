@@ -232,6 +232,10 @@ test('the editor style outlines menu copies like slots and keeps the not-allowed
   expect(EDITOR_STYLE).toContain('html.aeo-edit [data-mirror]:not([data-mirror-edit]),html.aeo-edit [data-locked]{cursor:not-allowed}')
 })
 
+test('an emptied menu copy stays clickable in edit mode (spec v1.1 §17.16)', () => {
+  expect(EDITOR_STYLE).toContain('html.aeo-edit [data-mirror-edit]:empty{display:inline-block;min-width:2em}')
+})
+
 test('preview and final carry no data-mirror-edit, (spec v1.1 §17.16)', () => {
   for (const mode of ['preview', 'final'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 8, 2026')).not.toContain('data-mirror-edit')
 })

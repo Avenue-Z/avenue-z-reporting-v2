@@ -440,3 +440,24 @@ test('a menu edit posts nothing in Preview', () => {
   vi.advanceTimersByTime(1000)
   expect(sent()).toEqual([{ type: 'ready' }])
 })
+
+test('typing in the section title, then in its menu copy within the debounce, keeps both sets of keystrokes', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  type('page.section_1_title', 'Section text')
+  vi.advanceTimersByTime(300)
+  const m = menu('page.section_1_title')
+  m.textContent = (m.textContent ?? '') + '!'
+  m.dispatchEvent(new Event('input', { bubbles: true }))
+  vi.advanceTimersByTime(800)
+  expect(sent().filter((x) => (x as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.section_1_title', value: 'Section text!' }])
+})
+
+test('leaving Edit mode sends a pending menu edit once', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  typeMenu('page.opps_label', 'Pending')
+  fromParent({ type: 'mode', edit: false })
+  vi.advanceTimersByTime(1000)
+  expect(sent().filter((x) => (x as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.opps_label', value: 'Pending' }])
+})

@@ -20,6 +20,7 @@ export const EDITOR_STYLE = '<style>' + [
   'html.aeo-edit [data-slot],html.aeo-edit [data-mirror-edit]{outline:1px dashed rgba(255,255,255,0.35);outline-offset:2px;cursor:text}',
   'html.aeo-edit [data-slot]:hover,html.aeo-edit [data-slot]:focus,html.aeo-edit [data-mirror-edit]:hover,html.aeo-edit [data-mirror-edit]:focus{outline:2px solid #60FFEA;position:relative}',
   'html.aeo-edit [data-slot]:hover::after,html.aeo-edit [data-slot]:focus::after,html.aeo-edit [data-mirror-edit]:hover::after,html.aeo-edit [data-mirror-edit]:focus::after{content:"Edit";position:absolute;top:-18px;right:0;padding:3px 5px;border-radius:3px;background:#60FFEA;color:#000;-webkit-text-fill-color:#000;font:700 10px/1 Avenir,sans-serif;letter-spacing:0.06em;text-transform:uppercase;pointer-events:none;z-index:5}',
+  'html.aeo-edit [data-mirror-edit]:empty{display:inline-block;min-width:2em}',
   'html.aeo-edit [data-mirror]:not([data-mirror-edit]),html.aeo-edit [data-locked]{cursor:not-allowed}',
   '.aeo-flash{outline:2px solid #FFFC60!important}',
   // AIVx styles .sidebar-industry span as a block; the wrapper spans must stay inline text (v1.1 §3, round-2 MINOR 1).
@@ -33,7 +34,8 @@ export const EDITOR_STYLE = '<style>' + [
  * The draft frame's script (v1.1 §2). One delegated listener per event on document, so a node cloned or re-rendered
  * after it ran keeps working. Slots become contenteditable only in edit mode, plaintext-only where supported, else true
  * with plain-text paste. In edit mode, clicks inside links and the sidebar nav never navigate; a click on a chart, a
- * fixed word or a mirror posts locked. Preview posts nothing but ready.
+ * fixed word or a mirror copy posts locked, except the four menu copies (data-mirror-edit, §17.16), which are editable
+ * like slots and keep their section heading in sync. Preview posts nothing but ready.
  */
 export const FRAME_SCRIPT_JS = String.raw`(function(){
 var t={},edit=false;
@@ -43,6 +45,7 @@ function within(n,s){return n&&n.closest?n.closest(s):null}
 function slotEl(p){var a=document.querySelectorAll('[data-slot]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-slot')===p)return a[i]}return null}
 function clean(s){return s.replace(/[\x00-\x1f\x7f]/g,' ').replace(/\s+/g,' ').trim()}
 function mirror(p,v,skip){var a=document.querySelectorAll('[data-mirror]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-mirror')===p&&a[i]!==skip&&a[i]!==document.activeElement)a[i].textContent=a[i].hasAttribute('data-upper')?v.toUpperCase():v}}
+function syncMenu(p,v,skip){var a=document.querySelectorAll('[data-mirror-edit]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-mirror')===p&&a[i]!==skip&&a[i]!==document.activeElement)a[i].textContent=a[i].hasAttribute('data-upper')?v.toUpperCase():v}}
 function send(p){clearTimeout(t[p]);delete t[p];var el=slotEl(p);if(!el)return;var v=el.textContent||'';post({type:'edit',path:p,value:v});var c=clean(v);if(c)mirror(p,c)}
 function flush(){Object.keys(t).forEach(send)}
 function setMode(on){edit=on===true;document.documentElement.classList.toggle('aeo-edit',edit);var a=document.querySelectorAll('[data-slot],[data-mirror-edit]');for(var i=0;i<a.length;i++){if(edit)a[i].setAttribute('contenteditable',PLAIN?'plaintext-only':'true');else a[i].removeAttribute('contenteditable')}if(!edit)flush()}
@@ -50,7 +53,7 @@ window.addEventListener('message',function(e){if(e.source!==parent||!e.data||typ
 if(d.type==='mode')setMode(d.edit);
 else if(d.type==='flush')flush();
 else if(d.type==='focus'&&typeof d.path==='string'){var el=slotEl(d.path);if(!el)return;if(el.scrollIntoView)el.scrollIntoView({block:'center'});if(el.focus)el.focus();el.classList.add('aeo-flash');setTimeout(function(){el.classList.remove('aeo-flash')},1200)}});
-document.addEventListener('input',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;var m=el.hasAttribute('data-mirror-edit');var p=el.getAttribute(m?'data-mirror':'data-slot');if(m){var v=el.textContent||'';var s=slotEl(p);if(s)s.textContent=v;mirror(p,v,el)}post({type:'dirty',path:p});clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});
+document.addEventListener('input',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;var m=el.hasAttribute('data-mirror-edit');var p=el.getAttribute(m?'data-mirror':'data-slot');if(m){var v=el.textContent||'';var s=slotEl(p);if(s)s.textContent=v;mirror(p,v,el)}else syncMenu(p,el.textContent||'',el);post({type:'dirty',path:p});clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});
 document.addEventListener('keydown',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(edit&&el&&e.key==='Enter'){e.preventDefault();if(el.blur)el.blur()}});
 document.addEventListener('paste',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;e.preventDefault();var cd=e.clipboardData||window.clipboardData;var s=cd?cd.getData('text/plain'):'';if(document.execCommand)document.execCommand('insertText',false,s)});
 document.addEventListener('drop',function(e){if(edit&&within(e.target,'[data-slot],[data-mirror-edit]'))e.preventDefault()});
