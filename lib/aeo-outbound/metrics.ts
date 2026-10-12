@@ -179,7 +179,7 @@ export function buildSnapshotData(pull: PeecPull, generatedAt: string, decisions
     brand: pull.ownBrand.name,
     generatedAt,
     window: pull.window,
-    windowLabel: `${fmtDay(pull.window.start)} to ${fmtDay(pull.window.end)}`,
+    windowLabel: pull.window.start === pull.window.end ? fmtDay(pull.window.start) : `${fmtDay(pull.window.start)} to ${fmtDay(pull.window.end)}`,
     category: pull.profile?.industry ?? null,
     market: pull.profile?.markets.length ? pull.profile.markets.join(', ') : null,
     brands,

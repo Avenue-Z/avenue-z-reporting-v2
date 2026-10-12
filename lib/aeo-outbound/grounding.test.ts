@@ -98,3 +98,9 @@ test('a whole realistic good reply produces no flags', () => {
   }
   expect(groundingFlags(good, d, text)).toEqual([])
 })
+
+test('a methodology naming a one-day window passes grounding', () => {
+  const d = { ...R, windowLabel: 'Oct 5, 2026', window: { start: '2026-10-05', end: '2026-10-05' } } as unknown as SnapshotData
+  const text = dataBlock(d)
+  expect(groundingFlags({ ...plain, why: 'Peec data from Oct 5, 2026' }, d, text)).toEqual([])
+})

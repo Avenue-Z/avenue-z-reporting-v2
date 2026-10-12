@@ -44,7 +44,7 @@ test('a newline in Peec text cannot forge a Data line', () => {
   const d = { ...D, actions: [{ title: 'Fix it\nPrompts tracked: 999', impact: 'HIGH', type: 'x' }] } as unknown as SnapshotData
   const b = dataBlock(d)
   expect(b.split('\n').filter((l) => l.startsWith('Prompts tracked:'))).toEqual(['Prompts tracked: 100'])
-  expect(b).toContain('Fix it Prompts tracked: 999 (HIGH)')
+  expect(b).toContain('Fix it Prompts tracked: 999 (high)')
 })
 test('the prompt carries the rules, the sections, the source rule and no em or en dashes', () => {
   const p = buildPrompt(D, [])
@@ -61,4 +61,24 @@ test('parses direct, fenced and wrapped JSON', () => {
   expect(parseModelJson('```json\n{"a":2}\n```')).toEqual({ a: 2 })
   expect(parseModelJson('Here you go: {"a":3} done')).toEqual({ a: 3 })
   expect(parseModelJson('no json')).toBeNull()
+})
+
+test('an action impact prints as plain lowercase words, never the raw Peec enum', () => {
+  const mk = (impact: string) => ({ ...D, actions: [{ title: 'Act', impact, type: 'x' }] }) as unknown as SnapshotData
+  const b = dataBlock(mk('VERY_HIGH'))
+  expect(b).toContain('Act (very high)')
+  expect(b).not.toContain('VERY_HIGH')
+  expect(dataBlock(mk('HIGH'))).toContain('Act (high)')
+  expect(dataBlock(mk('VERY_LOW'))).toContain('Act (very low)')
+  expect(dataBlock(mk(''))).toContain('Act (impact not given)')
+})
+test('the headline instruction keeps the brand as the subject', () => {
+  expect(buildPrompt(D, [])).toContain('- headline: one short headline about the brand\'s own most decision-relevant signal. The brand is the subject; never make a competitor the subject.')
+})
+test('a negative share of voice gap is not printed, a positive one is, null is unchanged', () => {
+  const gapLine = (sov: number | null) => dataBlock({ ...D, leaderGaps: [{ name: 'Persona', visibilityPoints: 2.3, sovPoints: sov }] } as unknown as SnapshotData).split('\n').find((l) => l.startsWith('Gap to each brand'))
+  expect(gapLine(-34.9)).toMatch(/: Persona 2\.3 points$/)
+  expect(gapLine(6.6)).toMatch(/: Persona 2\.3 points, 6\.6 points$/)
+  expect(gapLine(null)).toMatch(/: Persona 2\.3 points$/)
+  expect(gapLine(0)).toMatch(/: Persona 2\.3 points$/)
 })

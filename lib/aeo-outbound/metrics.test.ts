@@ -252,3 +252,8 @@ test('a higher displayed visibility whose exact gap rounds to 0.0 is not a leade
   expect(d.own.rank).toBe(2)
   expect(d.leaderGaps).toEqual([])
 })
+
+test('a one-day window reads as that day alone, a longer one as X to Y', () => {
+  expect(buildSnapshotData({ ...PULL, window: { start: '2026-10-05', end: '2026-10-05' } }, '2026-10-08T15:00:00Z').windowLabel).toBe('Oct 5, 2026')
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').windowLabel).toBe('Oct 1, 2026 to Oct 8, 2026')
+})

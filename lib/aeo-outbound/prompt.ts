@@ -9,6 +9,9 @@ const p1 = (x: number) => `${x.toFixed(1)}%`
 /** Peec text goes into the Data block on one line: a newline in a name or title can't forge a Data line. */
 const one = (t: string) => t.replace(/\s+/g, ' ').trim()
 
+/** Peec's impact enum (VERY_HIGH) as plain words for client copy; an empty one says so. */
+const impactWords = (t: string) => one(t).replace(/_/g, ' ').toLowerCase() || 'impact not given'
+
 export function dataBlock(d: SnapshotData): string {
   // No competitors tracked: Peec can still return a row for a brand outside the roster, and metrics counts it in
   // the rank and the comparison set. Name none of them, and print no rank.
@@ -25,11 +28,11 @@ export function dataBlock(d: SnapshotData): string {
     `Competitors tracked in Peec: ${d.competitorsTracked}`,
     ...(noRivals ? [] : [`Brands in the comparison set: ${d.rankN}`]),
     `Brands by AI visibility (rank, name, visibility, share of voice): ${listed.slice(0, 5).map((b) => `${noRivals ? '' : `#${b.rank} `}${one(b.name)} ${p1(b.visibilityPct)}${b.sovPct !== null ? ` / ${p1(b.sovPct)}` : ''}`).join('; ') || 'none'}`,
-    `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${g.visibilityPoints} points${g.sovPoints !== null ? `, ${g.sovPoints} points` : ''}`).join('; ') || 'none'}`,
+    `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${g.visibilityPoints} points${typeof g.sovPoints === 'number' && g.sovPoints > 0 ? `, ${g.sovPoints} points` : ''}`).join('; ') || 'none'}`,
     `Own site retrievals (${ownSite}): ${n(d.ownRetrievedChats)}${d.ownRetrievedPct !== null ? `, which is ${p1(d.ownRetrievedPct)} of answers` : ''}`,
     `Source types by share of retrievals: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
     `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
-    `Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${one(a.impact)})`).join('; ') || 'none'}`,
+    `Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ') || 'none'}`,
   ]
   if (DECISIONS.methodologyStatesPromptsAndModels) lines.push(`Prompts tracked: ${d.promptCount ?? 'not reported'}`, `AI models covered: ${d.models.map(one).join(', ') || 'not reported'}`)
   return lines.join('\n')
@@ -52,7 +55,7 @@ Writing rules:
 - Keep strengths and gaps distinct; never repeat a strength as a gap.
 
 Write these fields:
-- headline: one short headline about the most decision-relevant signal.
+- headline: one short headline about the brand's own most decision-relevant signal. The brand is the subject; never make a competitor the subject.
 - summary: one sentence stating that signal, with competitive context when the data supports it.
 - context: one sentence naming the leading competitors with their visibility and share of voice, then the brand's rank. If no competitors are tracked, write one sentence about the brand alone.
 - competitive_bullets: 2 or 3 bullets of validated strengths (category position, own-site presence, source use). Each has a short "lead" ending in a colon (at most 80 characters) and a "text".
