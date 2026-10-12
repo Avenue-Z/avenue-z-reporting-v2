@@ -1,12 +1,12 @@
-// The only reader and writer of aeo_outbound_reports (spec §9). Every write (updates and inserts) is one conditional
-// statement, and all but markStaleGeneratingQuery and recordOpenQuery end in .returning(), so a lost race matches
-// nothing instead of reporting success (app/actions/commentary.ts:17-37). Those two do not return rows.
-import { and, desc, eq, inArray, isNull, lt, not, or, sql } from 'drizzle-orm'
+// The only reader and writer of aeo_outbound_reports and aeo_outbound_opens (spec §9, v1.1 §6). Every write is one conditional statement; all but markStaleGeneratingQuery, progressStepQuery and the open writes end in .returning(), so a lost race matches nothing instead of reporting success (app/actions/commentary.ts:17-37).
+import { and, desc, eq, ilike, inArray, isNull, lt, not, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
-import { aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
+import { aeoOutboundOpens as o, aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
 import { STALE_GENERATING_MS } from './config'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
+import type { ErrorCode } from './error-codes'
+import { OPEN_REASONS } from './opens'
 import { isShareTokenShape } from './token'
 
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_GENERATING_MS)
@@ -17,7 +17,7 @@ const typed = (r: AeoOutboundRow): ReportRow => r as unknown as ReportRow
 
 export function markStaleGeneratingQuery(projectId: string, now: Date) {
   return db.update(t)
-    .set({ status: 'failed', error: 'Timed out', updatedAt: now })
+    .set({ status: 'failed', error: 'Timed out', errorCode: 'stale', updatedAt: now })
     .where(and(eq(t.peecProjectId, projectId), eq(t.status, 'generating'), lt(t.createdAt, staleBefore(now))))
 }
 
@@ -38,16 +38,25 @@ export function finishDraftQuery(id: string, v: { brandName: string; data: Snaps
     .returning({ id: t.id })
 }
 
-export function finishFailedQuery(id: string, error: string, brandName: string | null, now: Date) {
+export function finishFailedQuery(id: string, error: string, brandName: string | null, now: Date, code: ErrorCode | null = null) {
   return db.update(t)
-    .set({ status: 'failed', error: error.slice(0, 500), brandName, updatedAt: now })
+    .set({ status: 'failed', error: error.slice(0, 500), errorCode: code, brandName, updatedAt: now })
     .where(and(eq(t.id, id), eq(t.status, 'generating')))
     .returning({ id: t.id })
 }
 
-export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, notes: string[]) {
+/** The generating row's latest step (spec v1.1 §7). Only forward, only while generating, never touches updated_at. */
+export function progressStepQuery(id: string, step: number) {
+  return db.update(t).set({ progressStep: step }).where(and(eq(t.id, id), eq(t.status, 'generating'), lt(t.progressStep, step)))
+}
+
+/** brandName is passed only for a save of the brand slot (spec v1.1 §3), so the hub and search use the edited name. */
+export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, notes: string[], brandName?: string) {
   return db.update(t)
-    .set({ slots: slots as unknown as Record<string, unknown>, notes, revision: sql`${t.revision} + 1`, updatedAt: new Date() })
+    .set({
+      slots: slots as unknown as Record<string, unknown>, notes, revision: sql`${t.revision} + 1`, updatedAt: new Date(),
+      ...(brandName !== undefined ? { brandName } : {}),
+    })
     .where(and(eq(t.id, id), eq(t.status, 'draft'), eq(t.revision, shownRevision), isNull(t.deletedAt)))
     .returning({ revision: t.revision })
 }
@@ -98,22 +107,36 @@ export async function findGeneratingFor(projectId: string): Promise<string | und
 }
 
 export function liveByTokenQuery(token: string) {
-  return db.select({ id: t.id, html: t.html }).from(t)
+  return db.select({ id: t.id, html: t.html, approvedAt: t.approvedAt }).from(t)
     .where(and(eq(t.shareToken, token), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt))).limit(1)
 }
 
-/** The row id and frozen HTML for a live link, or undefined for unknown, revoked or discarded tokens. */
-export async function getLiveByToken(token: string): Promise<{ id: string; html: string } | undefined> {
+/** The row id, frozen HTML and link creation time for a live link, or undefined for unknown, revoked or discarded tokens. */
+export async function getLiveByToken(token: string): Promise<{ id: string; html: string; approvedAt: Date | null } | undefined> {
   if (!isShareTokenShape(token)) return undefined
   const r = (await liveByTokenQuery(token))[0]
-  return r?.html ? { id: r.id, html: r.html } : undefined
+  return r?.html ? { id: r.id, html: r.html, approvedAt: r.approvedAt } : undefined
 }
 
-/** Counts one open of a live link. Leaves updated_at alone: an open is not an edit. Returns no rows. */
+/** Counts one open of a live link. Leaves updated_at alone: an open is not an edit. Returns no rows. Replaced by recordOpen in Task 8. */
 export function recordOpenQuery(id: string, now: Date) {
   return db.update(t)
     .set({ openCount: sql`${t.openCount} + 1`, firstOpenedAt: sql`coalesce(${t.firstOpenedAt}, ${now.toISOString()}::timestamptz)`, lastOpenedAt: now })
     .where(and(eq(t.id, id), eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt)))
+}
+
+/**
+ * One counted open as one statement (spec v1.1 §6): the counter update and the event insert both come from the same
+ * live-row match, so they always agree, and the event's classification reads the previous open in that statement. Two
+ * opens in the same instant may both miss each other (best effort, stated in the hub's caveat).
+ */
+export function recordOpenSql(id: string, now: Date, v: { uaFamily: string; linkFresh: boolean }): SQL {
+  const at = now.toISOString()
+  return sql`with "prev" as (select "id", "last_opened_at" from "aeo_outbound_reports" where "id" = ${id} and "status" = 'approved' and "share_revoked_at" is null and "deleted_at" is null), "upd" as (update "aeo_outbound_reports" set "open_count" = "aeo_outbound_reports"."open_count" + 1, "first_opened_at" = coalesce("aeo_outbound_reports"."first_opened_at", ${at}::timestamptz), "last_opened_at" = ${at}::timestamptz from "prev" where "aeo_outbound_reports"."id" = "prev"."id" returning "aeo_outbound_reports"."id"), "cls" as (select "prev"."id", ${v.linkFresh}::boolean as "fresh", ("prev"."last_opened_at" is not null and ${at}::timestamptz - "prev"."last_opened_at" < interval '10 seconds') as "quick", ${v.uaFamily}::text = 'Other' as "unknown" from "prev") insert into "aeo_outbound_opens" ("report_id", "opened_at", "ua_family", "likely_automated", "reason") select "upd"."id", ${at}::timestamptz, ${v.uaFamily}::text, ("cls"."fresh" or "cls"."quick" or "cls"."unknown"), case when "cls"."fresh" then ${OPEN_REASONS.fresh} when "cls"."quick" then ${OPEN_REASONS.quick} when "cls"."unknown" then ${OPEN_REASONS.unknown} else null end from "upd" join "cls" on "cls"."id" = "upd"."id"`
+}
+
+export async function recordOpen(id: string, now: Date, v: { uaFamily: string; linkFresh: boolean }): Promise<void> {
+  await db.execute(recordOpenSql(id, now, v))
 }
 
 /** Edit a copy: a new draft carrying an approved row's data, slots and notes, with rerun_of pointing at it and the requested range carried over. */
@@ -130,44 +153,98 @@ export async function copyAsDraft(sourceId: string, by: string, now: Date): Prom
   return (res.rows[0] as { id?: string } | undefined)?.id
 }
 
-const hubColumns = {
-  id: t.id,
-  peecProjectId: t.peecProjectId,
-  peecProjectName: t.peecProjectName,
-  brandName: t.brandName,
-  status: t.status,
-  error: t.error,
-  shareToken: t.shareToken,
-  shareRecipient: t.shareRecipient,
-  openCount: t.openCount,
-  firstOpenedAt: t.firstOpenedAt,
-  lastOpenedAt: t.lastOpenedAt,
-  createdAt: t.createdAt,
-  approvedAt: t.approvedAt,
-  shareRevokedAt: t.shareRevokedAt,
+// The hub's per-row open counts, from an aggregate over aeo_outbound_opens (spec v1.1 §6). Written as raw SQL because a
+// Drizzle column inside sql`` in a one-table select renders unqualified, and a bare "id" here would mean the opens row.
+const OPENS_PERSON = sql<number>`(select count(*) from "aeo_outbound_opens" o where o."report_id" = "aeo_outbound_reports"."id" and not o."likely_automated")`.mapWith(Number)
+const OPENS_AUTOMATED = sql<number>`(select count(*) from "aeo_outbound_opens" o where o."report_id" = "aeo_outbound_reports"."id" and o."likely_automated")`.mapWith(Number)
+const plainHubColumns = {
+  id: t.id, peecProjectId: t.peecProjectId, peecProjectName: t.peecProjectName, brandName: t.brandName, status: t.status,
+  error: t.error, errorCode: t.errorCode, progressStep: t.progressStep, shareToken: t.shareToken, shareRecipient: t.shareRecipient,
+  openCount: t.openCount, firstOpenedAt: t.firstOpenedAt, lastOpenedAt: t.lastOpenedAt, createdAt: t.createdAt, createdBy: t.createdBy,
+  approvedAt: t.approvedAt, approvedBy: t.approvedBy, shareRevokedAt: t.shareRevokedAt, requestedStart: t.requestedStart, requestedEnd: t.requestedEnd,
 }
-/** One hub row: the columns the list shows, never data, slots, notes or html. */
-export type ReportSummary = Pick<AeoOutboundRow, keyof typeof hubColumns>
+const hubColumns = { ...plainHubColumns, opensPerson: OPENS_PERSON, opensAutomated: OPENS_AUTOMATED }
+/** One hub row: the columns the list shows plus the two open counts, never data, slots, notes or html. */
+export type ReportSummary = Pick<AeoOutboundRow, keyof typeof plainHubColumns> & { opensPerson: number; opensAutomated: number }
+/** Where Show older continues: the oldest recent row already sent, as ISO time and id. */
+export type HubCursor = { before: string; beforeId: string }
+
+/** Search over brand, Peec project, recipient and creator; %, _ and \ match literally (spec v1.1 §5). */
+function searchWhere(q: string | null): SQL | undefined {
+  if (!q) return undefined
+  const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+  return or(ilike(t.brandName, pattern), ilike(t.peecProjectName, pattern), ilike(t.shareRecipient, pattern), ilike(t.createdBy, pattern))
+}
+/** created_at at millisecond precision, the precision a JS Date carries, so a cursor never skips a row. */
+const createdMs = sql`date_trunc('milliseconds', ${t.createdAt})`
 
 /** Every live link, with no limit, so a live link can never fall off the hub. */
-export function liveSummariesQuery() {
-  return db.select(hubColumns).from(t).where(and(eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt)))
+export function liveSummariesQuery(q: string | null = null) {
+  return db.select(hubColumns).from(t).where(and(eq(t.status, 'approved'), isNull(t.shareRevokedAt), isNull(t.deletedAt), searchWhere(q)))
 }
 
-/** The newest rows that are not live and not discarded. */
-export function recentSummariesQuery(limit: number) {
-  return db.select(hubColumns).from(t).where(and(isNull(t.deletedAt), not(and(eq(t.status, 'approved'), isNull(t.shareRevokedAt))!))).orderBy(desc(t.createdAt)).limit(limit)
+/** The newest rows that are not live and not discarded, below an optional cursor. */
+export function recentSummariesQuery(limit: number, q: string | null = null, before: { createdAt: Date; id: string } | null = null) {
+  const iso = before?.createdAt.toISOString()
+  const below = before ? or(sql`${createdMs} < ${iso}::timestamptz`, and(sql`${createdMs} = ${iso}::timestamptz`, lt(t.id, before.id))) : undefined
+  return db.select(hubColumns).from(t)
+    .where(and(isNull(t.deletedAt), not(and(eq(t.status, 'approved'), isNull(t.shareRevokedAt))!), searchWhere(q), below))
+    .orderBy(desc(createdMs), desc(t.id)).limit(limit)
 }
 
 export const HUB_RECENT_LIMIT = 500
 
-/** All live links plus the newest HUB_RECENT_LIMIT others, each row once, newest first. */
-export async function listReportSummaries(): Promise<ReportSummary[]> {
-  const [live, recent] = await Promise.all([liveSummariesQuery(), recentSummariesQuery(HUB_RECENT_LIMIT)])
+/** All live links plus the newest HUB_RECENT_LIMIT others, each row once, newest first; with a cursor, only the next
+ *  HUB_RECENT_LIMIT older rows (the live ones are already on screen). */
+export async function listReportSummaries(opts: { q?: string | null; before?: { createdAt: Date; id: string } | null } = {}): Promise<{ rows: ReportSummary[]; cursor: HubCursor | null }> {
+  const q = opts.q ?? null
+  const before = opts.before ?? null
+  const [live, recent] = await Promise.all([
+    before ? Promise.resolve([] as ReportSummary[]) : liveSummariesQuery(q),
+    recentSummariesQuery(HUB_RECENT_LIMIT + 1, q, before),
+  ])
+  const page = recent.slice(0, HUB_RECENT_LIMIT)
+  const last = page.at(-1)
+  const cursor = recent.length > HUB_RECENT_LIMIT && last ? { before: last.createdAt.toISOString(), beforeId: last.id } : null
   const seen = new Set<string>()
-  return [...live, ...recent]
+  const rows = [...live, ...page]
     .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  return { rows, cursor }
+}
+
+export type HubCounts = { all: number; draft: number; live: number; revoked: number; failed: number }
+/** The tab counts in one statement over every row not discarded (spec v1.1 §5), a stale generating row counting as failed. */
+export function hubCountsQuery(q: string | null, now: Date) {
+  const stale = staleBefore(now).toISOString()
+  return db.select({
+    all: sql<number>`count(*)`.mapWith(Number),
+    draft: sql<number>`count(*) filter (where ${t.status} = 'draft')`.mapWith(Number),
+    live: sql<number>`count(*) filter (where ${t.status} = 'approved' and ${t.shareRevokedAt} is null)`.mapWith(Number),
+    revoked: sql<number>`count(*) filter (where ${t.status} = 'approved' and ${t.shareRevokedAt} is not null)`.mapWith(Number),
+    failed: sql<number>`count(*) filter (where ${t.status} = 'failed' or (${t.status} = 'generating' and ${t.createdAt} < ${stale}::timestamptz))`.mapWith(Number),
+  }).from(t).where(and(isNull(t.deletedAt), searchWhere(q)))
+}
+export async function hubCounts(q: string | null, now: Date): Promise<HubCounts> {
+  return (await hubCountsQuery(q, now))[0] ?? { all: 0, draft: 0, live: 0, revoked: 0, failed: 0 }
+}
+
+export type ProjectStat = { count: number; last: string }
+/** For the project picker's "{n} snapshots, last {date}" (spec v1.1 §11). */
+export function projectStatsQuery() {
+  return db.select({ projectId: t.peecProjectId, count: sql<number>`count(*)`.mapWith(Number), last: sql<Date>`max(${t.createdAt})`.mapWith(t.createdAt) })
+    .from(t).where(isNull(t.deletedAt)).groupBy(t.peecProjectId)
+}
+export async function projectStats(): Promise<Record<string, ProjectStat>> {
+  const out: Record<string, ProjectStat> = {}
+  for (const r of await projectStatsQuery()) out[r.projectId] = { count: r.count, last: r.last.toISOString() }
+  return out
+}
+
+/** The open list the editor shows for a live or revoked row: newest first, at most 200. */
+export function opensForReportQuery(id: string) {
+  return db.select({ openedAt: o.openedAt, uaFamily: o.uaFamily, likelyAutomated: o.likelyAutomated, reason: o.reason })
+    .from(o).where(eq(o.reportId, id)).orderBy(desc(o.openedAt)).limit(200)
 }
 
 /** True when a write lost a race on the named unique constraint: Postgres 23505 with that constraint name. Drizzle wraps the

@@ -19,3 +19,12 @@ export function shouldCountOpen(req: { method: string; headers: Headers }, viewe
   if (BOTS.some((b) => ua.includes(b))) return false
   return !viewerIsStaff
 }
+
+/** An open this soon after the link was created is likely an email security scanner (spec v1.1 §6). */
+export const LINK_FRESH_MS = 60_000
+/** The reason stored with a likely automated open, by rule, first match wins (spec v1.1 §6). */
+export const OPEN_REASONS = {
+  fresh: 'Opened within a minute of the link being created',
+  quick: 'Opened within 10 seconds of the previous open',
+  unknown: 'Not a known browser',
+} as const

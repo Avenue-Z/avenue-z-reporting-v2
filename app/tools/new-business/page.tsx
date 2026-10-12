@@ -9,7 +9,7 @@ export default async function NewBusinessHubPage() {
   if (!outboundEmail(session.user)) return <NoAccess />
   const now = Date.now()
   // Every prop is plain data (strings, numbers, null): nothing here may be a function (check:rsc).
-  const rows: HubRow[] = (await listReportSummaries()).map((r) => ({
+  const rows: HubRow[] = (await listReportSummaries()).rows.map((r) => ({
     id: r.id,
     brand: r.brandName ?? r.peecProjectName,
     projectId: r.peecProjectId,

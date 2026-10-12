@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.useFakeTimers()
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML })
+  vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML, approvedAt: null })
   vi.mocked(store.recordOpenQuery).mockResolvedValue(undefined as never)
 })
 afterEach(() => { vi.useRealTimers(); warn.mockRestore() })
@@ -35,7 +35,7 @@ const settle = async (p: Promise<Response>, ms = 0) => { const done = p; await v
 test('unknown, malformed, revoked and discarded tokens get the identical 404', async () => {
   const bodies: string[] = []
   for (const [token, live] of [['short', true], [TOKEN, false], ['bad token with spaces!!', true]] as const) {
-    vi.mocked(store.getLiveByToken).mockResolvedValue(live ? { id: ID, html: HTML } : undefined)
+    vi.mocked(store.getLiveByToken).mockResolvedValue(live ? { id: ID, html: HTML, approvedAt: null } : undefined)
     const r = await settle(GET(req(), ctx(token)))
     expect(r.status).toBe(404)
     expect(r.headers.get('cache-control')).toBe('no-store')
