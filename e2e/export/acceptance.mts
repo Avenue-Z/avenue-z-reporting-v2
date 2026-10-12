@@ -115,7 +115,7 @@ if (!process.env.AUTH_SECRET) {
   }
 
   const ren = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
-    { clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days' }, 'renaissance-client')
+    { clientSlug: 'renaissance', section: 'organic-social', subsection: null, dateRange: 'last_30_days' }, 'renaissance-client')
   if (ren) {
     check(/filename\*=UTF-8''Renaissance%20%E2%80%93%20Organic%20Social%20%E2%80%93%20\d{4}-\d{2}-\d{2}\.pdf/.test(ren.res.headers.get('content-disposition') ?? ''), 'named Renaissance – Organic Social – <date>.pdf')
     check(pagesOf(ren.pdf, 'Exported')[0] === 1 && pagesOf(ren.pdf, 'Reporting').length > 0, 'stamped with export time and reporting period on page 1')
@@ -123,9 +123,16 @@ if (!process.env.AUTH_SECRET) {
     check(viewPost > 0 && countLinks(ren.bytes) >= viewPost, `every post is a link (${countLinks(ren.bytes)} links, ${viewPost} posts)`)
   }
 
+  // A page loaded before sections were added posts no section; it must still export Organic Social.
+  const skew = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
+    { clientSlug: 'renaissance', subsection: null, dateRange: 'last_30_days' }, 'renaissance-no-section')
+  // Its filename names the section it exported, so a default that picked another enabled section fails here (Thomas,
+  // #348 acceptance.mts:129), not just one that failed outright.
+  check(/Organic%20Social/.test(skew?.res.headers.get('content-disposition') ?? ''), 'a body with no section still exports Organic Social')
+
   // A locked-months client's platform tab, exported by a staff editor and by a client (Thomas, #332 round 2, item 5): the
   // staff export prints exactly the client's, with no editor, draft or button text. A month both can see, so both serve it.
-  const APFM = { clientSlug: 'a-place-for-mom', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
+  const APFM = { clientSlug: 'a-place-for-mom', section: 'organic-social', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
   const staff = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, APFM, 'apfm-staff')
   const client = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: APFM.clientSlug }, APFM, 'apfm-client')
   // Every glyph in the same order, and every page starting at the same place. The stamp's minute can differ between the
