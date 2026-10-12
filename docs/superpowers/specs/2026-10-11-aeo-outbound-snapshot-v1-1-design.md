@@ -741,8 +741,9 @@ No data, query, action or permission changes: layout, grouping and copy only.
 - Actions: **Open** always; **Copy link** when the row has a link to copy (today's rule); every other action (Revoke,
   Edit a copy, Rerun, Discard) in a **More** menu button, shown only when the row has at least one. The menu: a button
   with `aria-haspopup="menu"` and `aria-expanded`, a list with `role="menu"` of `role="menuitem"` buttons running exactly
-  today's handlers (the Revoke and Discard dialogs unchanged); it closes on Escape (focus back to the button), on a click
-  outside, and after an item is chosen; one menu open at a time.
+  today's handlers (the Revoke and Discard dialogs unchanged, focus returning to More when they close); the list is
+  positioned `fixed` from the button so the table card's horizontal scroll cannot clip it; it closes on Escape (focus back
+  to the button), on a click outside, on scroll or resize, and after an item is chosen; one menu open at a time.
 - The scanner note and the test-link note move under the table.
 - Pending rows (a Generate in flight) span the new 6 columns.
 - Measured in the mock at 1440 wide: the table fits its card (scroll width = card width, 1,118px), rows 67 to 145px tall.

@@ -9204,7 +9204,9 @@ effects at about `:304-330` with the hook; nothing else), `components/aeo-outbou
 - `useLeaveGuard(unsaved: boolean, ask: (go: () => void) => void): void`: while `unsaved`, register `beforeunload`
   (`e.preventDefault(); e.returnValue = ''`) and the capture click listener on `document` copied exactly from
   `editor.tsx` (same modifier, `_blank`, dialog and origin checks), calling `ask(() => router.push(path))`. It takes the
-  router from `useRouter()` itself. Both listeners are removed when `unsaved` turns false or on unmount.
+  router from `useRouter()` itself. Both listeners are removed when `unsaved` turns false or on unmount. Deps stay
+  `[unsaved]` as in the editor today, with the same `react-hooks/exhaustive-deps` disable and a comment (`ask` is a state
+  setter wrapper and the router is stable).
 - Editor: `useLeaveGuard(unsaved, (go) => setDialog({ kind: 'leave', then: go }))`. Its explicit Back link `onClick` stays.
 - Settings, messages (append verbatim): `REPORT_WORDS = 'Report words'`, `REPORT_WORDS_NOTE = 'Names and titles printed on
   every new report.'`, `REPORT_CONTENT = 'Report content'`, `REPORT_CONTENT_NOTE = 'What each new report says and how it
@@ -9219,15 +9221,19 @@ effects at about `:304-330` with the hook; nothing else), `components/aeo-outbou
   Each card: `cardCls` plus `space-y-4`, starting with `<div><h2 className="text-base font-semibold text-white">{title}</h2>
   <p className="mt-1 text-xs text-text-muted">{note}</p></div>`. Recent changes keeps its current heading and list.
   The next-step textarea gets `rows={4}`. Fields keep their ids, labels, `maxLength`, `disabled` rules and errors.
-- Unsaved: keep `saved` (the `SettingsInput` last loaded or saved) in state; `unsaved = JSON.stringify(form) !==
-  JSON.stringify(saved)`; on a successful save set `saved` to the form that was sent. `useLeaveGuard(unsaved, (go) =>
+- Unsaved: a new state `baseline` (the `SettingsInput` last loaded or saved; the existing `saved` flag keeps its meaning);
+  `unsaved = JSON.stringify(form) !== JSON.stringify(baseline)`; in `onSave` capture `const sent = form` before the
+  `await` and `setBaseline(sent)` on `r.ok` (the server returns only `updatedAt` and the form is never replaced with
+  normalised values, so the sent form is the saved state). A comment says so. With `readFailed` the guard still asks;
+  that is accepted. `useLeaveGuard(unsaved, (go) =>
   setLeave(() => go))`; render `ConfirmDialog` (`LEAVE_UNSAVED`, `LEAVE`, `STAY`) while `leave` is set. The Back link
   needs no own handler: the hook's capture listener covers it.
 
 Tests (first): the bar has a link "Back" with href `/tools/new-business` and the Save settings button; the four card
 headings in order; every existing settings test passes; change a field, click Back: the dialog shows, Stay closes it and
-`router.push` is not called, Leave calls `router.push('/tools/new-business')`; unchanged form: Back is not prevented;
-after a successful save, Back is not prevented; `beforeunload` listener added only while unsaved (spy on
+`router.push` is not called, Leave calls `router.push('/tools/new-business')`; unchanged form: the Back click is not
+`defaultPrevented` (as the editor tests check); after a successful save, Back is not prevented; edit, save, edit again:
+Back asks; `beforeunload` listener added only while unsaved (spy on
 `window.addEventListener`); the hook's own tests for the modifier keys, `_blank`, another origin and a link inside a
 dialog. `editor.test.tsx` passes unchanged. Mock `next/navigation`'s `useRouter` the way `editor.test.tsx` does.
 Commit subject: `Give Settings a full-width layout, a Back and Save bar, and the editor's leave guard`.
@@ -9241,24 +9247,29 @@ Commit subject: `Give Settings a full-width layout, a Back and Save bar, and the
   (null). Drop `'project'` and `'recipient'` from `SortKey` and `SORT_VALUE`.
 - Brand cell: `<div className="font-semibold">{r.brand}</div>`, then `<div className="mt-0.5 text-xs text-text-muted">`
   with the project name, then the requested window line as today (same text).
-- Created: `<div className="whitespace-nowrap">` date; creator line `max-w-[180px] truncate text-xs` with
+- Created: `<div className="whitespace-nowrap">` date; creator line `block max-w-[180px] truncate text-xs` with
   `title={r.createdBy}` and today's `createdByLine` text.
-- Sent: for sent rows the date in `whitespace-nowrap`, then `<div className="text-xs">to {r.recipient}</div>` when there
-  is a recipient (`text-text-muted` cell as today).
-- Opens: export `opensParts(r): { head: string; detail: string | null }` next to `opensSummary`, with
-  `head + (detail ? ': ' + detail : '') === opensSummary(r)` for every input. The cell shows head in `font-medium`, the
-  detail in `text-xs text-text-muted`, then the first and last opened lines as today. `opensSummary` stays unchanged.
+- Sent: for sent rows the date in `whitespace-nowrap`, then `<div className="text-xs">to {r.recipient}</div>` only when
+  there is a recipient; nothing else for other rows (`text-text-muted` cell as today).
+- Opens: export `opensParts(r): { head: string; detail: string | null }` next to `opensSummary`, and make
+  `opensSummary` return `head + (detail ? ': ' + detail : '')` from it, so its output is unchanged (its test at
+  `hub.test.tsx:272-277` guards that). The cell shows head in `font-medium`, the detail in `text-xs text-text-muted`,
+  then the first and last opened lines as today.
 - Actions cell: `<div className="flex items-center gap-1.5 whitespace-nowrap">`: Open (`Link`), Copy link (as today),
   then `<RowMenu items={...} />` only if at least one of revoke, edit, rerun, discard applies, each item `{ label,
   onSelect, disabled }` running exactly today's handler and `disabled` rule.
 - `RowMenu`: `'use client'`; a `btnCls` button "More" with a small chevron (`ChevronDown` from lucide-react,
-  `aria-hidden`), `aria-haspopup="menu"`, `aria-expanded`; when open, an absolutely positioned list (`right-0 top-full
-  z-30 mt-1 min-w-[160px]`, `cardCls`-like surface `rounded-md border border-white/[0.08] bg-bg-surface p-1 shadow-lg`)
+  `aria-hidden`), `aria-haspopup="menu"`, `aria-expanded`; when open, a list with `position: fixed` placed from the
+  button's `getBoundingClientRect()` (`top = rect.bottom + 4`, `right = window.innerWidth - rect.right`), because the table
+  card is `overflow-x-auto` and would clip an absolutely positioned list; it closes on any scroll (capture listener on
+  `document`) and on `resize`. Classes `z-30 min-w-[160px] rounded-md border border-white/[0.08] bg-bg-surface p-1
+  shadow-lg`
   with `role="menu"` and one `role="menuitem"` button per item (`block w-full rounded px-3 py-1.5 text-left text-xs
-  text-white hover:bg-white/[0.06] disabled:opacity-50`). Choosing an item closes the menu and then calls `onSelect`.
-  Escape closes it and focuses the More button; a `mousedown` outside the wrapper closes it; opening one menu closes any
-  other (a module-level "close the open one" callback or a custom event; keep it simple and tested). The wrapper is
-  `relative inline-block`.
+  text-white hover:bg-white/[0.06] disabled:opacity-50`). Choosing an item first focuses the More button (so a dialog the
+  item opens records More as its opener and gives focus back to it, `confirm-dialog.tsx`), then closes the menu, then
+  calls `onSelect`. Escape closes it and focuses More; a `mousedown` outside the wrapper and the list closes it; opening
+  one menu closes any other through a `document` custom event `aeo-row-menu-open` carrying the opener's id. Every
+  document and window listener is registered only while that menu is open and removed on close and unmount.
 - Pending rows: brand cell with the project name, the status cell as today, then `<td colSpan={4} />`.
 - `OPENS_CAVEAT` and `TEST_LINK_NOTE` move to just after the table card, `mt-2 text-xs text-text-muted`.
 
@@ -9268,7 +9279,12 @@ are not in the document until More is clicked, then are `menuitem`s; clicking Re
 Discard the discard dialog, Edit a copy and Rerun call their existing actions; Escape closes and focuses More; a click
 outside closes; opening a second row's menu closes the first; a row with no secondary action has no More; `opensParts`
 round-trips `opensSummary` for 0 opens, 1 open, several, and with unclassified opens; the two notes come after the table.
-Update existing hub tests that click secondary actions to open More first; change no assertion's intent.
+Existing hub tests to rewrite, keeping each one's intent: the cell-index reads at `hub.test.tsx:257-266` (six columns
+now; assert the Opens head and detail as separate texts instead of the joined summary); the `labels()` helper at `:241`
+(now Open, Copy link, More; add a helper `menuLabels(row)` that opens More and reads the menuitems); the busy and disabled
+tests at `:378-390`, `:472-480` and `:481-496` (after clicking an item, reopen More and re-query the item before asserting
+`toBeDisabled`, since the menu closes on choice); the pending-row column count. Add: after choosing Revoke and pressing
+Keep link (or Escape), focus is on that row's More button.
 Commit subject: `Tidy the hub table: six columns, a More menu and one-line dates`.
 
 ### Task 20: A branded not-found page for a missing snapshot (spec v1.1 §17.9 Not found)
@@ -9277,9 +9293,10 @@ Commit subject: `Tidy the hub table: six columns, a More menu and one-line dates
 `components/aeo-outbound/messages.ts`: `SNAPSHOT_GONE = 'This snapshot no longer exists'`, `SNAPSHOT_GONE_NOTE = 'It may
 have been discarded, or the link is wrong.'`, `BACK_TO_HUB = 'Back to New Business'`.
 
-- A server component, no data: `<section className={cardCls}>` (`max-w-xl`) with `<h1 className="text-xl font-bold
+- A server component, no data: `<section className={`${cardCls} max-w-xl`}>` with `<h1 className="text-xl font-bold
   text-white">{SNAPSHOT_GONE}</h1>`, `<p className="mt-2 text-sm text-text-muted">{SNAPSHOT_GONE_NOTE}</p>`, and a
   `Link` to `/tools/new-business` with `primaryBtnCls` and `mt-4 inline-block`, reading `BACK_TO_HUB`.
 
-Tests (first): render it and find the heading, the line and the link with its href. Commit subject: `Show a branded page
-when a snapshot no longer exists`.
+Tests (first): render it and find the heading, the line and the link with its href. Manual check on dev after the build
+(the controller): `/tools/new-business/not-a-uuid` and a well-formed id with no row both show it inside the dark layout.
+Commit subject: `Show a branded page when a snapshot no longer exists`.
