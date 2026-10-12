@@ -307,3 +307,13 @@ open-tracking columns, its two date columns (`requested_start`, `requested_end`)
 including `share_recipient`, and `aeo_outbound_range_both_or_neither`), both indexes
 with the partial `WHERE status = 'generating'` intact, the `aeo_outbound_status` enum, and the
 migration ledger up by one.
+
+Dev: `0026` applied to the dev database on 2026-10-11, on my written go. A dev-only host guard first (it refused any host other
+than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0026_aeo_outbound_reports` pending, the table and the
+`aeo_outbound_status` enum absent, the ledger at 31 rows. Applied with `scripts/migrate-http.ts`
+(`apply 0026_aeo_outbound_reports (4 stmt) ... done`, `applied 1 migration(s)`). Read back: the enum
+(`generating, draft, approved, failed`); the table with its 28 columns, including the four open-tracking columns and
+`requested_start` and `requested_end`; its four checks (`aeo_outbound_approved_complete` including `share_recipient`,
+`aeo_outbound_delete_only_draft_failed`, `aeo_outbound_range_both_or_neither`, `aeo_outbound_revoke_only_approved`); the
+`share_token` unique constraint; both indexes, with `aeo_outbound_one_generating`'s `WHERE status = 'generating'` intact; no
+rows; the ledger at 32 with nothing pending; `aeo_outbound_reports` the only table added. Staging and production: not applied.
