@@ -341,3 +341,18 @@ test('a missing share of voice or position is a missing_metric note; brands with
   const roster = [...PULL.roster, { id: 'kw_z', name: 'Zed', is_own: false, domains: [] }]
   expect(buildSnapshotData({ ...PULL, roster }, '2026-10-08T15:00:00Z').notes).toContainEqual({ kind: 'no_data_brands', text: '1 tracked brand has no Peec data in this window and counts as zero visibility.' })
 })
+
+test('V1_SETTINGS_USED is the four literal values v1.0 shipped with, frozen', () => {
+  expect(V1_SETTINGS_USED).toEqual({ rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: null })
+  expect(Object.isFrozen(V1_SETTINGS_USED)).toBe(true)
+})
+
+test('the kind of the remaining notes is pinned: no_competitors, high_visibility, empty_source_mix, own_domains with no rows', () => {
+  const solo: PeecPull = { ...PULL, roster: [PULL.ownBrand], brands: [PULL.brands[1]] }
+  expect(buildSnapshotData(solo, '2026-10-08T15:00:00Z').notes).toContainEqual(expect.objectContaining({ kind: 'no_competitors', text: 'No competitors tracked in this Peec project' }))
+  expect(withVis(0.2, ['Ace', 0.9051]).notes).toContainEqual(expect.objectContaining({ kind: 'high_visibility', text: WARN('Ace', '90.5') }))
+  const empty = buildSnapshotData({ ...PULL, domains: PULL.domains.map((r) => ({ ...r, retrieval_count: 0 })) }, '2026-10-08T15:00:00Z')
+  expect(empty.notes).toContainEqual(expect.objectContaining({ kind: 'empty_source_mix', text: 'Peec reported no source weights for this window, so the source mix is empty.' }))
+  const none = buildSnapshotData({ ...PULL, domains: PULL.domains.filter((r) => r.domain !== 'example.com') }, '2026-10-08T15:00:00Z')
+  expect(none.notes).toContainEqual(expect.objectContaining({ kind: 'own_domains', text: "No retrievals of the brand's own site in this window." }))
+})

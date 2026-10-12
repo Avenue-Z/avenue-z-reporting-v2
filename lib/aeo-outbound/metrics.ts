@@ -14,13 +14,13 @@ export interface SettingsUsed {
   methodologyStatesPromptsAndModels: boolean
   fixedNextStep: string | null
 }
-/** What a row from before v1.1 was generated with: the config.ts constants, never live settings. */
-export const V1_SETTINGS_USED: SettingsUsed = {
-  rankAmong: DECISIONS.rankAmong,
-  peecOpportunityRows: DECISIONS.peecOpportunityRows,
-  methodologyStatesPromptsAndModels: DECISIONS.methodologyStatesPromptsAndModels,
-  fixedNextStep: DECISIONS.fixedNextStep,
-}
+/** What a row from before v1.1 was generated with. Literal on purpose: a later config.ts edit must never change how a version 1 row reads. */
+export const V1_SETTINGS_USED: SettingsUsed = Object.freeze({
+  rankAmong: null,
+  peecOpportunityRows: 1,
+  methodologyStatesPromptsAndModels: true,
+  fixedNextStep: null,
+})
 export const settingsUsedOf = (d: { settingsUsed?: SettingsUsed }): SettingsUsed => d.settingsUsed ?? V1_SETTINGS_USED
 
 export interface BrandMetric { id: string; name: string; isOwn: boolean; visibilityPct: number; sovPct: number | null; position: number | null; rank: number }

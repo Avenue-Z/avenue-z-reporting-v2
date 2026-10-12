@@ -17,6 +17,7 @@ test('a version 1 row keeps its version 1 grounding flags', () => {
 })
 
 // Deliberate differences from v1.0 (spec v1.1 §9), applied to the frozen v1.0 golden. Later tasks add to this list.
+// Also deliberate for version 1 drafts: the own brand replaces the 10th bar (§9); the golden has too few brands to show it (charts.test.ts pins it).
 const v11 = (html: string) => {
   expect(html.split('Citations: %{value}')).toHaveLength(2)
   return html.split('Citations: %{value}').join('Retrievals: %{value}')

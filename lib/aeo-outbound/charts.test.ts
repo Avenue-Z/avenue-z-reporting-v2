@@ -55,3 +55,12 @@ test('an own brand already in the top 10 changes nothing', () => {
   const brands = Array.from({ length: 12 }, (_, i) => ({ name: `Brand${i}`, visibilityPct: 60 - i, isOwn: i === 3 }))
   expect(plain(visibilityBarFigure(brands))).toEqual(plain(visibilityBarFigure(brands.map(({ isOwn: _o, ...b }) => b))))
 })
+
+test('a version 1 row with the own brand ranked 12th gets it as the 10th bar, exactly 10 bars', () => {
+  // The call render.ts makes for every row, version 1 included: visibilityBarFigure(data.brands).
+  const v1 = { brands: Array.from({ length: 12 }, (_, i) => ({ id: `b${i}`, name: `Brand${i}`, isOwn: i === 11, visibilityPct: 60 - i, sovPct: null, position: null, rank: i + 1 })) }
+  const y = (visibilityBarFigure(v1.brands).data[0] as { y: string[] }).y
+  expect(y).toHaveLength(10)
+  expect(y[0]).toBe('Brand11')
+  expect(y.filter((n) => n === 'Brand11')).toHaveLength(1)
+})
