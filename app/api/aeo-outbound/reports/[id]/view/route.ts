@@ -34,7 +34,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     console.error(`[aeo-outbound] view read failed id=${id} reason=${errorLabel(e)}`)
     return unavailable()
   }
-  if (!row) return notFound()
+  // An unreadable row (stored data that breaks its contract) is served like a missing one: nothing of it renders.
+  if (!row || row.unreadable) return notFound()
   const preview = req.nextUrl.searchParams.get('mode') === 'preview'
   if (row.status === 'approved' && row.html) {
     // Always the frozen HTML, never a re-render, so the editor shows exactly what the prospect sees (spec §4). The

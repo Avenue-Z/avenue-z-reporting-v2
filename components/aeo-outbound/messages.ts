@@ -91,6 +91,7 @@ export const UNREADABLE = "This snapshot was saved by an older version and can't
 /** v1.1 §6: the open list. */
 export const OPENS_TITLE = 'Opens'
 export const NO_OPENS = 'No opens yet.'
+export const OPENS_CAPPED = 'Showing the latest 200 opens.'
 export const PERSON = 'Person'
 export const AUTOMATED = 'Automated'
 export const notClassified = (n: number): string => `${n} not classified`

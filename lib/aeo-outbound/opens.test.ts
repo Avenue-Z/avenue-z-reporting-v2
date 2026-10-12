@@ -77,3 +77,13 @@ test('a missing user agent is Other, and the three reasons and the one-minute ru
     unknown: 'Not a known browser',
   })
 })
+
+test('C5: an iOS in-app browser (WebKit, Mobile/, no browser token) is its own family; Safari and curl are unchanged', () => {
+  const LINKEDIN = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [LinkedInApp]/9.30'
+  const OUTLOOK = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'
+  expect(uaFamily(LINKEDIN)).toBe('In-app browser on iOS')
+  expect(uaFamily(OUTLOOK)).toBe('In-app browser on iOS')
+  expect(uaFamily(`${OUTLOOK.replace('Mobile/15E148', '')}Version/18.0 Mobile/15E148 Safari/604.1`)).toBe('Safari on iOS')
+  expect(uaFamily('curl/8.0')).toBe('Other')
+  expect(uaFamily('Mozilla/5.0 (iPhone) HeadlessChrome/129.0 AppleWebKit/605 Mobile/15E148')).toBe('Other')
+})

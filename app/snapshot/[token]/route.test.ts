@@ -5,6 +5,7 @@ vi.mock('@/lib/aeo-outbound/store', () => ({ getLiveByToken: vi.fn(), recordOpen
 import { auth } from '@/auth'
 import * as store from '@/lib/aeo-outbound/store'
 import { GET, HEAD } from './route'
+import { LINK_FRESH_MS } from '@/lib/aeo-outbound/opens'
 
 // Every token, id, email and page is invented.
 const TOKEN = 'AAAAAAAAAAAAAAAAAAAAAAAA'
@@ -194,4 +195,34 @@ test('the stored event gets the family only: never the IP address or the full us
   expect(args).toContain('Firefox on Linux')
   expect(args).not.toContain('203.0.113.7')
   expect(args).not.toContain('rv:131.0')
+})
+
+test('C5: an open from an iOS in-app browser more than 60 s after approval is recorded as that family, not as an unknown browser', async () => {
+  vi.setSystemTime(new Date(APPROVED.getTime() + 61_000))
+  const ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [LinkedInApp]/9.30'
+  await settle(GET(req({ ua }), ctx()))
+  expect(store.recordOpen).toHaveBeenLastCalledWith(ID, expect.any(Date), { uaFamily: 'In-app browser on iOS', linkFresh: false })
+})
+
+test('E11: a row with approvedAt null is not fresh, and the freshness edge is exclusive at LINK_FRESH_MS', async () => {
+  vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML, approvedAt: null })
+  await settle(GET(req(), ctx()))
+  expect(store.recordOpen).toHaveBeenLastCalledWith(ID, expect.any(Date), { uaFamily: 'Other', linkFresh: false })
+  vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML, approvedAt: APPROVED })
+  vi.setSystemTime(new Date(APPROVED.getTime() + LINK_FRESH_MS))
+  await settle(GET(req(), ctx()))
+  expect(store.recordOpen).toHaveBeenLastCalledWith(ID, expect.any(Date), { uaFamily: 'Other', linkFresh: false })
+  vi.setSystemTime(new Date(APPROVED.getTime() + LINK_FRESH_MS - 1))
+  await settle(GET(req(), ctx()))
+  expect(store.recordOpen).toHaveBeenLastCalledWith(ID, expect.any(Date), { uaFamily: 'Other', linkFresh: true })
+})
+
+test('E12: HEAD with a malformed slug segment answers the unknown-token 404 with no body and no lookup', async () => {
+  const unknown = await HEAD(req({ method: 'HEAD' }), ctx('short'))
+  vi.mocked(store.getLiveByToken).mockClear()
+  const r = await HEAD(req({ method: 'HEAD' }), ctx(`Example-${TOKEN}`))
+  expect(r.status).toBe(404)
+  expect(await r.text()).toBe('')
+  expect([...r.headers].sort()).toEqual([...unknown.headers].sort())
+  expect(store.getLiveByToken).not.toHaveBeenCalled()
 })

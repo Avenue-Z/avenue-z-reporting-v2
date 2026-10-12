@@ -256,7 +256,7 @@ test('a generating snapshot shows the checklist, polls its row by id every secon
   const answers: unknown[] = [{ id: ID, step: 4, createdAt: '2026-10-08T15:00:00.000Z' }, { id: ID, step: 6, createdAt: '2026-10-08T15:00:00.000Z' }, { step: null }]
   progress = async () => json(200, answers.length > 1 ? answers.shift() : answers[0])
   const { container } = render(<OutboundEditor {...base} status="generating" progressStep={4} />)
-  const box = screen.getByRole('status', { name: 'Generation progress' })
+  const box = screen.getByRole('status', { name: 'Generation progress' }).closest('.max-w-sm') as HTMLElement
   expect(within(box).getByText('Finding the days with data…')).toBeInTheDocument()
   expect(within(box).getByText('0:18')).toBeInTheDocument()
   expect(within(box).getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
@@ -282,7 +282,7 @@ test("while the editor's Rerun request runs, the checklist replaces the action b
   progress = async () => json(200, { id: NEW_ID, step: 3, createdAt: new Date(Date.now() + 1000).toISOString() })
   await setup({ status: 'failed', errorCode: 'no_data', error: 'x' })
   fireEvent.click(screen.getByRole('button', { name: 'Rerun' }))
-  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  const box = (await screen.findByRole('status', { name: 'Generation progress' })).closest('.max-w-sm') as HTMLElement
   expect(screen.queryByRole('toolbar', { name: 'Snapshot actions' })).not.toBeInTheDocument()
   await waitFor(() => expect(within(box).getByText('Reading the project profile…')).toBeInTheDocument(), { timeout: 3000 })
   expect(fetchMock.mock.calls.some(([u]) => u === '/api/aeo-outbound/progress?projectId=p1')).toBe(true)
@@ -634,4 +634,28 @@ test('a structure the server refuses hands edit mode back to the frame and shows
 test('Approve is not offered on an unreadable draft', () => {
   render(<OutboundEditor {...base} unreadable />)
   expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+})
+
+test('D7: 200 opens show the cap line; 199 do not', async () => {
+  const open = (i: number) => ({ openedAt: new Date(Date.UTC(2026, 9, 2, 15, 0, 0) - i * 60_000).toISOString(), uaFamily: 'Chrome on Mac', likelyAutomated: false, reason: null })
+  await setup({ status: 'live', token: 'tok_123', openCount: 200, opens: Array.from({ length: 200 }, (_, i) => open(i)) })
+  expect(screen.getByText('Showing the latest 200 opens.')).toBeInTheDocument()
+  cleanup()
+  await setup({ status: 'live', token: 'tok_123', openCount: 199, opens: Array.from({ length: 199 }, (_, i) => open(i)) })
+  expect(screen.queryByText('Showing the latest 200 opens.')).not.toBeInTheDocument()
+})
+
+test('D8: the copied link uses the brand as saved in this session, not the stale prop', async () => {
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  actions.approveSnapshotAction.mockResolvedValue({ ok: true, token: 'tok_123' })
+  const { iframe } = await setup({ linkBrand: 'Acme', shareOrigin: 'https://reporting.avenuez.com' })
+  await fromFrame(iframe, { type: 'edit', path: 'brand', value: '  Renamed   Co ' })
+  await waitFor(() => expect(iframe).toHaveAttribute('title', 'Renamed Co'))
+  fireEvent.click(approveBtn())
+  await screen.findByRole('dialog')
+  fireEvent.change(screen.getByLabelText('Who is this for?'), { target: { value: 'Jane Doe, Acme' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and create link' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }))
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://reporting.avenuez.com/snapshot/renamed-co-tok_123'))
 })

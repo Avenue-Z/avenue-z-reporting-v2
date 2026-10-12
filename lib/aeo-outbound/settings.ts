@@ -27,6 +27,7 @@ export const SETTINGS_ERRORS = {
   tooMany: 'List at most 50 people.',
   title: 'Section titles need 1 to 60 characters.',
   nextStep: 'The next-step sentence needs 1 to 300 characters.',
+  longDash: 'Use a period or comma instead of a long dash.',
   rank: 'Rank among must be a whole number from 2 to 50.',
   peecRows: 'Pick 0, 1, 2 or 3.',
   wordmark: 'Pick AIVx or Avenue Z.',
@@ -34,6 +35,8 @@ export const SETTINGS_ERRORS = {
   conflict: 'Someone else changed these settings. Reload to see their changes.',
   readFailed: "The settings couldn't be loaded, so they can't be saved now. Reload and try again.",
 } as const
+/** U+2013 and U+2014, written as escapes so this file holds no long dash. */
+const LONG_DASH = /[\u2013\u2014]/
 export type SettingsField = keyof OutboundSettings
 export const SETTINGS_FIELD_LABELS: Record<SettingsField, string> = {
   users: 'Who can use the tool',
@@ -108,10 +111,12 @@ export function validateSettingsInput(input: SettingsInput): { ok: true; values:
   const admins = people(input.admins, 'admins')
   const titles = [input.section1, input.section2].map((t) => cleanValue(typeof t === 'string' ? t : ''))
   if (titles.some((t) => t.length < 1 || t.length > SETTINGS_LIMITS.title)) errors.sectionTitles = SETTINGS_ERRORS.title
+  else if (titles.some((t) => LONG_DASH.test(t))) errors.sectionTitles = SETTINGS_ERRORS.longDash
   let fixedNextStep: string | null = null
   if (input.nextStepMode === 'fixed') {
     fixedNextStep = cleanValue(typeof input.nextStep === 'string' ? input.nextStep : '')
     if (fixedNextStep.length < 1 || fixedNextStep.length > SETTINGS_LIMITS.nextStep) errors.fixedNextStep = SETTINGS_ERRORS.nextStep
+    else if (LONG_DASH.test(fixedNextStep)) errors.fixedNextStep = SETTINGS_ERRORS.longDash
   }
   let rankAmong: number | null = null
   if (input.rankMode === 'top') {

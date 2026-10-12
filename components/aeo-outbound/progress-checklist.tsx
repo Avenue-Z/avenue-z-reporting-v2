@@ -14,9 +14,9 @@ export function ProgressChecklist({ step, startedAtMs }: { step: number; started
   const v = progressView(step)
   const elapsed = now - startedAtMs
   return (
-    <div role="status" aria-label="Generation progress" className="mt-2 max-w-sm text-xs">
+    <div className="mt-2 max-w-sm text-xs">
       <div className="flex items-center justify-between gap-3 text-sm text-white">
-        <span>{`${v.current}…`}</span>
+        <span role="status" aria-label="Generation progress">{`${v.current}…`}</span>
         <span className="tabular-nums text-text-muted">{elapsedLabel(elapsed)}</span>
       </div>
       <div role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={v.total} aria-valuenow={v.done} className="mt-2 h-1.5 w-full rounded bg-white/10">

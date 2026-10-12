@@ -23,7 +23,7 @@ import { StatusPill } from './hub'
 import {
   ACTION_FAILED, APPROVE_AND_CREATE, APPROVE_CONFIRM, AUTOMATED, BEFORE_YOU_SEND, CANCEL, DISCARD_SNAPSHOT, DONE_EDITING, EDIT,
   EDIT_BANNER, EDIT_COPY, EDIT_COPY_HINT, FLUSH_WAIT, GONE, KEEP_DRAFT, KEEP_LINK, KEEP_SNAPSHOT, LEAVE, LEAVE_UNSAVED, LOADING_REPORT,
-  LOCKED_CHART, LOCKED_FIXED, LOCKED_MIRROR, MAKE_NEW_DRAFT, NO_OPENS, OPENS_CAVEAT, OPENS_TITLE, PERSON, RECIPIENT_EXAMPLE,
+  LOCKED_CHART, LOCKED_FIXED, LOCKED_MIRROR, MAKE_NEW_DRAFT, NO_OPENS, OPENS_CAPPED, OPENS_CAVEAT, OPENS_TITLE, PERSON, RECIPIENT_EXAMPLE,
   RECIPIENT_LABEL, REVOKE_LINK, STALE, STAY, UNREADABLE, VIEW_FAILED, actionError, discardTitle, fillFirst, notClassified,
   rerunTitle, revokeTitle,
 } from './messages'
@@ -97,6 +97,10 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [notes, setNotes] = useState(props.notes)
   const [needsValidation, setNeedsValidation] = useState(props.needsValidation)
   const [brand, setBrand] = useState(props.brand)
+  // The brand slug of the public link: the brand as saved in this session, re-seeded when the server's value changes.
+  const [linkBrand, setLinkBrand] = useState(props.linkBrand)
+  const [seenLinkBrand, setSeenLinkBrand] = useState(props.linkBrand)
+  if (props.linkBrand !== seenLinkBrand) { setSeenLinkBrand(props.linkBrand); setLinkBrand(props.linkBrand) }
   const [titles, setTitles] = useState<[string, string]>(props.sectionTitles)
   const sync = `${props.status}|${props.revision}`
   const [seenSync, setSeenSync] = useState(sync)
@@ -163,7 +167,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
           // The list's indices changed: its Looks right ticks no longer point at the same bullets (v1.1 §3).
           dropTicksFor(path.split('.')[0])
           setReloadKey((k) => k + 1)
-        } else if (path === 'brand') setBrand(cleanValue(value))
+        } else if (path === 'brand') { setBrand(cleanValue(value)); setLinkBrand(cleanValue(value)) }
         else if (path === 'page.section_1_title') setTitles(([, two]): [string, string] => [cleanValue(value), two])
         else if (path === 'page.section_2_title') setTitles(([one]): [string, string] => [one, cleanValue(value)])
         return { kind: 'ok', revision: b.revision as number }
@@ -417,7 +421,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
             {status === 'draft' && !props.unreadable && (
               <button type="button" className={btnCls} disabled={approveDisabled} title={approveTitle} onClick={() => void onApprove()}>Approve</button>
             )}
-            {status === 'live' && token && origin && <CopyLink url={shareUrl(origin, props.linkBrand, token)} showField />}
+            {status === 'live' && token && origin && <CopyLink url={shareUrl(origin, linkBrand, token)} showField />}
             {status === 'live' && token && props.shareOrigin === null && <span className="text-xs text-text-muted">{TEST_LINK_NOTE}</span>}
             {status === 'live' && <button type="button" className={btnCls} disabled={busy} onClick={() => setDialog({ kind: 'revoke' })}>Revoke</button>}
             {status !== 'generating' && <button type="button" className={btnCls} disabled={busy} onClick={onRerun}>Rerun</button>}
@@ -485,6 +489,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
               </tbody>
             </table>
           )}
+          {props.opens.length === OPENS_SHOWN && <p className="mt-2 text-xs text-text-muted">{OPENS_CAPPED}</p>}
           {notClassifiedCount > 0 && <p className="mt-2 text-xs text-text-muted">{notClassified(notClassifiedCount)}</p>}
         </section>
       )}

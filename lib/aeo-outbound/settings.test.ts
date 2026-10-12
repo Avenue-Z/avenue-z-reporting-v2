@@ -89,3 +89,13 @@ test('a refused users or admins list logs one line naming the field and never a 
   expect(vi.mocked(console.error).mock.calls.map((c) => String(c[0]))).toEqual(['[aeo-outbound] settings row refused field=admins'])
   for (const c of vi.mocked(console.error).mock.calls) expect(String(c[0])).not.toContain('@')
 })
+
+test('A2: a long dash in a section title or the next-step sentence is refused; a comma passes', () => {
+  const dash = String.fromCharCode(0x2014), en = String.fromCharCode(0x2013)
+  const bad = (over: Partial<SettingsInput>) => { const r = validateSettingsInput({ ...INPUT, ...over }); return r.ok ? null : r.errors }
+  expect(bad({ section1: `Strengths ${dash} gaps` })).toEqual({ sectionTitles: SETTINGS_ERRORS.longDash })
+  expect(bad({ section2: `Gaps ${en} more` })).toEqual({ sectionTitles: SETTINGS_ERRORS.longDash })
+  expect(bad({ nextStep: `Book a call ${dash} soon.` })).toEqual({ fixedNextStep: SETTINGS_ERRORS.longDash })
+  expect(SETTINGS_ERRORS.longDash).toBe('Use a period or comma instead of a long dash.')
+  expect(validateSettingsInput({ ...INPUT, section1: 'Strengths, gaps', nextStep: 'Book a call, soon.' }).ok).toBe(true)
+})

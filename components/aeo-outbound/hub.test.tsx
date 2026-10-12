@@ -122,7 +122,7 @@ test('Generate shows a local progress row with the keep-open advice, and 200 dra
   let release: (r: Response) => void = () => {}
   generate = () => new Promise((r) => { release = r })
   await pickAndGenerate()
-  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  const box = (await screen.findByRole('status', { name: 'Generation progress' })).closest('.max-w-sm') as HTMLElement
   expect(within(box).getByText('Starting…')).toBeInTheDocument()
   expect(within(box).getByText(/^0:0\d$/)).toBeInTheDocument()
   expect(within(box).getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
@@ -575,7 +575,7 @@ test('while its Generate request runs, the hub polls progress by project and sho
   const answers = [{ step: null }, { id: ID(9), step: 2, createdAt: created }, { id: ID(9), step: 9, createdAt: created }]
   progress = async () => json(200, answers.length > 1 ? answers.shift() : answers[0])
   await pickAndGenerate()
-  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  const box = (await screen.findByRole('status', { name: 'Generation progress' })).closest('.max-w-sm') as HTMLElement
   await waitFor(() => expect(within(box).getByText('Reading the brands tracked…')).toBeInTheDocument(), { timeout: 3000 })
   await waitFor(() => expect(within(box).getByText('Writing the copy…')).toBeInTheDocument(), { timeout: 3000 })
   expect(fetchMock.mock.calls.some(([u]) => u === '/api/aeo-outbound/progress?projectId=p1')).toBe(true)
@@ -595,7 +595,7 @@ test("a refresh that lists the generating row keeps this tab's checklist, the cl
   await screen.findByRole('status', { name: 'Generation progress' })
   const listed = row({ id: ID(9), status: 'generating', projectId: 'p1', createdAt: new Date(Date.now() + 1000).toISOString(), progressStep: 5 })
   rerender(<OutboundHub {...props({ rows: [listed], counts: { ...COUNTS, all: 1 } })} />)
-  const box = await within(screen.getByTestId(`row-${ID(9)}`)).findByRole('status', { name: 'Generation progress' })
+  const box = (await within(screen.getByTestId(`row-${ID(9)}`)).findByRole('status', { name: 'Generation progress' })).closest('.max-w-sm') as HTMLElement
   expect(within(box).getByText(/^0:0\d$/)).toBeInTheDocument()
   const seen = fetchMock.mock.calls.length
   await waitFor(() => expect(fetchMock.mock.calls.slice(seen).some(([u]) => String(u).startsWith('/api/aeo-outbound/progress?projectId=p1'))).toBe(true), { timeout: 3000 })
@@ -613,7 +613,7 @@ test("when the listed generating row replaces the local row, the moved checklist
   await screen.findByRole('status', { name: 'Generation progress' })
   const listed = row({ id: ID(9), status: 'generating', projectId: 'p1', progressStep: 5 })
   rerender(<OutboundHub {...props({ rows: [listed], counts: { ...COUNTS, all: 1 } })} />)
-  const box = within(screen.getByTestId(`row-${ID(9)}`)).getByRole('status', { name: 'Generation progress' })
+  const box = within(screen.getByTestId(`row-${ID(9)}`)).getByRole('status', { name: 'Generation progress' }).closest('.max-w-sm') as HTMLElement
   expect(within(box).getByText('Loading brand visibility and AI models…')).toBeInTheDocument()
   expect(within(box).queryByText('Starting…')).not.toBeInTheDocument()
 })

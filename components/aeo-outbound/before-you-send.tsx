@@ -13,9 +13,20 @@ export const OWN_CHECKS = ['Every claim matches the numbers on the page', 'No me
 /** A Check these item's identity for its Looks right tick: kind, full path and text. */
 export const tickKey = (n: StoredNote): string => (typeof n === 'string' ? `legacy|${n}` : `${n.kind}|${n.path ?? ''}|${n.text}`)
 const checkItems = (notes: StoredNote[]) => notes.filter((n) => noteGroup(n) === 'check')
+/** The tick keys of the Check these items, in order. A repeated note gets "#2", "#3" on the end, so two identical notes
+ *  never share a tick; the first copy keeps the plain key, and the path stays the second "|" part. */
+export function checkTickKeys(notes: StoredNote[]): string[] {
+  const seen = new Map<string, number>()
+  return checkItems(notes).map((n) => {
+    const base = tickKey(n)
+    const count = (seen.get(base) ?? 0) + 1
+    seen.set(base, count)
+    return count === 1 ? base : `${base}#${count}`
+  })
+}
 /** Open Fill these in items plus Check these items produced by the latest save and not marked Looks right. */
 export const openCount = (needsValidation: string[], notes: StoredNote[], ticks: ReadonlySet<string>): number =>
-  needsValidation.length + checkItems(notes).filter((n) => !ticks.has(tickKey(n))).length
+  needsValidation.length + checkTickKeys(notes).filter((k) => !ticks.has(k)).length
 const statusWords = (s: string) => (s === 'PITCH' ? 'pitch' : s === 'PITCH_ENDED' ? 'pitch ended' : s.toLowerCase().replace(/_/g, ' '))
 /** A version 1 row has no project status, so the parenthesis is left out (round-2 MINOR 5). */
 export const aboutHeader = (a: AboutInfo): string =>
@@ -39,6 +50,7 @@ export function BeforeYouSend(p: BeforeYouSendProps) {
   const label = (path: string) => fieldLabel(path, p.titles)
   const about = p.notes.filter((n) => noteGroup(n) === 'about' && !(typeof n !== 'string' && n.kind === 'project'))
   const check = checkItems(p.notes)
+  const checkKeys = checkTickKeys(p.notes)
   return (
     <aside aria-label={BEFORE_YOU_SEND} className="absolute right-0 top-0 z-10 max-h-full w-96 space-y-4 overflow-y-auto rounded-lg border border-white/[0.08] bg-bg-surface p-4 shadow-xl">
       <h2 className="text-sm font-semibold text-white">{BEFORE_YOU_SEND}</h2>
@@ -60,12 +72,12 @@ export function BeforeYouSend(p: BeforeYouSendProps) {
         <h3 className="mb-1 text-xs font-semibold text-white">{CHECK_THESE}</h3>
         {check.length ? (
           <ul className="space-y-2">
-            {check.map((n) => {
-              const key = tickKey(n)
+            {check.map((n, i) => {
+              const key = checkKeys[i]
               const path = typeof n === 'string' ? undefined : n.path
               const text = path ? `${label(path)}: ${noteText(n)}` : noteText(n)
               return (
-                <li key={key} className="flex items-start justify-between gap-2">
+                <li key={`${key}|${i}`} className="flex items-start justify-between gap-2">
                   {path ? <button type="button" className={itemBtn} onClick={() => p.onGoTo(path)}>{text}</button> : <span className="text-xs text-white">{text}</span>}
                   <label className="flex shrink-0 items-center gap-1 text-xs text-text-muted">
                     <input type="checkbox" checked={p.ticks.has(key)} onChange={() => p.onTick(key)} />{LOOKS_RIGHT}

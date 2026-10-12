@@ -155,3 +155,12 @@ test('approved without mode=preview: a real frozen page is returned byte for byt
   m.getReport.mockResolvedValue(approved(FROZEN))
   expect(await (await get()).text()).toBe(FROZEN)
 })
+
+test('B3: an unreadable draft answers 404 and never renders', async () => {
+  m.getReport.mockResolvedValue(row({ unreadable: true, notes: 'not an array' }))
+  const res = await get()
+  expect(res.status).toBe(404)
+  expect(await res.text()).toBe('Not found')
+  m.getReport.mockResolvedValue(row({ unreadable: true, slots: { ...SLOTS, headline: 'Unvalidated headline.' } }))
+  expect(await (await get(ID, '?mode=preview')).text()).toBe('Not found')
+})

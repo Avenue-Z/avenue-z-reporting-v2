@@ -285,3 +285,15 @@ test('a flag on a page word Glean cannot fix costs no second attempt, and is sti
   expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
   expect(r.ok && r.notes).toContainEqual({ kind: 'long_dash', path: 'page.section_1_title', text: 'contains a long dash; use a period or comma' })
 })
+
+test('A1: a fixed next step with a number in it is a note, not a reason to retry Glean', async () => {
+  const grounded = JSON.stringify({ ...JSON.parse(GOOD), summary: 'Example Co has solid visibility.', context: 'Rival leads.', sources_bullets: [{ lead: 'Gap:', text: 'Trails Rival.' }, { lead: 'Mix:', text: 'You leads the mix.' }] })
+  const baseline = vi.fn(async () => reply(grounded))
+  await generateSnapshot('or_a', deps(baseline))
+  expect(baseline).toHaveBeenCalledTimes(1)
+  const glean = vi.fn(async () => reply(grounded))
+  const r = await generateSnapshot('or_a', deps(glean), null, { ...SETTINGS_DEFAULTS, fixedNextStep: 'Book a 30-minute AEO audit with us.' })
+  expect(r.ok && r.slots.next_step).toBe('Book a 30-minute AEO audit with us.')
+  expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
+  expect(r.ok && r.notes.some((n) => typeof n !== 'string' && n.kind === 'number_not_in_data' && n.path === 'next_step' && /"30"/.test(n.text))).toBe(true)
+})

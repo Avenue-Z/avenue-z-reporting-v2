@@ -21,13 +21,13 @@ const as = (email: string, role = 'INTERNAL_ANALYST') => vi.mocked(auth).mockRes
 beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  process.env.AEO_OUTBOUND_USERS = 'ryan@avenuez.com'
+  vi.stubEnv('AEO_OUTBOUND_USERS', 'ryan@avenuez.com')
   vi.mocked(headers).mockResolvedValue(new Headers({ host: 'app.example' }) as never)
   m.read.mockResolvedValue(ROW)
   m.save.mockResolvedValue(true)
   as('boss@avenuez.com')
 })
-afterEach(() => { vi.restoreAllMocks() })
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
 test('only admins on a same-host request can save: a plain user, non-staff and a foreign Origin are forbidden and write nothing', async () => {
   for (const arrange of [
@@ -82,10 +82,10 @@ test('validation errors come back per field and nothing is written', async () =>
 })
 
 test('the last admin: with no env admins the settings must keep one; with env admins an admin may remove themself', async () => {
-  process.env.AEO_OUTBOUND_USERS = ''
+  vi.stubEnv('AEO_OUTBOUND_USERS', '')
   expect(await saveSettingsAction({ ...settingsToInput(STORED), admins: '' }, AT)).toEqual({ ok: false, error: 'invalid', fieldErrors: { admins: 'Keep at least one admin.' } })
   expect(m.save).not.toHaveBeenCalled()
-  process.env.AEO_OUTBOUND_USERS = 'ryan@avenuez.com'
+  vi.stubEnv('AEO_OUTBOUND_USERS', 'ryan@avenuez.com')
   expect((await saveSettingsAction({ ...settingsToInput(STORED), admins: '' }, AT)).ok).toBe(true)
 })
 
@@ -118,9 +118,9 @@ test('a malformed input (null, a string) is invalid with no field errors and wri
 })
 
 test('the last-admin floor counts only env entries that can sign in (@avenuez.com)', async () => {
-  process.env.AEO_OUTBOUND_USERS = 'someone@gmail.com'
+  vi.stubEnv('AEO_OUTBOUND_USERS', 'someone@gmail.com')
   expect(await saveSettingsAction({ ...settingsToInput(STORED), admins: '' }, AT)).toEqual({ ok: false, error: 'invalid', fieldErrors: { admins: 'Keep at least one admin.' } })
   expect(m.save).not.toHaveBeenCalled()
-  process.env.AEO_OUTBOUND_USERS = 'ryan@avenuez.com'
+  vi.stubEnv('AEO_OUTBOUND_USERS', 'ryan@avenuez.com')
   expect((await saveSettingsAction({ ...settingsToInput(STORED), admins: '' }, AT)).ok).toBe(true)
 })

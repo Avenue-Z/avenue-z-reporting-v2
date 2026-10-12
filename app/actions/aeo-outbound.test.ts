@@ -57,7 +57,7 @@ const setHost = (origin?: string) =>
 
 beforeEach(() => {
   vi.resetAllMocks()
-  process.env.AEO_OUTBOUND_USERS = 'writer@avenuez.com'
+  vi.stubEnv('AEO_OUTBOUND_USERS', 'writer@avenuez.com')
   setHost()
   as('INTERNAL_ANALYST')
   vi.mocked(store.getReport).mockResolvedValue(DRAFT as never)
@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.mocked(store.discardQuery).mockResolvedValue([{ id: ID }] as never)
   vi.mocked(store.copyAsDraft).mockResolvedValue('c7d8e0a1-2222-4222-8222-222222222222')
 })
-afterEach(() => { vi.restoreAllMocks() })
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
 const callAll = async () => [
   await approveSnapshotAction(ID, 1, 'Ada'),

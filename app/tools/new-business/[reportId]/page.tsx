@@ -51,14 +51,14 @@ export default async function NewBusinessEditorPage({
       projectId={row.peecProjectId}
       status={status}
       revision={row.revision}
-      notes={row.notes ?? []}
+      notes={row.unreadable ? [] : (row.notes ?? [])}
       needsValidation={full ? needsValidationPaths(full) : []}
       token={row.status === 'approved' && !row.shareRevokedAt ? row.shareToken : null}
       error={failureReason(row, now)}
       errorCode={failureCode(row, now)}
       recipient={row.shareRecipient}
       sectionTitles={full ? [full.page.section_1_title, full.page.section_2_title] : [PAGE_WORDS_V1.section_1_title, PAGE_WORDS_V1.section_2_title]}
-      about={row.data ? { projectId: row.data.projectId, projectName: row.data.projectName, projectStatus: row.data.projectStatus ?? null, windowLabel: row.data.windowLabel, models: row.data.models } : null}
+      about={row.data && !row.unreadable ? { projectId: row.data.projectId, projectName: row.data.projectName, projectStatus: row.data.projectStatus ?? null, windowLabel: row.data.windowLabel, models: row.data.models } : null}
       opens={opens}
       openCount={row.openCount}
       needsValidationBlocksApprove={DECISIONS.needsValidationBlocksApprove}

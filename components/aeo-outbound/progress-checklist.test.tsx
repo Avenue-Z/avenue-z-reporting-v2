@@ -5,7 +5,8 @@ import { ProgressChecklist } from './progress-checklist'
 const START = Date.parse('2026-10-08T15:00:00.000Z')
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(START + 12_000) })
 afterEach(() => { cleanup(); vi.useRealTimers() })
-const box = () => screen.getByRole('status', { name: 'Generation progress' })
+// The status region is the current-step line only (D9), so the whole checklist is its container.
+const box = () => screen.getByRole('status', { name: 'Generation progress' }).closest('.max-w-sm') as HTMLElement
 const states = () => within(box()).getAllByRole('listitem').map((li) => li.getAttribute('data-state'))
 
 test('the current step, the clock, the bar, eight rows by state, the usual time and the keep-open advice (spec v1.1 §16.3)', () => {
@@ -38,4 +39,12 @@ test('the clock ticks every second and the slow line replaces the usual time aft
 test('a browser clock behind the start shows 0:00', () => {
   render(<ProgressChecklist step={1} startedAtMs={START + 60_000} />)
   expect(within(box()).getByText('0:00')).toBeInTheDocument()
+})
+
+test('D9: only the current-step line is the status region, so the clock is not announced every second', () => {
+  render(<ProgressChecklist step={5} startedAtMs={START} />)
+  const status = screen.getByRole('status', { name: 'Generation progress' })
+  expect(status).toHaveTextContent('Loading brand visibility and AI models…')
+  expect(status).not.toHaveTextContent('0:12')
+  expect(screen.getAllByRole('status')).toHaveLength(1)
 })

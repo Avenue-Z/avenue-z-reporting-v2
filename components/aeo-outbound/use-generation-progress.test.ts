@@ -13,7 +13,11 @@ const none: Answer = async () => json(200, { step: null })
 const tick = (ms = 1000) => act(() => vi.advanceTimersByTimeAsync(ms))
 
 beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(CLICK); fetchMock.mockClear(); vi.stubGlobal('fetch', fetchMock) })
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(() => {
+  vi.useRealTimers(); vi.unstubAllGlobals()
+  // A test that swaps in a hanging fetch must not leak it into the next one, even when its assertions fail.
+  fetchMock.mockImplementation(async (_url: string, _init?: RequestInit) => (answers.length > 1 ? answers.shift()! : answers[0])())
+})
 
 test('by project: null before any row keeps polling, each step shows, and null after a row means finished (spec v1.1 §16.3)', async () => {
   answers = [none, none, row(2), row(9), none]
@@ -102,7 +106,6 @@ test('against a fetch that never resolves, one request is in flight at a time an
   await tick(10_000)
   expect(peak).toBe(1)
   expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
-  fetchMock.mockImplementation(async (_url: string, _init?: RequestInit) => (answers.length > 1 ? answers.shift()! : answers[0])())
 })
 
 test('clearing the target resets to the initial step, so the next run never shows the last one', async () => {

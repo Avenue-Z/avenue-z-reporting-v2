@@ -52,7 +52,11 @@ export function uaFamily(ua: string | null | undefined): string {
   const s = ua ?? ''
   if (/HeadlessChrome/.test(s)) return 'Other'
   const browser = BROWSERS.find(([re]) => re.test(s))?.[1]
-  if (!browser) return 'Other'
+  if (!browser) {
+    // An iOS in-app browser (LinkedIn, Outlook, Mail) is WebKit with no browser token of its own. It is a person's
+    // browser, so it must not read as "Not a known browser".
+    return /iPhone|iPad/.test(s) && /AppleWebKit/.test(s) && /Mobile\//.test(s) ? 'In-app browser on iOS' : 'Other'
+  }
   const system = SYSTEMS.find(([re]) => re.test(s))?.[1]
   return system ? `${browser} on ${system}` : browser
 }
