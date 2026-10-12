@@ -9420,3 +9420,34 @@ Tests (first): every pass and flag case listed in spec §17.14; a single-day win
 2025 to Jan 10, 2026: "Dec 25" and "Jan 3" pass, "Feb 1" flags); dates in `window_label`, `page.series`, KPI values and
 `brand` are not date-checked; the note is in the "check" group; `isNote` accepts the new kind. Commit subject:
 `Flag any written date outside the data window`.
+
+### Task 27: Opportunities as Ryan's table with a cyan header (spec v1.1 §17.15)
+
+**Files:** `lib/aeo-outbound/render.ts` (`PAGE_CSS`), `lib/aeo-outbound/render.test.ts`, `lib/aeo-outbound/v1-compat.test.ts`
+only if needed.
+
+Append to `PAGE_CSS`, after the phone block's closing `'}'`, the desktop block from spec §17.15 verbatim: an entry
+`'@media (min-width: 901px){'`, the ten rules each as its own entry in order, then `'}'`. No other change.
+
+Tests (first): the block verbatim and after the phone block; every rule in it inside `(min-width: 901px)`; the phone
+block's rules and the outside-rules list unchanged (update the tests that assume a single `@media` so they find the phone
+block by its opening string); the block once per mode. Commit subject: `Lay out Opportunities like Ryan's table with a cyan header`.
+
+### Task 28: Every menu item editable, in sync with its section (spec v1.1 §17.16)
+
+**Files:** `lib/aeo-outbound/render.ts` (`EDITOR_STYLE`, `FRAME_SCRIPT_JS`, the four menu mirrors), `lib/aeo-outbound/render.test.ts`,
+`lib/aeo-outbound/render.frame.test.ts`.
+
+- Menu: in draft only, the four `.sidebar-nav` mirrors for `page.headline_label`, `page.section_1_title`,
+  `page.section_2_title`, `page.opps_label` also get `data-mirror-edit` (add an optional `editable` flag to the
+  `mirror` helper; preview and final output stay byte-identical).
+- `FRAME_SCRIPT_JS` (behaviour in spec §17.16): `setMode` toggles `contenteditable` on `[data-mirror-edit]` too; the input,
+  keydown, paste and drop handlers accept `[data-slot],[data-mirror-edit]`; for a mirror-edit input, copy its
+  `textContent` into `slotEl(p)` and into every other `[data-mirror]` of `p` (respecting `data-upper`), post
+  `{type:'dirty',path:p}`, and debounce `send(p)` exactly as a slot input does; `mirror(p,v)` skips
+  `document.activeElement`; in the click handler, return before the locked branch when the target is inside
+  `[data-mirror-edit]` (the existing `.sidebar-nav` `preventDefault` stays).
+- `EDITOR_STYLE`: extend the three `[data-slot]` outline/hover/chip rules to `[data-slot],[data-mirror-edit]`, and change
+  the not-allowed rule to `html.aeo-edit [data-mirror]:not([data-mirror-edit]),html.aeo-edit [data-locked]`.
+
+Tests (first): every case in spec §17.16. Commit subject: `Let Ryan edit every menu item, in sync with its section`.

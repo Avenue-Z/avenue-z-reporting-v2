@@ -892,3 +892,55 @@ three CSS rules verbatim and outside the phone query; the second block has no in
 "Sep 29", "September 2026" and "2026-09-20" pass for a Sep 17 to 29, 2026 window; "Aug 17, 2026", "Aug 17", "Oct 2026",
 "2026-10-01" and "Feb 30" are flagged with the path; a date in `window_label` or `page.series` is not date-checked; the
 note's group is "check".
+
+### 17.15 Opportunities as Ryan's table, cyan header (added 2026-10-12, approved from mocks)
+
+Ryan's example (page 2) shows a solid header bar, three equal columns and alternating row shading. Approved translation
+into our dark page, header option B, measured in the mock on dev draft `47b8a9ef`: at 1440 and 1024 wide no cell's
+`scrollWidth` exceeds its `clientWidth`, the table is exactly its wrapper's width, nothing scrolls sideways, an unbroken
+70-character domain wraps inside its cell, and the first header cell's left edge equals the section label's (0px).
+Phones keep the stacked cards of §17.2, so every rule sits in a desktop query. Appended to `PAGE_CSS` as its own block
+after the phone block:
+
+```
+@media (min-width: 901px){
+#opportunities .leaderboard-wrap{border:none;border-radius:0;overflow:visible;margin:24px -3px 0}
+#opportunities .leaderboard{table-layout:fixed;width:100%;font-size:15px;border-collapse:separate;border-spacing:3px}
+#opportunities .leaderboard thead tr,#opportunities .leaderboard tbody tr{border-bottom:none}
+#opportunities .leaderboard th{width:33.333%;background:rgba(96,255,234,0.08);color:#60FFEA;-webkit-text-fill-color:#60FFEA;box-shadow:inset 0 -2px 0 #60FFEA;font-size:14px;font-weight:800;letter-spacing:0;text-transform:none;padding:12px 16px;white-space:normal;cursor:default;vertical-align:bottom}
+#opportunities .leaderboard th:hover{color:#60FFEA}
+#opportunities .leaderboard td{padding:14px 16px;vertical-align:top;line-height:1.6;color:rgba(255,255,255,0.88);overflow-wrap:anywhere}
+#opportunities .leaderboard tbody tr:nth-child(odd) td{background:rgba(255,255,255,0.08)}
+#opportunities .leaderboard tbody tr:nth-child(even) td{background:rgba(255,255,255,0.035)}
+#opportunities .leaderboard tbody tr:hover{background:none}
+#opportunities .chart-takeaway{border-top:none;padding:16px 0 0;margin:0;color:rgba(255,255,255,0.6)}
+}
+```
+
+No markup, text or AIVx file changes (the header sort was already removed by `HEADER_CLONE_JS`, `render.ts:69`).
+Tests: the block verbatim, after the phone block, every rule inside `(min-width: 901px)`; the existing PAGE_CSS structure
+tests updated for two media blocks (the phone block's rules unchanged, the outside-rules list unchanged); once per mode.
+
+### 17.16 Every menu item editable, in sync with its section (added 2026-10-12, my decision)
+
+Today menu items 01 to 04 are copies (`data-mirror`) of words edited on the page, and 05 is edited in the menu
+(`render.ts:211-215`); clicking a copy in Edit mode posts `locked` (`FRAME_SCRIPT_JS`). Every menu item becomes editable
+where it is, and an edit there and an edit on the page change the same stored word, so they always match:
+
+- In draft, the four menu copies (`page.headline_label`, `page.section_1_title`, `page.section_2_title`,
+  `page.opps_label` inside `.sidebar-nav`) also carry `data-mirror-edit`. 05 is unchanged (its menu item is the slot).
+- Frame script: in Edit mode `[data-mirror-edit]` elements are `contenteditable` like slots. Input in one writes its text
+  into the path's slot element (`slotEl(p).textContent`) and every other copy of that path, then schedules the same
+  debounced `send(p)` as a slot edit (posting `dirty` first). `mirror(p, v)` never overwrites the element that has focus,
+  so the caret never jumps. Enter blurs, paste inserts plain text and drop is blocked, as for slots. A click on a
+  `[data-mirror-edit]` neither posts `locked` nor navigates. Copies elsewhere (section labels, the sidebar series and
+  brand) stay locked.
+- `EDITOR_STYLE`: `[data-mirror-edit]` gets the slots' dashed outline, hover and focus outline and Edit chip; the
+  not-allowed cursor applies to `[data-mirror]:not([data-mirror-edit])`.
+- Before you send's jump-to-field still goes to the page's slot.
+
+Tests (frame, real scripts): typing in menu 02 updates the section 02 title, the 02 section label copy and posts one edit
+for `page.section_1_title` after the debounce; typing in the section title updates the menu item; the focused element is
+never rewritten while typing; a click on a menu copy in Edit mode posts no `locked`; a click on a section-label copy still
+does; Enter, paste and drop behave as for slots; preview and final pages carry no `data-mirror-edit`; the "one editable
+element per path" render test becomes "one slot per path, and the only other editable elements are the four menu copies".
