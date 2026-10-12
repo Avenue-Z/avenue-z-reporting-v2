@@ -16,7 +16,7 @@ const ACTIONS: Record<DisplayStatus, readonly HubAction[]> = {
   draft: ['open', 'rerun', 'discard'],
   live: ['open', 'copy', 'revoke', 'edit', 'rerun'],
   revoked: ['open', 'edit', 'rerun'],
-  failed: ['rerun', 'discard'],
+  failed: ['open', 'rerun', 'discard'],
 }
 
 export function actionsFor(s: DisplayStatus): HubAction[] {

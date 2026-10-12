@@ -1,5 +1,6 @@
 // Posts to /api/aeo-outbound/generate and maps every answer to what the hub or editor does next (spec §7a).
-import { ACCESS_MESSAGE, BAD_PROJECT, BAD_RERUN, LOST_CONNECTION } from './messages'
+import { ACCESS_MESSAGE, BAD_PROJECT, BAD_REQUEST, BAD_RERUN, LOST_CONNECTION } from './messages'
+import { failureText } from './failure-text'
 
 export type GenerateBody = { projectId: string; rerunOf?: string; start?: string; end?: string }
 export type GenerateOutcome =
@@ -24,11 +25,13 @@ export async function requestGenerate(body: GenerateBody): Promise<GenerateOutco
     case 200: {
       const id = str(b.id)
       if (b.status === 'draft' && id) return { kind: 'open', id }
-      // 200 failed: the reason, and a refresh so the failed row shows it too.
-      return { kind: 'message', text: str(b.error) ?? '', refresh: true }
+      // 200 failed: the reason in plain words (its code, else its stored text), and a refresh so the row shows it too.
+      return { kind: 'message', text: id ? failureText(str(b.code), str(b.error), id) : str(b.error) ?? '', refresh: true }
     }
     case 400:
-      return b.code === 'bad-range' && str(b.error) ? { kind: 'range', text: str(b.error)! } : { kind: 'message', text: BAD_PROJECT, refresh: false }
+      if (b.code === 'bad-range' && str(b.error)) return { kind: 'range', text: str(b.error)! }
+      // v1.1 §9: a malformed request has its own message; any other 400 is the project.
+      return { kind: 'message', text: b.code === 'bad-request' ? BAD_REQUEST : BAD_PROJECT, refresh: false }
     case 403:
       return { kind: 'message', text: ACCESS_MESSAGE, refresh: false }
     case 404:

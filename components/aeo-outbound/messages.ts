@@ -14,19 +14,10 @@ export const APPROVE_CONFIRM = "Approving freezes this report. You can't edit it
 /** §2 step 5 and §10: the required field in the Approve dialog. */
 export const RECIPIENT_LABEL = 'Who is this for?'
 export const RECIPIENT_EXAMPLE = 'Jane Doe, Acme'
-/** §2 step 8. */
-export const REVOKE_CONFIRM = 'Revoke this link? The link stops working immediately and permanently.'
-/** §2 step 11. */
-export const DISCARD_CONFIRM = 'Discard this snapshot? This removes it from the hub.'
 /** §9a: 403, 404 or 409 on a save, and a stale approve. */
 export const STALE = 'This snapshot changed. Reload.'
 export const GONE = 'This snapshot no longer exists.'
 export const FLUSH_WAIT = 'Saving. Try again in a moment.'
-export const GENERATING_EDITOR = 'Generating. This takes about a minute.'
-/** §2 step 7 and §10: the Opens hover line. */
-export const SCANNER_NOTE = 'Email security scanners can count as an open'
-/** The approve action's Needs-validation refusal (app/actions/aeo-outbound.ts), reused as Approve's tooltip. */
-export const NEEDS_VALIDATION_FIRST = 'Fill in every "Needs validation" first.'
 
 /** What an action's { ok: false, error } means to Ryan. Unknown errors (RECIPIENT_ERROR, Needs validation) show as sent. */
 export function actionError(error: string): string {
@@ -103,3 +94,27 @@ export const NO_OPENS = 'No opens yet.'
 export const PERSON = 'Person'
 export const AUTOMATED = 'Automated'
 export const notClassified = (n: number): string => `${n} not classified`
+/** v1.1 §5: the hub. */
+export const HUB_SUBTITLE = 'One-page AI visibility snapshots for prospects. Generate, edit, approve, send and track.'
+export const SETTINGS = 'Settings'
+export const SEARCH_LABEL = 'Search'
+export const SEARCH_PLACEHOLDER = 'Brand, project, recipient or creator'
+export const EMPTY_FIRST = 'No snapshots yet. Pick a Peec project above and click Generate.'
+export const EMPTY_MATCH = 'No snapshots match.'
+export const CLEAR_FILTERS = 'Clear filters'
+export const SHOW_OLDER = 'Show older'
+export const OLDER_FAILED = "Couldn't load older snapshots. Try again."
+export const PREVIOUS = 'Previous'
+export const NEXT = 'Next'
+export const pageOf = (page: number, pages: number): string => `Page ${page} of ${pages}`
+export const createdByLine = (email: string): string => `by ${email}`
+export const draftReady = (brand: string): string => `Draft ready: ${brand}.`
+export const OPEN = 'Open'
+export const firstOpened = (when: string): string => `First opened ${when}`
+export const lastOpened = (when: string): string => `Last opened ${when}`
+export const NO_OPENS_SHORT = 'No opens yet'
+/** v1.1 §11: the project picker. */
+export const PROJECT_LABEL = 'Peec project'
+export const PICK_PROJECT = 'Pick a Peec project'
+export const LOADING_PROJECTS = 'Loading Peec projects…'
+export const NO_PROJECT_MATCH = 'No Peec project matches.'

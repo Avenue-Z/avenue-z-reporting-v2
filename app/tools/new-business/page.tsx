@@ -1,31 +1,26 @@
 import { requireStaff } from '@/lib/auth/page-access'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
-import { displayStatus, failureReason, listReportSummaries } from '@/lib/aeo-outbound/store'
-import { OutboundHub, type HubRow } from '@/components/aeo-outbound/hub'
+import { cleanSearch, toHubRow } from '@/lib/aeo-outbound/hub-rows'
+import { hubCounts, listReportSummaries, projectStats } from '@/lib/aeo-outbound/store'
 import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
+import { OutboundHub } from '@/components/aeo-outbound/hub'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
 
-export default async function NewBusinessHubPage() {
+export default async function NewBusinessHubPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>
+}) {
+  const { q } = await searchParams
   const session = await requireStaff()
   const access = await outboundAccess(session.user)
   if (!access.ok) return <NoAccess admins={access.admins} />
+  // v1.1 §5: search is server-side over every row; the tab counts cover every row that matches it.
+  const search = cleanSearch(q)
   const now = Date.now()
-  // Every prop is plain data (strings, numbers, null): nothing here may be a function (check:rsc).
-  const rows: HubRow[] = (await listReportSummaries()).rows.map((r) => ({
-    id: r.id,
-    brand: r.brandName ?? r.peecProjectName,
-    linkBrand: r.brandName,
-    projectId: r.peecProjectId,
-    projectName: r.peecProjectName,
-    status: displayStatus(r, now),
-    createdAt: r.createdAt.toISOString(),
-    approvedAt: r.approvedAt?.toISOString() ?? null,
-    error: failureReason(r, now),
-    token: r.status === 'approved' && !r.shareRevokedAt ? r.shareToken : null,
-    recipient: r.shareRecipient,
-    openCount: r.openCount,
-    firstOpenedAt: r.firstOpenedAt?.toISOString() ?? null,
-    lastOpenedAt: r.lastOpenedAt?.toISOString() ?? null,
-  }))
-  return <OutboundHub rows={rows} shareOrigin={shareOrigin()} />
+  const [list, counts, stats] = await Promise.all([listReportSummaries({ q: search }), hubCounts(search, new Date(now)), projectStats()])
+  // Every prop is plain data (strings, numbers, null, arrays and objects of those): nothing here may be a function (check:rsc).
+  return (
+    <OutboundHub rows={list.rows.map((r) => toHubRow(r, now))} cursor={list.cursor} counts={counts} q={search ?? ''} projectStats={stats} isAdmin={access.admin} shareOrigin={shareOrigin()} />
+  )
 }

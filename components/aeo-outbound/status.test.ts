@@ -5,7 +5,7 @@ test('actionsFor is exactly the spec §10 table', () => {
   expect(actionsFor('draft')).toEqual(['open', 'rerun', 'discard'])
   expect(actionsFor('live')).toEqual(['open', 'copy', 'revoke', 'edit', 'rerun'])
   expect(actionsFor('revoked')).toEqual(['open', 'edit', 'rerun'])
-  expect(actionsFor('failed')).toEqual(['rerun', 'discard'])
+  expect(actionsFor('failed')).toEqual(['open', 'rerun', 'discard'])
   expect(actionsFor('generating')).toEqual([])
 })
 
