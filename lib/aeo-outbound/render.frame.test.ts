@@ -273,10 +273,15 @@ test('donut: when the query stops matching react gets the originals; matching ag
   expect((((react.mock.calls[2] as unknown[])[1]) as Record<string, unknown>[])[0].customdata).toEqual(['Reference', 'Corporate', 'You'])
 })
 
-test('donut on a desktop width: no call at load', () => {
-  const { react } = bootDonut({ matches: false })
+test('donut on a desktop width: no call at load; narrowing draws the phone figure, widening restores the originals', () => {
+  const { react, fig, change } = bootDonut({ matches: false })
+  expect(react).not.toHaveBeenCalled()
+  change(true)
   expect(react).toHaveBeenCalledTimes(1)
-  expect((react.mock.calls[0] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(sourceDonutFigure(MIX).data)))
+  expect(((react.mock.calls[0] as unknown[])[1] as Record<string, unknown>[])[0].labels).toEqual(['Reference 4.8%', 'Corporate 60.3%', 'You 34.9%'])
+  change(false)
+  expect(react).toHaveBeenCalledTimes(2)
+  expect((react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(fig.data)))
 })
 
 test('donut: a rejected react restores the originals once, and a throw does the same', async () => {
@@ -290,7 +295,13 @@ test('donut: a rejected react restores the originals once, and a throw does the 
 })
 
 test('donut: no Plotly or no element means no throw and no call', () => {
-  expect(() => bootDonut({ noPlotly: true })).not.toThrow()
+  const none0 = bootDonut({ noPlotly: true })
+  const el = doc.getElementById('aeo-chart-sources') as unknown as { data: unknown; layout: unknown }
+  const data = el.data, layout = el.layout
+  expect(none0.matchMedia).not.toHaveBeenCalled()
+  expect(el.data).toBe(data)
+  expect(el.layout).toBe(layout)
+  expect(JSON.stringify(el.data)).toBe(JSON.stringify(sourceDonutFigure(MIX).data))
   const none = bootDonut({ noEl: true })
   expect(none.react).not.toHaveBeenCalled()
 })

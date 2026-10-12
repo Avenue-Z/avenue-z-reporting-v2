@@ -8,7 +8,7 @@ vi.mock('@/lib/aeo-outbound/store', async (o) => ({ ...(await o<object>()), getR
 import { GET } from './route'
 import { auth } from '@/auth'
 import type { SnapshotData } from '@/lib/aeo-outbound/metrics'
-import { SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
+import { PAGE_JS, SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { AIVX_SHARE_BLOCK } from '@/lib/aeo-outbound/aivx/share'
 import type { Slots } from '@/lib/aeo-outbound/slots'
 
@@ -90,7 +90,9 @@ test('draft: editing hooks and the three headers', async () => {
 
 test('draft with mode=preview: no data-slot and no share button', async () => {
   const h = await (await get(ID, '?mode=preview')).text()
-  expect(h).not.toContain('data-slot=')
+  const parts = h.split(`<script>${PAGE_JS}</script>`)
+  expect(parts).toHaveLength(2)
+  expect(parts.join('')).not.toContain('data-slot')
   expect(h).not.toContain('class="share-btn"')
 })
 
@@ -126,7 +128,9 @@ test('approved with mode=preview: the frozen HTML with exactly the share button 
   expect(h).not.toContain('aeo-share-mobile"')
   expect(h).not.toContain('class="share-btn"')
   expect(h).not.toContain('share-toast" role')
-  expect(h).not.toContain('data-slot=')
+  const parts = h.split(`<script>${PAGE_JS}</script>`)
+  expect(parts).toHaveLength(2)
+  expect(parts.join('')).not.toContain('data-slot')
   expect(console.error).not.toHaveBeenCalled()
   expect(warn).not.toHaveBeenCalled()
 })

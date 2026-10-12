@@ -38,9 +38,12 @@ test('final: AIVx head and stylesheet verbatim, no editing hooks, share button p
   expect(h).toContain('<title>AI Visibility Snapshot: Example &lt;Co&gt; &amp; &quot;Sons&quot; | Avenue Z</title>')
   expect(h).not.toContain('<link rel="canonical"')
   expect(h).not.toContain('report-editor')
-  // PAGE_JS names the selector [data-slot][contenteditable], so the check is for the attributes themselves.
-  expect(h).not.toContain('data-slot=')
-  expect(h).not.toContain('contenteditable=')
+  // PAGE_JS names the selector [data-slot][contenteditable]: remove that one known occurrence, then check the bare words.
+  const parts = h.split(`<script>${PAGE_JS}</script>`)
+  expect(parts).toHaveLength(2)
+  const rest = parts.join('')
+  expect(rest).not.toContain('data-slot')
+  expect(rest).not.toContain('contenteditable')
   expect(h).toContain('class="share-btn"')
   expect(h).toContain('Prepared Oct 9, 2026')
 })
@@ -69,7 +72,10 @@ test('preview and final carry no editing markup at all', () => {
   for (const mode of ['preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 8, 2026')
     // PAGE_JS (every mode) names the selector [data-slot][contenteditable], so those two are checked as attributes.
-    for (const s of ['data-slot=', 'data-mirror', 'data-locked', 'data-structure', 'aeo-w', 'aeo-ctl', 'contenteditable=', FRAME_SCRIPT_JS, EDITOR_STYLE]) expect(h, `${mode} ${s.slice(0, 20)}`).not.toContain(s)
+    const parts = h.split(`<script>${PAGE_JS}</script>`)
+    expect(parts, mode).toHaveLength(2)
+    const rest = parts.join('')
+    for (const s of ['data-slot', 'data-mirror', 'data-locked', 'data-structure', 'aeo-w', 'aeo-ctl', 'contenteditable', FRAME_SCRIPT_JS, EDITOR_STYLE]) expect(rest, `${mode} ${s.slice(0, 20)}`).not.toContain(s)
   }
   expect(renderSnapshotHtml(DATA, SLOTS, 'preview', 'x')).not.toContain('class="share-btn"')
 })

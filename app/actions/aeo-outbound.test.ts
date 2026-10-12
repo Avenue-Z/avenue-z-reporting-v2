@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { PAGE_JS } from '@/lib/aeo-outbound/render'
 
 vi.mock('@/lib/aeo-outbound/settings-store', () => ({ readSettingsRow: vi.fn(async () => null) }))
 vi.mock('next/cache', () => ({ refresh: vi.fn() }))
@@ -153,7 +154,9 @@ test('approve success: final HTML, a 24-character token, the cleaned recipient, 
   const [id, rev, v] = vi.mocked(store.approveQuery).mock.calls[0]
   expect([id, rev]).toEqual([ID, 3])
   expect(v.html).toContain('class="share-btn"')
-  expect(v.html).not.toContain('data-slot=')
+  const parts = v.html.split(`<script>${PAGE_JS}</script>`)
+  expect(parts).toHaveLength(2)
+  expect(parts.join('')).not.toContain('data-slot')
   expect(v.recipient).toBe('Ada Lovelace')
   expect(v.by).toBe('writer@avenuez.com')
   expect(v.token).toBe(r.token)
