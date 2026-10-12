@@ -19,7 +19,7 @@ export type ResolutionResult =
   | { kind: 'clarify'; question: string }
   | { kind: 'error'; error: string }
 
-/** One Glean chat message (mirrors the shape used in app/api/glean/meeting-brief/route.ts). */
+/** One Glean chat message, as Glean's chat endpoint returns it (the same shape gleanChat reads, lib/glean.ts). */
 export interface GleanMessage {
   author: string
   fragments: Array<{ text?: string; citation?: { sourceDocument?: { title?: string; url?: string } } }>
