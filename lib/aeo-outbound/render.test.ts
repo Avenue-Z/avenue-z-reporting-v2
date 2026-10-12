@@ -74,7 +74,10 @@ test('preview and final carry no editing markup at all', () => {
     // PAGE_JS (every mode) names the selector [data-slot][contenteditable]: remove that one known occurrence, then check the bare words.
     const parts = h.split(`<script>${PAGE_JS}</script>`)
     expect(parts, mode).toHaveLength(2)
-    const rest = parts.join('')
+    // PAGE_CSS (every mode) names the draft's .aeo-ctl button in a spacing rule (v1.1 §17.8): remove that one known style block too.
+    const css = parts.join('').split(`<style>${PAGE_CSS}</style>`)
+    expect(css, mode).toHaveLength(2)
+    const rest = css.join('')
     for (const s of ['data-slot', 'data-mirror', 'data-locked', 'data-structure', 'aeo-w', 'aeo-ctl', 'contenteditable', FRAME_SCRIPT_JS, EDITOR_STYLE]) expect(rest, `${mode} ${s.slice(0, 20)}`).not.toContain(s)
   }
   expect(renderSnapshotHtml(DATA, SLOTS, 'preview', 'x')).not.toContain('class="share-btn"')
@@ -329,13 +332,23 @@ test('the phone Share block is in the final page only, immediately before the fo
   expect(SHARE_MOBILE).toBe('<div class="aeo-share-mobile"><button class="aeo-share-mobile-btn" type="button" aria-label="Copy shareable link to this report">Share Report</button></div>')
 })
 
-test('every PAGE_CSS rule except aeo-long and the default hidden share block sits inside the phone media query', () => {
+/** v1.1 §17.8: the five rules that close up the space beside the two charts, verbatim and in order. */
+const CHART_SPACING_RULES = [
+  '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
+  '#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}',
+  '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;justify-content:center}',
+  '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
+  '#category-data .chart-wrap,#competitive-visibility .chart-wrap{margin-bottom:0}',
+]
+const outsideRules = () => PAGE_CSS.slice(0, PAGE_CSS.indexOf('@media (max-width: 900px){')).split('\n').filter(Boolean)
+
+test('every PAGE_CSS rule except aeo-long, the hidden share block and the five chart spacing rules sits inside the phone media query', () => {
   const open = '@media (max-width: 900px){'
   const at = PAGE_CSS.indexOf(open)
   expect(at).toBeGreaterThan(-1)
   expect(PAGE_CSS.endsWith('}')).toBe(true)
   const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
-  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', '.aeo-share-mobile{display:none}'])
+  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', '.aeo-share-mobile{display:none}', ...CHART_SPACING_RULES])
   const inside = PAGE_CSS.slice(at + open.length, -1).split('\n').filter(Boolean)
   expect(inside.length).toBeGreaterThan(5)
   expect(inside.every((r) => r.endsWith('}') && !r.includes('@media'))).toBe(true)
@@ -372,4 +385,28 @@ test('data-kpis="3" on the strip only with exactly three cards', () => {
   expect(strip(3).outerHTML.startsWith('<div class="kpi-strip" data-kpis="3" style="grid-template-columns:repeat(3, 1fr)">')).toBe(true)
   for (const n of [1, 2, 4]) expect(strip(n).hasAttribute('data-kpis')).toBe(false)
   expect(strip(2).getAttribute('style')).toBe('grid-template-columns:repeat(2, 1fr)')
+})
+
+test('chart spacing rules (v1.1 §17.8): none names a chart internal, the chart-wrap body is only margin-bottom:0, no sizing or box property', () => {
+  for (const r of CHART_SPACING_RULES) expect(r).not.toMatch(/plotly|svg|aeo-chart-/)
+  const wrap = CHART_SPACING_RULES[4]!
+  expect(wrap.slice(wrap.indexOf('{') + 1, -1)).toBe('margin-bottom:0')
+  for (const r of outsideRules()) expect(r.slice(r.indexOf('{') + 1)).not.toMatch(/(^|[;{\s])(height|min-height|padding|border|overflow)\s*:/)
+})
+
+test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final page exactly once', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    for (const r of CHART_SPACING_RULES) expect(h.split(r).length - 1).toBe(1)
+  }
+})
+
+test('the Add bullet button is a direct child of .insight-box, which the .aeo-ctl rule relies on', () => {
+  const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x'))
+  const add = [...doc.querySelectorAll('[data-structure="add"]')]
+  expect(add).toHaveLength(2)
+  for (const b of add) {
+    expect(b.classList.contains('aeo-ctl')).toBe(true)
+    expect(b.parentElement!.classList.contains('insight-box')).toBe(true)
+  }
 })

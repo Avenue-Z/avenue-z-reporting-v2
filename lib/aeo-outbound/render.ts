@@ -87,6 +87,11 @@ export const SHARE_BUTTON = `
 export const PAGE_CSS = [
   '.kpi-value.aeo-long{font-size:24px;line-height:1.15}',
   '.aeo-share-mobile{display:none}',
+  '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
+  '#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}',
+  '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;justify-content:center}',
+  '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
+  '#category-data .chart-wrap,#competitive-visibility .chart-wrap{margin-bottom:0}',
   '@media (max-width: 900px){',
   '.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}',
   '.kpi-strip[data-kpis="3"]{grid-template-columns:repeat(2,1fr)!important}',
