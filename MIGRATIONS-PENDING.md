@@ -338,4 +338,11 @@ Read-back after applying: the three new tables with their columns, the foreign k
 check; the two new `aeo_outbound_reports` columns, with `progress_step` 0 on every existing row; the ledger up by one
 with nothing pending. Until it is applied, the code that reads these tables must not reach that environment.
 
-Not applied anywhere yet.
+Dev: `0027` applied to the dev database on 2026-10-12, on my written go. The dev-only host guard first (it refuses any host
+other than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0027_aeo_outbound_v1_1` pending, the three tables and
+the two columns absent, the ledger at 32. Applied with `scripts/migrate-http.ts`, given only the dev URL
+(`apply 0027_aeo_outbound_v1_1 (8 stmt) ... done`, `applied 1 migration(s)`). Read back: `aeo_outbound_opens` (6 columns, the
+foreign key to `aeo_outbound_reports`, the `(report_id, opened_at)` index), `aeo_outbound_settings` (11 columns, the
+`aeo_outbound_settings_single_row` check), `aeo_outbound_settings_log` (6 columns, the `changed_at` index), all empty;
+`aeo_outbound_reports.progress_step` `integer not null default 0` (0 on both existing rows) and `error_code text` (null on both);
+the ledger at 33 with nothing pending; those three tables the only ones added. Staging and production: not applied.
