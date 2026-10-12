@@ -208,3 +208,66 @@ test('page.series and page.sidebar_wordmark skip the number and domain checks bu
     { kind: 'long_dash', path: 'page.sidebar_wordmark', text: 'contains a long dash; use a period or comma' },
   ])
 })
+
+// Dates (spec v1.1 §17.14): a written date must fall in the data window, in UTC, both bounds inclusive.
+const win = (start: string, end: string, windowLabel: string) => ({ ...R, window: { start, end }, windowLabel }) as unknown as SnapshotData
+const SEP = win('2026-09-17', '2026-09-29', 'Sep 17, 2026 to Sep 29, 2026')
+const dates = (why: string, d: SnapshotData = SEP, extra: Partial<Slots> = {}) =>
+  groundingFlags({ ...plain, why, ...extra }, d, RT).filter((n) => n.kind === 'date_not_in_window')
+const flagged = (why: string, d: SnapshotData = SEP) => dates(why, d).map((n) => n.text)
+const outside = (m: string, label = 'Sep 17, 2026 to Sep 29, 2026') => `"${m}" is outside the data window (${label})`
+
+test('dates inside the window pass, bounds inclusive, in every accepted spelling', () => {
+  for (const t of ['Sep 17, 2026', 'Sep 29', 'September 2026', '2026-09-20', 'Sept 20', 'Sept. 20, 2026', 'Sep. 17', 'September 29, 2026', 'On Sep 17 and Sep 29', 'Sep 2026']) expect(flagged(t)).toEqual([])
+})
+test('dates outside the window, impossible dates and out-of-range years are flagged with the path and the exact text', () => {
+  expect(dates('Aug 17, 2026')).toEqual([{ kind: 'date_not_in_window', path: 'why', text: outside('Aug 17, 2026') }])
+  for (const t of ['Aug 17', 'Oct 2026', '2026-10-01', 'Feb 30', 'Sep 16', 'Sep 30', 'Sep 17, 2025', 'Sep 2025', '2026-09-16', '2026-02-30', 'Sep 31']) expect(flagged(t), t).toEqual([outside(t)])
+})
+test('the match keeps its period and is flagged once per distinct text', () => {
+  expect(flagged('Aug. 5 and Aug. 5 again')).toEqual([outside('Aug. 5')])
+  expect(flagged('Aug 5 or Aug 6')).toEqual([outside('Aug 5'), outside('Aug 6')])
+})
+test('lowercase words and bare numbers are not dates', () => {
+  for (const t of ['may 5 is not a date', 'march 3 lowercase', 'Apr is a month', 'in 2026', 'Mayor 5', 'Marching 5']) expect(flagged(t), t).toEqual([])
+})
+test('a day with a year follows the year, a day without one passes in any of the window years', () => {
+  const Y = win('2025-12-20', '2026-01-10', 'Dec 20, 2025 to Jan 10, 2026')
+  expect(flagged('Dec 25', Y)).toEqual([])
+  expect(flagged('Jan 3', Y)).toEqual([])
+  expect(flagged('Dec 25, 2025 and Jan 3, 2026', Y)).toEqual([])
+  expect(flagged('Feb 1', Y)).toEqual([outside('Feb 1', 'Dec 20, 2025 to Jan 10, 2026')])
+  expect(flagged('Dec 25, 2026', Y)).toEqual([outside('Dec 25, 2026', 'Dec 20, 2025 to Jan 10, 2026')])
+  expect(flagged('December 2025 and January 2026', Y)).toEqual([])
+  expect(flagged('February 2026', Y)).toEqual([outside('February 2026', 'Dec 20, 2025 to Jan 10, 2026')])
+})
+test('a single-day window passes only that day', () => {
+  const ONE = win('2026-09-17', '2026-09-17', 'Sep 17, 2026')
+  expect(flagged('Sep 17, 2026 and 2026-09-17 and September 2026', ONE)).toEqual([])
+  expect(flagged('Sep 18', ONE)).toEqual([outside('Sep 18', 'Sep 17, 2026')])
+  expect(flagged('Sep 16', ONE)).toEqual([outside('Sep 16', 'Sep 17, 2026')])
+})
+test('Feb 29 passes without a year only when a window year has one', () => {
+  const L = win('2028-02-20', '2028-03-05', 'Feb 20, 2028 to Mar 5, 2028')
+  expect(flagged('Feb 29', L)).toEqual([])
+  expect(flagged('Feb 29, 2027', L)).toEqual([outside('Feb 29, 2027', 'Feb 20, 2028 to Mar 5, 2028')])
+  const N = win('2027-02-20', '2027-03-05', 'Feb 20, 2027 to Mar 5, 2027')
+  expect(flagged('Feb 29', N)).toEqual([outside('Feb 29', 'Feb 20, 2027 to Mar 5, 2027')])
+})
+test('dates are not checked in window_label, page.series, KPI values or brand, but are in every other slot', () => {
+  const none = (s: Partial<Slots>) => groundingFlags({ ...plain, ...s }, SEP, RT).filter((n) => n.kind === 'date_not_in_window')
+  expect(none({ window_label: 'Aug 17, 2026' })).toEqual([])
+  expect(none({ page: { series: 'Snapshot Aug 17, 2026' } })).toEqual([])
+  expect(none({ kpis: [{ label: 'AI visibility', value: 'Aug 17' }, { label: 'Average answer position', value: '#3.1' }] })).toEqual([])
+  expect(none({ brand: 'Aug 17 Co' })).toEqual([])
+  expect(none({ page: { opps_title: 'Aug 17 ideas' } })).toEqual([{ kind: 'date_not_in_window', path: 'page.opps_title', text: outside('Aug 17') }])
+  expect(none({ kpis: [{ label: 'Aug 17', value: '15.1%' }, { label: 'Average answer position', value: '#3.1' }] }).map((n) => n.path)).toEqual(['kpis.0.label'])
+})
+test('a date inside a roster brand name is not a date, and a hostile long input is checked in linear time', () => {
+  const d = { ...SEP, brands: [{ name: 'Aug 17 Labs', isOwn: false }, { name: 'Example Co', isOwn: true }] } as unknown as SnapshotData
+  expect(groundingFlags({ ...plain, why: 'Aug 17 Labs leads' }, d, RT).filter((n) => n.kind === 'date_not_in_window')).toEqual([])
+  const t0 = Date.now()
+  const hostile = `Sep ${'1'.repeat(50000)} ${'Sep '.repeat(20000)}${' '.repeat(50000)}`
+  flagged(hostile)
+  expect(Date.now() - t0).toBeLessThan(2000)
+})

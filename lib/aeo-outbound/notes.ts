@@ -2,7 +2,7 @@
 // A row's notes column holds the data notes followed by the grounding flags of its latest save: (string | Note)[].
 export const NOTE_KINDS = [
   'needs_validation',
-  'number_not_in_data', 'domain_not_in_data', 'long_dash', 'kpi_changed', 'brand_changed',
+  'number_not_in_data', 'domain_not_in_data', 'long_dash', 'kpi_changed', 'brand_changed', 'date_not_in_window',
   'high_visibility', 'missing_metric', 'no_competitors', 'no_data_brands',
   'rank_basis', 'requested_range', 'project', 'peec_warning', 'own_domains', 'empty_source_mix', 'no_profile',
 ] as const

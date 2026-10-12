@@ -5,7 +5,7 @@ test('every kind belongs to the group spec v1.1 §4 names, and an old plain-stri
   const groups = Object.fromEntries(NOTE_KINDS.map((k) => [k, noteGroup({ kind: k, text: 'x' })]))
   const want: Record<NoteKind, string> = {
     needs_validation: 'fill',
-    number_not_in_data: 'check', domain_not_in_data: 'check', long_dash: 'check', kpi_changed: 'check', brand_changed: 'check',
+    number_not_in_data: 'check', domain_not_in_data: 'check', long_dash: 'check', kpi_changed: 'check', brand_changed: 'check', date_not_in_window: 'check',
     high_visibility: 'check', missing_metric: 'check', no_competitors: 'check', no_data_brands: 'check',
     rank_basis: 'about', requested_range: 'about', project: 'about', peec_warning: 'about', own_domains: 'about', empty_source_mix: 'about', no_profile: 'about',
   }
@@ -16,6 +16,6 @@ test('every kind belongs to the group spec v1.1 §4 names, and an old plain-stri
 })
 
 test('isStoredNotes accepts strings and well-formed Notes only', () => {
-  expect(isStoredNotes(['a', { kind: 'project', text: 'b' }, { kind: 'number_not_in_data', path: 'why', text: 'c' }])).toBe(true)
+  expect(isStoredNotes(['a', { kind: 'project', text: 'b' }, { kind: 'number_not_in_data', path: 'why', text: 'c' }, { kind: 'date_not_in_window', path: 'why', text: 'd' }])).toBe(true)
   for (const bad of [null, 'a', [{ kind: 'nope', text: 'x' }], [{ kind: 'project' }], [{ kind: 'project', text: 'x', path: 5 }], [5]]) expect(isStoredNotes(bad)).toBe(false)
 })

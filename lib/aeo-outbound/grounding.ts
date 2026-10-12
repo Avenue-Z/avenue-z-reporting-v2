@@ -17,6 +17,51 @@ const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(
 const ALWAYS_ALLOWED_DOMAINS = ['avenuez.com']
 const RANK_CARD = /^#\d+ of \d+ brands$/
 
+// Dates (spec v1.1 §17.14). Month names are capitalised, full, three-letter or Sept, with an optional period. Each gap is
+// one `\s+`, and every digit run is closed by (?!\d), so the pattern is linear: nothing can backtrack across a run.
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const MONTH_ABBR: Record<string, number> = { Jan: 1, Feb: 2, Mar: 3, Apr: 4, Jun: 6, Jul: 7, Aug: 8, Sept: 9, Sep: 9, Oct: 10, Nov: 11, Dec: 12 }
+const DATE_RE = /\b(?:(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\.?\s+(?:(\d{4})(?!\d)|(\d{1,2})(?!\d)(?:,?\s+(\d{4})(?!\d))?)|(\d{4})-(\d{2})-(\d{2})(?!\d))/g
+const monthOf = (name: string): number => MONTH_ABBR[name] ?? MONTH_NAMES.indexOf(name) + 1
+const isoDay = (y: number, m: number, d: number): number | null => {
+  const t = Date.UTC(y, m - 1, d)
+  const c = new Date(t)
+  return c.getUTCFullYear() === y && c.getUTCMonth() === m - 1 && c.getUTCDate() === d ? t : null
+}
+const utcOf = (iso: string): number => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)))
+
+/**
+ * Every written date in a slot's text that falls outside the data window (UTC calendar days, both bounds inclusive).
+ * With a year the day must be in the window; "Month YYYY" passes when any day of that month is; with no year the month
+ * and day must be in the window in at least one of its years. An impossible date is outside by definition.
+ */
+export function datesOutsideWindow(text: string, window: { start: string; end: string }): string[] {
+  const start = utcOf(window.start), end = utcOf(window.end)
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return []
+  const y0 = new Date(start).getUTCFullYear(), y1 = new Date(end).getUTCFullYear()
+  const inWindow = (t: number | null) => t !== null && t >= start && t <= end
+  const out: string[] = []
+  for (const m of text.matchAll(DATE_RE)) {
+    let ok: boolean
+    if (m[1]) {
+      const mo = monthOf(m[1])
+      if (m[2]) {
+        const y = Number(m[2])
+        ok = Date.UTC(y, mo - 1, 1) <= end && Date.UTC(y, mo, 0) >= start
+      } else if (m[4]) {
+        ok = inWindow(isoDay(Number(m[4]), mo, Number(m[3])))
+      } else {
+        ok = false
+        for (let y = y0; y <= y1 && !ok; y++) ok = inWindow(isoDay(y, mo, Number(m[3])))
+      }
+    } else {
+      ok = inWindow(isoDay(Number(m[5]), Number(m[6]), Number(m[7])))
+    }
+    if (!ok) out.push(m[0])
+  }
+  return out
+}
+
 /**
  * True when a KPI value Ryan typed differs from Peec's (v1.1 §3). The rank card compares its number tokens in order;
  * every other card compares one number after removing %, # and commas, at Peec's displayed precision. Anything that is
@@ -99,6 +144,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (path !== 'page.series' && path !== 'page.sidebar_wordmark') {
       for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
       for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
+      for (const m of datesOutsideWindow(text, d.window)) add('date_not_in_window', path, `"${m}" is outside the data window (${d.windowLabel})`)
     }
     if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }
