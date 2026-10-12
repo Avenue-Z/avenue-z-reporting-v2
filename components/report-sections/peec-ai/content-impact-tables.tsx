@@ -51,7 +51,8 @@ function SectionWrapper({
 }) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-      <div>
+      {/* In the PDF export the title stays on the page of what follows it (app/export/export-theme.css). */}
+      <div data-export-keep-with-next="">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         {description && <p className="mt-1 text-xs text-text-muted">{description}</p>}
       </div>
@@ -495,7 +496,7 @@ export function CompetitorDomainsCitedTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-xs font-bold text-white/60">Which competitor domains are winning for our target prompts?</h4>
+      <h4 className="text-xs font-bold text-white/60" data-export-keep-with-next="">Which competitor domains are winning for our target prompts?</h4>
       <SortableTable
         columns={columns}
         rows={rows}
@@ -576,7 +577,7 @@ export function CompetitorUrlsBrandAbsentTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-xs font-bold text-white/60">Where are we absent when competitors are cited or mentioned?</h4>
+      <h4 className="text-xs font-bold text-white/60" data-export-keep-with-next="">Where are we absent when competitors are cited or mentioned?</h4>
       <SortableTable
         columns={columns}
         rows={rows}

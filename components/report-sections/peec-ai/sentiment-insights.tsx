@@ -10,6 +10,8 @@
 import { useState } from 'react'
 import { Sparkles, ChevronRight } from 'lucide-react'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { useExportMode } from '@/components/export/export-mode'
+import { cn } from '@/lib/utils'
 import type { ProfoundSentiment, ProfoundSentimentTheme } from '@/lib/profound/sentiment'
 
 const HEADLINE_TOOLTIP =
@@ -62,6 +64,17 @@ function ThemeAccordion({
   onToggle: () => void
   children: React.ReactNode
 }) {
+  // The PDF export prints each theme as a plain, unbreakable row, collapsed as on first load: no button to click on paper.
+  if (useExportMode()) {
+    return (
+      <div data-export-row="" className="flex items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <span className="flex-1 text-sm font-semibold text-white">{title}</span>
+        <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-text-muted">
+          <span className="tabular-nums">{count}</span> mentions
+        </span>
+      </div>
+    )
+  }
   return (
     <div className="rounded-md border border-white/[0.06] bg-white/[0.02]">
       <button
@@ -128,6 +141,8 @@ function ThemeColumn({
   accent: string
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
+  // The PDF export prints every theme, collapsed as on first load, with no scroll area that would cut a row at its edge.
+  const exportMode = useExportMode()
   const toggle = (title: string) => {
     const next = new Set(open)
     if (next.has(title)) next.delete(title)
@@ -135,10 +150,10 @@ function ThemeColumn({
     setOpen(next)
   }
   return (
-    <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4">
+    <div className="flex flex-col rounded-lg border border-white/[0.06] bg-bg-surface p-4" data-export-block="">
       <h4 className="mb-1 text-base font-bold text-white">{heading}</h4>
       <p className="mb-3 text-xs text-text-muted">{blurb}</p>
-      <div className="flex-1 space-y-2 overflow-y-auto pr-1 max-h-[400px]">
+      <div className={cn('flex-1 space-y-2 pr-1', !exportMode && 'overflow-y-auto max-h-[400px]')}>
         {themes.length === 0 ? (
           <p className="text-xs text-text-muted">No themes detected in this period.</p>
         ) : (
@@ -160,11 +175,13 @@ function ThemeColumn({
 }
 
 export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) {
+  // The PDF export drops the "Click a theme" hint: its themes print as plain rows (ThemeAccordion).
+  const exportMode = useExportMode()
   const noData = !data || data.occurrences === 0 || data.positivePct === null
 
   return (
     <section className="rounded-xl border border-white/[0.08] bg-bg-surface p-6">
-      <header className="mb-4 flex flex-wrap items-center gap-3">
+      <header className="mb-4 flex flex-wrap items-center gap-3" data-export-keep-with-next="">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#60FF80]/10">
           <Sparkles className="h-4 w-4 text-[#60FF80]" />
         </span>
@@ -196,13 +213,13 @@ export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) 
         <div className="grid gap-5 lg:grid-cols-2 items-stretch">
           <ThemeColumn
             heading="Positive Themes"
-            blurb={<>What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand. Click a theme to see the citing sources.</>}
+            blurb={<>What AI-cited sources say <span className="font-bold text-white">positively</span> about the brand.{exportMode ? null : ' Click a theme to see the citing sources.'}</>}
             themes={data!.positiveThemes}
             accent="#60FF80"
           />
           <ThemeColumn
             heading="Negative Themes"
-            blurb={<>What AI-cited sources flag as <span className="font-bold text-white">gaps</span>. Click a theme to see the citing sources.</>}
+            blurb={<>What AI-cited sources flag as <span className="font-bold text-white">gaps</span>.{exportMode ? null : ' Click a theme to see the citing sources.'}</>}
             themes={data!.negativeThemes}
             accent="#FF4444"
           />
@@ -212,9 +229,11 @@ export function SentimentInsights({ data }: { data: ProfoundSentiment | null }) 
       {!noData && (
         <p className="mt-5 border-t border-white/[0.08] pt-4 text-xs leading-relaxed text-text-muted">
           <span className="font-semibold text-white/80">Mentions</span> is how many AI answers brought up a
-          theme for the dates and models you&rsquo;ve selected. Open a theme to see the web pages those answers
+          theme for the dates and models you&rsquo;ve selected.{' '}
+          {/* The PDF export prints themes closed, with no page lists, so it leaves out the sentences about them. */}
+          {!exportMode && <>Open a theme to see the web pages those answers
           linked to most often (top 12). A single answer can link to many pages, so a theme&rsquo;s mention count
-          is usually higher than the number of links shown. Everything here comes straight from Profound.
+          is usually higher than the number of links shown.{' '}</>}Everything here comes straight from Profound.
         </p>
       )}
     </section>

@@ -18,8 +18,12 @@ test('a body with no section is Organic Social', () => {
 
 // Only sections switched on for the server export (lib/export/sections.ts). AEO and Paid Media are
 // enabled by their own PRs; until then their button prints in the browser and the route refuses them.
-test.each(['peec-ai', 'paid-media', 'ga4', '../dashboard', 3])('a section not switched on (%s) is refused', (section) => {
+test.each(['paid-media', 'ga4', '../dashboard', 3])('a section not switched on (%s) is refused', (section) => {
   expect(parseExportRequest({ ...ok, section })).toBeNull()
+})
+
+test('AEO is switched on', () => {
+  expect(parseExportRequest({ ...ok, section: 'peec-ai' })?.section).toBe('peec-ai')
 })
 
 test('the model filter passes through as the page wrote it', () => {

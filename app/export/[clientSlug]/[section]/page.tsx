@@ -21,8 +21,9 @@ import { exportReportElement } from '@/components/export/report-element'
 
 export const dynamic = 'force-dynamic'
 
-/** Arrows and symbols (Noto Sans Math) and emoji in post captions (Noto Color Emoji), which Nunito Sans lacks. */
-const EXPORT_FONTS_URL = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Math&family=Noto+Color+Emoji&display=block'
+/** Arrows and symbols (Noto Sans Math) and emoji in post captions (Noto Color Emoji), which Nunito Sans lacks, and a
+ *  monospace (Noto Sans Mono) for font-mono text, which otherwise resolves to a system font the server lacks. */
+const EXPORT_FONTS_URL = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Math&family=Noto+Color+Emoji&family=Noto+Sans+Mono&display=block'
 
 const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : null)
 
