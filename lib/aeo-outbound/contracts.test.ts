@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
 import { z } from 'zod'
 import { CONTRACT_MODES } from './config'
-import { checkContract, contractsDisabled, GENERATE_BODY, GLEAN_SLOTS, PEEC_CONTRACTS, peecContract, SLOTS_BODY } from './contracts'
+import { checkContract, contractsDisabled, GENERATE_BODY, GLEAN_SLOTS, PEEC_CONTRACTS, peecContract, SETTINGS_ROW, SLOTS_BODY } from './contracts'
 import { PeecError } from './peec'
 import { STORED_DATA, STORED_SLOTS } from './contracts'
 import { V1_DATA, V1_SLOTS } from './__fixtures__/v1-row'
@@ -158,4 +158,13 @@ test('the stored contracts accept what metrics and slots write today, version 1 
   for (const d of [V1_DATA, v2, v2NoProfile]) expect(checkContract('stored.data', STORED_DATA, JSON.parse(JSON.stringify(d)), 'enforce', {})).toEqual({ ok: true })
   expect(checkContract('stored.slots', STORED_SLOTS, V1_SLOTS, 'enforce', {})).toEqual({ ok: true })
   expect(checkContract('stored.slots', STORED_SLOTS, withDefaults(V1_SLOTS, v2), 'enforce', {})).toEqual({ ok: true })
+})
+
+test('the settings row refuses a whitespace-only or long-dash name, and accepts ordinary free text', () => {
+  const row = { users: [], admins: [], sectionTitles: ['A', 'B'], fixedNextStep: null, rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AEO Lens', series: 'AEO Lens Report', updatedAt: new Date('2026-10-10T09:00:00.000Z') }
+  expect(SETTINGS_ROW.safeParse(row).success).toBe(true)
+  for (const f of ['sidebarWordmark', 'series'] as const) {
+    for (const v of ['   ', '\t', 'A\u2014B', 'A\u2013B']) expect(SETTINGS_ROW.safeParse({ ...row, [f]: v }).success).toBe(false)
+    expect(SETTINGS_ROW.safeParse({ ...row, [f]: ' Padded 2 ' }).success).toBe(true)
+  }
 })

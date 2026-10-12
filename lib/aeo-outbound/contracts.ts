@@ -109,6 +109,9 @@ export const GENERATE_BODY = z.looseObject({ projectId: z.string().min(1), rerun
 /** PATCH /api/aeo-outbound/reports/{id}/slots. path and value are checked by slots.ts, which owns their messages. */
 export const SLOTS_BODY = z.looseObject({ path: z.string(), value: z.unknown(), revision: z.number().int() })
 
+/** A free-text name setting: 1 to 60 characters, not blank, no U+2013 or U+2014. A refine, not .trim(), so a read returns the stored text unchanged. */
+const settingsName = z.string().min(1).max(60).refine((v) => v.trim().length > 0 && !/[\u2013\u2014]/.test(v))
+
 /** The settings row as Drizzle reads it (spec v1.1 §8 limits). A failure falls back to the config.ts defaults. */
 export const SETTINGS_ROW = z.looseObject({
   users: z.array(z.string()).max(50),
@@ -118,8 +121,8 @@ export const SETTINGS_ROW = z.looseObject({
   rankAmong: z.number().int().min(2).max(50).nullable(),
   peecOpportunityRows: z.number().int().min(0).max(3),
   methodologyStatesPromptsAndModels: z.boolean(),
-  sidebarWordmark: z.string().min(1).max(60),
-  series: z.string().min(1).max(60),
+  sidebarWordmark: settingsName,
+  series: settingsName,
   updatedAt: z.date(),
 })
 

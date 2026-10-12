@@ -29,3 +29,8 @@ test('every editable path has a label that is not the path itself', () => {
 test('an unknown path, a prototype key included, is returned as given', () => {
   for (const p of ['nope', '__proto__', 'constructor', 'page.__proto__', 'page.toString']) expect(fieldLabel(p, T)).toBe(p)
 })
+
+test('the two settings-backed page words use the settings page labels', () => {
+  expect(fieldLabel('page.sidebar_wordmark', T)).toBe('Top-left name')
+  expect(fieldLabel('page.series', T)).toBe('Report name')
+})
