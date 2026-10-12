@@ -3,7 +3,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/auth'
 import { GENERATION_DEADLINE_MS } from '@/lib/aeo-outbound/config'
-import { checkContract, GENERATE_BODY } from '@/lib/aeo-outbound/contracts'
+import { checkContract, GENERATE_BODY, REPORT_ID_RE } from '@/lib/aeo-outbound/contracts'
 import { generateSnapshot } from '@/lib/aeo-outbound/generate'
 import { gleanOnce } from '@/lib/aeo-outbound/glean'
 import { originAllowed, outboundEmail } from '@/lib/aeo-outbound/permissions'
@@ -43,8 +43,12 @@ export async function POST(req: NextRequest) {
   } catch { /* bad request below */ }
   // v1.1 §10: the body is a contract; a violation keeps the v1.0 400 body.
   if (!checkContract('request.generate', GENERATE_BODY, body).ok) return NextResponse.json(BAD_REQUEST, { status: 400 })
-  const projectId = (body as { projectId: string }).projectId
-  const rerunOf = (body as { rerunOf?: string | null }).rerunOf ?? null
+  // The structural guard runs even when CONTRACT_DISABLED turns the contract off, so a bad body is a 400, never a TypeError.
+  const projectId = body?.projectId
+  const rerunOf = body?.rerunOf ?? null
+  if (typeof projectId !== 'string' || !projectId || (rerunOf !== null && !(typeof rerunOf === 'string' && REPORT_ID_RE.test(rerunOf)))) {
+    return NextResponse.json(BAD_REQUEST, { status: 400 })
+  }
 
   let range: DayRange | null
   if (rerunOf !== null) {

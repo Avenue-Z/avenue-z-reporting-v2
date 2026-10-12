@@ -120,3 +120,10 @@ test('the Glean reply contract: every copy key a non-empty string, 2 or 3 bullet
   expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, headline: 5 }, 'enforce', {})).toEqual({ ok: false, issues: [{ field: 'headline', issue: 'invalid_type' }] })
   expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, opportunities: reply.opportunities.slice(0, 2) }, 'enforce', {}).ok).toBe(false)
 })
+
+test('the Glean reply contract still rejects a missing headline, and accepts any next_step or none', () => {
+  const reply = { headline: 'H', summary: 'S', context: 'C', competitive_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], sources_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'M' }
+  const { headline: _h, ...noHeadline } = reply
+  expect(checkContract('glean.slots', GLEAN_SLOTS, noHeadline, 'enforce', {})).toEqual({ ok: false, issues: [{ field: 'headline', issue: 'invalid_type' }] })
+  for (const next_step of [undefined, '', null, 'x']) expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, next_step }, 'enforce', {}).ok).toBe(true)
+})

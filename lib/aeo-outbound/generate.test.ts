@@ -240,3 +240,14 @@ test('every failure carries its code', async () => {
   expect(clockBroken).toMatchObject({ ok: false, code: 'internal', error: 'Generation failed at step 0: clock' })
   expect(await generateSnapshot('or_a', { peec: new PeecClient('skc-x', { now: () => 10, deadline: 5 }), glean: vi.fn(), deadline: 5, now: () => 10 })).toMatchObject({ code: 'timeout', error: 'Timed out at step 1' })
 })
+
+test('a Glean next_step of "" or null is ignored when a fixed next step is set, with no extra Glean call', async () => {
+  const baseline = vi.fn(async () => reply(GOOD))
+  await generateSnapshot('or_a', deps(baseline))
+  for (const next_step of ['', null]) {
+    const glean = vi.fn(async () => reply(JSON.stringify({ ...JSON.parse(GOOD), next_step })))
+    const r = await generateSnapshot('or_a', deps(glean))
+    expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
+    expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
+  }
+})

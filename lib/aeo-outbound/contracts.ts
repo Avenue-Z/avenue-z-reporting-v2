@@ -98,7 +98,9 @@ export const GLEAN_SLOTS = z.looseObject({
   headline: copyText, summary: copyText, context: copyText,
   competitive_bullets: z.array(bullet).min(2).max(3), sources_bullets: z.array(bullet).min(2).max(3),
   why: copyText, opportunities: z.array(z.looseObject({ signal: copyText, opportunity: copyText, workstream: copyText })).length(3),
-  methodology: copyText, next_step: copyText.optional(),
+  methodology: copyText,
+  // validateGeneratedSlots owns next_step and enforces it only when no fixed sentence is set.
+  next_step: z.unknown().optional(),
 })
 /** POST /api/aeo-outbound/generate. start and end are checked by checkRange (range.ts), which owns their messages. */
 export const GENERATE_BODY = z.looseObject({ projectId: z.string().min(1), rerunOf: z.string().regex(REPORT_ID_RE).nullish() })

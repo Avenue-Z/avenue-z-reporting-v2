@@ -250,3 +250,15 @@ test('progress steps are written unawaited for this row, and a failing write log
   const lines = vi.mocked(console.warn).mock.calls.map((c) => c.map(String).join(' '))
   expect(lines).toEqual(['[aeo-outbound] progress not recorded id=row-1 step=5 reason=57P01'])
 })
+
+test('with the contract kill switch on, a structurally bad body still answers 400 and inserts nothing', async () => {
+  as('ryan@avenuez.com')
+  vi.stubEnv('CONTRACT_DISABLED', '1')
+  for (const b of ['null', '"x"', { projectId: 5 }, { projectId: '' }, { projectId: 'or_a', rerunOf: 'nope' }]) {
+    const res = await post(b)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'bad-request', code: 'bad-request' })
+  }
+  expect(m.insert).not.toHaveBeenCalled()
+  expect(m.generateSnapshot).not.toHaveBeenCalled()
+})
