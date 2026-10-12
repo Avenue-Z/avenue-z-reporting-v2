@@ -4,12 +4,13 @@ import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { getReport, isReportId } from '@/lib/aeo-outbound/store'
 import { SHARE_BUTTON, renderSnapshotHtml } from '@/lib/aeo-outbound/render'
 import { AIVX_SHARE_BLOCK } from '@/lib/aeo-outbound/aivx/share'
+import { REPORT_CSP } from '@/lib/aeo-outbound/sandbox'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-const HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': 'sandbox allow-scripts' }
+const HEADERS = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': REPORT_CSP }
 const unavailable = () => new Response('Unavailable', { status: 503, headers: { 'Cache-Control': 'no-store' } })
 const notFound = () => new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } })
 

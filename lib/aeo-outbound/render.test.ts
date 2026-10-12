@@ -1,6 +1,8 @@
 import { expect, test } from 'vitest'
 import { AIVX_CSS } from './aivx/css'
-import { SHARE_BUTTON, renderSnapshotHtml, showsPowered } from './render'
+import { EDITOR_STYLE, FRAME_SCRIPT_JS, HEADER_CLONE_JS, SHARE_BUTTON, renderSnapshotHtml, showsPowered } from './render'
+import { AIVX_JS } from './aivx/js'
+import { slotEntries, withDefaults } from './slots'
 import { AIVX_SHARE_BLOCK } from './aivx/share'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
@@ -49,20 +51,25 @@ test('renders hostile Peec names inert', () => {
   expect(h).not.toContain('Example <Co>')
 })
 
-test('draft: every slot editable, editor script present, share hidden', () => {
+const parse = (h: string) => new DOMParser().parseFromString(h, 'text/html')
+
+test('draft: every slot is marked, none is editable until the frame says so, the frame script and style are present, share hidden', () => {
   const h = renderSnapshotHtml(DATA, SLOTS, 'draft', 'Oct 8, 2026')
-  for (const p of ['headline', 'summary', 'context', 'category', 'market', 'why', 'methodology', 'next_step', 'competitive_bullets.0.lead', 'sources_bullets.1.text', 'opportunities.2.workstream']) {
-    expect(h).toContain(`data-slot="${p}" contenteditable="plaintext-only"`)
+  for (const p of ['headline', 'summary', 'context', 'category', 'market', 'why', 'methodology', 'next_step', 'competitive_bullets.0.lead', 'sources_bullets.1.text', 'opportunities.2.workstream', 'brand', 'window_label', 'kpis.0.label', 'kpis.3.value', 'page.series', 'page.footer_disclaimer']) {
+    expect(h).toContain(`data-slot="${p}"`)
   }
-  expect(h).toContain("parent.postMessage({type:'dirty',path:p}")
-  expect(h).toContain("e.data.type==='flush'")
+  expect(parse(h).querySelectorAll('[contenteditable]')).toHaveLength(0)
+  expect(h).toContain(FRAME_SCRIPT_JS)
+  expect(h).toContain(EDITOR_STYLE)
   expect(h).not.toContain('class="share-btn"')
 })
 
-test('preview: no hooks and no share button', () => {
-  const h = renderSnapshotHtml(DATA, SLOTS, 'preview', 'Oct 8, 2026')
-  expect(h).not.toContain('data-slot')
-  expect(h).not.toContain('class="share-btn"')
+test('preview and final carry no editing markup at all', () => {
+  for (const mode of ['preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 8, 2026')
+    for (const s of ['data-slot', 'data-mirror', 'data-locked', 'data-structure', 'aeo-w', 'aeo-ctl', 'contenteditable', FRAME_SCRIPT_JS, EDITOR_STYLE]) expect(h, `${mode} ${s.slice(0, 20)}`).not.toContain(s)
+  }
+  expect(renderSnapshotHtml(DATA, SLOTS, 'preview', 'x')).not.toContain('class="share-btn"')
 })
 
 test('three KPI cards switch the strip to three columns', () => {
@@ -156,7 +163,8 @@ test('SHARE_BUTTON is exactly the markup the final render uses, once, and only i
 test('Q10: the wordmark reads Avenue Z with no Powered by line, in every mode (spec v1.1 §16.1)', () => {
   for (const mode of ['draft', 'preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 9, 2026')
-    expect(h).toContain('<div class="aivx-brand">Avenue Z</div>\n  </div>')
+    if (mode === 'draft') expect(h).toContain('data-slot="page.sidebar_wordmark">Avenue Z</div>')
+    else expect(h).toContain('<div class="aivx-brand">Avenue Z</div>\n  </div>')
     expect(h).not.toContain('<div class="powered">')
     expect(h).not.toContain('>AIVx<')
   }
@@ -165,4 +173,125 @@ test('Q10: the wordmark reads Avenue Z with no Powered by line, in every mode (s
 test('showsPowered: only a wordmark that is not Avenue Z, trimmed and compared without case, gets the line', () => {
   expect(showsPowered('AIVx')).toBe(true)
   for (const w of ['Avenue Z', 'avenue z ', ' AVENUE Z']) expect(showsPowered(w)).toBe(false)
+})
+
+const THREE: Slots = { ...SLOTS, competitive_bullets: [...SLOTS.competitive_bullets, { lead: 'L3:', text: 'T3.' }] }
+
+test('every visible text in draft is a slot, a mirror, fixed by design, a chart or a bullet control', () => {
+  for (const slots of [SLOTS, THREE]) {
+    const doc = parse(renderSnapshotHtml(DATA, slots, 'draft', 'Oct 8, 2026'))
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+    const bare: string[] = []
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const el = n.parentElement!
+      if (!/[A-Za-z0-9]/.test(n.textContent ?? '') || el.closest('script,style')) continue
+      if (!el.closest('[data-slot],[data-mirror],[data-locked],[data-structure]')) bare.push((n.textContent ?? '').trim())
+    }
+    expect(bare).toEqual([])
+  }
+})
+
+test('fixed by design means exactly the nav numbers, the section number prefixes and the Prepared date', () => {
+  const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'Oct 8, 2026'))
+  expect([...doc.querySelectorAll('[data-locked="fixed"]')].map((e) => e.textContent)).toEqual(['01', '02', '03', '04', '05', '02 / ', '03 / ', '04 / ', 'Oct 8, 2026'])
+  expect(doc.querySelectorAll('[data-locked="chart"]')).toHaveLength(2)
+})
+
+test('exactly one editable element per path, every path present, and every mirror copies a path that has one', () => {
+  const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x'))
+  const paths = [...doc.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
+  expect(paths.length).toBe(new Set(paths).size)
+  // The default wordmark is Avenue Z, so the Powered by line and its slot are not on the page (spec v1.1 §16.1).
+  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(SLOTS, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
+  const mirrors = new Set([...doc.querySelectorAll('[data-mirror]')].map((e) => e.getAttribute('data-mirror')))
+  expect(mirrors).toEqual(new Set(['brand', 'page.series', 'page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label']))
+  for (const m of mirrors) expect(paths).toContain(m)
+  expect(doc.querySelectorAll('[data-mirror][data-slot]')).toHaveLength(0)
+})
+
+test('the Powered by line and its slot appear only under a wordmark that is not Avenue Z (spec v1.1 §16.1)', () => {
+  const aivx = parse(renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: 'AIVx' } }, 'draft', 'x'))
+  expect(aivx.querySelector('[data-slot="page.sidebar_powered"]')?.textContent).toBe('Powered by Avenue Z')
+  for (const w of ['Avenue Z', ' avenue z ']) {
+    const h = renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: w } }, 'draft', 'x')
+    expect(h).not.toContain('data-slot="page.sidebar_powered"')
+    expect(h).not.toContain('<div class="powered"')
+  }
+  expect(renderSnapshotHtml(DATA, { ...SLOTS, page: { sidebar_wordmark: 'AIVx' } }, 'final', 'x')).toContain('<div class="aivx-brand">AIVx</div>\n    <div class="powered">Powered by Avenue Z</div>')
+})
+
+test('the brand slot is used in every place the brand shows: title, description, hero, sidebar, footer, bar label and bolding', () => {
+  const own = { ...BRANDS[1], name: 'Own' }
+  const d = { ...DATA, brand: 'Own', brands: [BRANDS[0], own], own } as SnapshotData
+  const h = renderSnapshotHtml(d, { ...SLOTS, brand: 'Renamed Co', context: 'Alpha leads Renamed Co.' }, 'final', 'x')
+  expect(h).toContain('<title>AI Visibility Snapshot: Renamed Co | Avenue Z</title>')
+  expect(h).toContain('<meta name="description" content="AI Visibility Snapshot for Renamed Co. Powered by Avenue Z AEO Intelligence.">')
+  expect(h).toContain('<span class="grad-text">Renamed Co</span>')
+  expect(h).toContain('<span>Renamed Co</span>')
+  expect(h).toContain('Renamed Co<br>Prepared x')
+  expect(h).toContain('"Renamed Co"')
+  expect(h).toContain('<strong>Alpha</strong> leads <strong>Renamed Co</strong>.')
+  expect(h).not.toContain('>Own<')
+})
+
+test('the long-name rule reads the brand slot', () => {
+  expect(renderSnapshotHtml(DATA, { ...SLOTS, brand: 'A Very Long Brand Name Incorporated' }, 'final', 'x')).toContain('<h1 class="hero-industry" style="font-size:72px">')
+})
+
+test('one key drives every place its words appear: the series in the title, the sidebar and the footer (uppercase there)', () => {
+  const h = renderSnapshotHtml(DATA, { ...SLOTS, page: { series: 'Market Snapshot' } }, 'final', 'x')
+  expect(h).toContain('<title>Market Snapshot: ')
+  expect(h).toContain('content="Market Snapshot for ')
+  expect(h).toContain('<div class="hero-series">Market Snapshot</div>')
+  expect(h).toContain('\n    Market Snapshot\n    <span>')
+  expect(h).toContain('\n        MARKET SNAPSHOT\n      </p>')
+  const draft = renderSnapshotHtml(DATA, { ...SLOTS, page: { series: 'Market Snapshot' } }, 'draft', 'x')
+  expect(draft).toContain('<span class="aeo-w" data-mirror="page.series" data-upper>MARKET SNAPSHOT</span>')
+})
+
+test('bullet controls: Add bullet under a list of 2, Remove on each bullet of a list of 3, in draft only', () => {
+  const h = renderSnapshotHtml(DATA, THREE, 'draft', 'x')
+  const doc = parse(h)
+  expect([...doc.querySelectorAll('[data-structure="remove"]')].map((e) => e.getAttribute('data-path'))).toEqual(['competitive_bullets.0', 'competitive_bullets.1', 'competitive_bullets.2'])
+  expect([...doc.querySelectorAll('[data-structure="add"]')].map((e) => [e.getAttribute('data-path'), e.textContent])).toEqual([['sources_bullets', 'Add bullet']])
+  expect(doc.querySelector('[data-structure="remove"]')!.textContent).toBe('Remove')
+  expect(renderSnapshotHtml(DATA, THREE, 'final', 'x')).not.toContain('data-structure')
+})
+
+test('the wrapper reset targets only wrapper spans and inherits spacing and case; the sidebar brand span keeps AIVx styling', () => {
+  expect(EDITOR_STYLE).toContain('span.aeo-w,.sidebar-industry span.aeo-w{display:inline;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;margin:0}')
+  expect(EDITOR_STYLE).toContain('th[data-slot]{user-select:text;-webkit-user-select:text}')
+  const h = renderSnapshotHtml(DATA, SLOTS, 'draft', 'x')
+  expect(h).toContain('<span class="aeo-w" data-mirror="page.series">AI Visibility Snapshot</span>')
+  expect(h).toContain(`<span data-mirror="brand">${'Example &lt;Co&gt; &amp; &quot;Sons&quot;'}</span>`)
+})
+
+test('in every mode the header clone runs after the AIVx script; in draft the frame script runs after both', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    const aivx = `<script>${AIVX_JS}</script>`
+    const at = h.indexOf(aivx)
+    expect(at).toBeGreaterThan(-1)
+    expect(h.indexOf(`<script>${HEADER_CLONE_JS}</script>`)).toBe(at + aivx.length)
+    if (mode === 'draft') expect(h.indexOf(FRAME_SCRIPT_JS)).toBeGreaterThan(at + aivx.length)
+  }
+})
+
+test('the header clone removes the AIVx table sort from the opportunities table', () => {
+  const hadInnerText = 'innerText' in HTMLElement.prototype
+  if (!hadInnerText) Object.defineProperty(HTMLElement.prototype, 'innerText', { configurable: true, get() { return (this as HTMLElement).textContent } })
+  try {
+    const sortClass = (clone: boolean) => {
+      const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'final', 'x'))
+      new Function('window', 'document', AIVX_JS)(new EventTarget(), doc)
+      if (clone) new Function('document', HEADER_CLONE_JS)(doc)
+      const th = doc.querySelector('.leaderboard thead th')!
+      th.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      return th.className
+    }
+    expect(sortClass(false)).toBe('sort-asc')
+    expect(sortClass(true)).toBe('')
+  } finally {
+    if (!hadInnerText) delete (HTMLElement.prototype as { innerText?: unknown }).innerText
+  }
 })

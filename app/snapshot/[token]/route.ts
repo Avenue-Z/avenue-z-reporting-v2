@@ -6,6 +6,7 @@ import { isStaff } from '@/lib/auth/route-access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { hasSessionCookie, shouldCountOpen } from '@/lib/aeo-outbound/opens'
 import { getLiveByToken, recordOpenQuery } from '@/lib/aeo-outbound/store'
+import { REPORT_CSP } from '@/lib/aeo-outbound/sandbox'
 import { tokenFromSegment } from '@/lib/aeo-outbound/share-link'
 
 export const runtime = 'nodejs'
@@ -20,7 +21,7 @@ type Reason = 'session' | 'error' | 'timeout'
 
 function respond(html: string | undefined, withBody: boolean): Response {
   if (!html) return new Response(withBody ? GONE : null, { status: 404, headers: { ...BASE, 'Content-Type': 'text/html; charset=utf-8' } })
-  return new Response(withBody ? html : null, { headers: { ...BASE, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': 'sandbox allow-scripts' } })
+  return new Response(withBody ? html : null, { headers: { ...BASE, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': REPORT_CSP } })
 }
 
 /** The live row for a /snapshot segment (spec v1.1 §16.2), or undefined. A failed lookup answers like an unknown token, logged without the token. */

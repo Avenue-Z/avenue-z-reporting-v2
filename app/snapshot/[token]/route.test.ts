@@ -76,7 +76,7 @@ test('a live token serves the stored HTML byte for byte with the headers, and no
   expect(r.headers.get('x-robots-tag')).toBe('noindex, nofollow')
   expect(r.headers.get('referrer-policy')).toBe('no-referrer')
   expect(r.headers.get('x-frame-options')).toBe('DENY')
-  expect(r.headers.get('content-security-policy')).toBe('sandbox allow-scripts')
+  expect(r.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox')
   expect(r.headers.get('content-type')).toBe('text/html; charset=utf-8')
   expect(r.headers.has('set-cookie')).toBe(false)
 })
@@ -137,7 +137,7 @@ async function failure(arrange: () => void, cookie?: string) {
   const r = await settle(GET(req({ cookie }), ctx()), 1600)
   expect(r.status).toBe(200)
   expect(await r.text()).toBe(HTML)
-  expect(r.headers.get('content-security-policy')).toBe('sandbox allow-scripts')
+  expect(r.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox')
   return logged(warn)
 }
 const never = () => new Promise<never>(() => {})

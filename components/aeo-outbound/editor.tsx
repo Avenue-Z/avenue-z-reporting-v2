@@ -9,6 +9,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { approveSnapshotAction, copySnapshotAsDraftAction, discardSnapshotAction, revokeSnapshotAction } from '@/app/actions/aeo-outbound'
 import { DECISIONS, NEEDS_VALIDATION } from '@/lib/aeo-outbound/config'
 import { isStoredNotes, noteText, type StoredNote } from '@/lib/aeo-outbound/notes'
+import { REPORT_SANDBOX } from '@/lib/aeo-outbound/sandbox'
 import { MAX_RECIPIENT } from '@/lib/aeo-outbound/recipient'
 import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { requestGenerate } from './generate-client'
@@ -306,9 +307,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
           <iframe
             ref={iframeRef}
             title={brand}
-            sandbox="allow-scripts"
+            sandbox={REPORT_SANDBOX}
             srcDoc={html ?? ''}
-            className="w-full rounded-lg bg-white"
+            className="w-full rounded-lg bg-black"
             style={{ height: 'calc(100vh - 140px)' }}
           />
           {notesOpen && (

@@ -86,8 +86,8 @@ export function sourceDonutFigure(mix: { label: string; weight: number }[]): Fig
   }
 }
 
-/** The wrapper plotly 6.8+ emits (golden html), with the figure height on the outer div. */
-export function embedFigure(id: string, fig: Figure): string {
+/** The wrapper plotly 6.8+ emits (golden html), with the figure height on the outer div. attrs is draft-only markup. */
+export function embedFigure(id: string, fig: Figure, attrs = ''): string {
   const h = Number(fig.layout.height ?? 420)
-  return `<div style="height:${h}px; width:100%;"><div id="${id}" class="plotly-graph-div" style="height:100%; width:100%;"></div><script>window.PLOTLYENV=window.PLOTLYENV || {};if (document.getElementById("${id}")) {Plotly.newPlot("${id}", ${jsonForScript(fig.data)}, ${jsonForScript(fig.layout)}, ${jsonForScript(fig.config)})};</script></div>`
+  return `<div style="height:${h}px; width:100%;"${attrs}><div id="${id}" class="plotly-graph-div" style="height:100%; width:100%;"></div><script>window.PLOTLYENV=window.PLOTLYENV || {};if (document.getElementById("${id}")) {Plotly.newPlot("${id}", ${jsonForScript(fig.data)}, ${jsonForScript(fig.layout)}, ${jsonForScript(fig.config)})};</script></div>`
 }

@@ -57,7 +57,7 @@ const approveBtn = () => screen.getByRole('button', { name: 'Approve' })
 
 test('a draft loads the editable view into a sandboxed iframe', async () => {
   const { iframe } = await setup()
-  expect(iframe.getAttribute('sandbox')).toBe('allow-scripts')
+  expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-popups allow-popups-to-escape-sandbox')
   expect(views()).toEqual([`/api/aeo-outbound/reports/${ID}/view`])
   expect(screen.getByRole('link', { name: 'Open full size' })).toHaveAttribute('href', `/api/aeo-outbound/reports/${ID}/view?mode=preview`)
   expect(screen.getByRole('link', { name: 'Back' })).toHaveAttribute('href', '/tools/new-business')

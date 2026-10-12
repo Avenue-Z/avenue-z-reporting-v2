@@ -1,7 +1,7 @@
-// The snapshot page in the AIVx design (spec §5). Head and body structure follow aivx-reports@ff18697
-// agent/renderer.py:2530-2556; blocks follow its builders. Every string is escaped; Peec text in figures
-// is stripped of < and >.
-import { DECISIONS } from './config'
+// The snapshot page in the AIVx design (spec §5; v1.1 §2, §3, §9). Head and body structure follow aivx-reports@ff18697
+// agent/renderer.py:2530-2556; blocks follow its builders. Every string is escaped; Peec text in figures is stripped of
+// < and >. In draft every visible word carries data-slot (editable), data-mirror (a copy of a slot, edited where it first
+// appears) or data-locked (a chart, or fixed by design). Preview and final carry none of it, so they stay AIVx.
 import { AIVX_CSS } from './aivx/css'
 import { AIVX_JS } from './aivx/js'
 import { AIVX_FAVICON_TAG } from './aivx/favicon'
@@ -9,13 +9,65 @@ import { AIVX_SHARE_BLOCK } from './aivx/share'
 import { embedFigure, sourceDonutFigure, visibilityBarFigure } from './charts'
 import { esc } from './html'
 import type { SnapshotData } from './metrics'
-import type { Slots } from './slots'
+import { withDefaults, type Slots } from './slots'
 
 export type RenderMode = 'draft' | 'preview' | 'final'
 const UL = '<ul style="margin-top:10px;padding-left:20px;display:flex;flex-direction:column;gap:4px">' // renderer.py:2313
 
-const EDITOR_STYLE = '<style>[data-slot]{outline:1px dashed transparent;outline-offset:2px;cursor:text}[data-slot]:hover,[data-slot]:focus{outline-color:rgba(255,255,255,0.35)}</style>'
-const EDITOR_SCRIPT = "<script>(function(){var t={},els={};function send(p){clearTimeout(t[p]);delete t[p];parent.postMessage({type:'edit',path:p,value:els[p].textContent||''},'*')}window.addEventListener('message',function(e){if(e.source===parent&&e.data&&e.data.type==='flush'){Object.keys(t).forEach(send)}});document.querySelectorAll('[data-slot]').forEach(function(el){var p=el.getAttribute('data-slot');els[p]=el;el.addEventListener('input',function(){parent.postMessage({type:'dirty',path:p},'*');clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});el.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();el.blur()}});el.addEventListener('paste',function(e){e.preventDefault();var s=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,s)})})})();</script>"
+/** Draft only. Outlines and the Edit chip show only in edit mode (html.aeo-edit, set by the frame script). The chip is
+ *  CSS ::after, so no element is added inside a slot and textContent stays exactly what Ryan typed (v1.1 §2). */
+export const EDITOR_STYLE = '<style>' + [
+  'html.aeo-edit [data-slot]{outline:1px dashed rgba(255,255,255,0.35);outline-offset:2px;cursor:text}',
+  'html.aeo-edit [data-slot]:hover,html.aeo-edit [data-slot]:focus{outline:2px solid #60FFEA;position:relative}',
+  'html.aeo-edit [data-slot]:hover::after,html.aeo-edit [data-slot]:focus::after{content:"Edit";position:absolute;top:-18px;right:0;padding:3px 5px;border-radius:3px;background:#60FFEA;color:#000;-webkit-text-fill-color:#000;font:700 10px/1 Avenir,sans-serif;letter-spacing:0.06em;text-transform:uppercase;pointer-events:none;z-index:5}',
+  'html.aeo-edit [data-mirror],html.aeo-edit [data-locked]{cursor:not-allowed}',
+  '.aeo-flash{outline:2px solid #FFFC60!important}',
+  // AIVx styles .sidebar-industry span as a block; the wrapper spans must stay inline text (v1.1 §3, round-2 MINOR 1).
+  'span.aeo-w,.sidebar-industry span.aeo-w{display:inline;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;margin:0}',
+  'th[data-slot]{user-select:text;-webkit-user-select:text}',
+  '.aeo-ctl{display:none}',
+  'html.aeo-edit .aeo-ctl{display:inline-block;margin:8px 0 0 6px;padding:2px 8px;border:1px solid rgba(96,255,234,0.45);border-radius:4px;background:transparent;color:#60FFEA;font:600 11px Avenir,sans-serif;cursor:pointer}',
+].join('') + '</style>'
+
+/**
+ * The draft frame's script (v1.1 §2). One delegated listener per event on document, so a node cloned or re-rendered
+ * after it ran keeps working. Slots become contenteditable only in edit mode, plaintext-only where supported, else true
+ * with plain-text paste. In edit mode, clicks inside links and the sidebar nav never navigate; a click on a chart, a
+ * fixed word or a mirror posts locked. Preview posts nothing but ready.
+ */
+export const FRAME_SCRIPT_JS = String.raw`(function(){
+var t={},edit=false;
+var PLAIN=(function(){var d=document.createElement('div');try{d.contentEditable='plaintext-only'}catch(e){return false}return d.contentEditable==='plaintext-only'})();
+function post(m){parent.postMessage(m,'*')}
+function within(n,s){return n&&n.closest?n.closest(s):null}
+function slotEl(p){var a=document.querySelectorAll('[data-slot]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-slot')===p)return a[i]}return null}
+function clean(s){return s.replace(/[\x00-\x1f\x7f]/g,' ').replace(/\s+/g,' ').trim()}
+function mirror(p,v){var a=document.querySelectorAll('[data-mirror]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-mirror')===p)a[i].textContent=a[i].hasAttribute('data-upper')?v.toUpperCase():v}}
+function send(p){clearTimeout(t[p]);delete t[p];var el=slotEl(p);if(!el)return;var v=el.textContent||'';post({type:'edit',path:p,value:v});var c=clean(v);if(c)mirror(p,c)}
+function flush(){Object.keys(t).forEach(send)}
+function setMode(on){edit=on===true;document.documentElement.classList.toggle('aeo-edit',edit);var a=document.querySelectorAll('[data-slot]');for(var i=0;i<a.length;i++){if(edit)a[i].setAttribute('contenteditable',PLAIN?'plaintext-only':'true');else a[i].removeAttribute('contenteditable')}if(!edit)flush()}
+window.addEventListener('message',function(e){if(e.source!==parent||!e.data||typeof e.data!=='object')return;var d=e.data;
+if(d.type==='mode')setMode(d.edit);
+else if(d.type==='flush')flush();
+else if(d.type==='focus'&&typeof d.path==='string'){var el=slotEl(d.path);if(!el)return;if(el.scrollIntoView)el.scrollIntoView({block:'center'});if(el.focus)el.focus();el.classList.add('aeo-flash');setTimeout(function(){el.classList.remove('aeo-flash')},1200)}});
+document.addEventListener('input',function(e){var el=within(e.target,'[data-slot]');if(!el||!edit)return;var p=el.getAttribute('data-slot');post({type:'dirty',path:p});clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});
+document.addEventListener('keydown',function(e){var el=within(e.target,'[data-slot]');if(el&&e.key==='Enter'){e.preventDefault();if(el.blur)el.blur()}});
+document.addEventListener('paste',function(e){var el=within(e.target,'[data-slot]');if(!el||!edit)return;e.preventDefault();var cd=e.clipboardData||window.clipboardData;var s=cd?cd.getData('text/plain'):'';if(document.execCommand)document.execCommand('insertText',false,s)});
+document.addEventListener('drop',function(e){if(edit&&within(e.target,'[data-slot]'))e.preventDefault()});
+document.addEventListener('click',function(e){if(!edit)return;var n=e.target;if(!n||!n.closest)return;
+if(n.closest('a')||n.closest('.sidebar-nav'))e.preventDefault();
+var c=n.closest('[data-structure]');if(c){e.preventDefault();flush();post({type:'structure',op:c.getAttribute('data-structure'),path:c.getAttribute('data-path')});return}
+if(n.closest('[data-slot]'))return;
+var m=n.closest('[data-mirror]');if(m){post({type:'locked',what:'fixed',path:m.getAttribute('data-mirror')});return}
+var l=n.closest('[data-locked]');if(l)post({type:'locked',what:l.getAttribute('data-locked')})},true);
+post({type:'ready'});
+})();`
+const FRAME_SCRIPT = `<script>${FRAME_SCRIPT_JS}</script>`
+
+/** Removes AIVx's table sort (which strips text cells to digits) from the opportunities table, in every mode, by
+ *  replacing the header with a listener-free clone. It runs after the AIVx script and before the frame script (v1.1 §9). */
+export const HEADER_CLONE_JS = "(function(){var h=document.querySelector('.leaderboard thead');if(h&&h.parentNode)h.parentNode.replaceChild(h.cloneNode(true),h)})();"
+const HEADER_CLONE = `<script>${HEADER_CLONE_JS}</script>`
 
 /**
  * The final page's share button, exactly as rendered (with its leading newline and indent). Exported so the editor's
@@ -31,18 +83,39 @@ export const SHARE_BUTTON = `
       <span class="share-btn-label">Share Report</span>
     </button>`
 
-/** The "Powered by Avenue Z" line shows only under a wordmark that is not already Avenue Z (spec v1.1 §16.1). */
+/** The "Powered by Avenue Z" line shows only under a wordmark that is not already Avenue Z (spec v1.1 §16.1, from Task 3b). */
 export const showsPowered = (wordmark: string): boolean => wordmark.trim().toLowerCase() !== 'avenue z'
 
-export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: RenderMode, preparedOn: string): string {
+export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: RenderMode, preparedOn: string): string {
   const draft = mode === 'draft'
-  /** A slot's text, escaped, inside its element; editable only in draft. */
-  const slot = (tag: string, path: string, value: string, cls = '', html?: string) =>
-    `<${tag}${cls ? ` class="${cls}"` : ''}${draft ? ` data-slot="${path}" contenteditable="plaintext-only"` : ''}>${html ?? esc(value)}</${tag}>`
-  const bullets = (key: 'competitive_bullets' | 'sources_bullets') =>
-    UL + slots[key].map((b, i) => `<li><strong>${slot('span', `${key}.${i}.lead`, b.lead)}</strong> ${slot('span', `${key}.${i}.text`, b.text)}</li>`).join('') + '</ul>'
+  const s = withDefaults(stored, data)
+  const p = s.page
+  /** An attribute only in draft. */
+  const attr = (name: string, value: string) => (draft ? ` ${name}="${esc(value)}"` : '')
+  const fixedMark = attr('data-locked', 'fixed')
+  /** One editable element: in draft the element itself carries data-slot. */
+  const slot = (tag: string, path: string, value: string, cls = '', attrs = '', html?: string) =>
+    `<${tag}${cls ? ` class="${cls}"` : ''}${attrs}${attr('data-slot', path)}>${html ?? esc(value)}</${tag}>`
+  /** The same, with the content on its own line, as v1.0 laid out the footer text blocks. */
+  const block = (tag: string, path: string, value: string, cls: string, attrs: string, indent: string) =>
+    `<${tag}${cls ? ` class="${cls}"` : ''}${attrs}${attr('data-slot', path)}>\n${indent}  ${esc(value)}\n${indent}</${tag}>`
+  /** Text that shares its element with other text: wrapped in draft only. */
+  const wrap = (path: string, value: string) => (draft ? `<span class="aeo-w" data-slot="${esc(path)}">${esc(value)}</span>` : esc(value))
+  /** A copy of a slot edited elsewhere: plain text with data-mirror in draft. */
+  const mirror = (path: string, value: string, upper = false) => (draft ? `<span class="aeo-w" data-mirror="${esc(path)}"${upper ? ' data-upper' : ''}>${esc(value)}</span>` : esc(value))
+  /** Fixed by design (v1.1 §3): numbering and the Prepared date. */
+  const fixed = (text: string) => (draft ? `<span class="aeo-w" data-locked="fixed">${esc(text)}</span>` : esc(text))
+  const bullets = (key: 'competitive_bullets' | 'sources_bullets') => {
+    const list = s[key]
+    const items = list.map((b, i) => `<li><strong>${slot('span', `${key}.${i}.lead`, b.lead)}</strong> ${slot('span', `${key}.${i}.text`, b.text)}${draft && list.length === 3 ? `<button type="button" class="aeo-ctl" data-structure="remove" data-path="${key}.${i}">Remove</button>` : ''}</li>`).join('')
+    return UL + items + '</ul>' + (draft && list.length === 2 ? `<button type="button" class="aeo-ctl" data-structure="add" data-path="${key}">Add bullet</button>` : '')
+  }
 
-  const names = data.brands.map((b) => b.name).filter(Boolean).sort((a, b) => b.length - a.length)
+  // The brand slot is used everywhere the brand shows (v1.1 §3). Peec's own name is replaced only when Ryan changed it,
+  // so a row he has not renamed renders exactly as before.
+  const renamed = s.brand !== data.brand ? s.brand : null
+  const shownBrands = renamed ? data.brands.map((b) => (b.isOwn ? { ...b, name: renamed } : b)) : data.brands
+  const names = shownBrands.map((b) => b.name).filter(Boolean).sort((a, b) => b.length - a.length)
   /** Bold exact roster names in the raw text (whole words only), escaping every piece. */
   const bolded = (text: string) => {
     if (!names.length) return esc(text)
@@ -57,114 +130,106 @@ export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: Rende
     return out + esc(text.slice(last))
   }
 
-  const isLong = data.brand.length > 24 // renderer.py:1439-1458
-  const kpiCards = data.kpis.map((k) => `<div class="kpi-card"><div class="kpi-label">${esc(k.label)}</div><div class="kpi-value">${esc(k.value)}</div></div>`).join('')
-  const kpiStrip = data.kpis.length === 4 ? '<div class="kpi-strip">' : `<div class="kpi-strip" style="grid-template-columns:repeat(${data.kpis.length}, 1fr)">`
-  const [t1, t2] = DECISIONS.sectionTitles
-  const brand = esc(data.brand)
+  const isLong = s.brand.length > 24 // renderer.py:1439-1458, read from the slot (v1.1 §3)
+  const kpiCards = s.kpis.map((k, i) => `<div class="kpi-card">${slot('div', `kpis.${i}.label`, k.label, 'kpi-label')}${slot('div', `kpis.${i}.value`, k.value, 'kpi-value')}</div>`).join('')
+  const kpiStrip = s.kpis.length === 4 ? '<div class="kpi-strip">' : `<div class="kpi-strip" style="grid-template-columns:repeat(${s.kpis.length}, 1fr)">`
+  const t1 = p.section_1_title
+  const t2 = p.section_2_title
+  const brand = esc(s.brand)
+  const chartMark = attr('data-locked', 'chart')
 
-  const wordmark = DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z'
   const sidebar = `
 <nav class="sidebar">
   <div class="sidebar-logo">
-    <div class="aivx-brand">${wordmark}</div>${showsPowered(wordmark) ? '\n    <div class="powered">Powered by Avenue Z</div>' : ''}
+    ${slot('div', 'page.sidebar_wordmark', p.sidebar_wordmark, 'aivx-brand')}${showsPowered(p.sidebar_wordmark) ? `\n    ${slot('div', 'page.sidebar_powered', p.sidebar_powered, 'powered')}` : ''}
   </div>
   <div class="sidebar-industry">
-    AI Visibility Snapshot
-    <span>${brand}</span>
+    ${mirror('page.series', p.series)}
+    <span${attr('data-mirror', 'brand')}>${brand}</span>
   </div>
   <nav class="sidebar-nav">
-    <a href="#headline"><span class="nav-num">01</span> Headline signal</a>
-    <a href="#category-data"><span class="nav-num">02</span> ${esc(t1)}</a>
-    <a href="#competitive-visibility"><span class="nav-num">03</span> ${esc(t2)}</a>
-    <a href="#opportunities"><span class="nav-num">04</span> Opportunities</a>
-    <a href="#methodology"><span class="nav-num">05</span> Methodology</a>
+    <a href="#headline"><span class="nav-num"${fixedMark}>01</span> ${mirror('page.headline_label', p.headline_label)}</a>
+    <a href="#category-data"><span class="nav-num"${fixedMark}>02</span> ${mirror('page.section_1_title', t1)}</a>
+    <a href="#competitive-visibility"><span class="nav-num"${fixedMark}>03</span> ${mirror('page.section_2_title', t2)}</a>
+    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label)}</a>
+    <a href="#methodology"><span class="nav-num"${fixedMark}>05</span> ${wrap('page.method_nav', p.method_nav)}</a>
   </nav>
   <div class="sidebar-footer">${mode === 'final' ? SHARE_BUTTON : ''}
-    <a href="https://avenuez.com" target="_blank" rel="noopener">avenuez.com ↗</a>
+    ${slot('a', 'page.sidebar_link', p.sidebar_link, '', ' href="https://avenuez.com" target="_blank" rel="noopener"')}
   </div>
 </nav>`
 
   const main = `
 <header class="hero">
-  <div class="hero-series">AI Visibility Snapshot</div>
-  <h1 class="hero-industry"${isLong ? ' style="font-size:72px"' : ''}><span class="grad-text">${brand}</span></h1>
-  <div class="hero-subtitle">Category: ${slot('span', 'category', slots.category)} &nbsp;·&nbsp; Market: ${slot('span', 'market', slots.market)} &nbsp;·&nbsp; Data window: ${esc(data.windowLabel)}</div>
+  ${slot('div', 'page.series', p.series, 'hero-series')}
+  <h1 class="hero-industry"${isLong ? ' style="font-size:72px"' : ''}>${slot('span', 'brand', s.brand, 'grad-text')}</h1>
+  <div class="hero-subtitle">${wrap('page.category_label', p.category_label)} ${slot('span', 'category', s.category)} &nbsp;·&nbsp; ${wrap('page.market_label', p.market_label)} ${slot('span', 'market', s.market)} &nbsp;·&nbsp; ${wrap('page.window_prefix', p.window_prefix)} ${wrap('window_label', s.window_label)}</div>
   <div class="hero-meta">
   </div>
 </header>
 <section id="headline" class="exec-summary">
-  <div class="exec-label">Headline signal</div>
-  ${slot('div', 'headline', slots.headline, 'exec-headline')}
-  ${slot('div', 'summary', slots.summary, 'exec-subheadline')}
+  ${slot('div', 'page.headline_label', p.headline_label, 'exec-label')}
+  ${slot('div', 'headline', s.headline, 'exec-headline')}
+  ${slot('div', 'summary', s.summary, 'exec-subheadline')}
 </section>
 <section class="section">
   ${kpiStrip}${kpiCards}</div>
-  ${data.competitorsTracked > 0 ? slot('div', 'context', slots.context, 'insight-box', bolded(slots.context)) : ''}
+  ${data.competitorsTracked > 0 ? slot('div', 'context', s.context, 'insight-box', '', bolded(s.context)) : ''}
 </section>
 <section id="category-data" class="section">
-  <div class="section-label">02 / ${esc(t1)}</div>
-  <h2 class="section-title">${esc(t1)}</h2>
+  <div class="section-label">${fixed('02 / ')}${mirror('page.section_1_title', t1)}</div>
+  ${slot('h2', 'page.section_1_title', t1, 'section-title')}
   <div class="two-col" style="margin-top:16px;align-items:stretch">
     <div><div class="insight-box">${bullets('competitive_bullets')}</div></div>
-    <div><div class="chart-wrap"><div class="chart-title">Domain Types</div>${embedFigure('aeo-chart-sources', sourceDonutFigure(data.sourceMix))}</div></div>
+    <div><div class="chart-wrap">${slot('div', 'page.chart_1_title', p.chart_1_title, 'chart-title')}${embedFigure('aeo-chart-sources', sourceDonutFigure(data.sourceMix), chartMark)}</div></div>
   </div>
 </section>
 <section id="competitive-visibility" class="section">
-  <div class="section-label">03 / ${esc(t2)}</div>
-  <h2 class="section-title">${esc(t2)}</h2>
+  <div class="section-label">${fixed('03 / ')}${mirror('page.section_2_title', t2)}</div>
+  ${slot('h2', 'page.section_2_title', t2, 'section-title')}
   <div class="two-col" style="margin-top:16px;align-items:stretch">
     <div><div class="insight-box">${bullets('sources_bullets')}</div></div>
-    <div><div class="chart-wrap"><div class="chart-title">Competitive Visibility</div>${embedFigure('aeo-chart-visibility', visibilityBarFigure(data.brands))}</div></div>
+    <div><div class="chart-wrap">${slot('div', 'page.chart_2_title', p.chart_2_title, 'chart-title')}${embedFigure('aeo-chart-visibility', visibilityBarFigure(shownBrands), chartMark)}</div></div>
   </div>
 </section>
 <section class="section">
   <div class="rec-global-bottom-line">
-    <div style="font-size:18px;font-weight:900;color:var(--white);margin-bottom:12px">Why it matters</div>
-    ${slot('p', 'why', slots.why).replace('<p', '<p style="font-size:15px;color:rgba(255,255,255,0.75);line-height:1.75;margin:0"')}
+    ${slot('div', 'page.why_title', p.why_title, '', ' style="font-size:18px;font-weight:900;color:var(--white);margin-bottom:12px"')}
+    ${slot('p', 'why', s.why, '', ' style="font-size:15px;color:rgba(255,255,255,0.75);line-height:1.75;margin:0"')}
   </div>
 </section>
 <section id="opportunities" class="section">
-  <div class="section-label">04 / Opportunities</div>
-  <h2 class="section-title">Three opportunities to explore</h2>
+  <div class="section-label">${fixed('04 / ')}${wrap('page.opps_label', p.opps_label)}</div>
+  ${slot('h2', 'page.opps_title', p.opps_title, 'section-title')}
   <div class="leaderboard-wrap">
     <table class="leaderboard">
-      <thead><tr><th>Signal</th><th>Opportunity to explore</th><th>Likely workstream</th></tr></thead>
-      <tbody>${slots.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal)}${slot('td', `opportunities.${i}.opportunity`, o.opportunity)}${slot('td', `opportunities.${i}.workstream`, o.workstream)}</tr>`).join('')}</tbody>
+      <thead><tr>${slot('th', 'page.opps_col_1', p.opps_col_1)}${slot('th', 'page.opps_col_2', p.opps_col_2)}${slot('th', 'page.opps_col_3', p.opps_col_3)}</tr></thead>
+      <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal)}${slot('td', `opportunities.${i}.opportunity`, o.opportunity)}${slot('td', `opportunities.${i}.workstream`, o.workstream)}</tr>`).join('')}</tbody>
     </table>
   </div>
-  <p class="chart-takeaway">These are opportunity hypotheses for discussion, not a full roadmap.</p>
+  ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}
 </section>
 <section id="methodology" class="section">
-  <div class="method-note"><strong>Methodology:</strong> ${slot('span', 'methodology', slots.methodology)} <strong>Next step:</strong> ${slot('span', 'next_step', slots.next_step)}</div>
+  <div class="method-note">${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)} ${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div>
 </section>
 <footer class="footer">
   <div class="footer-grad-line"></div>
   <div class="footer-content">
     <div class="footer-brand">
-      <div class="avz-name">Avenue Z</div>
-      <p class="footer-desc">
-        Avenue Z is a digital marketing and PR agency specializing in AI visibility
-        and Answer Engine Optimization (AEO). We help brands earn citation authority
-        with AI models through earned media, content strategy, and technical optimization.
-      </p>
-      <a class="footer-link" href="https://avenuez.com" target="_blank" rel="noopener">
-        avenuez.com ↗
-      </a>
+      ${slot('div', 'page.footer_name', p.footer_name, 'avz-name')}
+      ${block('p', 'page.footer_desc', p.footer_desc, 'footer-desc', '', '      ')}
+      ${block('a', 'page.footer_link', p.footer_link, 'footer-link', ' href="https://avenuez.com" target="_blank" rel="noopener"', '      ')}
     </div>
     <div>
       <p style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px">
-        AI VISIBILITY SNAPSHOT
+        ${mirror('page.series', p.series.toUpperCase(), true)}
       </p>
       <p style="font-size:13px;color:rgba(255,255,255,0.5)">
-        ${brand}<br>Prepared ${esc(preparedOn)}
+        ${mirror('brand', s.brand)}<br>${wrap('page.prepared_label', p.prepared_label)} ${fixed(preparedOn)}
       </p>
     </div>
   </div>
-  <p class="footer-disclaimer">
-    Data reflects a Peec AI visibility snapshot for the stated window and is directional.
-    Avenue Z makes no representations about future AI visibility outcomes.
-  </p>
+  ${block('p', 'page.footer_disclaimer', p.footer_disclaimer, 'footer-disclaimer', '', '  ')}
 </footer>`
 
   return `<!DOCTYPE html>
@@ -173,9 +238,9 @@ export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: Rende
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   ${AIVX_FAVICON_TAG}
-  <title>AI Visibility Snapshot: ${brand} | Avenue Z</title>
+  <title>${esc(p.series)}: ${brand} | Avenue Z</title>
   <script src="https://cdn.plot.ly/plotly-3.5.0.min.js" charset="utf-8" integrity="sha384-DPvk2KODrsA0CfBr4HTwAwhdDROPqqK2PvSSswJMQMpnUkwSTg4gLBxXc3wv2e5L" crossorigin="anonymous"></script>
-  <meta name="description" content="AI Visibility Snapshot for ${brand}. Powered by Avenue Z AEO Intelligence.">
+  <meta name="description" content="${esc(p.series)} for ${brand}. Powered by Avenue Z AEO Intelligence.">
   <meta name="robots" content="noindex,nofollow">
   <style>${AIVX_CSS}</style>${draft ? EDITOR_STYLE : ''}
 </head>
@@ -184,7 +249,7 @@ export function renderSnapshotHtml(data: SnapshotData, slots: Slots, mode: Rende
   <div class="main">
     ${main}
   </div>
-  <script>${AIVX_JS}</script>${mode === 'final' ? `\n${AIVX_SHARE_BLOCK}` : ''}${draft ? EDITOR_SCRIPT : ''}
+  <script>${AIVX_JS}</script>${HEADER_CLONE}${mode === 'final' ? `\n${AIVX_SHARE_BLOCK}` : ''}${draft ? FRAME_SCRIPT : ''}
 </body>
 </html>`
 }
