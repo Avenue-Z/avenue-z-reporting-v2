@@ -22,5 +22,3 @@ const ACTIONS: Record<DisplayStatus, readonly HubAction[]> = {
 export function actionsFor(s: DisplayStatus): HubAction[] {
   return ACTIONS[s].slice()
 }
-
-export const snapshotUrl = (origin: string, token: string) => `${origin}/snapshot/${token}`

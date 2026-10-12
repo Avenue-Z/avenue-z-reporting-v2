@@ -5,6 +5,7 @@ import { errorLabel } from '@/lib/aeo-outbound/log'
 import { displayStatus, failureReason, getReport, isReportId } from '@/lib/aeo-outbound/store'
 import { needsValidationPaths } from '@/lib/aeo-outbound/slots'
 import { OutboundEditor } from '@/components/aeo-outbound/editor'
+import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
 
 export default async function NewBusinessEditorPage({
@@ -31,6 +32,8 @@ export default async function NewBusinessEditorPage({
       key={row.id}
       id={row.id}
       brand={row.brandName ?? row.peecProjectName}
+      linkBrand={row.brandName}
+      shareOrigin={shareOrigin()}
       projectId={row.peecProjectId}
       status={displayStatus(row, now)}
       revision={row.revision}

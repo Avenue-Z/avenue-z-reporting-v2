@@ -34,7 +34,7 @@ const views = () => fetchMock.mock.calls.filter(([u]) => u.includes('/view')).ma
 type Props = Parameters<typeof OutboundEditor>[0]
 const base: Props = {
   id: ID, brand: 'Acme', projectId: 'p1', status: 'draft', revision: 4,
-  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], token: null, error: null,
+  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], token: null, error: null, linkBrand: null, shareOrigin: null,
 }
 
 beforeEach(() => {
@@ -355,4 +355,18 @@ test('a clean editor opens Edit a copy without asking', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
   await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${NEW_ID}`))
   expect(confirm).not.toHaveBeenCalled()
+})
+
+test('a live snapshot copies the locked link with the brand slug (spec v1.1 §16.2)', async () => {
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  await setup({ status: 'live', token: 'tok_123', linkBrand: 'Example Co', shareOrigin: 'https://reporting.avenuez.com' })
+  fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+  expect(writeText).toHaveBeenCalledWith('https://reporting.avenuez.com/snapshot/example-co-tok_123')
+  expect(screen.queryByText('Test link: it works on this environment only.')).not.toBeInTheDocument()
+})
+
+test('a live snapshot with no locked origin labels the link as a test link', async () => {
+  await setup({ status: 'live', token: 'tok_123' })
+  expect(screen.getByText('Test link: it works on this environment only.')).toBeInTheDocument()
 })

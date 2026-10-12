@@ -8,15 +8,18 @@ import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { copySnapshotAsDraftAction, discardSnapshotAction, revokeSnapshotAction } from '@/app/actions/aeo-outbound'
 import { MAX_LOOKBACK_DAYS } from '@/lib/aeo-outbound/config'
+import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
 import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { requestGenerate, type GenerateBody } from './generate-client'
 import { ACTION_FAILED, DISCARD_CONFIRM, PEEC_DOWN_RETRY, REVOKE_CONFIRM, SCANNER_NOTE, actionError } from './messages'
-import { STATUS_UI, actionsFor, snapshotUrl } from './status'
+import { STATUS_UI, actionsFor } from './status'
 
 export type HubRow = {
   id: string
   brand: string
+  /** The row's own brand_name for the link slug; null when Peec never named it (never the project name). */
+  linkBrand: string | null
   projectId: string
   projectName: string
   status: DisplayStatus
@@ -50,7 +53,7 @@ export function StatusPill({ status, error }: { status: DisplayStatus; error?: s
   )
 }
 
-export function OutboundHub({ rows }: { rows: HubRow[] }) {
+export function OutboundHub({ rows, shareOrigin = null }: { rows: HubRow[]; shareOrigin?: string | null }) {
   const router = useRouter()
   const [projects, setProjects] = useState<Project[] | null>(null)
   const [projectsFailed, setProjectsFailed] = useState(false)
@@ -181,6 +184,7 @@ export function OutboundHub({ rows }: { rows: HubRow[] }) {
         {message && <p className="mt-2 text-sm text-[#FF6B6B]">{message}</p>}
       </section>
 
+      {shareOrigin === null && rows.some((r) => r.token) && <p className="text-xs text-text-muted">{TEST_LINK_NOTE}</p>}
       <div className={`${cardCls} overflow-x-auto p-0`}>
         <table className="w-full text-left text-sm text-white">
           <thead className="text-xs text-text-muted">
@@ -232,7 +236,7 @@ export function OutboundHub({ rows }: { rows: HubRow[] }) {
                           case 'copy':
                             return (
                               <button key={a} type="button" className={btnCls} disabled={!r.token}
-                                onClick={() => r.token && void navigator.clipboard?.writeText(snapshotUrl(window.location.origin, r.token))}>
+                                onClick={() => r.token && void navigator.clipboard?.writeText(shareUrl(shareOrigin ?? window.location.origin, r.linkBrand, r.token))}>
                                 Copy link
                               </button>
                             )

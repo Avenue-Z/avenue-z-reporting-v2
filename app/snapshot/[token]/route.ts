@@ -6,7 +6,7 @@ import { isStaff } from '@/lib/auth/route-access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { hasSessionCookie, shouldCountOpen } from '@/lib/aeo-outbound/opens'
 import { getLiveByToken, recordOpenQuery } from '@/lib/aeo-outbound/store'
-import { isShareTokenShape } from '@/lib/aeo-outbound/token'
+import { tokenFromSegment } from '@/lib/aeo-outbound/share-link'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,9 +23,10 @@ function respond(html: string | undefined, withBody: boolean): Response {
   return new Response(withBody ? html : null, { headers: { ...BASE, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': 'sandbox allow-scripts' } })
 }
 
-/** The live row for a token, or undefined. A failed lookup answers like an unknown token, logged without the token. */
-async function live(token: string) {
-  if (!isShareTokenShape(token)) return undefined
+/** The live row for a /snapshot segment (spec v1.1 §16.2), or undefined. A failed lookup answers like an unknown token, logged without the token. */
+async function live(segment: string) {
+  const token = tokenFromSegment(segment)
+  if (!token) return undefined
   try {
     return await getLiveByToken(token)
   } catch (e) {

@@ -22,7 +22,7 @@ const PROJECTS = [{ id: 'p1', name: 'Acme pitch', status: 'PITCH' }, { id: 'p2',
 const row = (over: Partial<HubRow>): HubRow => ({
   id: ID(1), brand: 'Acme', projectId: 'p1', projectName: 'Acme pitch', status: 'draft',
   createdAt: '2026-10-01T15:00:00.000Z', approvedAt: null, error: null, token: null,
-  recipient: null, openCount: 0, firstOpenedAt: null, lastOpenedAt: null, ...over,
+  recipient: null, openCount: 0, firstOpenedAt: null, lastOpenedAt: null, linkBrand: null, ...over,
 })
 
 let generate: () => Promise<Response>
@@ -325,4 +325,21 @@ test('an Edit a copy that throws shows a message', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
   expect(await screen.findByText('Lost connection. Try again.')).toBeInTheDocument()
   expect(push).not.toHaveBeenCalled()
+})
+
+
+test('Copy link uses the locked origin and the brand slug when the server passes them (spec v1.1 §16.2)', async () => {
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  render(<OutboundHub shareOrigin="https://reporting.avenuez.com" rows={[row({ status: 'live', token: 'tok_123', linkBrand: 'Example Co', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })]} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+  expect(writeText).toHaveBeenCalledWith('https://reporting.avenuez.com/snapshot/example-co-tok_123')
+  expect(screen.queryByText('Test link: it works on this environment only.')).not.toBeInTheDocument()
+  await screen.findByRole('option', { name: 'Acme pitch' })
+})
+
+test('with no locked origin the hub labels its links as test links', async () => {
+  render(<OutboundHub rows={[row({ status: 'live', token: 'tok_123', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })]} />)
+  expect(screen.getByText('Test link: it works on this environment only.')).toBeInTheDocument()
+  await screen.findByRole('option', { name: 'Acme pitch' })
 })

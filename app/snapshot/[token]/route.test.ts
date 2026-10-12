@@ -157,3 +157,20 @@ test('the timer is cleared when the race settles', async () => {
   await settle(GET(req(), ctx()))
   expect(vi.getTimerCount()).toBe(0)
 })
+
+test('a slugged segment resolves by its token for GET and HEAD; a bad slug shape is the same 404 (spec v1.1 §16.2)', async () => {
+  const ok = await settle(GET(req(), ctx(`example-co-${TOKEN}`)))
+  expect(ok.status).toBe(200)
+  expect(await ok.text()).toBe(HTML)
+  expect(store.getLiveByToken).toHaveBeenLastCalledWith(TOKEN)
+  const head = await HEAD(req({ method: 'HEAD' }), ctx(`example-co-${TOKEN}`))
+  expect(head.status).toBe(200)
+  const unknown = await (await settle(GET(req(), ctx('short')))).text()
+  vi.mocked(store.getLiveByToken).mockClear()
+  for (const bad of [`Example-${TOKEN}`, `${'a'.repeat(41)}-${TOKEN}`, `example_co-${TOKEN}`]) {
+    const r = await settle(GET(req(), ctx(bad)))
+    expect(r.status).toBe(404)
+    expect(await r.text()).toBe(unknown)
+  }
+  expect(store.getLiveByToken).not.toHaveBeenCalled()
+})

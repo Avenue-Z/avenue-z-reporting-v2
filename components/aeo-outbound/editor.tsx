@@ -18,7 +18,7 @@ import {
   NEEDS_VALIDATION_FIRST, RECIPIENT_EXAMPLE, RECIPIENT_LABEL, REVOKE_CONFIRM, STALE, VIEW_FAILED, actionError,
 } from './messages'
 import { RETRY_MESSAGE, SaveQueue, type SaveState, type SendResult } from './save-queue'
-import { snapshotUrl } from './status'
+import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 
 export interface OutboundEditorProps {
   id: string
@@ -30,6 +30,8 @@ export interface OutboundEditorProps {
   needsValidation: string[]
   token: string | null
   error: string | null
+  linkBrand: string | null
+  shareOrigin: string | null
 }
 
 const FLUSH_WAIT_MS = 2000
@@ -262,9 +264,10 @@ export function OutboundEditor(props: OutboundEditorProps) {
           {status === 'live' && (
             <>
               <button type="button" className={btnCls} disabled={!token}
-                onClick={() => token && void navigator.clipboard?.writeText(snapshotUrl(window.location.origin, token))}>
+                onClick={() => token && void navigator.clipboard?.writeText(shareUrl(props.shareOrigin ?? window.location.origin, props.linkBrand, token))}>
                 Copy link
               </button>
+              {props.shareOrigin === null && <span className="text-xs text-text-muted">{TEST_LINK_NOTE}</span>}
               <button type="button" className={btnCls} disabled={busy} onClick={onRevoke}>Revoke</button>
             </>
           )}
