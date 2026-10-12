@@ -1,6 +1,8 @@
 # Remove unused API routes and dead demo code: design
 
-Status: for review and approval before any code. Written 2026-10-12 against `origin/dev` `ab16a5bb`.
+Status: approved by Paul 2026-10-12. Written 2026-10-12 against `origin/dev` `ab16a5bb`; citations re-checked on
+`origin/dev` `fd1da06b`, where only `vitest.config.ts` changed (two e2e lines; the `lib/auth` lines cited below did not
+move).
 
 ## Goal
 Delete two API routes and the code that only they use. Nothing in the app calls them, so nothing a user or client sees
@@ -11,10 +13,11 @@ changes, and the codebase gets smaller.
    (`components/report-sections/pr-placements/index.tsx:132`). Nothing fetches this route (git grep over `app`,
    `components`, `lib`, `scripts`, `e2e`).
 2. `app/api/glean/meeting-brief/route.ts`, its only caller `components/meeting-prep/index.tsx` (the `MeetingPrepBrief`
-   widget, which nothing renders), and `lib/demo-auth.ts`. The route depends on the old demo login, retired with demo
-   mode in June (`docs/superpowers/specs/2026-06-25-remove-demo-mode-design.md`); nothing in the app sets that session
-   any more, so no user can reach the widget or the route. `lib/demo-auth.ts` has no other importers.
-- Production request logs for both paths (Vercel, retained days): no requests. Supporting evidence only; open question 1.
+   widget, which nothing renders), and `lib/demo-auth.ts`. The route reads the old demo login's cookie itself
+   (`app/api/glean/meeting-brief/route.ts:14-15`); demo mode was retired in June
+   (`docs/superpowers/specs/2026-06-25-remove-demo-mode-design.md`), nothing in the app sets that cookie any more, so no
+   user can reach the widget or the route. `lib/demo-auth.ts` has no importers at all (the route does not use it).
+- Production request logs for both paths (Vercel, retained days): no requests. Supporting evidence only.
 
 ## Change (one PR off `dev`, branch `chore/remove-unused-api-routes`)
 Delete: the four files above.
@@ -42,11 +45,11 @@ not a `ReportSlug`); the `pr-placements` report; the staff-only settings descrip
 - The PR placements report, the Peec synopses and the dashboard's Glean proposer work as before (they never used these).
 
 ## Failure and risk
-- If an outside tool called either route, it gets 404: open question 1 before merge; rollback is a revert.
+- If an outside tool called either route, it gets 404; both go either way (question 1); rollback is a revert.
 - A leftover import breaks typecheck or build: caught by `make check`. Locally, delete `.next` first (`tsconfig.json`
   includes `.next/dev/types/**`, whose generated validator still imports both routes).
 - Staging and production keep the routes until each promotion; old Vercel deployment URLs keep serving them after that
-  (open question 2).
+  (question 2).
 
 ## Tests (written first)
 1. `lib/auth/api-routes.test.ts`, modelled on `lib/auth/protected-pages.test.ts:1, 10-13` (`@vitest-environment node`,
@@ -61,9 +64,9 @@ not a `ReportSlug`); the `pr-placements` report; the staff-only settings descrip
 
 ## Out of scope
 Any other route or access change (separate items), the Shopify install and callback routes (a one-time local setup tool,
-filed separately), and the settings copy.
+filed separately), the settings copy, and a per-route check alongside the allowlist test (Paul's suggestion, a follow-up
+PR).
 
-## Open questions
-1. Does anything outside the app call `/api/pr-placements` or `/api/glean/meeting-brief`?
-2. Old Vercel deployment URLs keep serving deleted routes. Accept, or delete old deployments after the production
-   promotion?
+## Questions
+1. Resolved (Paul, 2026-10-12): nothing in the repo calls either route, and both go either way.
+2. Old Vercel deployment URLs keep serving deleted routes. Paul will confirm the approach separately.
