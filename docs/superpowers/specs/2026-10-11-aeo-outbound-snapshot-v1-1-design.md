@@ -749,7 +749,10 @@ No data, query, action or permission changes: layout, grouping and copy only.
 - Measured in the mock at 1440 wide: the table fits its card (scroll width = card width, 1,118px), rows 67 to 145px tall.
 
 **Not found** (`app/tools/new-business/[reportId]/page.tsx` calls `notFound()` for a bad id or a missing row, which today
-shows Next's white 404): a `not-found.tsx` in that segment, inside the dark tools layout: a card titled "This snapshot no
+shows Next's white 404): the page renders a `SnapshotNotFound` card instead (`components/aeo-outbound/snapshot-not-found.tsx`),
+after its access check, inside the dark tools layout. Not a `not-found.tsx`: `lib/auth/protected-pages.test.ts` forbids
+that file name in protected areas because it would run without the page's check. The answer is 200, not 404, which is
+accepted for this staff-only page. The card is titled "This snapshot no
 longer exists", the line "It may have been discarded, or the link is wrong.", and a **Back to New Business** link to
 `/tools/new-business`.
 
