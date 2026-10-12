@@ -347,7 +347,7 @@ foreign key to `aeo_outbound_reports`, the `(report_id, opened_at)` index), `aeo
 `aeo_outbound_reports.progress_step` `integer not null default 0` (0 on both existing rows) and `error_code text` (null on both);
 the ledger at 33 with nothing pending; those three tables the only ones added. Staging and production: not applied.
 
-## Add `series` to aeo_outbound_settings (delivered, awaiting apply)
+## Add `series` to aeo_outbound_settings (applied on dev, awaiting staging and production)
 
 `drizzle/0028_aeo_outbound_settings_series.sql` is one statement: `ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series"
 text DEFAULT 'AI Visibility Snapshot' NOT NULL;`. It makes the report name a team setting (the default of `page.series` on
@@ -364,13 +364,16 @@ staging lists `0026_aeo_outbound_reports`, `0027_aeo_outbound_v1_1` and `0028_ae
 Read-back after applying: `aeo_outbound_settings.series` is `text not null default 'AI Visibility Snapshot'` (the existing
 row, if any, reads that value); the ledger up by one with nothing pending.
 
-**Applied nowhere.** Any build whose `lib/db/schema.ts` has `series` must not reach an environment before `0028` is
-applied there: Drizzle names every column, so the settings read throws (42703), access falls back to `AEO_OUTBOUND_USERS`
+Any build whose `lib/db/schema.ts` has `series` must not reach an environment before `0028` is applied there: Drizzle names every column, so the settings read throws (42703), access falls back to `AEO_OUTBOUND_USERS`
 only, and every save is refused with the read-failed message.
 
-This branch's Vercel preview already runs that build. If previews read the dev database (ENGINEERS.md says the Preview
-`DATABASE_URL` is the dev Neon project; unverified from the repo), the preview is in that degraded state until `0028` is
-applied on dev. Apply it on dev before anyone reviews by clicking through the preview.
+Dev: `0028` applied to the dev database on 2026-10-12, on my written go, so this branch's preview (if previews read the
+dev database, as ENGINEERS.md says; unverified from the repo) is out of that degraded state. The dev-only host guard first,
+then a read-only dry run: exactly `0028_aeo_outbound_settings_series` pending, the ledger at 33. Applied with
+`scripts/migrate-http.ts`, given only the dev URL (`apply 0028_aeo_outbound_settings_series (1 stmt) ... done`,
+`applied 1 migration(s)`). Read back: `aeo_outbound_settings` has 12 columns, `series` is `text not null default
+'AI Visibility Snapshot'`, the table has no rows yet; the ledger at 34 with nothing pending. Staging and production: not
+applied.
 
 Until this change merges to `dev`, keep the top-left name on dev to `AIVx` or `Avenue Z`. Older deployments that share the
 dev database still check it against the old two-value list, and a row outside it fails their settings contract, which
