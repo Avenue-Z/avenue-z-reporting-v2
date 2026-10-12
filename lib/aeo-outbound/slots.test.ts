@@ -158,3 +158,13 @@ test('slotEntries lists the page words, the KPIs, the brand and the window label
   const r = applySlotPatch(S, 'page.opps_title', 'needs validation')
   expect(r.ok && needsValidationPaths(r.slots)).toEqual(['page.opps_title'])
 })
+
+test('method_title is a page word with its default, and an old row without it gets the default (v1.1 §17.14)', () => {
+  expect(PAGE_KEYS).toContain('method_title')
+  expect(PAGE_WORDS_V1.method_title).toBe('Methodology and next step')
+  expect(withDefaults({ ...S0, page: { series: 'Snapshot' } }, DATA_STUB).page.method_title).toBe('Methodology and next step')
+  const full = withDefaults(S0, DATA_STUB)
+  const r = applySlotPatch(full, 'page.method_title', 'How we measured')
+  expect(r.ok && r.slots.page.method_title).toBe('How we measured')
+  expect(limitFor('page.method_title')).toBe(120)
+})

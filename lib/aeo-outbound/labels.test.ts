@@ -34,3 +34,7 @@ test('the two settings-backed page words use the settings page labels', () => {
   expect(fieldLabel('page.sidebar_wordmark', T)).toBe('Top-left name')
   expect(fieldLabel('page.series', T)).toBe('Report name')
 })
+
+test('the Methodology title has its own label (v1.1 §17.14)', () => {
+  expect(fieldLabel('page.method_title', T)).toBe('Methodology title')
+})

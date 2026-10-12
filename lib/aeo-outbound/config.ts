@@ -92,4 +92,5 @@ export const PAGE_WORDS_V1 = {
   sidebar_wordmark: DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z',
   sidebar_powered: 'Powered by Avenue Z',
   sidebar_link: 'avenuez.com ↗',
+  method_title: 'Methodology and next step',
 }

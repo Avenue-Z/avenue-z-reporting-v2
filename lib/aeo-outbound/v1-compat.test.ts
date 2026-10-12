@@ -51,11 +51,11 @@ const v11 = (html: string) => {
   // v1.1 §17.11: a sent report carries no Share button, so the golden's three share pieces are removed (button once, toast
   // and script once each, as one contiguous block).
   out = removeShare(out)
-  // v1.1 §17.13: Methodology gets a section heading and Next step moves onto its own line.
+  // v1.1 §17.13 and §17.14: Methodology gets a section heading ("Methodology and next step") and Next step moves onto its own, unstyled line.
   out = once(
     out,
     '<section id="methodology" class="section">\n  <div class="method-note"><strong>Methodology:</strong> <span>Peec data from Oct 1, 2026 to Oct 8, 2026 across 3 brands and 100 prompts. Results are directional.</span> <strong>Next step:</strong> <span>A full AEO audit.</span></div>',
-    '<section id="methodology" class="section">\n  <div class="section-label">05 / Methodology</div>\n  <h2 class="section-title">Methodology</h2>\n  <div class="method-note"><div><strong>Methodology:</strong> <span>Peec data from Oct 1, 2026 to Oct 8, 2026 across 3 brands and 100 prompts. Results are directional.</span></div><div style="margin-top:10px"><strong>Next step:</strong> <span>A full AEO audit.</span></div></div>',
+    '<section id="methodology" class="section">\n  <div class="section-label">05 / Methodology</div>\n  <h2 class="section-title">Methodology and next step</h2>\n  <div class="method-note"><div><strong>Methodology:</strong> <span>Peec data from Oct 1, 2026 to Oct 8, 2026 across 3 brands and 100 prompts. Results are directional.</span></div><div><strong>Next step:</strong> <span>A full AEO audit.</span></div></div>',
   )
   return out
 }

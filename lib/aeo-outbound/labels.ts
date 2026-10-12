@@ -15,7 +15,7 @@ const PAGE_LABELS: Record<PageKey, string> = {
   opps_col_3: 'Opportunities table, third column', opps_takeaway: 'Opportunities footnote', method_label: 'Methodology label',
   next_label: 'Next step label', prepared_label: 'Prepared label', footer_name: 'Footer name', footer_desc: 'Footer description',
   footer_link: 'Footer link text', footer_disclaimer: 'Footer disclaimer', sidebar_wordmark: 'Top-left name', sidebar_powered: 'Menu tagline',
-  sidebar_link: 'Menu link text',
+  sidebar_link: 'Menu link text', method_title: 'Methodology title',
 }
 const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k)
 

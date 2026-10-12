@@ -344,6 +344,12 @@ const CHART_SPACING_RULES = [
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{margin-bottom:0}',
 ]
 const COLOR_SCHEME_RULE = 'html{color-scheme:dark}'
+/** v1.1 §17.14: Methodology as plain paragraphs, verbatim and in order, after the chart-wrap rule. */
+const METHOD_RULES = [
+  '#methodology .method-note{background:none;border:none;border-radius:0;padding:0;margin-top:16px;max-width:none;font-style:normal;font-size:15px;line-height:1.75;color:rgba(255,255,255,0.75)}',
+  '#methodology .method-note>div+div{margin-top:14px}',
+  '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
+]
 const outsideRules = () => PAGE_CSS.slice(0, PAGE_CSS.indexOf('@media (max-width: 900px){')).split('\n').filter(Boolean)
 
 test('every PAGE_CSS rule except aeo-long, the chart spacing rules sits inside the phone media query', () => {
@@ -352,7 +358,7 @@ test('every PAGE_CSS rule except aeo-long, the chart spacing rules sits inside t
   expect(at).toBeGreaterThan(-1)
   expect(PAGE_CSS.endsWith('}')).toBe(true)
   const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
-  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES])
+  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES, ...METHOD_RULES])
   const inside = PAGE_CSS.slice(at + open.length, -1).split('\n').filter(Boolean)
   expect(inside.length).toBeGreaterThan(5)
   expect(inside.every((r) => r.endsWith('}') && !r.includes('@media'))).toBe(true)
@@ -406,6 +412,16 @@ test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final
   }
 })
 
+test('Methodology rules (v1.1 §17.14): verbatim, in order, after the chart-wrap rule, outside the phone query, once per mode', () => {
+  const out = outsideRules()
+  expect(out.slice(-3)).toEqual(METHOD_RULES)
+  expect(out.indexOf(METHOD_RULES[0]!)).toBe(out.indexOf(CHART_SPACING_RULES[CHART_SPACING_RULES.length - 1]!) + 1)
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    for (const r of METHOD_RULES) expect(h.split(r).length - 1, `${mode} ${r.slice(0, 40)}`).toBe(1)
+  }
+})
+
 test('findings rows (v1.1 §17.10): the box loses justify-content:center, the list fills it, and html is drawn dark', () => {
   const out = outsideRules()
   expect(out.join('\n')).not.toContain('justify-content:center')
@@ -435,7 +451,7 @@ test('the Add bullet button is a direct child of .insight-box, which the .aeo-ct
   }
 })
 
-test('Methodology has a 05 label and a title that follow the menu word, and Next step sits in its own block (spec v1.1 §17.13)', () => {
+test('Methodology has a 05 label that follows the menu word, an editable title, and Next step in its own unstyled block (spec v1.1 §17.13, §17.14)', () => {
   for (const [word, slots] of [['Methodology', SLOTS], ['Approach', { ...SLOTS, page: { method_nav: 'Approach' } } as Slots]] as const) {
     for (const mode of ['draft', 'preview', 'final'] as const) {
       const doc = parse(renderSnapshotHtml(DATA, slots, mode, 'x'))
@@ -443,10 +459,13 @@ test('Methodology has a 05 label and a title that follow the menu word, and Next
       const label = sec.querySelector('.section-label')!
       const title = sec.querySelector('h2.section-title')!
       expect(label.textContent, `${mode} ${word} label`).toBe(`05 / ${word}`)
-      expect(title.textContent, `${mode} ${word} title`).toBe(word)
+      expect(title.textContent, `${mode} ${word} title`).toBe('Methodology and next step')
       if (mode === 'draft') {
         expect(label.querySelector('[data-mirror="page.method_nav"]')).not.toBeNull()
-        expect(title.getAttribute('data-mirror') ?? title.querySelector('[data-mirror]')?.getAttribute('data-mirror')).toBe('page.method_nav')
+        expect(title.getAttribute('data-slot')).toBe('page.method_title')
+        expect(title.querySelector('[data-mirror]')).toBeNull()
+      } else {
+        expect(title.hasAttribute('data-slot')).toBe(false)
       }
       const blocks = [...sec.querySelectorAll('.method-note > div')]
       expect(blocks, `${mode} blocks`).toHaveLength(2)
@@ -460,7 +479,19 @@ test('Methodology has a 05 label and a title that follow the menu word, and Next
       expect(blocks[0].textContent).toContain('Method.')
       expect(blocks[1].textContent).toContain('Next.')
       expect(blocks[0].textContent).not.toContain('Next.')
-      expect(blocks[1].getAttribute('style')).toBe('margin-top:10px')
+      expect(blocks[1].hasAttribute('style')).toBe(false)
     }
   }
+})
+
+test('the Methodology title is a page word: a stored value shows in every mode, and a row without the key shows the default (v1.1 §17.14)', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const renamed = parse(renderSnapshotHtml(DATA, { ...SLOTS, page: { method_title: 'How we measured' } } as Slots, mode, 'x'))
+    expect(renamed.querySelector('#methodology h2.section-title')!.textContent, mode).toBe('How we measured')
+    expect(renamed.querySelector('#methodology .section-label')!.textContent, mode).toBe('05 / Methodology')
+    const old = parse(renderSnapshotHtml(DATA, { ...SLOTS, page: { series: 'Snapshot' } } as Slots, mode, 'x'))
+    expect(old.querySelector('#methodology h2.section-title')!.textContent, mode).toBe('Methodology and next step')
+  }
+  const draft = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x'))
+  expect(draft.querySelectorAll('[data-slot="page.method_title"]')).toHaveLength(1)
 })

@@ -168,3 +168,10 @@ test('the settings row refuses a whitespace-only or long-dash name, and accepts 
     expect(SETTINGS_ROW.safeParse({ ...row, [f]: ' Padded 2 ' }).success).toBe(true)
   }
 })
+
+test('a stored row from before method_title still passes the stored slots contract, and one that has it passes too (v1.1 §17.14)', () => {
+  const before = { ...V1_SLOTS, page: { series: 'Snapshot', method_nav: 'Methodology' } }
+  expect(checkContract('stored.slots', STORED_SLOTS, before, 'enforce', {})).toEqual({ ok: true })
+  expect(checkContract('stored.slots', STORED_SLOTS, { ...before, page: { ...before.page, method_title: 'How we measured' } }, 'enforce', {})).toEqual({ ok: true })
+  expect(checkContract('stored.slots', STORED_SLOTS, { ...before, page: { method_title: 5 } }, 'enforce', {}).ok).toBe(false)
+})

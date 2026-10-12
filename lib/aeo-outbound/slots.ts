@@ -11,7 +11,7 @@ export const PAGE_KEYS = [
   'series', 'headline_label', 'section_1_title', 'section_2_title', 'opps_label', 'method_nav', 'category_label', 'market_label',
   'window_prefix', 'chart_1_title', 'chart_2_title', 'why_title', 'opps_title', 'opps_col_1', 'opps_col_2', 'opps_col_3',
   'opps_takeaway', 'method_label', 'next_label', 'prepared_label', 'footer_name', 'footer_desc', 'footer_link',
-  'footer_disclaimer', 'sidebar_wordmark', 'sidebar_powered', 'sidebar_link',
+  'footer_disclaimer', 'sidebar_wordmark', 'sidebar_powered', 'sidebar_link', 'method_title',
 ] as const
 export type PageKey = (typeof PAGE_KEYS)[number]
 export type PageWords = Record<PageKey, string>

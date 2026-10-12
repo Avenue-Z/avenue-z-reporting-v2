@@ -96,6 +96,9 @@ export const PAGE_CSS = [
   '#category-data .insight-box li:last-child,#competitive-visibility .insight-box li:last-child{border-bottom:none}',
   '#category-data .insight-box li strong,#competitive-visibility .insight-box li strong{display:block;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{margin-bottom:0}',
+  '#methodology .method-note{background:none;border:none;border-radius:0;padding:0;margin-top:16px;max-width:none;font-style:normal;font-size:15px;line-height:1.75;color:rgba(255,255,255,0.75)}',
+  '#methodology .method-note>div+div{margin-top:14px}',
+  '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
   '@media (max-width: 900px){',
   '.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}',
   '.kpi-strip[data-kpis="3"]{grid-template-columns:repeat(2,1fr)!important}',
@@ -269,8 +272,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
 </section>
 <section id="methodology" class="section">
   <div class="section-label">${fixed('05 / ')}${mirror('page.method_nav', p.method_nav)}</div>
-  <h2 class="section-title">${mirror('page.method_nav', p.method_nav)}</h2>
-  <div class="method-note"><div>${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)}</div><div style="margin-top:10px">${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div></div>
+  ${slot('h2', 'page.method_title', p.method_title, 'section-title')}
+  <div class="method-note"><div>${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)}</div><div>${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div></div>
 </section>
 <footer class="footer">
   <div class="footer-grad-line"></div>
