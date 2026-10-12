@@ -14,6 +14,7 @@ import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { requestGenerate, type GenerateBody } from './generate-client'
 import { ACTION_FAILED, DISCARD_CONFIRM, PEEC_DOWN_RETRY, REVOKE_CONFIRM, SCANNER_NOTE, actionError } from './messages'
 import { STATUS_UI, actionsFor } from './status'
+import { btnCls, cardCls, inputCls } from './ui'
 
 export type HubRow = {
   id: string
@@ -35,9 +36,7 @@ export type HubRow = {
 
 type Project = { id: string; name: string }
 
-export const cardCls = 'rounded-lg border border-white/[0.06] bg-bg-surface p-5'
-export const btnCls = 'rounded-md border border-white/[0.08] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50'
-const inputCls = 'rounded-md border border-white/[0.08] bg-bg-base px-2 py-1.5 text-sm text-white'
+export { btnCls, cardCls }
 const day = (iso: string | null) => (iso ? fmtEasternDay(new Date(iso)) : '')
 
 export function StatusPill({ status, error }: { status: DisplayStatus; error?: string | null }) {

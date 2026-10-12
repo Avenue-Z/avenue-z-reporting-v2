@@ -1,18 +1,22 @@
-// The editor's single save queue (spec §9a): one PATCH at a time, newest value per path, the revision from each
+// The editor's single save queue (spec §9a, v1.1 §3): one PATCH at a time, newest value per path, the revision from each
 // 200 carried into the next request. A field is dirty from its first keystroke until an edit sent after its last
 // keystroke is saved, so Approve (disabled while dirty or saving) can never approve text Ryan is still typing.
 // A 400 belongs to its own field: it is recorded, the field stays dirty, and every other pending field still sends.
+// A structural item (a bullet add or remove) goes out after every pending edit, with the current revision; its 200's
+// revision is taken like any save's, so the next keystroke carries the right one.
 export type SendResult = { kind: 'ok'; revision: number } | { kind: 'bad'; error: string } | { kind: 'stop' } | { kind: 'retry' }
 // badPaths: the fields with an outstanding 400, oldest first, so the newest is the one `error` describes.
-export interface SaveState { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean; badPaths: string[] }
+export interface SaveState { dirty: boolean; saving: boolean; structuring: boolean; revision: number; error: string | null; stopped: boolean; badPaths: string[] }
 export const RETRY_MESSAGE = "Couldn't save, retrying"
 const BACKOFF = [1000, 2000, 4000]
+type Item = { value: string; stamp: number }
 
 export class SaveQueue {
-  private pending = new Map<string, { value: string; stamp: number }>()
+  private pending = new Map<string, Item>()
   private typed = new Map<string, number>()
   private dirtyPaths = new Set<string>()
   private bad = new Map<string, string>()
+  private structural: string[] = []
   private running = false
   private waiting = false
   private attempt = 0
@@ -24,11 +28,16 @@ export class SaveQueue {
     private readonly onState: (s: SaveState) => void,
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {
-    this.state = { dirty: false, saving: false, revision, error: null, stopped: false, badPaths: [] }
+    this.state = { dirty: false, saving: false, structuring: false, revision, error: null, stopped: false, badPaths: [] }
   }
 
   private set(p: Partial<SaveState>) {
-    this.state = { ...this.state, ...p, dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 || this.bad.size > 0, badPaths: [...this.bad.keys()] }
+    this.state = {
+      ...this.state, ...p,
+      dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 || this.bad.size > 0,
+      structuring: this.structural.length > 0,
+      badPaths: [...this.bad.keys()],
+    }
     this.onState(this.state)
   }
 
@@ -55,24 +64,44 @@ export class SaveQueue {
     void this.run()
   }
 
+  structure(path: string) {
+    if (this.state.stopped) return
+    this.structural.push(path)
+    this.set({})
+    void this.run()
+  }
+
   stop(message: string) { this.set({ stopped: true, saving: false, error: message }) }
 
   private async run() {
     if (this.running) return
     this.running = true
     try {
-      while (this.pending.size && !this.state.stopped) {
-        const [path, item] = this.pending.entries().next().value as [string, { value: string; stamp: number }]
+      while ((this.pending.size || this.structural.length) && !this.state.stopped) {
+        const isStructure = this.pending.size === 0
+        const [path, item]: [string, Item] = isStructure
+          ? [this.structural[0], { value: 'structure', stamp: 0 }]
+          : (this.pending.entries().next().value as [string, Item])
         this.set({ saving: true })
         const r = await Promise.resolve().then(() => this.send(path, item.value, this.state.revision)).catch((): SendResult => ({ kind: 'retry' }))
         if (this.state.stopped) return
         if (r.kind === 'ok') {
-          if (this.pending.get(path) === item) this.pending.delete(path)
-          if ((this.typed.get(path) ?? 0) === item.stamp && !this.pending.has(path)) this.dirtyPaths.delete(path)
+          if (isStructure) {
+            this.structural.shift()
+          } else {
+            if (this.pending.get(path) === item) this.pending.delete(path)
+            if ((this.typed.get(path) ?? 0) === item.stamp && !this.pending.has(path)) this.dirtyPaths.delete(path)
+          }
           this.attempt = 0
           this.set({ revision: r.revision, saving: false, error: this.outstandingBad() })
         } else if (r.kind === 'bad') {
           this.attempt = 0
+          if (isStructure) {
+            // A refused structure (a list already at its limit) is dropped and its reason shown.
+            this.structural.shift()
+            this.set({ saving: false, error: r.error })
+            continue
+          }
           // Only this field is refused. It stays dirty until Ryan changes that text; the others keep sending.
           if (this.pending.get(path) === item) {
             this.pending.delete(path)

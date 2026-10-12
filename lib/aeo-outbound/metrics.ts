@@ -249,3 +249,9 @@ export function buildSnapshotData(
     settingsUsed: { rankAmong: decisions.rankAmong, peecOpportunityRows: used.peecOpportunityRows, methodologyStatesPromptsAndModels: used.methodologyStatesPromptsAndModels, fixedNextStep: used.fixedNextStep },
   }
 }
+
+/** 'Oct 2, 2026, 11:00 AM' in US Eastern, for the hub and the open list (spec v1.1 §5, §6). */
+export function fmtEasternDateTime(d: Date): string {
+  const time = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(d).replace(/\u202f/g, ' ')
+  return `${fmtEasternDay(d)}, ${time}`
+}

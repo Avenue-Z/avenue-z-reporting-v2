@@ -49,3 +49,14 @@ export const LEAVE_UNSAVED = 'You have unsaved edits. Leave anyway?'
 /** v1.1 §8: the no-access page names who to ask. */
 export const askAdmin = (admins: string[]): string =>
   admins.length ? `Ask a New Business admin (${admins.join(', ')}) to add you.` : 'Ask a New Business admin to add you.'
+
+/** v1.1 §11: Copy link. */
+export const COPY_LINK = 'Copy link'
+export const COPIED = 'Copied'
+export const LINK_COPIED = 'Link copied'
+export const COPY_FAILED = "Couldn't copy. Select the link and copy it."
+export const LINK_FIELD = 'Link'
+/** v1.1 §9: a 400 bad-request shows its own message. */
+export const BAD_REQUEST = "That request wasn't valid. Refresh the page and try again."
+/** v1.1 §6: the visible caveat next to every open count (best effort, round-2 MINOR 6). */
+export const OPENS_CAVEAT = 'Email security scanners can open links automatically. Opens marked automated are likely scanners. The marking is best effort.'

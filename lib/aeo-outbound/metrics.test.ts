@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import vectors from './round.vectors.json'
-import { buildSnapshotData, fmtDay, fmtEasternDay, pyRound, titleClassification, V1_SETTINGS_USED } from './metrics'
+import { buildSnapshotData, fmtDay, fmtEasternDateTime, fmtEasternDay, pyRound, titleClassification, V1_SETTINGS_USED } from './metrics'
 import type { MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
@@ -355,4 +355,9 @@ test('the kind of the remaining notes is pinned: no_competitors, high_visibility
   expect(empty.notes).toContainEqual(expect.objectContaining({ kind: 'empty_source_mix', text: 'Peec reported no source weights for this window, so the source mix is empty.' }))
   const none = buildSnapshotData({ ...PULL, domains: PULL.domains.filter((r) => r.domain !== 'example.com') }, '2026-10-08T15:00:00Z')
   expect(none.notes).toContainEqual(expect.objectContaining({ kind: 'own_domains', text: "No retrievals of the brand's own site in this window." }))
+})
+
+test('date and time in US Eastern, for the hub and the open list', () => {
+  expect(fmtEasternDateTime(new Date('2026-10-02T15:00:00Z'))).toBe('Oct 2, 2026, 11:00 AM')
+  expect(fmtEasternDateTime(new Date('2026-01-15T17:05:00Z'))).toBe('Jan 15, 2026, 12:05 PM')
 })

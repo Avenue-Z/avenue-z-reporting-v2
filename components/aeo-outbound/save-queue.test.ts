@@ -176,3 +176,29 @@ test('badPaths names every field with an outstanding 400, and empties once each 
   await flush()
   expect(q.state.badPaths).toEqual([])
 })
+
+test('a structural item waits for every pending edit, then goes out with the revision the last save returned', async () => {
+  const calls: [string, string, number][] = []
+  let rev = 3
+  const send = vi.fn(async (p: string, v: string, r: number): Promise<SendResult> => { calls.push([p, v, r]); return { kind: 'ok', revision: ++rev } })
+  const states: boolean[] = []
+  const q = new SaveQueue(send, 3, (s) => states.push(s.structuring))
+  q.markDirty('headline'); q.edit('headline', 'a')
+  q.structure('competitive_bullets.add')
+  expect(q.state.structuring).toBe(true)
+  await flush()
+  expect(calls).toEqual([['headline', 'a', 3], ['competitive_bullets.add', 'structure', 4]])
+  expect(q.state).toMatchObject({ structuring: false, dirty: false, saving: false, revision: 5 })
+  expect(states).toContain(true)
+})
+
+test('a refused structural item is dropped with its error; a stop stops it', async () => {
+  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'bad', error: 'A list needs at least two bullets.' })), 0, () => {})
+  q.structure('sources_bullets.0.remove')
+  await flush()
+  expect(q.state).toMatchObject({ structuring: false, error: 'A list needs at least two bullets.' })
+  const stopped = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'stop' })), 0, () => {})
+  stopped.structure('sources_bullets.add')
+  await flush()
+  expect(stopped.state).toMatchObject({ stopped: true, error: 'This snapshot changed. Reload.' })
+})
