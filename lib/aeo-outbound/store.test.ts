@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { approveQuery, hubCountsQuery, opensForReportQuery, progressStepQuery, projectStatsQuery, copyAsDraftQuery, discardQuery, displayStatus, failureCode, failureReason, finishDraftQuery, finishFailedQuery, insertGeneratingQuery, isConstraintViolation, isReportId, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, ONE_GENERATING_INDEX, recentSummariesQuery, recordOpenSql, revokeQuery, saveSlotsQuery, SHARE_TOKEN_UNIQUE } from './store'
+import { approveQuery, hubCountsQuery, opensForReportQuery, progressStepQuery, projectStatsQuery, copyAsDraftQuery, discardQuery, displayStatus, failureCode, failureReason, finishDraftQuery, finishFailedQuery, generationProgressQuery, insertGeneratingQuery, isConstraintViolation, isReportId, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, ONE_GENERATING_INDEX, recentSummariesQuery, recordOpenSql, revokeQuery, saveSlotsQuery, SHARE_TOKEN_UNIQUE } from './store'
 import type { AeoOutboundRow } from '@/lib/db/schema'
 import type { Slots } from './slots'
 import type { SnapshotData } from './metrics'
@@ -313,4 +313,13 @@ test('failure code: the stored code, else stale for a generating row past the li
   expect(failureCode(row({ status: 'generating', errorCode: null }), t + 6 * 60_000 + 1)).toBe('stale')
   expect(failureCode(row({ status: 'generating', errorCode: null }), t + 60_000)).toBeNull()
   expect(failureCode(row({ status: 'failed', errorCode: null }), t)).toBeNull()
+})
+
+test('the progress read follows one generating row by id or by project, never a stale or deleted one (spec v1.1 §16.3)', () => {
+  const byId = generationProgressQuery({ id: ID }, NOW).toSQL()
+  expect(byId.sql).toBe(`select "id", "progress_step", "created_at" from ${T} where (${T}."id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
+  expect(byId.params).toEqual([ID, 'generating', STALE, 1])
+  const byProject = generationProgressQuery({ projectId: 'or_a' }, NOW).toSQL()
+  expect(byProject.sql).toBe(`select "id", "progress_step", "created_at" from ${T} where (${T}."peec_project_id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
+  expect(byProject.params).toEqual(['or_a', 'generating', STALE, 1])
 })

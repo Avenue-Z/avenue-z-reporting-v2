@@ -25,7 +25,9 @@ import {
 } from './messages'
 import { cleanSearch } from './search-text'
 import { KEEP_OPEN, USUALLY, progressText } from './progress'
+import { ProgressChecklist } from './progress-checklist'
 import { ProjectPicker, type PickerProject } from './project-picker'
+import { useGenerationProgress } from './use-generation-progress'
 import { STATUS_UI, actionsFor } from './status'
 import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 import { btnCls, cardCls, inputCls, primaryBtnCls } from './ui'
@@ -77,6 +79,13 @@ export function opensSummary(r: Pick<HubRow, 'openCount' | 'opensPerson' | 'open
   const head = `${r.openCount} ${r.openCount === 1 ? 'open' : 'opens'}: ${r.opensPerson} likely ${r.opensPerson === 1 ? 'person' : 'people'}, ${r.opensAutomated} likely automated`
   const rest = r.openCount - r.opensPerson - r.opensAutomated
   return rest > 0 ? `${head}, ${rest} not classified` : head
+}
+
+/** The local row for a Generate request in flight in this tab: polls by project, clock from the click (spec v1.1 §16.3). */
+function PendingProgress({ projectId, startedAt }: { projectId: string; startedAt: string }) {
+  const clickedAt = Date.parse(startedAt)
+  const live = useGenerationProgress({ projectId, clickedAt })
+  return <ProgressChecklist step={live.step} startedAtMs={clickedAt} />
 }
 
 export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, shareOrigin }: OutboundHubProps) {
@@ -326,7 +335,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
               <tr key={`pending-${pid}`} className="border-t border-white/[0.06] align-top">
                 <td className="px-4 py-3">{p.projectName}</td>
                 <td className="px-4 py-3">{p.projectName}</td>
-                <td className="px-4 py-3"><StatusPill status="generating" />{progress(0, p.startedAt)}</td>
+                <td className="px-4 py-3"><StatusPill status="generating" /><PendingProgress projectId={pid} startedAt={p.startedAt} /></td>
                 <td colSpan={5} />
               </tr>
             ))}

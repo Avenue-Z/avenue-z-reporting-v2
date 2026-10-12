@@ -1,5 +1,5 @@
 // The only reader and writer of aeo_outbound_reports and aeo_outbound_opens (spec §9, v1.1 §6). Every write is one conditional statement; all but markStaleGeneratingQuery, progressStepQuery and the open writes end in .returning(), so a lost race matches nothing instead of reporting success (app/actions/commentary.ts:17-37).
-import { and, desc, eq, ilike, inArray, isNull, lt, not, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gt, ilike, inArray, isNull, lt, not, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { aeoOutboundOpens as o, aeoOutboundReports as t, type AeoOutboundRow } from '@/lib/db/schema'
 import { STALE_GENERATING_MS, type ContractBoundary } from './config'
@@ -112,6 +112,17 @@ export async function getReport(id: string): Promise<ReportRow | undefined> {
 
 export async function findGeneratingFor(projectId: string): Promise<string | undefined> {
   return (await db.select({ id: t.id }).from(t).where(and(eq(t.peecProjectId, projectId), eq(t.status, 'generating'))).limit(1))[0]?.id
+}
+
+/**
+ * The generating row a progress poll follows (spec v1.1 §16.3): by report id, or the project's one generating row (the
+ * partial unique index allows one). A row older than STALE_GENERATING_MS is shown as failed by displayStatus, so it is
+ * never reported as running.
+ */
+export function generationProgressQuery(by: { id: string } | { projectId: string }, now: Date) {
+  return db.select({ id: t.id, step: t.progressStep, createdAt: t.createdAt }).from(t)
+    .where(and('id' in by ? eq(t.id, by.id) : eq(t.peecProjectId, by.projectId), eq(t.status, 'generating'), isNull(t.deletedAt), gt(t.createdAt, staleBefore(now))))
+    .limit(1)
 }
 
 export function liveByTokenQuery(token: string) {

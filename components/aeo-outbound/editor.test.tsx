@@ -23,10 +23,13 @@ const LEAD = 'competitive_bullets.0.lead'
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 let patch: () => Promise<Response>
+let progress: (url: string) => Promise<Response> = async () => json(200, { step: null })
+let generateAnswer: () => Promise<Response> = async () => json(200, { id: NEW_ID, status: 'draft' })
 const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
   if (url.startsWith(`/api/aeo-outbound/reports/${ID}/view`)) return new Response(`<p>${url}</p>`, { status: 200 })
   if (url === `/api/aeo-outbound/reports/${ID}/slots`) return patch()
-  if (url === '/api/aeo-outbound/generate') return json(200, { id: NEW_ID, status: 'draft' })
+  if (url === '/api/aeo-outbound/generate') return generateAnswer()
+  if (url.startsWith('/api/aeo-outbound/progress?')) return progress(url)
   throw new Error(`unexpected fetch ${url}`)
 })
 const patches = () => fetchMock.mock.calls.filter(([u]) => u.endsWith('/slots'))
@@ -45,6 +48,8 @@ beforeEach(() => {
   refresh.mockReset(); push.mockReset(); fetchMock.mockClear()
   Object.values(actions).forEach((a) => a.mockReset())
   patch = async () => json(200, { revision: 5, notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [] })
+  generateAnswer = async () => json(200, { id: NEW_ID, status: 'draft' })
+  progress = async () => json(200, { id: ID, step: 4, createdAt: '2026-10-08T15:00:00.000Z' })
   vi.stubGlobal('fetch', fetchMock)
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -245,19 +250,41 @@ test('Edit a copy is disabled while pending and opens the new draft', async () =
   expect(actions.copySnapshotAsDraftAction).toHaveBeenCalledWith(ID)
 })
 
-test('a generating snapshot shows its progress, the usual time and the keep-open advice, and refreshes every 5s', async () => {
+test('a generating snapshot shows the checklist, polls its row by id every second, and refreshes at once when it finishes (spec v1.1 §16.3)', async () => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-10-08T15:00:18.000Z'))
+  const answers: unknown[] = [{ id: ID, step: 4, createdAt: '2026-10-08T15:00:00.000Z' }, { id: ID, step: 6, createdAt: '2026-10-08T15:00:00.000Z' }, { step: null }]
+  progress = async () => json(200, answers.length > 1 ? answers.shift() : answers[0])
   const { container } = render(<OutboundEditor {...base} status="generating" progressStep={4} />)
-  expect(screen.getByText('Finding the days with data… 0:18')).toBeInTheDocument()
-  expect(screen.getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
-  expect(screen.getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
+  const box = screen.getByRole('status', { name: 'Generation progress' })
+  expect(within(box).getByText('Finding the days with data…')).toBeInTheDocument()
+  expect(within(box).getByText('0:18')).toBeInTheDocument()
+  expect(within(box).getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
+  expect(within(box).getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
   expect(container.querySelector('iframe')).toBeNull()
-  await act(() => vi.advanceTimersByTimeAsync(10_000))
-  expect(refresh).toHaveBeenCalledTimes(2)
-  expect(screen.getByText('Finding the days with data… 0:28')).toBeInTheDocument()
-  expect(fetchMock).not.toHaveBeenCalled()
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(within(box).getByText('Loading the sources AI used…')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledWith(`/api/aeo-outbound/progress?id=${ID}`, { cache: 'no-store' })
+  const before = refresh.mock.calls.length
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(refresh.mock.calls.length).toBe(before + 1)
+  expect(fetchMock.mock.calls.filter(([u]) => u.includes('/view'))).toHaveLength(0)
 })
+
+test("while the editor's Rerun request runs, the checklist replaces the action bar and polls by project (spec v1.1 §16.3)", async () => {
+  let release: (r: Response) => void = () => {}
+  generateAnswer = () => new Promise<Response>((r) => { release = r })
+  progress = async () => json(200, { id: NEW_ID, step: 3, createdAt: new Date(Date.now() + 1000).toISOString() })
+  await setup({ status: 'failed', errorCode: 'no_data', error: 'x' })
+  fireEvent.click(screen.getByRole('button', { name: 'Rerun' }))
+  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  expect(screen.queryByRole('toolbar', { name: 'Snapshot actions' })).not.toBeInTheDocument()
+  await waitFor(() => expect(within(box).getByText('Reading the project profile…')).toBeInTheDocument(), { timeout: 3000 })
+  expect(fetchMock.mock.calls.some(([u]) => u === '/api/aeo-outbound/progress?projectId=p1')).toBe(true)
+  await act(async () => release(json(200, { id: NEW_ID, status: 'draft' })))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${NEW_ID}`))
+  expect(screen.queryByRole('status', { name: 'Generation progress' })).not.toBeInTheDocument()
+}, 10_000)
 
 test('a failed snapshot shows its reason with Rerun and Discard and no iframe', async () => {
   actions.discardSnapshotAction.mockResolvedValue({ ok: true })

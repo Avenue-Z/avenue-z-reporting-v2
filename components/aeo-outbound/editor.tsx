@@ -27,10 +27,11 @@ import {
   RECIPIENT_LABEL, REVOKE_LINK, STALE, STAY, UNREADABLE, VIEW_FAILED, actionError, discardTitle, fillFirst, notClassified,
   rerunTitle, revokeTitle,
 } from './messages'
-import { KEEP_OPEN, USUALLY, progressText } from './progress'
+import { ProgressChecklist } from './progress-checklist'
 import { RETRY_MESSAGE, SaveQueue, type SaveState, type SendResult } from './save-queue'
 import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 import { btnCls, cardCls, inputCls, primaryBtnCls } from './ui'
+import { useGenerationProgress } from './use-generation-progress'
 
 export interface OpenEvent { openedAt: string; uaFamily: string; likelyAutomated: boolean; reason: string | null }
 export interface OutboundEditorProps {
@@ -115,7 +116,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [ownTicks, setOwnTicks] = useState<ReadonlySet<number>>(new Set())
   const [highlight, setHighlight] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [now, setNow] = useState(() => Date.now())
+  const [rerunning, setRerunning] = useState<number | null>(null)
   const [origin, setOrigin] = useState('')
   useEffect(() => { setOrigin(props.shareOrigin ?? window.location.origin) }, [props.shareOrigin])
 
@@ -224,8 +225,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   useEffect(() => {
     if (status !== 'generating') return
     const refreshTimer = setInterval(() => router.refresh(), 5000)
-    const clock = setInterval(() => setNow(Date.now()), 1000)
-    return () => { clearInterval(refreshTimer); clearInterval(clock) }
+    return () => clearInterval(refreshTimer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status])
 
@@ -337,11 +337,20 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const guard = (then: () => void) => (unsaved ? setDialog({ kind: 'leave', then }) : then())
 
   const doRerun = () => run(async () => {
-    const out = await requestGenerate({ projectId, rerunOf: id })
-    if (out.kind === 'open') return router.push(`/tools/new-business/${out.id}`)
-    setMessage(out.text || null)
-    if (out.kind === 'message' && out.refresh) router.refresh()
+    // While the request runs, the checklist replaces the action bar and follows the new row by project (spec v1.1 §16.3).
+    setRerunning(Date.now())
+    try {
+      const out = await requestGenerate({ projectId, rerunOf: id })
+      if (out.kind === 'open') return router.push(`/tools/new-business/${out.id}`)
+      setMessage(out.text || null)
+      if (out.kind === 'message' && out.refresh) router.refresh()
+    } finally {
+      setRerunning(null)
+    }
   })
+  const rerunLive = useGenerationProgress(rerunning === null ? null : { projectId, clickedAt: rerunning })
+  // A row already generating: follow it by id, and refresh at once when it finishes (spec v1.1 §16.3).
+  const ownLive = useGenerationProgress(status === 'generating' ? { id } : null, props.progressStep, () => router.refresh())
   const onRerun = () => {
     if (unsaved) return setDialog({ kind: 'leave', then: () => void doRerun() })
     if (status === 'draft') return setDialog({ kind: 'rerun' })
@@ -392,6 +401,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
             </span>
           )}
           {message && <span className="text-xs text-[#FF6B6B]">{message}</span>}
+          {rerunning !== null ? <div className="ml-auto"><ProgressChecklist step={rerunLive.step} startedAtMs={rerunning} /></div> : (
           <div role="toolbar" aria-label="Snapshot actions" className="ml-auto flex flex-wrap items-center gap-1.5">
             {status === 'draft' && (
               <button type="button" className={primaryBtnCls} disabled={props.unreadable} onClick={() => switchMode(mode === 'edit' ? 'preview' : 'edit')}>
@@ -421,6 +431,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
               </>
             )}
           </div>
+          )}
         </div>
         {status === 'draft' && mode === 'edit' && <p role="status" className="mt-2 text-xs text-[#60FFEA]">{EDIT_BANNER}</p>}
         {locked && <p role="status" className="mt-2 text-xs text-[#FFFC60]">{locked.text}</p>}
@@ -428,9 +439,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
 
       {status === 'generating' && (
         <div className={cardCls}>
-          <p className="text-sm text-white">{progressText(props.progressStep, props.createdAt, now)}</p>
-          <p className="mt-1 text-xs text-text-muted">{USUALLY}</p>
-          <p className="mt-1 text-xs text-text-muted">{KEEP_OPEN}</p>
+          <ProgressChecklist step={ownLive.step} startedAtMs={Date.parse(props.createdAt)} />
         </div>
       )}
       {status === 'failed' && <div className={cardCls}><p className="text-sm text-[#FF6B6B]">{failureText(props.errorCode, props.error, id)}</p></div>}

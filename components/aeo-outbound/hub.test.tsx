@@ -26,10 +26,12 @@ const hub = (over: Partial<OutboundHubProps> = {}) => render(<OutboundHub {...pr
 let generate: () => Promise<Response>
 let projects: () => Promise<Response>
 let older: (url: string) => Promise<Response>
+let progress: (url: string) => Promise<Response>
 const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
   if (url === '/api/aeo-outbound/projects') return projects()
   if (url === '/api/aeo-outbound/generate') return generate()
   if (url.startsWith('/api/aeo-outbound/reports?')) return older(url)
+  if (url.startsWith('/api/aeo-outbound/progress?')) return progress(url)
   throw new Error(`unexpected fetch ${url}`)
 })
 const bodies = () => fetchMock.mock.calls.filter(([u]) => u === '/api/aeo-outbound/generate').map(([, init]) => JSON.parse(String(init?.body)))
@@ -40,6 +42,7 @@ beforeEach(() => {
   projects = async () => json(200, PROJECTS)
   generate = async () => json(200, { id: ID(9), status: 'draft' })
   older = async () => json(200, { rows: [], cursor: null })
+  progress = async () => json(200, { step: null })
   vi.stubGlobal('fetch', fetchMock)
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -119,9 +122,11 @@ test('Generate shows a local progress row with the keep-open advice, and 200 dra
   let release: (r: Response) => void = () => {}
   generate = () => new Promise((r) => { release = r })
   await pickAndGenerate()
-  expect(await screen.findByText(/^Starting… 0:0\d$/)).toBeInTheDocument()
-  expect(screen.getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
-  expect(screen.getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
+  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  expect(within(box).getByText('Starting…')).toBeInTheDocument()
+  expect(within(box).getByText(/^0:0\d$/)).toBeInTheDocument()
+  expect(within(box).getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
+  expect(within(box).getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
   expect(bodies()).toEqual([{ projectId: 'p1' }])
   await act(async () => release(json(200, { id: ID(9), status: 'draft' })))
   await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${ID(9)}`))
@@ -562,3 +567,21 @@ test('a discard refused with not found says the snapshot is gone; Edit a copy pa
   fireEvent.click(screen.getByRole('button', { name: 'Edit a copy' }))
   await waitFor(() => expect(actions.copySnapshotAsDraftAction).toHaveBeenCalledWith(ID(3)))
 })
+
+test('while its Generate request runs, the hub polls progress by project and shows each step, then stops when the request answers (spec v1.1 §16.3)', async () => {
+  let release: (r: Response) => void = () => {}
+  generate = () => new Promise((r) => { release = r })
+  const created = new Date(Date.now() + 1000).toISOString()
+  const answers = [{ step: null }, { id: ID(9), step: 2, createdAt: created }, { id: ID(9), step: 9, createdAt: created }]
+  progress = async () => json(200, answers.length > 1 ? answers.shift() : answers[0])
+  await pickAndGenerate()
+  const box = await screen.findByRole('status', { name: 'Generation progress' })
+  await waitFor(() => expect(within(box).getByText('Reading the brands tracked…')).toBeInTheDocument(), { timeout: 3000 })
+  await waitFor(() => expect(within(box).getByText('Writing the copy…')).toBeInTheDocument(), { timeout: 3000 })
+  expect(fetchMock.mock.calls.some(([u]) => u === '/api/aeo-outbound/progress?projectId=p1')).toBe(true)
+  await act(async () => release(json(200, { id: ID(9), status: 'draft' })))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${ID(9)}`))
+  const calls = fetchMock.mock.calls.length
+  await new Promise((r) => setTimeout(r, 1500))
+  expect(fetchMock.mock.calls.slice(calls).filter(([u]) => String(u).startsWith('/api/aeo-outbound/progress'))).toHaveLength(0)
+}, 10_000)
