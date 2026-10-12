@@ -78,6 +78,7 @@ export default defineConfig({
       'lib/export/**/*.test.{ts,tsx}',
       'components/export/**/*.test.{ts,tsx}',
       'e2e/export/pdf-check.test.ts',
+      'e2e/export/pair.test.ts',
       'components/layout/sticky-report-header.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],

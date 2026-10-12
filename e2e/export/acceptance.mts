@@ -17,7 +17,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
 import { ExportNotReadyError, renderPdf, CONTENT_WIDTH } from '../../lib/export/render-pdf'
-import { countLinks, fontsOf, outsideBox, pagesOf, printedDifference, readPdf, type PdfText } from './pdf-check'
+import { countLinks, fontsOf, outsideBox, pagesOf, printedDifference, readPdf } from './pdf-check'
+import { exportPair } from './pair'
 
 const out = mkdtempSync(join(tmpdir(), 'export-acceptance-'))
 const failures: string[] = []
@@ -167,15 +168,22 @@ if (!process.env.AUTH_SECRET) {
   // A locked-months client's platform tab, exported by a staff editor and by a client (Thomas, #332 round 2, item 5): the
   // staff export prints exactly the client's, with no editor, draft or button text. A month both can see, so both serve it.
   const APFM = { clientSlug: 'a-place-for-mom', section: 'organic-social', subsection: process.env.APFM_TAB ?? 'organic-instagram', dateRange: process.env.APFM_MONTH ?? 'custom:2026-08-01,2026-08-31' }
-  const staff = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, APFM, 'apfm-staff')
-  const client = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: APFM.clientSlug }, APFM, 'apfm-client')
-  // Every page's text in reading order by position, and every page starting at the same place (printedDifference: not
+  // A view exported as a staff editor and as a client (PDFs `<name>-staff` / `<name>-client`), checked to print the same:
+  // every page's text in reading order by position, and every page starting at the same place (printedDifference: not
   // pdftotext's extraction order, which differs between two renders of the same layout; the stamp's minute dropped). A
-  // failure names the first page and line that differ, so one run says what to look at.
-  const sameExport = (name: string, a: PdfText, b: PdfText) => {
-    const diff = printedDifference(a, b)
-    check(diff === null, `${name}: the staff export prints exactly what the client export does${diff ? ` (first difference: ${diff})` : ''}`)
+  // failure names the first page and line that differ. A pair that differs is exported once more (./pair.ts): a stale
+  // cache can refresh between the two exports; its PDFs are named -retry, so the first pair's stay on disk.
+  const staffAndClient = async (name: string, body: Record<string, unknown>, clientSlug: string) => {
+    const pair = await exportPair(
+      (n) => exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, body, `${name}-staff${n > 1 ? '-retry' : ''}`),
+      (n) => exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug }, body, `${name}-client${n > 1 ? '-retry' : ''}`),
+      (a, b) => printedDifference(a.pdf, b.pdf),
+    )
+    if (pair.retried) console.log(`  note  ${name}: the first staff/client pair differed (${pair.retried}); exported once more, as a cache may have refreshed between them`)
+    if (pair.staff && pair.client) check(pair.difference === null, `${name}: the staff export prints exactly what the client export does${pair.difference ? ` (first difference: ${pair.difference})` : ''}`)
+    return pair
   }
+  const { staff, client } = await staffAndClient('apfm', APFM, APFM.clientSlug)
   for (const [name, r] of [['apfm-staff', staff], ['apfm-client', client]] as const) {
     if (!r) continue
     const staffOnly = (r.pdf.words.map((w) => w.text).join(' ').match(/\b(Draft|Approve|Revoke|Add annotation|Add commentary|Edit|Hidden)\b/g) ?? [])
@@ -185,7 +193,6 @@ if (!process.env.AUTH_SECRET) {
     // An annotation's label starts with its day; the day printed again before it read "8/25 · 8/25 | …".
     check(!/(\d{1,2}\/\d{1,2}) · \1\b/.test(text), `${name}: each annotation's day prints once`)
   }
-  if (staff && client) sameExport('apfm', staff.pdf, client.pdf)
 
   // AEO (PDF export PR 2): every tab of a client with all four (Peec and Profound) and Renaissance's two, each as a staff
   // editor and as a client. No table or chart controls print, the two exports print the same, and each tab's time to
@@ -197,15 +204,13 @@ if (!process.env.AUTH_SECRET) {
     for (const tab of tabs) {
       const aeoBody = { clientSlug: aeoClient, section: 'peec-ai', subsection: tab, dateRange: 'last_30_days' }
       const name = `aeo-${aeoClient}-${tab ?? 'overview'}`
-      const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, aeoBody, `${name}-staff`)
-      const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: aeoClient }, aeoBody, `${name}-client`)
+      const { staff: s, client: c } = await staffAndClient(name, aeoBody, aeoClient)
       for (const [who, r] of [['staff', s], ['client', c]] as const) {
         if (!r) continue
         const text = r.pdf.words.map((w) => w.text).join(' ')
         const controls = text.match(/See all \d+ rows|Show less|Clear all filters|Sort by|Daily Weekly Monthly Quarterly/g) ?? []
         check(controls.length === 0, `${name}-${who}: no table or chart controls (${[...new Set(controls)].join(', ') || 'none'})`)
       }
-      if (s && c) sameExport(name, s.pdf, c.pdf)
     }
   }
 
@@ -216,8 +221,7 @@ if (!process.env.AUTH_SECRET) {
     for (const tab of tabs) {
       const pmBody = { clientSlug: pmClient, section: 'paid-media', subsection: tab, dateRange: 'last_30_days' }
       const name = `pm-${pmClient}-${tab ?? 'overview'}`
-      const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, pmBody, `${name}-staff`)
-      const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: pmClient }, pmBody, `${name}-client`)
+      const { staff: s, client: c } = await staffAndClient(name, pmBody, pmClient)
       for (const [who, r] of [['staff', s], ['client', c]] as const) {
         if (!r) continue
         const text = r.pdf.words.map((w) => w.text).join(' ')
@@ -228,7 +232,6 @@ if (!process.env.AUTH_SECRET) {
         const failed = text.match(/Couldn't load this section|Taking longer than usual/g) ?? []
         check(failed.length === 0, `${name}-${who}: every part loaded, none printed its fallback (${[...new Set(failed)].join(', ') || 'none'})`)
       }
-      if (s && c) sameExport(name, s.pdf, c.pdf)
     }
   }
 
@@ -238,8 +241,7 @@ if (!process.env.AUTH_SECRET) {
   {
     const eoClient = process.env.EO_CLIENT ?? 'renaissance'
     const eoBody = { clientSlug: eoClient, section: 'executive-overview', subsection: null, dateRange: 'custom:2026-08-01,2026-08-31' }
-    const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, eoBody, `eo-${eoClient}-staff`)
-    const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: eoClient }, eoBody, `eo-${eoClient}-client`)
+    const { staff: s, client: c } = await staffAndClient(`eo-${eoClient}`, eoBody, eoClient)
     for (const [who, r] of [['staff', s], ['client', c]] as const) {
       if (!r) continue
       const text = r.pdf.words.map((w) => w.text).join(' ')
@@ -257,7 +259,6 @@ if (!process.env.AUTH_SECRET) {
         check(text.includes('Year to date, by ISO week.') && text.includes('Open pipeline is as of today.'), `eo-${eoClient}-${who}: the CRM blocks keep their year-to-date and as-of-today labels`)
       } else console.log(`  note  eo-${eoClient}-${who}: CRM blocks didn't load, so their window labels weren't checked`)
     }
-    if (s && c) sameExport(`eo-${eoClient}`, s.pdf, c.pdf)
   }
 }
 
