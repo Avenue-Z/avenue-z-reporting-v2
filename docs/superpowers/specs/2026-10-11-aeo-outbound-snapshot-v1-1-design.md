@@ -1,6 +1,7 @@
 # AEO Outbound Snapshot v1.1: everything editable, self-service, correct
 
-Status: draft amendment (2026-10-11), step 2 of my spec regimen. It changes the main spec
+Status: draft amendment (2026-10-11), step 2 of my spec regimen. Amendment 5 (§16, 2026-10-12) adds Ryan's answers,
+the share link and live progress. It changes the main spec
 (`2026-10-08-aeo-outbound-snapshot-design.md`, "the spec") only where it says so; everything else there still governs.
 Sources: my requests on 2026-10-11 ("every single thing on the page needs to be able to be edited", an Edit button at the
 top, an itinerary of everything sent, 100% self-service, data contracts, the backtest, opens done perfectly) and the
@@ -175,8 +176,8 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
   status = 'generating' AND progress_step < $n` that never throws and logs one line on error, so it cannot slow the run
   or land out of order. Pull emits steps 1 to 6 and 8 (there is no step 7); `generate.ts` writes 9 before the Glean call.
   The column is `integer not null default 0`.
-  The hub and editor show "Pulling Peec data… 0:18" for 1 to 8 and "Writing the copy… 0:41" for 9, with "Usually 35 to 45
-  seconds" (measured: 34.7s in the dev run, 35.8s and 40.6s in the trials).
+  How progress is shown, step 10 and the live poll are in §16.3 ("Usually 35 to 45 seconds": measured 34.7s in the dev
+  run, 35.8s and 40.6s in the trials).
 - Different projects can generate in parallel (the partial unique index allows one per project,
   `lib/db/schema.ts:527`). The hub tracks pending generation per project: Generate is disabled only for a project already
   generating, and Rerun only on its own row.
@@ -206,8 +207,9 @@ Not in v1.1 (parked, each with its reason in §12): per-recipient links, Google 
   to `aeo_outbound_settings_log` (who, when, which field, old and new value). Fields and limits, validated on save:
   users and admins (lists of emails, each trimmed, lowercased, `@avenuez.com`, at most 200 characters, at most 50 each);
   section titles (1 to 60 characters each); next-step sentence (none, or 1 to 300 characters); rank among (all tracked, or
-  an integer 2 to 50); Peec opportunity rows (0 to 3); methodology states prompts and models (yes or no); sidebar
-  wordmark (AIVx or Avenue Z, the default for `page.sidebar_wordmark`). `pitchOnly` stays in code: the full-history bound
+  an integer 2 to 50); most opportunities from Peec recommendations (0 to 3, a ceiling, §16.1); methodology states
+  prompts and models (yes or no); sidebar wordmark (AIVx or Avenue Z, default Avenue Z per §16.1; the default for
+  `page.sidebar_wordmark`). `pitchOnly` stays in code: the full-history bound
   was measured on pitch projects only.
 - Access: one async `outboundAccess(user)` replaces `outboundEmail` everywhere (pages, routes, actions). It keeps the
   staff and `@avenuez.com` checks for every email; a user is on `AEO_OUTBOUND_USERS` or the settings users; an admin is on
@@ -270,6 +272,7 @@ Fixes from the data audit, each with a test:
 
 ## 11. Copy link, dialogs, picker
 
+- The link itself (domain and brand name) is built as §16.2 says.
 - Copy link awaits the clipboard: "Copied" for 2 seconds with a live-region announcement; on failure, "Couldn't copy.
   Select the link and copy it." with the URL in a read-only field. After Approve the link shows in a read-only field next
   to Copy.
@@ -325,3 +328,118 @@ links cancelled in edit mode; add and remove with edits pending; a version 1 row
 the donut golden carve-out; the progress_step guard; the open counter equal to the event count. Data: own brand on chart, own domains paired,
 single-brand card dropped, decimals, gap cap, actions paging, hover label, contracts (each boundary, modes, kill switch, no
 values in logs, NaN path refused).
+
+## 16. Amendment 5 (2026-10-12): Ryan's answers, the share link, live progress
+
+Sources: Ryan's answers to the main spec §13 questions (his Google Doc, 2026-10-12, and his Slack reply on Q10 at 9:53 AM;
+recorded in `aeo-outbound-audit-notes/findings/2026-10-12-ryan-answers.md`), and my requests the same day: lock the link's
+domain, put the brand name in the link, and show clear, step-by-step progress while a snapshot generates. Code citations
+are to `feat/aeo-outbound-parts` at `0ac4b5b9`. Where this section and an earlier one disagree, this section governs.
+
+### 16.1 Ryan's answers
+
+Each answer is a `DECISIONS` value in `lib/aeo-outbound/config.ts:3-28`, which §8 makes the settings default.
+Q1, Q2, Q4, Q6, Q8 and Q9 match today's values and change nothing. Four change:
+
+- **Q3, a specific category: `writeSpecificCategory` becomes `true`.** The prompt already asks for `category` when it is
+  on (`prompt.ts:90`) and generation takes a string reply (`generate.ts:59`). A generated category must be 1 to 80
+  characters (`MAX_LEAD`, `slots.ts:21`; today it gets the 1,000 limit at `slots.ts:92`); anything else is a shape
+  problem fed to the existing retry. With no usable reply it stays Peec's category or "Needs validation"
+  (`generate.ts:30`). Because Glean now writes it, `category` is grounded like any written field on a version 2 row: it
+  leaves the code set (`grounding.ts:14` today; the plan's Task 6 `codeSet`). A version 1 row keeps it exempt.
+- **Q5, Peec recommendations only when relevant: `peecOpportunityRows` keeps the value 1 but becomes a ceiling.** The
+  prompt's rule (`prompt.ts:88`, today "exactly N of the 3 must be based on those actions") becomes: "If the Peec
+  recommended actions list is not "none", you may base at most N of the 3 on those actions, and only where an action fits
+  the data. Never force one. An opportunity based on an action has a signal that starts with "Peec recommends"." With 0
+  the prompt says nothing about actions, as today. Nothing else checks the count (the phrase "Peec recommends" appears in
+  no code outside the prompt and a test fixture). The §8 setting reads "Most opportunities from Peec recommendations (0 to
+  3)".
+- **Q7, one next step for every report: `fixedNextStep` becomes the sentence from Ryan's own example:** "A comprehensive
+  AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media,
+  and technical readiness." Generation already writes a fixed sentence into `next_step` (`generate.ts:32`) and grounding
+  exempts it (`grounding.ts:14`). A version 1 row reads `V1_SETTINGS_USED.fixedNextStep`, frozen to null
+  (`metrics.ts:18`), so its grounding is unchanged. Ryan can still edit the sentence on any draft.
+- **Q10, no AIVx on the report: `showAivxName` becomes `false`.** The only visible "AIVx" on the page is the sidebar
+  wordmark (`render.ts:66`); the favicon is the Avenue Z "Z". The wordmark default, and so `page.sidebar_wordmark` on every
+  new report, is "Avenue Z". The §8 setting keeps both choices so Ryan can change it later. The "Powered by Avenue Z" line
+  under the wordmark (`page.sidebar_powered`) is rendered only when the wordmark text, trimmed and compared without case,
+  is not "Avenue Z", so the page never says Avenue Z twice. A row from before v1.1 takes its page words from the same
+  defaults, so a version 1 draft also loses AIVx: a deliberate difference added to the version 1 list in
+  `v1-compat.test.ts`. Approved rows serve their frozen HTML and never change.
+
+### 16.2 The share link
+
+- **Domain.** The link's origin comes from the server, never the browser address. `shareOrigin()` reads
+  `VERCEL_TARGET_ENV`: `production` gives `https://reporting.avenuez.com`; `staging` gives
+  `https://staging.reporting.avenuez.com`; any other value, or none, gives null, and the editor and hub then use the
+  page's own origin and label the link "Test link: it works on this environment only." Evidence, 2026-10-12: the Vercel
+  project's domains are `reporting.avenuez.com` (production), `staging.reporting.avenuez.com` (the custom environment
+  `staging`, branch `staging`) and `avenue-z-reporting-v2.vercel.app`; system environment variables are exposed
+  (`autoExposeSystemEnvs: true`); Vercel documents `VERCEL_TARGET_ENV` as "the system or custom environment that the app
+  is deployed and running on", with a custom environment's name as its value. `reports.avenuez.com`, named in two repo
+  documents, answers a Cloudflare 404 and is never used. The origins are constants in `config.ts`.
+- **Path.** `/snapshot/{slug}-{token}`, where the token is unchanged (`token.ts:4`, 24 URL-safe characters). The slug
+  comes from the row's `brand_name`: Unicode NFKD, combining marks removed, lowercased, every run of characters outside
+  `a-z` and `0-9` replaced by one `-`, leading and trailing `-` removed, cut to at most 40 characters, and a trailing `-`
+  removed again. An empty slug gives `/snapshot/{token}`. One shared function builds every link (hub, editor, Copy link);
+  `snapshotUrl` (`components/aeo-outbound/status.ts:26`) is replaced by it.
+- **Route.** `app/snapshot/[token]/route.ts` resolves the segment to a token: a segment of token shape
+  (`isShareTokenShape`, `token.ts:5`) is the token; otherwise a segment of at least 26 characters whose character before
+  the last 24 is `-`, whose prefix matches `^[a-z0-9]+(-[a-z0-9]+)*$` and is at most 40 characters, and whose last 24
+  characters have token shape gives those 24 characters; anything else answers the existing unknown-token 404. The slug
+  is not checked against the row: the token is the credential and an approved row's brand is frozen. A bare-token link
+  sent before this change keeps working. HEAD uses the same rule. The token, the database, the opens and the logs are
+  unchanged; the route still never logs the segment.
+
+### 16.3 Live progress
+
+- **Steps.** `progress_step` (§7) gains step 10, written before Glean's second attempt in the attempt loop
+  (`generate.ts:39`), unawaited and forward-only like the others. Labels: 1 "Finding the project in Peec", 2 "Reading
+  the brands tracked", 3 "Reading the project profile", 4 "Finding the days with data", 5 "Loading brand visibility and
+  AI models", 6 "Loading the sources AI used", 8 "Loading Peec's recommendations", 9 "Writing the copy", 10 "Writing the
+  copy, second attempt". Each label matches the work at its `onStep` call (`pull.ts:55,59,64,72,91,115,119`; 9 and 10
+  in generate). There is no step 7.
+- **Shown.** A checklist of eight rows (steps 1 to 6, 8 and 9; at step 10 the last row reads "Writing the copy, second
+  attempt"): finished rows ticked, the current row with a spinner, later rows muted. Step 0 (the row exists, Peec not
+  yet called) shows every row muted with "Starting…". Above it: a bar filled to finished rows ÷ 8, the elapsed clock
+  (§7's rule: from the row's `created_at`, never negative), and "Usually 35 to 45 seconds". After 90 seconds the line
+  under it reads "Taking longer than usual. It stops by itself after 4 minutes 30 seconds." (`GENERATION_DEADLINE_MS`,
+  `config.ts:31`). "Keep this tab open until it finishes." stays. A one-line form ("Writing the copy… 0:41") remains for
+  hub rows Ryan did not start in this tab. This replaces §7's two-stage text.
+- **Live.** A read-only `GET /api/aeo-outbound/progress` takes `id` (a report id) or `projectId`, checks
+  `outboundAccess` (403 otherwise), answers `no-store`, and returns `{ id, step, createdAt }` for that row while it is
+  generating (or the project's generating row; at most one exists, `lib/db/schema.ts:530`), else `{ step: null }`. A
+  malformed id is a 400. Today the hub does not refresh while its own Generate request runs: the 5-second refresh only
+  starts when a listed row is already generating (`hub.tsx:85-91`), so nothing moves for about 35 seconds. New: the hub
+  polls this endpoint by `projectId` every second while its Generate request is in flight; the editor polls by `id`
+  every second while its row is generating. Polling stops when the request answers, when the endpoint returns
+  `{ step: null }`, or 300 seconds after the poll started (the deadline plus 30 seconds); a failed poll keeps the last
+  shown state and tries again on the next tick. The endpoint is one indexed select of one row.
+
+### 16.4 Edge cases
+
+| Case | Behavior |
+|---|---|
+| Brand with no Latin letters or digits | Empty slug: `/snapshot/{token}`. |
+| Brand longer than 40 slug characters | Cut at 40, no trailing `-`. |
+| A slugged link with a wrong or edited slug | Still resolves by its token; the slug is decoration. |
+| A link sent before this change | Bare token, still resolves. |
+| Preview deployment or local dev | Page origin, labelled as a test link. |
+| Glean skips `category` or returns one over 80 characters | Retried once as a shape problem; then Peec's category or "Needs validation". |
+| A written category with a number not in Peec's data | A "Check these" grounding item, like any field. |
+| Peec has actions but none fits | No opportunity based on one; nothing fails. |
+| Wordmark edited to "avenue z " | Treated as Avenue Z: no "Powered by" line. |
+| Progress poll fails or times out | The last state stays; the Generate request still decides the outcome. |
+| Generate never answers (closed laptop) | Polling stops after 300 seconds; the stale rule (`markStaleGeneratingQuery`, `store.ts:19`, run by the next Generate for that project) frees the row. |
+
+### 16.5 Tests (written before the code)
+
+Answers: the four `DECISIONS` values; the Q5 prompt sentence with 1 and with 0; a generated category over 80
+characters is a shape problem; `category` grounded on a version 2 row and exempt on a version 1 row; the fixed sentence
+lands in `next_step`; the wordmark reads "Avenue Z" with no "Powered by" line, and "AIVx" brings the line back; the
+version 1 golden difference. Link: slug cases (accents, symbols, emoji only, 41 or more characters, empty); the route
+resolves slugged and bare segments and gives the unknown-token 404 for a bad slug shape, a 25-character segment and a
+bad token; `shareOrigin` for production, staging, preview and unset. Progress: step 10 written before the second attempt
+only; every label; the checklist's ticked, current and muted rows and the bar for each step; the over-90-seconds line;
+the endpoint's 403, 400, `{ step: null }` and row answers; the hub polls only while its request is in flight and stops on
+each of the three rules; the editor polls only while generating.
