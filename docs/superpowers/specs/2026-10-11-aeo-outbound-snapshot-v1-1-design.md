@@ -796,3 +796,29 @@ The charts still do not change. §17.8's test that no rule outside the media que
 `.chart-wrap`, `plotly`, `svg` or `aeo-chart-`, which must still set none of those. Tests: the rules verbatim and in place;
 the outside-rules list exact; the narrowed chart guard; each rule once per mode; the draft's Add bullet and Remove buttons
 still render inside the box.
+
+### 17.11 No Share button on a sent report (added 2026-10-12, my decision)
+
+The link is for one prospect. The Share Report button (AIVx's sidebar button and toast script, and §17.2's phone button)
+invites forwarding, so a sent report no longer carries it. This does not lock the link: anyone with the URL can still
+open it and pass it on (no login, §7 of the base spec); the recipient field stays Ryan's label; **Revoke** stays the
+control. Ryan's own **Copy link** in the hub is unchanged.
+
+- `renderSnapshotHtml` in final mode stops emitting `SHARE_BUTTON` (`render.ts:213`), `SHARE_MOBILE` (`:271`) and
+  `AIVX_SHARE_BLOCK` (`:308`). Draft and preview already carry none of them.
+- `PAGE_CSS` drops `.aeo-share-mobile{display:none}` and the two phone rules for `.aeo-share-mobile` and
+  `.aeo-share-mobile-btn`; `PAGE_JS` drops its phone-share proxy line (`render.ts:121`). New pages have no share markup
+  for them to act on.
+- `SHARE_BUTTON`, `SHARE_MOBILE` and `AIVX_SHARE_BLOCK` stay exported: reports approved before this change are frozen HTML
+  that still contains them (dev only so far; nothing has been sent from staging or production), and the editor's preview
+  of a sent row (`app/api/aeo-outbound/reports/[id]/view/route.ts:23-31`) still strips them from those rows.
+- That preview's `withoutShare` gains a first case: when none of the three strings occurs, it returns the page unchanged
+  with no warning (a row approved after this change). The existing cases (each once: removed; any repeated: CSS fallback
+  with its warning) are unchanged.
+- Already-sent links keep their button (frozen pages are never rewritten).
+
+Tests: a final page contains none of the three strings, `share-btn`, `share-toast` or `aeo-share-mobile`; draft and preview
+unchanged; `PAGE_CSS` has no `aeo-share-mobile` and the outside-rules list loses `.aeo-share-mobile{display:none}`; `PAGE_JS`
+has no `aeo-share-mobile-btn`; the preview of a new final page (no share strings) is the stored page with the frame
+header changes only and no warning; an old row with the strings is still stripped exactly as before; the version 1 golden
+comparison records the removal as a deliberate difference.

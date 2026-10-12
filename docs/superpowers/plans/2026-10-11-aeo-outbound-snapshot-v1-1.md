@@ -9325,3 +9325,26 @@ text before `{`) matches `/chart-wrap|plotly|svg|aeo-chart-/`, and keep assertin
 `min-height`, `padding`, `border` or `overflow`; `html{color-scheme:dark}` once in each of draft, preview and final; each
 new rule once per mode; in a 2-bullet and a 3-bullet draft the Add bullet / Remove buttons are still inside `.insight-box`.
 Commit subject: `Spread the findings as rows and draw the report's scrollbar dark`.
+
+### Task 22: No Share button on a sent report (spec v1.1 §17.11)
+
+**Files:** `lib/aeo-outbound/render.ts`, `app/api/aeo-outbound/reports/[id]/view/route.ts`, and their tests
+(`render.test.ts`, `render.frame.test.ts`, `view/route.test.ts`, `v1-compat.test.ts`, `app/actions/aeo-outbound.test.ts`
+where it asserts the share button on an approved page).
+
+- `render.ts`: remove the three final-mode emissions (`:213` `${mode === 'final' ? SHARE_BUTTON : ''}`, `:271`
+  `${mode === 'final' ? SHARE_MOBILE : ''}`, `:308` `${mode === 'final' ? `\n${AIVX_SHARE_BLOCK}` : ''}`). Remove from
+  `PAGE_CSS` the entries `'.aeo-share-mobile{display:none}'`, `'.aeo-share-mobile{display:flex;justify-content:center;padding:24px}'`
+  and the `.aeo-share-mobile-btn{...}` entry; remove from `PAGE_JS` the line
+  `var b=n.closest('.aeo-share-mobile-btn');if(b){var s=document.querySelector('.sidebar .share-btn');if(s)s.click()}`.
+  Keep `SHARE_BUTTON` and `SHARE_MOBILE` exported, with their doc comments rewritten to say they exist so the preview can
+  strip reports approved before §17.11. Drop the now-unused `AIVX_SHARE_BLOCK` import from `render.ts` only if nothing
+  else in it uses it. Update the file header comment (`:5`) so it no longer says final carries `SHARE_MOBILE`.
+- `view/route.ts` `withoutShare`: first, count each of `SHARE_BUTTON`, `AIVX_SHARE_BLOCK` and `SHARE_MOBILE`; if all three
+  are 0, return `html` unchanged. Everything after is as today. Update its doc comment.
+- Tests (first): rewrite every test that asserts the share button, toast or phone Share block on a final page so it asserts
+  their absence; the phone-share frame tests (the forwarded click) are deleted with the feature, and listed in the report;
+  keep the old-row strip tests by building the old page from the exported constants; add the "no share strings: unchanged,
+  no warning" case; the outside-rules exact list and the PAGE_CSS media tests updated; `v1-compat` records the removal as a
+  deliberate difference with an exact transform and occurrence assertion. Commit subject:
+  `Remove the Share button from sent reports`.
