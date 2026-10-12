@@ -273,3 +273,9 @@ export function displayStatus(row: Pick<AeoOutboundRow, 'status' | 'createdAt' |
   if (row.status === 'approved') return row.shareRevokedAt ? 'revoked' : 'live'
   return row.status
 }
+
+/** The code shown for a failed row; a generating row past the stale limit reads stale (spec v1.1 §7). */
+export function failureCode(row: Pick<AeoOutboundRow, 'status' | 'createdAt' | 'errorCode'>, nowMs: number): string | null {
+  if (row.errorCode) return row.errorCode
+  return row.status === 'generating' && nowMs - new Date(row.createdAt).getTime() > STALE_GENERATING_MS ? 'stale' : null
+}

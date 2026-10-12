@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation'
 import { requireStaff } from '@/lib/auth/page-access'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
+import { DECISIONS, PAGE_WORDS_V1 } from '@/lib/aeo-outbound/config'
 import { errorLabel } from '@/lib/aeo-outbound/log'
-import { displayStatus, failureReason, getReport, isReportId } from '@/lib/aeo-outbound/store'
+import { displayStatus, failureCode, failureReason, getReport, isReportId, opensForReportQuery } from '@/lib/aeo-outbound/store'
 import { needsValidationPaths, withDefaults } from '@/lib/aeo-outbound/slots'
-import { OutboundEditor } from '@/components/aeo-outbound/editor'
 import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
+import { OutboundEditor, type OpenEvent } from '@/components/aeo-outbound/editor'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
 
 export default async function NewBusinessEditorPage({
@@ -28,6 +29,18 @@ export default async function NewBusinessEditorPage({
   }
   if (!row) notFound()
   const now = Date.now()
+  const status = displayStatus(row, now)
+  const full = row.data && row.slots && !row.unreadable ? withDefaults(row.slots, row.data) : null
+  let opens: OpenEvent[] = []
+  if (status === 'live' || status === 'revoked') {
+    try {
+      opens = (await opensForReportQuery(row.id)).map((o) => ({ openedAt: o.openedAt.toISOString(), uaFamily: o.uaFamily, likelyAutomated: o.likelyAutomated, reason: o.reason }))
+    } catch (e) {
+      // The open list is a detail: the editor still shows the row and its counter.
+      console.error(`[aeo-outbound] editor opens read failed id=${row.id} reason=${errorLabel(e)}`)
+    }
+  }
+  // Every prop is plain data (strings, numbers, booleans, null, arrays and objects of those): check:rsc.
   return (
     <OutboundEditor
       key={row.id}
@@ -36,12 +49,22 @@ export default async function NewBusinessEditorPage({
       linkBrand={row.brandName}
       shareOrigin={shareOrigin()}
       projectId={row.peecProjectId}
-      status={displayStatus(row, now)}
+      status={status}
       revision={row.revision}
       notes={row.notes ?? []}
-      needsValidation={row.slots && row.data && !row.unreadable ? needsValidationPaths(withDefaults(row.slots, row.data)) : []}
+      needsValidation={full ? needsValidationPaths(full) : []}
       token={row.status === 'approved' && !row.shareRevokedAt ? row.shareToken : null}
       error={failureReason(row, now)}
+      errorCode={failureCode(row, now)}
+      recipient={row.shareRecipient}
+      sectionTitles={full ? [full.page.section_1_title, full.page.section_2_title] : [PAGE_WORDS_V1.section_1_title, PAGE_WORDS_V1.section_2_title]}
+      about={row.data ? { projectId: row.data.projectId, projectName: row.data.projectName, projectStatus: row.data.projectStatus ?? null, windowLabel: row.data.windowLabel, models: row.data.models } : null}
+      opens={opens}
+      openCount={row.openCount}
+      needsValidationBlocksApprove={DECISIONS.needsValidationBlocksApprove}
+      unreadable={row.status === 'draft' && !!row.unreadable}
+      progressStep={row.progressStep}
+      createdAt={row.createdAt.toISOString()}
     />
   )
 }

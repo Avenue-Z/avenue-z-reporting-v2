@@ -60,3 +60,46 @@ export const LINK_FIELD = 'Link'
 export const BAD_REQUEST = "That request wasn't valid. Refresh the page and try again."
 /** v1.1 §6: the visible caveat next to every open count (best effort, round-2 MINOR 6). */
 export const OPENS_CAVEAT = 'Email security scanners can open links automatically. Opens marked automated are likely scanners. The marking is best effort.'
+/** v1.1 §2: the Edit button, its states, the banner and the locked messages. */
+export const EDIT = 'Edit'
+export const DONE_EDITING = 'Done editing'
+export const EDIT_COPY = 'Edit a copy'
+export const EDIT_COPY_HINT = 'This report is frozen. Editing makes a new draft.'
+export const EDIT_BANNER = 'Editing. Click any outlined text to change it. Changes save automatically. Charts come from Peec: to change them, change the dates and Rerun.'
+export const LOCKED_CHART = 'Charts come from Peec data. Change the dates and Rerun to update them.'
+export const LOCKED_FIXED = 'This part is set automatically.'
+export const LOCKED_MIRROR = 'Edit this where it first appears on the page.'
+/** v1.1 §4: the Before you send panel. */
+export const BEFORE_YOU_SEND = 'Before you send'
+export const FILL_THESE = 'Fill these in'
+export const CHECK_THESE = 'Check these'
+export const OWN_CHECKS_TITLE = 'Your own checks'
+export const ABOUT_DATA = 'About this data'
+export const LOOKS_RIGHT = 'Looks right'
+export const NOTHING_TO_FILL = 'Nothing to fill in.'
+export const NOTHING_TO_CHECK = 'Nothing to check.'
+export const fillFirst = (n: number): string => (n === 1 ? 'Fill in 1 item first' : `Fill in ${n} items first`)
+/** v1.1 §11: dialogs with verb buttons that name the brand, the recipient and the consequence. */
+export const APPROVE_AND_CREATE = 'Approve and create link'
+export const CANCEL = 'Cancel'
+export const revokeTitle = (brand: string, recipient: string | null): string =>
+  `Revoke the link for ${brand}${recipient ? ` sent to ${recipient}` : ''}? It stops working right away and can't be turned back on.`
+export const REVOKE_LINK = 'Revoke link'
+export const KEEP_LINK = 'Keep link'
+export const discardTitle = (brand: string): string => `Discard the snapshot for ${brand}? It is removed from the hub.`
+export const DISCARD_SNAPSHOT = 'Discard snapshot'
+export const KEEP_SNAPSHOT = 'Keep snapshot'
+export const rerunTitle = (brand: string): string => `Rerun ${brand}? This makes a new draft with fresh Peec data and new copy. This draft stays as it is.`
+export const MAKE_NEW_DRAFT = 'Make a new draft'
+export const KEEP_DRAFT = 'Keep this draft'
+export const LEAVE = 'Leave'
+export const STAY = 'Stay'
+/** v1.1 §9 and §10. */
+export const LOADING_REPORT = 'Loading report…'
+export const UNREADABLE = "This snapshot was saved by an older version and can't be shown. Rerun it."
+/** v1.1 §6: the open list. */
+export const OPENS_TITLE = 'Opens'
+export const NO_OPENS = 'No opens yet.'
+export const PERSON = 'Person'
+export const AUTOMATED = 'Automated'
+export const notClassified = (n: number): string => `${n} not classified`

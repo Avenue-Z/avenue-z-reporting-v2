@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { approveQuery, hubCountsQuery, opensForReportQuery, progressStepQuery, projectStatsQuery, copyAsDraftQuery, discardQuery, displayStatus, failureReason, finishDraftQuery, finishFailedQuery, insertGeneratingQuery, isConstraintViolation, isReportId, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, ONE_GENERATING_INDEX, recentSummariesQuery, recordOpenSql, revokeQuery, saveSlotsQuery, SHARE_TOKEN_UNIQUE } from './store'
+import { approveQuery, hubCountsQuery, opensForReportQuery, progressStepQuery, projectStatsQuery, copyAsDraftQuery, discardQuery, displayStatus, failureCode, failureReason, finishDraftQuery, finishFailedQuery, insertGeneratingQuery, isConstraintViolation, isReportId, liveByTokenQuery, liveSummariesQuery, markStaleGeneratingQuery, ONE_GENERATING_INDEX, recentSummariesQuery, recordOpenSql, revokeQuery, saveSlotsQuery, SHARE_TOKEN_UNIQUE } from './store'
 import type { AeoOutboundRow } from '@/lib/db/schema'
 import type { Slots } from './slots'
 import type { SnapshotData } from './metrics'
@@ -305,4 +305,12 @@ test('a stored row that breaks its contract is read as unreadable, with one log 
     vi.resetModules()
     error.mockRestore()
   }
+})
+
+test('failure code: the stored code, else stale for a generating row past the limit', () => {
+  const t = NOW.getTime()
+  expect(failureCode(row({ status: 'failed', errorCode: 'no_data' }), t)).toBe('no_data')
+  expect(failureCode(row({ status: 'generating', errorCode: null }), t + 6 * 60_000 + 1)).toBe('stale')
+  expect(failureCode(row({ status: 'generating', errorCode: null }), t + 60_000)).toBeNull()
+  expect(failureCode(row({ status: 'failed', errorCode: null }), t)).toBeNull()
 })
