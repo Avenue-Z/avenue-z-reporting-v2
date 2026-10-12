@@ -18,6 +18,7 @@ test('a version 1 row keeps its version 1 grounding flags: the new keys read def
   expect(legacy(groundingFlags(V1_SLOTS, V1_DATA, V1_DATA_BLOCK))).toEqual(V1_FLAGS)
 })
 
+// Also deliberate for version 1 drafts: the own brand replaces the 10th bar (§9); the golden has too few brands to show it (charts.test.ts pins it).
 // Deliberate differences from v1.0 (spec v1.1 §9 and §16.1), applied to the frozen v1.0 golden: the donut hover reads
 // Retrievals, the header clone script follows the AIVx script, and (Task 3b) no AIVx wordmark and no Powered by line.
 const V10_LOGO = '<div class="aivx-brand">AIVx</div>\n    <div class="powered">Powered by Avenue Z</div>'
@@ -29,8 +30,15 @@ const v11 = (html: string) => {
   return html.split('Citations: %{value}').join('Retrievals: %{value}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script>`).split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
 }
 // The footer description and disclaimer are one slot value each now, rendered on one line where v1.0 wrapped them over
-// several; HTML collapses whitespace, so the page reads the same. Every other byte is compared as is.
-const squash = (s: string) => s.replace(/\s+/g, ' ')
+// several. Each wrapped block is rewritten to its one-line form, so every byte is compared exactly.
+const WRAPPED = [
+  'Avenue Z is a digital marketing and PR agency specializing in AI visibility\n        and Answer Engine Optimization (AEO). We help brands earn citation authority\n        with AI models through earned media, content strategy, and technical optimization.',
+  'Data reflects a Peec AI visibility snapshot for the stated window and is directional.\n    Avenue Z makes no representations about future AI visibility outcomes.',
+]
+const oneLine = (html: string) => WRAPPED.reduce((h, w) => {
+  expect(h.split(w)).toHaveLength(2)
+  return h.split(w).join(w.replace(/\s*\n\s*/g, ' '))
+}, html)
 test('a version 1 row renders its final page as v1.0 did, apart from the deliberate changes', () => {
-  expect(squash(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'final', 'Oct 9, 2026'))).toBe(squash(v11(GOLDEN)))
+  expect(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'final', 'Oct 9, 2026')).toBe(oneLine(v11(GOLDEN)))
 })

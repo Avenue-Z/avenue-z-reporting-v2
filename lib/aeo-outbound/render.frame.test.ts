@@ -145,3 +145,11 @@ test('the listener is delegated: a node cloned after the script ran still posts 
   type('page.opps_col_1', 'Evidence')
   expect(sent().at(-1)).toEqual({ type: 'dirty', path: 'page.opps_col_1' })
 })
+
+test('Enter is cancelled on a slot only in edit mode, so a keyboard user can open a link slot in Preview', () => {
+  boot()
+  const enter = () => new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  expect(slot('page.footer_link').dispatchEvent(enter())).toBe(true)
+  fromParent({ type: 'mode', edit: true })
+  expect(slot('page.footer_link').dispatchEvent(enter())).toBe(false)
+})
