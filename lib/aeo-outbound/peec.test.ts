@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
-import { isPeecRowCap, isPeecTimeout, PeecClient, PeecError, retryDelayMs, rowsOf } from './peec'
+import { isPeecContractViolation, isPeecRowCap, isPeecTimeout, PeecClient, PeecError, retryDelayMs, rowsOf } from './peec'
 
 const KEY = 'skc-test-key-123'
 
@@ -294,4 +294,13 @@ test('rowCap is true only for the row-cap error; isPeecRowCap agrees', async () 
   expect(isPeecRowCap(http)).toBe(false)
   expect(isPeecRowCap(new Error('more than 3 rows'))).toBe(false)
   expect(new PeecError('x').rowCap).toBe(false)
+})
+
+test('a PeecError carries an optional code, none by default', () => {
+  expect(new PeecError('x').code).toBeNull()
+  const e = new PeecError('No day between 2026-09-01 and 2026-09-07 has any Peec data for this project', false, false, 'no_data')
+  expect([e.code, e.timeout, e.rowCap, e.name]).toEqual(['no_data', false, false, 'PeecError'])
+  expect(isPeecContractViolation(new PeecError('peec.brands_report.visibility', false, false, 'contract_violation'))).toBe(true)
+  expect(isPeecContractViolation(e)).toBe(false)
+  expect(isPeecContractViolation(new Error('x'))).toBe(false)
 })

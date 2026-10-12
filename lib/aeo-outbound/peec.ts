@@ -1,6 +1,7 @@
 // Peec Customer API client for the AEO Outbound Snapshot. Ported from AIVx (aivx-reports@ff18697
 // lib/peec-client.ts:17-139 and agent/peec_api_export.py:106-198) with the retry numbers tightened
 // to fit the 270s generation deadline (spec §7a). The key never reaches a message.
+import type { PeecErrorCode } from './error-codes'
 const BASE = 'https://api.peec.ai/customer/v1'
 const MAX_ATTEMPTS = 3
 const RETRY_MAX_SECONDS = 20
@@ -14,17 +15,22 @@ export class PeecError extends Error {
   readonly timeout: boolean
   /** True only for the MAX_ENDPOINT_ROWS cap, never for a repeated row or an HTTP error. */
   readonly rowCap: boolean
-  constructor(message: string, timeout = false, rowCap = false) {
+  /** Why, for the UI (spec v1.1 §7). Null for an HTTP or transport failure. */
+  readonly code: PeecErrorCode | null
+  constructor(message: string, timeout = false, rowCap = false, code: PeecErrorCode | null = null) {
     super(message)
     this.name = 'PeecError'
     this.timeout = timeout
     this.rowCap = rowCap
+    this.code = code
   }
 }
 
 /** Optional calls rethrow these instead of turning them into a warning. */
 export const isPeecTimeout = (e: unknown): boolean => e instanceof PeecError && e.timeout
 export const isPeecRowCap = (e: unknown): boolean => e instanceof PeecError && e.rowCap
+/** A Peec field broke its enforced contract (lib/aeo-outbound/contracts.ts). Never downgraded to a warning. */
+export const isPeecContractViolation = (e: unknown): boolean => e instanceof PeecError && e.code === 'contract_violation'
 
 export interface PeecClientOptions {
   fetch?: typeof globalThis.fetch
