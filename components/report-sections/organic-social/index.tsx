@@ -4,27 +4,37 @@ import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { resolveSection } from '@/lib/report-sections/resolve'
 import { lookup } from '@/lib/report-sections/registry'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
-import { orgSocialChannelViewKey } from '@/lib/commentary/views'
+import { orgSocialChannelViewKey, type CommentaryViewKey } from '@/lib/commentary/views'
 import type { DashChannel } from '@/lib/organic-social/metrics'
+import type { OrganicView } from '@/lib/constants'
 import type { SectionOverride } from '@/lib/report-sections/types'
 import { ORGANIC_SOCIAL_PARTS } from './parts/registry'
+import { wrapsAsBlock } from './parts/export-layout'
 import { CODE_TEMPLATES } from './template'
 import { buildOrganicSocialCtx, type OrganicSocialCtx } from './ctx'
 import { OverviewSkeleton } from './skeletons'
+import { lockedRangeFor, logHiddenMonthAttempt, logMalformedConfig, requestClock } from '@/lib/organic-social/locked-range'
+import { noMonthsText, viewerForRole } from '@/lib/organic-social/reporting-months'
+import { NoMonths } from './no-months'
 
 export function OrganicSocialReport({
-  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null,
+  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null,
 }: {
   clientSlug: string
   dateRange?: string
   compareRange?: string | null
   channel?: DashChannel | null
+  /** 'influencer' on the Influencer tab (channel stays null there); null for Overview and the platform tabs. */
+  view?: OrganicView
 }) {
-  const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel })
-  // Commentary is per platform subpage: each channel carries its own content key, while opt-in
-  // stays gated on the base 'organic-social' config (configKey) so a per-channel key never needs
-  // its own opt-in entry. Overview (channel === null) keeps the bare 'organic-social' key.
-  const commentaryViewKey = channel ? orgSocialChannelViewKey(channel) : 'organic-social'
+  const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, view })
+  // Both boxes (Insights on top, Recommendations at the bottom) are per platform subpage: each channel
+  // carries its own content key, while opt-in stays gated on the base 'organic-social' config (configKey)
+  // so a per-channel key never needs its own opt-in entry. Overview (channel === null) keeps the bare
+  // 'organic-social' key; the Influencer tab has its own. The bottom box derives its own key from this one
+  // (recommendationsViewKeyFor).
+  const commentaryViewKey: CommentaryViewKey = view === 'influencer' ? 'organic-social:influencer'
+    : channel ? orgSocialChannelViewKey(channel) : 'organic-social'
   // The outer component is SYNCHRONOUS so the section's own skeletons paint on first render.
   // Both async dependencies — the viewer-role read (`await auth()`) and the template/config lookup
   // (`getSectionTemplate` is a new critical-path dependency the data sections don't otherwise need)
@@ -32,10 +42,12 @@ export function OrganicSocialReport({
   // first paint no longer waits on either (PR #168 review R1 #6). `getClientBySlug` is React.cache-deduped.
   return (
     <div className="space-y-8">
-      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} />
+      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
       <Suspense fallback={<OverviewSkeleton />}>
         <OrganicSocialBody ctx={ctx} />
       </Suspense>
+      {/* Recommendations: the same opt-in, rendered after every part (10/6 calls: "put them at the bottom"). */}
+      <SharedPartsHeader placement="bottom" viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
     </div>
   )
 }
@@ -45,10 +57,17 @@ export function OrganicSocialReport({
 export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
+  // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a
+  // failed session read still means client rules and no email.
   let role: string | undefined
-  try { role = (await auth())?.user?.role } catch { role = undefined }
-  const rctx: OrganicSocialCtx = role ? { ...ctx, role } : ctx
-  const key = rctx.channel ? 'organic-social:platform' : 'organic-social'
+  let email: string | undefined
+  try {
+    const user = (await auth())?.user
+    role = user?.role
+    email = user?.email ?? undefined
+  } catch { role = undefined; email = undefined }
+  const rctx: OrganicSocialCtx = { ...ctx, ...(role ? { role } : {}), ...(email ? { email } : {}) }
+  const key = rctx.view === 'influencer' ? 'organic-social:influencer' : rctx.channel ? 'organic-social:platform' : 'organic-social'
   // Resolve the composition defensively. A DB hiccup here must NOT blank the whole section: on
   // failure, fall back to the in-code template with no per-client override so each part still
   // renders behind its own Suspense/safe() boundary (per-section isolation).
@@ -68,13 +87,31 @@ export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
     // template and quietly stops applying per-client overrides with no signal at all.
     console.error(`[organic-social] template/config lookup failed for '${key}'; using code template`, e)
   }
+  // Locked months (spec 4.6). The lock reads its config on its own, so a template-lookup failure
+  // cannot disable it. getClientBySlug is request-deduplicated and every route awaited it first, so
+  // this adds no query. If it still fails, today's path runs: every Dash getter needs the same
+  // lookup, so no data can load.
+  let lockClient: unknown
+  let lockReadFailed = false
+  try { lockClient = await getClientBySlug(rctx.clientSlug) } catch { lockReadFailed = true }
+  const locked = lockReadFailed ? null : lockedRangeFor(lockClient, role, rctx.dateRange, requestClock())
+  if (locked?.reason === 'malformed-config') logMalformedConfig(rctx.clientSlug, locked.malformedKey)
+  if (locked && !locked.month) return <NoMonths text={noMonthsText(locked, viewerForRole(role))} />
+  if (locked?.month && locked.outcome === 'replaced' && locked.hiddenMonthAttempt) {
+    logHiddenMonthAttempt(rctx.clientSlug, rctx.dateRange, locked.month.dateRange)
+  }
+  const pctx: OrganicSocialCtx = locked?.month
+    ? { ...rctx, dateRange: locked.month.dateRange, compareRange: locked.month.compareRange }
+    : rctx
   const resolved = resolveSection(template, override)
   return (
     <>
       {resolved.map((r) => {
         const impl = lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)
-        const node = impl?.render(rctx, r) ?? null
-        return node == null ? null : <div key={`${r.id}@${r.version}`}>{node}</div>
+        const node = impl?.render(pctx, r) ?? null
+        // A part with no export form of its own is one unbreakable block in the PDF export (parts/export-layout.ts);
+        // the attribute only matters under the export page's theme, and a part that lays out its own blocks is untouched.
+        return node == null ? null : <div key={`${r.id}@${r.version}`} {...(wrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{node}</div>
       })}
     </>
   )

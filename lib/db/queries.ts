@@ -19,7 +19,7 @@ import type { CommentaryViewKey } from '@/lib/commentary/views'
  * every server render — the dominant per-navigation cost once data fetches are
  * cache hits. React.cache (outer) dedups within a single render; cached() (inner)
  * persists across requests. Client config changes rarely; staleness is bounded
- * by the TTL and bustable via revalidateTag('db'). Slug-tagged for PERF logs.
+ * by the TTL and bustable via updateTag('db'). Slug-tagged for PERF logs.
  */
 const getClientBySlugImpl = async (slug: string): Promise<(Client & { users: User[] }) | null> => {
   const row = await db.query.clients.findFirst({
@@ -102,7 +102,7 @@ export const getAllClients = cache(
  * Clients that have a configurable dashboard, for the Tools → Reporting hub.
  * Unlike getVisibleClients this does NOT drop HIDDEN_CLIENT_SLUGS — dashboard-only
  * hosts (kind-patches) are exactly what Reporting surfaces. Persistently cached
- * (5-min TTL), db-tagged so a new report busts it via revalidateTag('db').
+ * (5-min TTL), db-tagged so a new report busts it via updateTag('db').
  */
 const getClientsWithDashboardsImpl = async (): Promise<{ slug: string; name: string; logoUrl: string | null }[]> => {
   const rows = await db
@@ -284,7 +284,7 @@ export function toCommentaryEntry(row: ReportCommentary): CommentaryEntry {
 }
 
 /** All commentary entries for a (client, view), newest first. React.cache-wrapped
- *  for per-render dedup; freshness after writes comes from revalidateTag('db'). */
+ *  for per-render dedup; freshness after writes comes from updateTag('db'). */
 export const getCommentaryForView = cache(
   async (clientId: string, viewKey: string): Promise<CommentaryEntry[]> => {
     const rows = await db

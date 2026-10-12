@@ -10,6 +10,7 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+        data-export-pending=""
       />
       <div
         class="grid grid-cols-2 gap-3 md:grid-cols-5"
@@ -19,9 +20,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -29,9 +32,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -39,9 +44,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -49,9 +56,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -59,9 +68,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
       </div>
@@ -71,6 +82,7 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+        data-export-pending=""
       />
       <div
         class="grid grid-cols-2 gap-3 md:grid-cols-5"
@@ -80,9 +92,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -90,9 +104,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -100,9 +116,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -110,9 +128,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -120,9 +140,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
       </div>
@@ -133,25 +155,31 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-4 w-40"
+      data-export-pending=""
     />
     <div
       class="flex flex-wrap gap-2"
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
     </div>
     <div
       class="animate-pulse rounded bg-white/[0.06] h-64 w-full !rounded-lg"
+      data-export-pending=""
     />
   </section>
   <section
@@ -162,9 +190,11 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+        data-export-pending=""
       />
     </div>
     <div
@@ -172,18 +202,23 @@ exports[`Overview composition resolves to the three parts in order 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
     </div>
   </section>
@@ -200,6 +235,7 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+        data-export-pending=""
       />
       <div
         class="grid grid-cols-2 gap-3 md:grid-cols-5"
@@ -209,9 +245,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -219,9 +257,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -229,9 +269,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -239,9 +281,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -249,9 +293,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
       </div>
@@ -261,6 +307,7 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+        data-export-pending=""
       />
       <div
         class="grid grid-cols-2 gap-3 md:grid-cols-5"
@@ -270,9 +317,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -280,9 +329,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -290,9 +341,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -300,9 +353,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
         <div
@@ -310,9 +365,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
         >
           <div
             class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+            data-export-pending=""
           />
           <div
             class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+            data-export-pending=""
           />
         </div>
       </div>
@@ -323,25 +380,31 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-4 w-40"
+      data-export-pending=""
     />
     <div
       class="flex flex-wrap gap-2"
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
     </div>
     <div
       class="animate-pulse rounded bg-white/[0.06] h-64 w-full !rounded-lg"
+      data-export-pending=""
     />
   </section>
   <section
@@ -349,25 +412,31 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-4 w-40"
+      data-export-pending=""
     />
     <div
       class="flex flex-wrap gap-2"
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-24 !rounded-full"
+        data-export-pending=""
       />
     </div>
     <div
       class="animate-pulse rounded bg-white/[0.06] h-64 w-full !rounded-lg"
+      data-export-pending=""
     />
   </section>
   <section
@@ -378,9 +447,11 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+        data-export-pending=""
       />
     </div>
     <div
@@ -388,18 +459,23 @@ exports[`Platform composition inserts follower-graph as the second part 1`] = `
     >
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
       <div
         class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+        data-export-pending=""
       />
     </div>
   </section>

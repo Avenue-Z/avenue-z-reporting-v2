@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
-import { auth } from '@/auth'
 import { getClientBySlug, getDashboardConfig } from '@/lib/db/queries'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
 import { Header } from '@/components/layout/header'
@@ -8,6 +7,7 @@ import { DashboardShell } from '@/components/dashboard/dashboard-shell'
 import { EmptyDashboardState } from '@/components/dashboard/metric-block-states'
 import { renderBlockNode } from '@/components/dashboard/render-block'
 import type { BlockConfig } from '@/lib/dashboard/types'
+import { requireStaff } from '@/lib/auth/page-access'
 
 export default async function ConfigurableDashboardPage({
   params,
@@ -17,18 +17,18 @@ export default async function ConfigurableDashboardPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string }>
 }) {
   const { clientSlug } = await params
+  const session = await requireStaff()
   const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
 
-  const [session, client, config] = await Promise.all([
-    auth(),
+  const [client, config] = await Promise.all([
     getClientBySlug(clientSlug),
     getDashboardConfig(clientSlug),
   ])
   if (!client) notFound()
 
   const canEdit = canEditDashboard(
-    session?.user?.role ?? '',
-    session?.user?.clientSlug ?? null,
+    session.user.role ?? '',
+    session.user.clientSlug ?? null,
     clientSlug,
   )
 

@@ -4,6 +4,7 @@ import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES, NAV_SLUG_ORDER } from '@/lib/constants'
 import { Header } from '@/components/layout/header'
+import { requireStaff } from '@/lib/auth/page-access'
 
 export default async function ClientOverviewPage({
   params,
@@ -11,6 +12,7 @@ export default async function ClientOverviewPage({
   params: Promise<{ clientSlug: string }>
 }) {
   const { clientSlug } = await params
+  await requireStaff()
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 

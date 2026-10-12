@@ -3,6 +3,7 @@ import { Header } from '@/components/layout/header'
 import { PLATFORM_IDS } from '@/lib/platforms/constants'
 import type { PlatformId } from '@/lib/platforms/constants'
 import { ClientConnectionRow } from './client-connection-row'
+import { requireStaff } from '@/lib/auth/page-access'
 
 /**
  * Only the platforms we currently support via direct API.
@@ -14,6 +15,7 @@ const ACTIVE_PLATFORMS: PlatformId[] = [
 ]
 
 export default async function ConnectionsPage() {
+  await requireStaff()
   const clients = await getVisibleClients()
 
   return (

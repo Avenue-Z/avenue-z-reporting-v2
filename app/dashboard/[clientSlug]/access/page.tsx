@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { Header } from '@/components/layout/header'
 import { getClientAccessOverview } from '@/lib/db/admin-queries'
 import { AccessPanel } from './access-panel'
+import { requireStaff } from '@/lib/auth/page-access'
 
 export default async function ClientAccessPage({
   params,
@@ -9,6 +10,7 @@ export default async function ClientAccessPage({
   params: Promise<{ clientSlug: string }>
 }) {
   const { clientSlug } = await params
+  await requireStaff()
   const overview = await getClientAccessOverview(clientSlug)
   if (!overview) notFound()
 

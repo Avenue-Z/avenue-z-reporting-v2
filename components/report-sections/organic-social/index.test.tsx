@@ -1,4 +1,7 @@
-import { expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { render } from '@testing-library/react'
+import { auth } from '@/auth'
+import type { OrganicSocialCtx } from './ctx'
 
 // @/auth is stubbed globally in vitest.setup.ts (index.tsx -> parts registry -> top-content
 // display -> DataTable -> next-auth landmine); no per-file @/auth mock needed here.
@@ -21,6 +24,7 @@ vi.mock('@/lib/db/queries', async (importOriginal) => ({
 
 import { OrganicSocialReport, OrganicSocialBody } from './index'
 import { buildOrganicSocialCtx } from './ctx'
+import { elementTree } from '@/lib/test-utils/element-tree'
 
 const ctx = buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: null })
 
@@ -75,4 +79,202 @@ test('a platform subpage keys commentary per channel while opting in via the bas
   const header = findByName(el, 'SharedPartsHeader')
   expect(header?.props.viewKey).toBe('organic-social:instagram')
   expect(header?.props.configKey).toBe('organic-social')
+})
+
+// Pre-change record for locked months (spec section 8): for a client without reportingMonths the
+// section's OUTPUT (every part and the ctx it receives) is unchanged, on the happy path and when
+// BOTH lookups fail. Extends the truthy-only test above.
+test('OrganicSocialBody output is unchanged for a client without reportingMonths', async () => {
+  const base = buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: 'INSTAGRAM', dateRange: 'last_month', compareRange: 'previous_period' })
+  getSectionTemplate.mockResolvedValue(null)
+  getClientBySlug.mockResolvedValue({ slug: 'renaissance', dashSocialConfig: { brandId: 1 }, reportSectionConfig: {} })
+  const happy = elementTree(await OrganicSocialBody({ ctx: base }))
+  const overview = elementTree(await OrganicSocialBody({ ctx }))
+  getSectionTemplate.mockRejectedValue(new Error('DB down'))
+  getClientBySlug.mockRejectedValue(new Error('DB down'))
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const bothFail = elementTree(await OrganicSocialBody({ ctx: base }))
+  err.mockRestore()
+  expect({ happy, overview, bothFail }).toMatchSnapshot()
+})
+
+describe('locked months in the section', () => {
+  const OPTED = { slug: 'c', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } }, reportSectionConfig: {} }
+  const SEP = 'custom:2026-09-01,2026-09-30'
+  const LIVE = 'custom:2026-10-01,2026-10-19'
+  let seen: OrganicSocialCtx[] = []
+  let restoreLookup: () => void = () => {}
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-20T14:00:00Z'))
+    seen = []
+    const registry = await import('@/lib/report-sections/registry')
+    const spy = vi.spyOn(registry, 'lookup').mockReturnValue({ render: (c: OrganicSocialCtx) => { seen.push(c); return null } } as never)
+    restoreLookup = () => spy.mockRestore()
+    getSectionTemplate.mockResolvedValue(null)
+  })
+  afterEach(() => { restoreLookup(); vi.useRealTimers(); vi.mocked(auth).mockReset(); vi.restoreAllMocks() })
+  const as = (role: string) => vi.mocked(auth).mockResolvedValue({ user: { role } } as never)
+  const ctxFor = (dateRange: string) => buildOrganicSocialCtx({ clientSlug: 'c', channel: 'INSTAGRAM', dateRange, compareRange: 'previous_year' })
+
+  test('a client asking for the live month gets September and its comparison, logged once (edge 22)', async () => {
+    as('CLIENT_VIEWER'); getClientBySlug.mockResolvedValue(OPTED)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await OrganicSocialBody({ ctx: ctxFor(LIVE) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect([c.dateRange, c.compareRange]).toEqual([SEP, 'custom:2026-08-01,2026-08-31'])
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  test('the team with a stale preset gets the most recent finished month; nothing is logged', async () => {
+    as('INTERNAL_ADMIN'); getClientBySlug.mockResolvedValue(OPTED)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await OrganicSocialBody({ ctx: ctxFor('last_30_days') })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(SEP)
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  test('a template-lookup failure does not disable the lock (edge 2)', async () => {
+    as('CLIENT_VIEWER'); getClientBySlug.mockResolvedValue(OPTED); getSectionTemplate.mockRejectedValue(new Error('DB down'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await OrganicSocialBody({ ctx: ctxFor(LIVE) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(SEP)
+  })
+
+  test('the lock read failing runs today\'s path (edge 3)', async () => {
+    as('CLIENT_VIEWER'); getClientBySlug.mockRejectedValue(new Error('DB down'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const ctx0 = ctxFor(LIVE)
+    await OrganicSocialBody({ ctx: ctx0 })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c).toEqual({ ...ctx0, role: 'CLIENT_VIEWER' })
+  })
+
+
+  test('clientMonths: 1: a client deep link to August is served September, with no hidden-month log; the team keeps August', async () => {
+    const one = { ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08', clientMonths: 1 } } }
+    const AUG = 'custom:2026-08-01,2026-08-31'
+    as('CLIENT_VIEWER'); getClientBySlug.mockResolvedValue(one)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await OrganicSocialBody({ ctx: ctxFor(AUG) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(SEP)
+    expect(warn).not.toHaveBeenCalled()
+    seen = []
+    as('INTERNAL_ADMIN')
+    await OrganicSocialBody({ ctx: ctxFor(AUG) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(AUG)
+  })
+
+  test('no months: the one line and no parts', async () => {
+    as('CLIENT_VIEWER')
+    getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2027-01' } } })
+    const el = await OrganicSocialBody({ ctx: ctxFor('last_30_days') })
+    expect(seen).toEqual([])
+    expect(render(el).container.textContent).toBe('Your first report opens on Feb 12')
+  })
+
+  test('a malformed config is logged by slug and key (edge 6); the team keeps its month on a bad knob', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    as('CLIENT_VIEWER'); getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: null } })
+    await OrganicSocialBody({ ctx: ctxFor('last_30_days') })
+    expect(err).toHaveBeenCalledWith('[organic-social] reportingMonths setting is invalid slug=c key=reportingMonths')
+    expect(seen).toEqual([])
+    as('INTERNAL_ADMIN'); getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08', opensOnDay: 3 } } })
+    await OrganicSocialBody({ ctx: ctxFor('last_30_days') })
+    expect(err).toHaveBeenLastCalledWith('[organic-social] reportingMonths setting is invalid slug=c key=opensOnDay')
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(SEP)
+  })
+
+  test('a session read that fails means client rules', async () => {
+    vi.mocked(auth).mockImplementation(() => { throw new Error('sync') })
+    getClientBySlug.mockResolvedValue(OPTED)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await OrganicSocialBody({ ctx: ctxFor(LIVE) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.dateRange).toBe(SEP)
+  })
+
+  test('the viewer\'s email reaches the parts when the session has one', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ADMIN', email: 'writer@avenuez.com' } } as never)
+    getClientBySlug.mockResolvedValue(OPTED)
+    await OrganicSocialBody({ ctx: ctxFor(LIVE) })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) expect(c.email).toBe('writer@avenuez.com')
+  })
+})
+
+// Renaissance after its staging write: the new parts live only under the platform key, so
+// Overview keeps exactly today's parts. This pins the key split at index.tsx:61 with the exact planned config.
+test("Renaissance's planned config: Overview asks for today's parts; a platform tab asks for YTD@3 and the v2 graphs", async () => {
+  const registry = await import('@/lib/report-sections/registry')
+  const asked: string[] = []
+  const spy = vi.spyOn(registry, 'lookup').mockImplementation((_reg, id, version) => { asked.push(`${id}@${version}`); return { render: () => null } as never })
+  getSectionTemplate.mockResolvedValue(null)
+  getClientBySlug.mockResolvedValue({ slug: 'renaissance', dashSocialConfig: { brandId: 1, chartNotes: true }, reportSectionConfig: {
+    'organic-social': { sharedParts: [{ id: 'commentary', version: 1 }] },
+    'organic-social:platform': {
+      versions: { 'follower-graph': 2, 'engagement-trend': 2 },
+      extraParts: [{ id: 'ytd-review', version: 3 }],
+      order: ['ytd-review', 'platform-headlines', 'follower-graph', 'engagement-trend', 'top-content'],
+    },
+  } })
+  await OrganicSocialBody({ ctx })
+  expect(asked).toEqual(['platform-headlines@1', 'engagement-trend@1', 'top-content@2'])
+  asked.length = 0
+  await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: 'INSTAGRAM' }) })
+  expect(asked).toEqual(['ytd-review@3', 'platform-headlines@1', 'follower-graph@2', 'engagement-trend@2', 'top-content@2'])
+  spy.mockRestore()
+})
+
+function findAllByName(node: unknown, name: string, out: { props: Record<string, unknown> }[] = []) {
+  if (!node || typeof node !== 'object') return out
+  const el = node as { type?: { name?: string }; props?: { children?: unknown } }
+  if (typeof el.type === 'function' && el.type.name === name) out.push(el as never)
+  const kids = el.props?.children
+  for (const k of Array.isArray(kids) ? kids : kids != null ? [kids] : []) findAllByName(k, name, out)
+  return out
+}
+
+test('the section renders the top box before the body and the bottom box after it, both on the same keys', () => {
+  const el = OrganicSocialReport({ clientSlug: 'client-a', channel: 'INSTAGRAM', dateRange: 'custom:2026-09-01,2026-09-30' })
+  const headers = findAllByName(el, 'SharedPartsHeader')
+  expect(headers.map((h) => [h.props.placement ?? 'top', h.props.viewKey, h.props.configKey, h.props.requestedRange])).toEqual([
+    ['top', 'organic-social:instagram', 'organic-social', 'custom:2026-09-01,2026-09-30'],
+    ['bottom', 'organic-social:instagram', 'organic-social', 'custom:2026-09-01,2026-09-30'],
+  ])
+  const kids = (el as { props: { children: unknown[] } }).props.children
+  expect(kids.map((k) => (k as { type?: { name?: string } | symbol }).type)).toHaveLength(3)
+})
+
+test('the Influencer view keys both boxes to the influencer keys and composes the influencer template', async () => {
+  const el = OrganicSocialReport({ clientSlug: 'client-a', channel: null, view: 'influencer' })
+  const headers = findAllByName(el, 'SharedPartsHeader')
+  expect(headers.map((h) => h.props.viewKey)).toEqual(['organic-social:influencer', 'organic-social:influencer'])
+  const registry = await import('@/lib/report-sections/registry')
+  const asked: string[] = []
+  const spy = vi.spyOn(registry, 'lookup').mockImplementation((_reg, id, version) => { asked.push(`${id}@${version}`); return { render: () => null } as never })
+  getSectionTemplate.mockResolvedValue(null)
+  getClientBySlug.mockResolvedValue({ slug: 'client-a', dashSocialConfig: { brandId: 1 }, reportSectionConfig: {} })
+  await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'client-a', channel: null, view: 'influencer' }) })
+  expect(asked).toEqual(['influencer-posts@1'])
+  expect(getSectionTemplate).toHaveBeenCalledWith('organic-social:influencer')
+  spy.mockRestore()
+})
+
+// In the PDF export a part with no export form of its own pages as one unbreakable block (parts/export-layout.ts);
+// a part that lays out its own blocks is left untouched (Thomas, #332 round 2, item 2).
+test('a part with no export form is wrapped as one export block; the others are not', async () => {
+  const order = [{ id: 'platform-headlines', version: 1 }, { id: 'engagement-breakdown', version: 1 }, { id: 'top-content', version: 2 }]
+  getSectionTemplate.mockResolvedValue({ order, labels: {}, thresholds: {} })
+  getClientBySlug.mockResolvedValue({ slug: 'c', dashSocialConfig: { brandId: 1 }, reportSectionConfig: {} })
+  const platform = buildOrganicSocialCtx({ clientSlug: 'c', channel: 'INSTAGRAM' }) // the breakdown renders on a platform tab only
+  const el = (await OrganicSocialBody({ ctx: platform })) as { props: { children: ({ key: string; props: Record<string, unknown> } | null)[] } }
+  const wrapped = Object.fromEntries(el.props.children.filter((c) => c != null).map((c) => [c.key, 'data-export-block' in c.props]))
+  expect(wrapped).toEqual({ 'platform-headlines@1': false, 'engagement-breakdown@1': true, 'top-content@2': false })
 })

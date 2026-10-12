@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
 import { REPORT_NAMES } from '@/lib/constants'
+import { requirePortalAccess } from '@/lib/auth/page-access'
 
 export default async function ClientPortalPage({
   params,
@@ -9,6 +10,7 @@ export default async function ClientPortalPage({
   params: Promise<{ clientSlug: string }>
 }) {
   const { clientSlug } = await params
+  await requirePortalAccess(clientSlug)
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 

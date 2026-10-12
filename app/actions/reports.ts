@@ -1,7 +1,7 @@
 // app/actions/reports.ts
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/lib/db/client'
@@ -94,6 +94,6 @@ export async function createClientReport(input: {
     })
   }
 
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true, url: dashUrl(slug) }
 }

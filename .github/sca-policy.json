@@ -1,0 +1,4 @@
+{
+  "tier": "client-facing",
+  "_comment": "SCA gate tier, from Avenue-Z/repo-template. 'client-facing' (default) blocks CI on High/Critical dependency vulnerabilities THAT HAVE A FIX; 'internal' warns only. NEITHER tier ever blocks a finding with no available fix. This repo is client-facing, so loosening to 'internal' should take a reviewed PR."
+}

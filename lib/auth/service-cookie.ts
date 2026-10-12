@@ -22,6 +22,8 @@ export async function mintServiceCookie(
       name: principal.name,
       role: 'INTERNAL_ADMIN',
       clientSlug: 'avenue-z',
+      // No user row: the jwt callback leaves a marked token alone (lib/auth/jwt-callback.ts).
+      service: true,
       iat: now,
       exp: now + maxAge,
       jti: crypto.randomUUID(),

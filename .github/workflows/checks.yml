@@ -1,35 +1,38 @@
-name: Checks
-
-# Static guards that run on every PR. Currently the RSC boundary check, which
-# catches function props passed from a Server Component to a Client Component
-# (e.g. `<BarChart valueFormatter={usd} />`) — a render-time crash that tsc and
-# `next build` miss for dynamically-rendered routes.
+name: checks
 on:
+  # `edited` is load-bearing: a PR retargeted at a new base must be re-judged, and it is the only
+  # event that fires on a base change.
   pull_request:
-  push:
-    branches: [main]
-
+    types: [opened, edited, reopened, synchronize]
+  # The weekly repo-wide audit. gitleaks scans full history here, and an advisory published overnight
+  # makes yesterday's clean dependency tree dirty without anything in the tree changing.
+  schedule:
+    - cron: '0 6 * * 1'
+permissions:
+  contents: read
 jobs:
-  rsc-boundary:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: RSC boundary check
-        run: npm run check:rsc
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Unit + snapshot tests
-        run: npm test
+  # THIS JOB KEY IS THE STATUS-CHECK CONTEXT. A called job reports as `<caller-job> / <called-job>`,
+  # so this reports `checks / checks`, and scripts/apply-rulesets.sh requires exactly that string.
+  # Renaming this job renames the check, and a required check that no longer reports does not fail
+  # a PR, it hangs it PENDING FOREVER.
+  checks:
+    # THE JOB-LEVEL BLOCK IS NOT REDUNDANT WITH THE WORKFLOW-LEVEL ONE ABOVE. A job's `permissions`
+    # REPLACES the workflow default rather than adding to it, so `contents: read` has to be restated
+    # here or the called workflow cannot clone this repo.
+    #
+    # id-token: write is what lets checks.yml find out which ref of the template it was called at. It
+    # reads that from the OIDC token's `job_workflow_ref` claim, because the `github.job_workflow_ref`
+    # expression context is empty in every run, called or not. Permissions are never ELEVATED along a
+    # reusable-workflow call chain, so the grant has to start here, in the caller.
+    #
+    # DROPPING IT DOES NOT PRODUCE A RED CHECK. Measured (avenue-z-ci-lab/adopter-private run
+    # 34709355618): checks.yml requests id-token: write, the caller grants none, and that is an
+    # ELEVATION -- so the run ends in `startup_failure` with ZERO jobs and the `checks / checks`
+    # context is never reported AT ALL. Where that context is required, the PR does not fail; it
+    # hangs PENDING FOREVER. Loud in the Actions tab, invisible on the PR. This is why the grant
+    # belongs in the migration PR that writes the caller, before apply-rulesets.sh runs anywhere
+    # the ruleset is live. apply-rulesets.sh refuses a caller whose `checks` job lacks it.
+    permissions:
+      contents: read
+      id-token: write
+    uses: Avenue-Z/repo-template/.github/workflows/checks.yml@v1

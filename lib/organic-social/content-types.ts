@@ -24,6 +24,10 @@ export interface TopContentPost {
   creative: Creative | null  // resolved by resolveCreative (S2-C); null only on genuine failure
   metrics: { effectiveness: number | null; engagementRate: number | null; engagements: number; impressions: number }
   sourceType: SourceType     // hardcoded 'organic' here; the designation table sets it in S2-B
+  author?: string            // set only when the caller asks (outline Top Content); absent otherwise
+  ugc?: true                 // set only when the caller asks (outline Top Content): another account's post tagging the client
+  publicViews?: number       // Instagram only: Dash's public_views, the count it fills when `views` is empty (another
+                             // account's post); read by the Influencer tab only (spec 2026-10-09 section 5)
 }
 
 /** The frozen Dash-sourced facts for one Top-Content card. Everything on TopContentPost
@@ -42,6 +46,8 @@ export const CONTENT_METRIC: Record<DashChannel, string> = {
   FACEBOOK: 'TOTAL_ENGAGEMENTS',
   TWITTER: 'TOTAL_ENGAGEMENTS',
   LINKEDIN: 'ENGAGEMENTS_BY_POST',
+  // Probed live 2026-09-15: TOTAL_ENGAGEMENTS returns 200 on CONTENT for TIKTOK.
+  TIKTOK: 'TOTAL_ENGAGEMENTS',
 }
 
 /**
@@ -66,6 +72,10 @@ export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
   FACEBOOK: 'total_engagements_public',
   LINKEDIN: 'engagements',
   TWITTER: 'engagements',
+  //  - TikTok: `total_engagements` = likes + comments + shares exactly, on every post
+  //    in a month of probed posts (2026-09-15). There is no
+  //    `total_engagements_public` on this channel.
+  TIKTOK: 'total_engagements',
 }
 
 /**
@@ -92,7 +102,7 @@ export const CONTENT_ENGAGEMENT_FIELD: Record<DashChannel, string> = {
  * non-zero the two diverge with no on-screen signal that they were ever different measures. The
  * divergence is with the profile KPI, not with this line — pointing Facebook Top Content at
  * `organic_views` is correct here (`impressions` is 0). Recorded alongside the decision-6
- * Facebook footnote (metrics.ts FACEBOOK engagements). If reader-facing surfacing is wanted, add
+ * Facebook footnote (removed from the tiles after the 2026-10-02 walkthrough). If reader-facing surfacing is wanted, add
  * it as a "Views / Impr." column-header tooltip.
  */
 export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {
@@ -100,6 +110,10 @@ export const CONTENT_IMPRESSIONS_FIELD: Record<DashChannel, string> = {
   FACEBOOK: 'organic_views',
   LINKEDIN: 'impressions',
   TWITTER: 'impressions',
+  //  - TikTok: `organic_views` (== `views` on the probed account, which runs no paid).
+  //    Chosen over bare `views` for the same reason as Facebook: it stays organic-only
+  //    if paid ever appears, rather than silently folding paid into an organic column.
+  TIKTOK: 'organic_views',
 }
 
 /**
@@ -122,6 +136,12 @@ export const CONTENT_ENGAGEMENT_RATE_FIELD: Record<DashChannel, string> = {
   FACEBOOK: 'organic_engagement_rate_v2',
   LINKEDIN: 'engagement_rate',
   TWITTER: 'engagement_rate',
+  //  - TikTok: `engagement_rate` (= engagements/reach). TWO fields reconcile exactly on
+  //    this channel, so the profile KPI broke the tie: over a month of probed posts, the
+  //    MEAN of per-post `engagement_rate` matched Dash's AVG_ENGAGEMENT_RATE to 8 decimals.
+  //    The mean of `views_based_engagement_rate` (= engagements/views) did not.
+  //    Note the profile KPI is a mean of per-post rates, not a ratio of sums.
+  TIKTOK: 'engagement_rate',
 }
 
 /**
@@ -133,9 +153,16 @@ export const CONTENT_ENGAGEMENT_RATE_FIELD: Record<DashChannel, string> = {
  * ~0.2pt gap is a viewers snapshot timing diff). Plain `effectiveness` gave 29.3% — wrong.
  * LinkedIn/X expose no effectiveness field → resolves to null → the card shows "—".
  */
-export const CONTENT_EFFECTIVENESS_FIELD: Record<DashChannel, string> = {
+export const CONTENT_EFFECTIVENESS_FIELD: Record<DashChannel, string | null> = {
   INSTAGRAM: 'effectiveness_engagements',
   FACEBOOK: 'organic_effectiveness_v2',
   LINKEDIN: 'effectiveness',
   TWITTER: 'effectiveness',
+  // TikTok: null on purpose, the card shows its empty placeholder like LinkedIn and X. The channel DOES
+  // expose an `effectiveness` field, and reading it would be the Instagram trap again:
+  // probed 2026-09-15, every value sat ABOVE 1, while
+  // every mapping here is a 0..1 fraction the card multiplies by 100. Dash has no
+  // TikTok effectiveness KPI either (EFFECTIVENESS and AVG_EFFECTIVENESS both 400 at
+  // the profile level), so there is nothing to reconcile a displayed value against.
+  TIKTOK: null,
 }

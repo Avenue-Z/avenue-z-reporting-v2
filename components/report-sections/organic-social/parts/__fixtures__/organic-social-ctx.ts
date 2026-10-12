@@ -5,5 +5,6 @@ export const FIXTURE_ORGANIC_SOCIAL_CTX: OrganicSocialCtx = {
   dateRange: 'last_30_days',
   compareRange: 'previous_period',
   channel: null,
+  view: null,
   role: 'CLIENT_VIEWER',
 }

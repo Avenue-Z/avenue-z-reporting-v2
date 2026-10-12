@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { updateTag } from 'next/cache'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { reportCommentary } from '@/lib/db/schema'
@@ -108,7 +108,7 @@ export async function saveCommentary(input: CommentaryInput): Promise<Result> {
     })
   }
 
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -143,7 +143,7 @@ export async function approveCommentary(clientSlug: string, id: string): Promise
   // violate the deleted⇒draft CHECK constraint and throw out of the action.
   if (affectedNothing(approved)) return { ok: false, error: 'not found' }
 
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -171,7 +171,7 @@ export async function revokeCommentary(clientSlug: string, id: string): Promise<
 
   if (affectedNothing(revoked)) return { ok: false, error: 'not found' }
 
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 
@@ -211,6 +211,6 @@ export async function deleteCommentaryDraft(clientSlug: string, id: string): Pro
   // second would overwrite deleted_by, and the audit log would name the wrong person.
   if (affectedNothing(deleted)) return { ok: false, error: 'not found' }
 
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }

@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The PDF export route runs headless Chromium (app/api/export/pdf). Both packages must stay out of
+  // the bundle, and Chromium's compressed binary must be traced into that one function.
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+  outputFileTracingIncludes: {
+    '/api/export/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
+  },
   experimental: {
     // Report pages are dynamic (they read auth()/cookies()/searchParams), so by
     // default (staleTimes.dynamic = 0) every navigation — even back to a section

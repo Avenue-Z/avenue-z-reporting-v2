@@ -1,5 +1,7 @@
+// `data-export-pending`: a skeleton is a part still loading, and the PDF export waits until none is left
+// (lib/export/readiness.ts).
 const Pulse = ({ className }: { className: string }) => (
-  <div className={`animate-pulse rounded bg-white/[0.06] ${className}`} />
+  <div data-export-pending="" className={`animate-pulse rounded bg-white/[0.06] ${className}`} />
 )
 
 /** Mirrors platform-headlines.tsx — label + a 5-up KpiCard grid, shown twice. */

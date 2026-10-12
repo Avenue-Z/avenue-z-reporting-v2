@@ -76,10 +76,14 @@ test('X uses Profile Clicks (not Views); Facebook omits Profile Views', () => {
   expect(platformKpiKeys('FACEBOOK')).not.toContain('profileViews')
 })
 
-test('Facebook engagements carries the decision-6 footnote on the scoped platform build', () => {
-  const keys = platformKpiKeys('FACEBOOK')
-  const h = buildPlatformHeadline('FACEBOOK', metricsForKeys('FACEBOOK', keys, 1), keys, true)
-  expect(h.kpis.find((k) => k.key === 'engagements')?.footnote).toMatch(/Influencer/)
+// The decision-6 footnote was removed for every client after the 2026-10-02 walkthrough:
+// Renaissance's scoped Facebook tile no longer carries it either, and no tile on any channel does.
+test('no tile carries a footnote on the scoped platform build, Facebook included', () => {
+  for (const ch of ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN', 'TIKTOK'] as const) {
+    const keys = platformKpiKeys(ch)
+    const h = buildPlatformHeadline(ch, metricsForKeys(ch, keys, 1), keys, true)
+    for (const k of h.kpis) expect(k.footnote, `${ch} ${k.key}`).toBeUndefined()
+  }
 })
 
 // PR #174 review #2: footnote is a platform-subpage-only caveat — Overview must render
@@ -152,4 +156,35 @@ test('per-KPI delta computed from context; undefined when no context present', (
   const h = buildPlatformHeadline('TWITTER', withCtx, OVERVIEW_KPI_KEYS, false)
   expect(h.kpis.find((k) => k.key === 'followers')?.delta).toBeCloseTo(10)
   expect(h.kpis.find((k) => k.key === 'exposure')?.delta).toBeUndefined()
+})
+
+// TikTok's Avg Completion Rate is a 'percent' tile, so buildPlatformHeadline multiplies Dash's
+// value by 100 (headline-build.ts, `spec.format === 'percent' ? raw * 100 : raw`). That is right
+// only if Dash returns AVG_COMPLETION_RATE as a 0 to 1 fraction, like AVG_ENGAGEMENT_RATE; the
+// probe below is the evidence it does. Probed read only on 2026-09-21 with the tiles' report type
+// (TOTAL_GROUPED_METRIC, aggregated by brand, require_posts, TikTok only) over UTC calendar months,
+// recording the scale and never a figure: 6 of 6 non-null monthly values within 0 to 1 for
+// AVG_COMPLETION_RATE, March to August 2026 (control AVG_ENGAGEMENT_RATE, which the other channels'
+// tiles already render as a fraction: 6 of 6). Values alone cannot prove a scale: read as 0 to 100,
+// these would mean at most 1 percent completion every month, implausibly low for TikTok video. The
+// value below is synthetic. This test pins our side of that contract; it cannot see Dash's side,
+// so re-probe before changing this tile's format.
+test('TikTok completion rate: a 0 to 1 fraction from Dash renders as a percent', () => {
+  const metric = metricForKey('TIKTOK', 'completionRate')
+  const h = buildPlatformHeadline(
+    'TIKTOK', { [metric]: { value: 0.42, context: null, context_change: null } }, ['completionRate'], true,
+  )
+  const kpi = h.kpis.find((k) => k.key === 'completionRate')
+  expect(kpi?.format).toBe('percent')
+  expect(kpi?.value).toBeCloseTo(42)
+})
+
+// Paul's review of #285: an outline client's fallback tabs (Overview, an uncovered channel such as Piper's X)
+// use the outline tiles' change, so a rise from a negative prior shows a rise. The default is left signed:
+// Renaissance reads it, and changing it is a decision for Thomas and Paul together.
+test("'size' measures the change against the size of the prior; the default stays signed", () => {
+  const key = platformKpiKeys('TWITTER')[0]
+  const metrics = { [metricForKey('TWITTER', key)]: { value: 4, context: -2, context_change: null } as TotalMetric }
+  expect(buildPlatformHeadline('TWITTER', metrics, [key], true, 'size').kpis[0].delta).toBe(300)
+  expect(buildPlatformHeadline('TWITTER', metrics, [key], true).kpis[0].delta).toBe(-300)
 })

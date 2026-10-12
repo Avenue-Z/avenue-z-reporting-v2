@@ -1,6 +1,6 @@
 /** Percent display for organic-social rate KPIs (engagement rate, effectiveness).
  *  These rates are non-negative and routinely below 1%, where plain whole-number rounding
- *  would hide a real rate as "0%". So: whole number at/above 1% (3.5% -> "3%"); one decimal
+ *  would hide a real rate as "0%". So: whole number at/above 1% (3.5% -> "4%"); one decimal
  *  below 1% (0.4% -> "0.4%") to keep the sub-1% band legible.
  *
  *  Non-negative input only — deltas are formatted by KpiCard, not here.

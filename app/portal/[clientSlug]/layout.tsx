@@ -4,8 +4,7 @@ import { auth } from '@/auth'
 import { PortalSidebar } from '@/components/layout/portal-sidebar'
 import { getClientBySlug } from '@/lib/db/queries'
 import { toPortalSidebarClient } from '@/lib/portal/sidebar-client'
-
-const INTERNAL_ROLES = new Set(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])
+import { canOpenPortal } from '@/lib/auth/route-access'
 
 export default async function PortalLayout({
   children,
@@ -19,10 +18,10 @@ export default async function PortalLayout({
   if (!session) redirect('/login')
 
   const { clientSlug } = await params
-  const isInternal = INTERNAL_ROLES.has(session.user.role ?? '')
 
-  // Client users may only access their own portal slug
-  if (!isInternal && session.user.clientSlug !== clientSlug) {
+  // Staff, or a client role on its own slug (lib/auth/route-access.ts, the rule the proxy and every
+  // page apply too).
+  if (!canOpenPortal(clientSlug, session.user)) {
     redirect('/unauthorized')
   }
 

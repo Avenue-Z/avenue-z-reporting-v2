@@ -1,0 +1,222 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { saveChartNoteAction } from '@/app/actions/chart-notes'
+import { NOTE_MAX_CHARS, NOTE_MAX_POSTS } from '@/lib/organic-social/chart-notes/limits'
+import { dayLabel, type NoteControls } from '@/lib/organic-social/annotations'
+import { Picture } from './annotation-callouts'
+import { PILL as BUTTON } from './pill'
+import { cn } from '@/lib/utils'
+
+const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
+/** Said when no post of the day is on screen but the note's picks are kept (C4, R3). */
+const KEEPS_PICKS = 'Posts could not load, so this note keeps its picked posts.'
+/** Said when the posts loaded but a pick of the note is not among them (Paul's review of #292): not a failure. */
+const PICK_GONE = 'A picked post did not come back from Dash this time; it stays picked until you remove it.'
+
+/** A day's note already on this chart, as the Add annotation panel needs it: the text and picks to load
+ *  (its draft's, else the approved note's) and whether a draft exists. Editors only. */
+export type ExistingNote = { text: string; postIds: number[]; draft: boolean }
+/** What a save did, for the line shown after it: the day, and what that day had before. It also carries the
+ *  text and picks saved, stored as the action stores them (the body trimmed), so the chart can keep them until
+ *  the refreshed answer arrives (#276). */
+export type SavedNote = { day: string; had: 'none' | 'draft' | 'approved'; text: string; postIds: number[] }
+
+/** The one line shown after a save (Phase 2c, D18), so it is clear what happened. */
+export function savedLine({ day, had }: SavedNote, canApprove: boolean): string {
+  const d = dayLabel(day)
+  const first = had === 'draft' ? `Updated the draft for ${d}. Clients see it once it's approved.`
+    : had === 'approved' ? `Saved a draft for ${d}. Clients keep seeing the approved note until this one is approved.`
+    : `Saved a draft for ${d}. Clients see it once it's approved.`
+  return canApprove ? `${first} Hover its dot to approve it.` : first
+}
+
+/** Add or edit a day's note (Phase 2b, the approved mockup). A new note starts from a post or a day: the
+ *  month's posts as pictures with their dates, only days with posts, oldest first, in one row that scrolls
+ *  sideways, and a Day list with every day of the window, which in the live month ends at the last complete UTC
+ *  day, as the chart does, including days with no post (Jasmine, 2026-09-29:
+ *  a PR hit on a day with no post). Picking a picture sets the day, and up to NOTE_MAX_POSTS may be picked,
+ *  all from that day (a pick from another day moves there and clears the rest). Editing from a card is
+ *  fixed to that card's day: its posts, or the line "No posts went live this day". Saving always lands as
+ *  a draft. The action re-checks the role and email, the client, the day (not in the future, not before the
+ *  client's first reporting month), the text and the post ids' shape; it does not check that a picked post is
+ *  from that day. Staff only, and `no-print`, since Export PDF prints the page. */
+export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved }: {
+  controls: NoteControls
+  fixedDay?: string
+  initial?: { text: string; postIds: number[] }
+  /** This chart's notes by day (Phase 2c, D19). */
+  notes?: Record<string, ExistingNote>
+  onClose: () => void
+  onSaved: (saved: SavedNote) => void
+}) {
+  const router = useRouter()
+  const days = fixedDay ? controls.days.filter((d) => d.day === fixedDay) : controls.days.filter((d) => d.posts.length > 0)
+  const posts = days.flatMap((d) => d.posts.map((p) => ({ ...p, day: d.day })))
+  const [day, setDay] = useState<string | null>(fixedDay ?? null)
+  // The form never removes a saved pick by itself: Dash's answer can come back without a post that is
+  // still the note's (a failed, empty or partial answer), and a typo fix used to save the note without
+  // its pictures (Paul's review of #273, C4, and his second, R3). A pick not among the posts on screen
+  // shows as a pressed placeholder tile, counts toward the limit, and leaves only when it is clicked.
+  const [picked, setPicked] = useState<number[]>(() => initial?.postIds ?? [])
+  const [text, setText] = useState(initial?.text ?? '')
+  // The text this panel filled in from a day's note (D19). While the user leaves it as it was, it
+  // belongs to that day: moving to another day, or unpicking every post, drops it.
+  const [loaded, setLoaded] = useState<string | null>(null)
+  // Whether the day came from the Day list. A day set by picking a picture goes with its last pick, as
+  // before; a day chosen from the list stays, since a note needs no post.
+  const [chosen, setChosen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+  const full = picked.length >= NOTE_MAX_POSTS
+  // The note's picks Dash did not return this time: shown as placeholders, first in the row (R3).
+  const unresolved = picked.filter((id) => !posts.some((p) => p.id === id))
+
+  function pick(id: number, postDay: string) {
+    // Filled-in text the user left as it was goes with its day (audit, 2026-09-25: moving from 8/22 to
+    // 8/19 kept 8/22's note, so a save would have put it on 8/19). Text the user wrote always stays.
+    const own = loaded !== null && text === loaded ? '' : text
+    if (picked.includes(id)) {
+      const rest = picked.filter((x) => x !== id)
+      setPicked(rest)
+      if (!fixedDay && !chosen && rest.length === 0) { setDay(null); setText(own); setLoaded(null) }
+      return
+    }
+    if (day !== postDay) {
+      setDay(postDay)
+      setChosen(false)
+      const ex = fixedDay ? undefined : notes?.[postDay]
+      if (!ex) { setPicked([id]); setText(own); setLoaded(null); return }
+      // Each chart holds one note per day, so a day that already has one loads it and a save updates it,
+      // never replacing it silently (Phase 2c, D19; seen live 2026-09-24). Its picks stay, all of them
+      // (R3: one Dash does not return is a placeholder), the new pick joins if there is room, and typed
+      // text is never replaced.
+      const base = ex.postIds
+      setPicked(base.includes(id) || base.length >= NOTE_MAX_POSTS ? base : [...base, id])
+      if (own.trim()) { setText(own); setLoaded(null) } else { setText(ex.text); setLoaded(ex.text) }
+      return
+    }
+    if (!full) setPicked([...picked, id])
+  }
+
+  // The Day list (new notes only). Same rules as reaching a day by its picture: a day's note loads, typed
+  // text is kept, and filled-in text the user left as it was goes with its day.
+  function chooseDay(next: string) {
+    const own = loaded !== null && text === loaded ? '' : text
+    if (!next) { setDay(null); setChosen(false); setPicked([]); setText(own); setLoaded(null); return }
+    setDay(next)
+    setChosen(true)
+    const ex = notes?.[next]
+    if (!ex) { setPicked([]); setText(own); setLoaded(null); return }
+    setPicked(ex.postIds)
+    if (own.trim()) { setText(own); setLoaded(null) } else { setText(ex.text); setLoaded(ex.text) }
+  }
+  const noPostsOnDay = !!day && !posts.some((p) => p.day === day)
+
+  // A new note's day comes from picking a post or from the Day list; a day set by a post goes when its last
+  // pick is undone. An edit is already on its card's day. Either way it also needs text; posts are optional.
+  const canSave = !pending && !!text.trim() && !!day
+
+  // The line under the pictures, in the order spec 3.2 gives (Paul's review of #292). "Could not load" is said
+  // only when the posts really failed; a pick missing from posts that did load says so instead.
+  function hint(): string {
+    if (posts.length === 0) return controls.postsFailed ? KEEPS_PICKS : PICK_GONE
+    if (full) return `Up to ${NOTE_MAX_POSTS} posts`
+    if (fixedDay) return `Pick up to ${NOTE_MAX_POSTS} of this day's posts`
+    if (noPostsOnDay) return unresolved.length > 0 ? PICK_GONE : 'No posts went live this day'
+    if (chosen) return `Pick up to ${NOTE_MAX_POSTS} of this day's posts, or just write what happened`
+    return 'Pick a post, then write what happened'
+  }
+
+  function save() {
+    if (!day) return
+    setError(null)
+    startTransition(async () => {
+      let r: { ok: boolean; error?: string }
+      try {
+        r = await saveChartNoteAction({ clientSlug: controls.clientSlug, channel: controls.channel, chart: controls.chart, day, body: text, postIds: picked })
+      } catch {
+        r = { ok: false, error: 'Could not save. Try again.' }
+      }
+      if (!r.ok) { setError(r.error ?? 'Could not save. Try again.'); return }
+      const ex = notes?.[day]
+      onSaved({ day, had: ex ? (ex.draft ? 'draft' : 'approved') : 'none', text: text.trim(), postIds: picked })
+      // Re-runs the RSC. Notes and hides are read straight from the database (React.cache, per request; they are
+      // not behind the db tag), so the new answer has this save. #281 tracks dropping this refresh across every save.
+      router.refresh()
+    })
+  }
+
+  return (
+    <div role="group" aria-label="Note" className="no-print w-full space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-3">
+      {!fixedDay && controls.days.length > 0 && (
+        <label className="flex items-center gap-2 text-[11px] text-text-muted">
+          Day
+          <select aria-label="Day" value={day ?? ''} disabled={pending} onChange={(e) => chooseDay(e.target.value)}
+            className="rounded-md border border-white/[0.12] bg-bg-surface px-2 py-1 text-xs text-white">
+            <option value="">Pick a day</option>
+            {controls.days.map((d) => (
+              <option key={d.day} value={d.day}>{d.posts.length > 0 ? dayLabel(d.day) : `${dayLabel(d.day)} (no posts)`}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      {!fixedDay && controls.days.length > 0 && (
+        // The "(no posts)" days are UTC days, as the chart's are; the team works in Eastern time (Paul's review of #292).
+        <p className="text-[11px] text-text-muted">Days are UTC, as on the chart, so a post late in the Eastern evening is on the next day.</p>
+      )}
+      {posts.length > 0 || unresolved.length > 0 ? (
+        <>
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-dark">
+            {day && unresolved.map((id) => (
+              <button key={`gone-${id}`} type="button" aria-pressed aria-label={`Post from ${dayLabel(day)} that no longer loads`}
+                disabled={pending} onClick={() => pick(id, day)}
+                className="shrink-0 cursor-pointer rounded-md text-center outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40">
+                <span className="block rounded-md ring-2 ring-brand-cyan">
+                  <Picture creative={null} alt="" tile="h-14 w-14 shrink-0 rounded-md" />
+                </span>
+                <span className="mt-1 block text-[11px] text-white">{dayLabel(day)}</span>
+              </button>
+            ))}
+            {posts.map((p) => {
+              const on = picked.includes(p.id)
+              return (
+                <button key={p.id} type="button" aria-pressed={on} aria-label={`Post from ${dayLabel(p.day)}`}
+                  disabled={pending || (!on && full && p.day === day)} onClick={() => pick(p.id, p.day)}
+                  className="shrink-0 cursor-pointer rounded-md text-center outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40">
+                  {/* The card's own Picture, so a purged Dash thumbnail shows the same placeholder here as on
+                      the card, not a broken image (Paul's review of #273, C11). The ring marks a pick. */}
+                  <span className={cn('block rounded-md', on && 'ring-2 ring-brand-cyan')}>
+                    <Picture creative={p.thumb.creative} alt="" tile="h-14 w-14 shrink-0 rounded-md" />
+                  </span>
+                  <span className={cn('mt-1 block text-[11px]', on ? 'text-white' : 'text-text-muted')}>{dayLabel(p.day)}</span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-text-muted">{hint()}</p>
+        </>
+      ) : (
+        <p className="text-[11px] text-text-muted">
+          {controls.postsFailed ? KEEPS_PICKS : fixedDay || day ? 'No posts went live this day' : 'No posts went live this month'}
+        </p>
+      )}
+      {!fixedDay && day && notes?.[day] && (
+        <p className="text-[11px] text-white">
+          {notes[day].draft
+            ? `${dayLabel(day)} already has a draft. Saving updates it.`
+            : `${dayLabel(day)} already has an approved note. Saving drafts a change to it.`}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <input aria-label="Note text" className={`${FIELD} min-w-[12rem] flex-1`} value={text}
+          maxLength={NOTE_MAX_CHARS} onChange={(e) => setText(e.target.value)} placeholder="What happened this day?" />
+        <span className="text-[11px] text-text-muted" aria-live="polite">{[...text].length}/{NOTE_MAX_CHARS}</span>
+        <button type="button" className={BUTTON} onClick={save} disabled={!canSave}>Save draft</button>
+        <button type="button" className={BUTTON} onClick={onClose} disabled={pending}>Cancel</button>
+      </div>
+      {error && <p role="alert" className="text-[11px] text-red-400">{error}</p>}
+    </div>
+  )
+}

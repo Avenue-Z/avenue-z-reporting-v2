@@ -17,5 +17,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     role?: string
     clientSlug?: string | null
+    /** Set only on the minted service cookie (lib/auth/service-cookie.ts). */
+    service?: true
   }
 }

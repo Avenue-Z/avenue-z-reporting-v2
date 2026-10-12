@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
 import { auth } from '@/auth'
-import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection } from '@/lib/constants'
+import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection, type OrganicView } from '@/lib/constants'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -38,11 +38,16 @@ import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import { parseModelsParam, type AEOModel } from '@/lib/peec/models'
 import { ExportPdfButton } from '@/components/export-pdf-button'
+import { exportPeriodLabel } from '@/lib/export-period'
 import { DataChat } from '@/components/data-chat'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 import type { ReportSlug } from '@/lib/db/schema'
 import type { DashChannel } from '@/lib/organic-social/metrics'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organic-social/locked-range'
+import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
+import { requirePortalAccess } from '@/lib/auth/page-access'
 
 function SectionSkeleton() {
   return (
@@ -66,7 +71,7 @@ function SectionSkeleton() {
 // gap is exactly why AEO's date/model pickers were missing here until they were
 // hand-ported. TODO: extract a single shared report-render module that both the
 // dashboard and portal routes import, so they can't diverge again.
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null) {
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null, view: OrganicView = null) {
   switch (slug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -115,7 +120,7 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
     case 'ticket-sales':
       return <TicketSalesReport clientSlug={clientSlug} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} />
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'executive-overview':
@@ -159,6 +164,7 @@ export default async function PortalReportPage({
   searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string }>
 }) {
   const { clientSlug } = await params
+  await requirePortalAccess(clientSlug)
   const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam } = await searchParams
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
@@ -209,9 +215,26 @@ export default async function PortalReportPage({
     ? resolveOrganicSubsection(client, subsectionParam)
     : null
 
+  // Locked months, opted-in clients only (spec docs/superpowers/specs/2026-09-21-locked-months-design.md,
+  // 4.5). For everyone else `locked` is null and the served range is exactly the requested one.
+  const locked = activeSection === 'organic-social' && hasReportingMonths(client)
+    ? lockedRangeFor(client, session?.user?.role, dateRangeParam, requestClock())
+    : null
+  if (locked?.month && locked.outcome === 'replaced') {
+    if (locked.hiddenMonthAttempt) logHiddenMonthAttempt(clientSlug, dateRangeParam, locked.month.dateRange)
+    const sp = new URLSearchParams()
+    if (section)         sp.set('section', section)
+    if (subsectionParam) sp.set('subsection', subsectionParam)
+    if (modelsParam)     sp.set('models', modelsParam)
+    sp.set('dateRange', locked.month.dateRange)
+    redirect(`/portal/${clientSlug}/reports?${sp.toString()}`)
+  }
+  const servedDateRange    = locked?.month?.dateRange ?? dateRange
+  const servedCompareRange = locked?.month ? locked.month.compareRange : compareRange
+
   const pageTitle =
     (activeSection === 'organic-social' && organicEntry)
-      ? (organicEntry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : organicEntry.label)
+      ? (organicEntry.view === 'influencer' ? organicEntry.label : organicEntry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : organicEntry.label)
     : (activeSection === 'ga4' && subsection && GA4_SUBSECTION_NAMES[subsection])
       ? GA4_SUBSECTION_NAMES[subsection]
     : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
@@ -221,6 +244,15 @@ export default async function PortalReportPage({
     : (activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection])
       ? AEO_SUBSECTION_NAMES[subsection]
     : (REPORT_NAMES[activeSection] ?? activeSection)
+
+  // The Export PDF stamp states a period only where the page range applies, which is exactly where
+  // the header below shows a date picker: Executive Overview, Pacing etc. keep their own window, so a
+  // ?dateRange carried over in the URL must not be stamped on them. Mirrors the picker conditions;
+  // lib/export-period.pages.test.tsx holds stamp ⇔ picker.
+  const usesPageRange =
+    ((activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing') ||
+    activeSection === 'paid-media' || activeSection === 'organic-social' ||
+    (activeSection === 'peec-ai' && (!subsection || !!AEO_SUBSECTION_NAMES[subsection]))
 
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={50}>
@@ -237,7 +269,9 @@ export default async function PortalReportPage({
         )}
         {activeSection === 'organic-social' && (
           <Suspense fallback={null}>
-            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+            {locked
+              ? <OrganicRangeControl client={client} requested={dateRangeParam} role={session?.user?.role ?? null} />
+              : <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />}
           </Suspense>
         )}
         {/* AEO honors the page date range; the model filter applies to Overview,
@@ -252,7 +286,10 @@ export default async function PortalReportPage({
             <ModelFilter selected={models} />
           </Suspense>
         )}
-        <ExportPdfButton />
+        <ExportPdfButton clientName={client.name} pageTitle={pageTitle} periodLabel={usesPageRange ? exportPeriodLabel(servedDateRange) : null}
+          {...(activeSection === 'organic-social'
+            ? { serverExport: { clientSlug, subsection: organicEntry?.id ?? null, dateRange: servedDateRange, compareRange: servedCompareRange } }
+            : {})} />
       </StickyReportHeader>
 
       <div className="h-8" />
@@ -261,9 +298,10 @@ export default async function PortalReportPage({
         {/* Organic Social keys on the RESOLVED subsection (organicEntry.id), not the raw
             param — a disallowed/bogus subsection degrades to Overview and must key
             identically to a plain Overview visit, or it forces a needless remount
-            (PR #174 review). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${dateRange}:${compareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, models, submittedBy, organicEntry?.channel ?? null)}
+            (PR #174 review). The key also gives each tab and month its own trend chart:
+            the chart seeds its legend once per instance (organic-social/trends.tsx). */}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null)}
         </Suspense>
       </ReportErrorBoundary>
 

@@ -68,3 +68,12 @@ test("a client user opening another client's portal is still sent away", async (
     .rejects.toThrow('redirect:/unauthorized')
   expect(getClientBySlug).not.toHaveBeenCalled()
 })
+
+test('a matching slug is not enough: a session without a client role is turned away (fail closed)', async () => {
+  for (const role of ['', 'SOMETHING_ELSE']) {
+    signedInAs(role, 'renaissance')
+    await expect(openPortal('renaissance')).rejects.toThrow('redirect:/unauthorized')
+  }
+  signedInAs('CLIENT_ADMIN', 'renaissance')
+  await expect(openPortal('renaissance')).resolves.toBeDefined()
+})

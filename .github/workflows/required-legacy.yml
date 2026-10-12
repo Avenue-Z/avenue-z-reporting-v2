@@ -1,0 +1,41 @@
+name: legacy required checks
+
+# TEMPORARY. staging's and main's rulesets require the contexts `rsc-boundary` and `test` BY NAME, and a
+# required check that never reports does not fail a PR, it hangs it PENDING FOREVER. Both jobs used to
+# live in checks.yml, which is now the template's caller, and both now also run inside `ci`
+# (make check). Once the rulesets require `ci` and `checks / checks` instead, delete this file.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Catches function props passed from a Server Component to a Client Component (e.g.
+  # `<BarChart valueFormatter={usd} />`), a render-time crash that tsc and `next build` miss for
+  # dynamically-rendered routes.
+  rsc-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: RSC boundary check
+        run: npm run check:rsc
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Unit + snapshot tests
+        run: npm test

@@ -1,5 +1,6 @@
 'use server'
 
+import { updateTag } from 'next/cache'
 import { auth } from '@/auth'
 import { normalizeEmail, isValidEmail, loginUrl } from '@/lib/admin/access'
 import { getClientAccessOverview, addClientUser, removeClientUser } from '@/lib/db/admin-queries'
@@ -24,6 +25,7 @@ export async function inviteTeammateAction(slug: string, rawEmail: string) {
   if (!res.ok) {
     return { ok: false, error: res.reason === 'duplicate' ? 'That email already has access.' : 'You have reached your seat limit. Contact Avenue Z to add more.' }
   }
+  updateTag('db')
   return { ok: true, loginUrl: loginUrl() }
 }
 
@@ -37,5 +39,6 @@ export async function removeTeammateAction(slug: string, userId: string) {
   if (target.email === selfEmail) return { ok: false, error: 'Cannot remove yourself.' }
   const res = await removeClientUser({ clientId, userId })
   if (!res.ok) return { ok: false, error: 'User not found.' }
+  updateTag('db')
   return { ok: true }
 }

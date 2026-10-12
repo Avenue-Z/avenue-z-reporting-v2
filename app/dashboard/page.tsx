@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getVisibleClients } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import { ArrowRight } from 'lucide-react'
+import { requireStaff } from '@/lib/auth/page-access'
 
 const AVATAR_COLORS = [
   'bg-brand-yellow text-black',
@@ -21,6 +22,7 @@ function getAvatarColor(name: string) {
 }
 
 export default async function DashboardPage() {
+  await requireStaff()
   const clients = await getVisibleClients()
 
   return (

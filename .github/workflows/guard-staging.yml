@@ -7,6 +7,13 @@ on:
   pull_request:
     branches: [staging]
 
+# Reads only the event payload, so the token needs nothing more (the template's convention).
+permissions:
+  contents: read
+
+# The template's base-branch guard (checks / checks) enforces the same rule. This job stays while
+# staging's ruleset requires `require-from-dev` by name.
+
 jobs:
   require-from-dev:
     runs-on: ubuntu-latest

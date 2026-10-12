@@ -73,3 +73,7 @@ describe('canDeleteDraft', () => {
     expect(canDeleteDraft(undefined).ok).toBe(false)
   })
 })
+
+test('an empty body is refused with the box-neutral message', () => {
+  expect(validateCommentaryInput({ bodyHtml: '<p>&nbsp;</p>', periodStart: '2026-09-01', periodEnd: '2026-09-30' })).toEqual({ ok: false, error: 'Text is required.' })
+})

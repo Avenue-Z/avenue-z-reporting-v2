@@ -9,9 +9,11 @@ exports[`top-content@1 golden (Suspense skeleton) 1`] = `
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-7 w-44 !rounded-full"
+      data-export-pending=""
     />
   </div>
   <div
@@ -19,18 +21,23 @@ exports[`top-content@1 golden (Suspense skeleton) 1`] = `
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+      data-export-pending=""
     />
     <div
       class="animate-pulse rounded bg-white/[0.06] h-10 w-full"
+      data-export-pending=""
     />
   </div>
 </section>

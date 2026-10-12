@@ -47,3 +47,10 @@ test('PostCard renders "—" when a rate is null (no % formatting on missing dat
   expect(queryByText('0%')).toBeNull()
   expect(queryByText('NaN%')).toBeNull()
 })
+
+// Paul, #334 review item 10: the Influencer tab draws every post of the period with no pager, so an eager thumbnail
+// per card fired every image request on tab open. The live card's image loads lazily.
+test('the live card image loads lazily', () => {
+  const { container } = render(<PostCard post={makePost({})} clientSlug="c" canEdit={false} />)
+  expect(container.querySelector('img')?.getAttribute('loading')).toBe('lazy')
+})

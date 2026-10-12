@@ -9,6 +9,7 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+      data-export-pending=""
     />
     <div
       class="grid grid-cols-2 gap-3 md:grid-cols-5"
@@ -18,9 +19,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -28,9 +31,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -38,9 +43,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -48,9 +55,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -58,9 +67,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
     </div>
@@ -70,6 +81,7 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
   >
     <div
       class="animate-pulse rounded bg-white/[0.06] h-4 w-32"
+      data-export-pending=""
     />
     <div
       class="grid grid-cols-2 gap-3 md:grid-cols-5"
@@ -79,9 +91,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -89,9 +103,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -99,9 +115,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -109,9 +127,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
       <div
@@ -119,9 +139,11 @@ exports[`platform-headlines@1 golden (Suspense skeleton) 1`] = `
       >
         <div
           class="animate-pulse rounded bg-white/[0.06] mb-3 h-3 w-2/3"
+          data-export-pending=""
         />
         <div
           class="animate-pulse rounded bg-white/[0.06] h-6 w-1/2"
+          data-export-pending=""
         />
       </div>
     </div>

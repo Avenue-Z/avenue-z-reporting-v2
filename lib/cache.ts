@@ -33,7 +33,7 @@ export interface CachedOptions<TArgs extends unknown[]> {
   version?: string
   /** TTL in seconds. Default 3600 (1 hour). */
   ttlSeconds?: number
-  /** Next.js cache tags for explicit invalidation via revalidateTag(). */
+  /** Next.js cache tags for explicit invalidation. Saves expire them with updateTag, inside a Server Action. */
   tags?: string[]
   /** Tag extractor for PERF log lines. */
   extractTags?: PerfExtractor<TArgs>

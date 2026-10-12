@@ -28,8 +28,17 @@ export const ORGANIC_SOCIAL_PLATFORM_TEMPLATE: SectionTemplate = {
   thresholds: {},
 }
 
+/** The Influencer tab (10/6 calls): one part. No section_templates row is written for it; a missing row falls
+ *  back to this template (index.tsx), and a client may still override it under 'organic-social:influencer'. */
+export const ORGANIC_SOCIAL_INFLUENCER_TEMPLATE: SectionTemplate = {
+  order: [{ id: 'influencer-posts', version: 1 }],
+  labels: {},
+  thresholds: {},
+}
+
 /** First-boot fallback used before the section_templates rows are seeded (M4) and in tests with no DB. */
 export const CODE_TEMPLATES: Record<string, SectionTemplate> = {
   'organic-social': ORGANIC_SOCIAL_TEMPLATE,
   'organic-social:platform': ORGANIC_SOCIAL_PLATFORM_TEMPLATE,
+  'organic-social:influencer': ORGANIC_SOCIAL_INFLUENCER_TEMPLATE,
 }

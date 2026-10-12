@@ -1,7 +1,7 @@
 'use server'
 
 import { eq } from 'drizzle-orm'
-import { unstable_cache, revalidateTag } from 'next/cache'
+import { unstable_cache, updateTag } from 'next/cache'
 import { createHash, randomBytes } from 'node:crypto'
 import { auth } from '@/auth'
 import { db } from '@/lib/db/client'
@@ -52,7 +52,7 @@ export async function saveDashboardConfig(
   // config and the edit appears to revert — a deleted block reappears, an added block
   // vanishes — until the TTL expires. Targeted by tag: the SM/TW query Data Cache is
   // untagged, so this does not purge it (no cold re-resolution of chart data).
-  revalidateTag('db', 'max')
+  updateTag('db')
   return { ok: true }
 }
 

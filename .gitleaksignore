@@ -1,0 +1,8 @@
+# gitleaks false positives, each suppressed by exact fingerprint (commit:file:rule:line) and nothing broader.
+# All four are the LinkedIn client id rule firing on a TypeScript type name in the LinkedIn ads code and
+# its plan (the matched text is the word LinkedIn itself) so none of them is a credential. Found by the
+# template's weekly full-history audit on 2026-09-28.
+48dc4471afe7d44a51bb75a92c5ba5c12fd39b08:scripts/seed.ts:linkedin-client-id:23
+5297635f9187c7be92e7aea3a8ed4db2ea162f2b:docs/superpowers/plans/2026-06-22-renaissance-linkedin-ads.md:linkedin-client-id:34
+5297635f9187c7be92e7aea3a8ed4db2ea162f2b:docs/superpowers/plans/2026-06-22-renaissance-linkedin-ads.md:linkedin-client-id:69
+5297635f9187c7be92e7aea3a8ed4db2ea162f2b:docs/superpowers/plans/2026-06-22-renaissance-linkedin-ads.md:linkedin-client-id:94

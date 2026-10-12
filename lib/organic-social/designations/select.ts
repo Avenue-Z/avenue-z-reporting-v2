@@ -7,7 +7,7 @@ import type { SourceType } from '../types'
 /** Stored designations for the given posts, keyed by Dash post id. Absent posts are
  *  simply not in the map — partitionPosts falls back to the suggestion for those.
  *  React.cache-wrapped for per-render dedup; freshness after a write comes from
- *  revalidateTag('db') in the server action. */
+ *  updateTag('db') in the server action. */
 export const getDesignations = cache(
   async (clientId: string, postIds: number[]): Promise<Map<number, SourceType>> => {
     if (postIds.length === 0) return new Map()

@@ -3,6 +3,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { PlatformCard } from '@/components/auth-hub/platform-card'
 import { PLATFORM_IDS } from '@/lib/platforms/constants'
 import type { PlatformId } from '@/lib/platforms/constants'
+import { requirePortalAccess } from '@/lib/auth/page-access'
 
 /** Platforms currently integrated via direct API */
 const ACTIVE_PLATFORMS: PlatformId[] = [
@@ -16,6 +17,7 @@ export default async function ClientAuthPage({
   params: Promise<{ clientSlug: string }>
 }) {
   const { clientSlug } = await params
+  await requirePortalAccess(clientSlug)
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
