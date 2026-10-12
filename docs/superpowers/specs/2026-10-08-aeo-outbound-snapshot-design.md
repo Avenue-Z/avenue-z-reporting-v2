@@ -98,7 +98,7 @@ migrations are applied only by hand on my written go, and I confirmed I never ap
 6. `vitest.config.ts` include list (`:13-79`): `'lib/aeo-outbound/**/*.test.{ts,tsx}'`, `'app/api/aeo-outbound/**/*.test.{ts,tsx}'`, `'app/snapshot/**/*.test.{ts,tsx}'`, `'components/aeo-outbound/**/*.test.{ts,tsx}'`.
 
 No change to `proxy.ts`, `auth.ts`, `lib/auth/*`, `lib/peec/*`, `lib/glean.ts`, `app/share/**`, `app/globals.css`,
-`components/layout/sidebar.tsx`, `package.json` or the `clients` table.
+`components/layout/sidebar.tsx`, `package.json` (amended by v1.1 §10: `zod` 4.3.6 only) or the `clients` table.
 
 **Known quirk (accepted, no shared edit):** the team sidebar opens tool links in a new tab (`components/layout/sidebar.tsx:964-973`).
 The hub itself renders in-app, because `/tools/new-business` shows `TeamSidebar` for slug `new-business` (`sidebar.tsx:75-87`),
@@ -640,8 +640,8 @@ N - 1 most visible competitors), Q4 is `competitorSiteGaps`, and the source-mix 
 
 ## 16. Notes
 
-- **Data contracts:** my `contract-core` standard is a Python library pinned via `pyproject.toml`, and this repo is
-  TypeScript with no validator dependency (`package.json` has no zod or valibot). Boundary checks are the typed guards
-  in §7, as `lib/peec` and AIVx do today.
+- **Data contracts:** amended by v1.1 §10 (2026-10-11): `zod` 4.3.6 is a direct dependency and every boundary is a
+  declared schema in `lib/aeo-outbound/contracts.ts`, checked by `checkContract` with a per-boundary mode and the
+  `CONTRACT_DISABLED` kill switch. The typed guards in §7 still run.
 - **Public repo:** this repo is public, so the copied AIVx stylesheet and markup become public. No client or prospect
   data is committed. Test fixtures are synthetic.
