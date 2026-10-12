@@ -300,7 +300,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
       <div className="flex items-center gap-1.5 whitespace-nowrap">
         {open}
         {copy}
-        {menu.length > 0 && <RowMenu items={menu} />}
+        {menu.length > 0 && <RowMenu label={r.brand} items={menu} />}
       </div>
     )
   }

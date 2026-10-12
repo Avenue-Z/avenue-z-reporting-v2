@@ -61,7 +61,7 @@ async function pickAndGenerate(rows: HubRow[] = []) {
   return r
 }
 const rowEl = (id: string) => within(screen.getByTestId(`row-${id}`))
-const moreBtn = (id: string) => rowEl(id).getByRole('button', { name: 'More' })
+const moreBtn = (id: string) => rowEl(id).getByRole('button', { name: /^More actions for / })
 const openMore = (id: string) => { if (!rowEl(id).queryByRole('menu')) fireEvent.click(moreBtn(id)) }
 const item = (id: string, name: string) => { openMore(id); return rowEl(id).getByRole('menuitem', { name }) }
 const menuLabels = (id: string) => { openMore(id); const l = rowEl(id).getAllByRole('menuitem').map((e) => e.textContent); fireEvent.keyDown(document, { key: 'Escape' }); return l }
@@ -303,9 +303,16 @@ test('Open and Copy link are direct buttons; Revoke, Edit a copy, Rerun and Disc
   expect(screen.getAllByRole('menuitem').map((e) => e.textContent)).toEqual(['Revoke', 'Edit a copy', 'Rerun'])
 })
 
+test('the More button is named for its row, and its text stays More', async () => {
+  hub({ rows: [row({ status: 'draft', brand: 'Acme' })], counts: { ...COUNTS, all: 1 } })
+  expect(moreBtn(ID(1))).toHaveAccessibleName('More actions for Acme')
+  expect(moreBtn(ID(1))).toHaveTextContent(/^More$/)
+  await loaded()
+})
+
 test('a generating row has no More; neither does a row with no secondary action', async () => {
   hub({ rows: [row({ id: ID(1), status: 'generating' })], counts: { ...COUNTS, all: 1 } })
-  expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^More actions for / })).not.toBeInTheDocument()
   await loaded()
 })
 
