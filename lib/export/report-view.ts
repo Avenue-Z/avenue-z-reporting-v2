@@ -40,6 +40,10 @@ export function resolveExportView(client: ExportViewClient, section: ServerExpor
     const tab = visibleTab(AEO_SUBSECTIONS, client, subsection)
     return { section, subsectionId: tab?.id ?? null, channel: null, view: null, pageTitle: tab ? tab.label : (REPORT_NAMES['peec-ai'] ?? 'peec-ai') }
   }
+  // One page, no tabs (spec 2026-10-09 §4).
+  if (section === 'executive-overview') {
+    return { section, subsectionId: null, channel: null, view: null, pageTitle: REPORT_NAMES['executive-overview'] ?? 'Executive Overview' }
+  }
   const tab = visibleTab(PAID_MEDIA_SUBSECTIONS, client, subsection)
   // The page titles Paid Media's Overview "Overview", not the section name.
   return { section, subsectionId: tab?.id ?? null, channel: null, view: null, pageTitle: tab ? tab.label : 'Overview' }

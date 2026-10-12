@@ -21,6 +21,7 @@ vi.mock('@/components/report-sections/paid-media/overview', () => stub('PaidMedi
 vi.mock('@/components/report-sections/paid-search', () => stub('PaidSearchReport'))
 vi.mock('@/components/report-sections/meta-ads', () => stub('MetaAdsReport'))
 vi.mock('@/components/report-sections/linkedin-ads', () => stub('LinkedInAdsReport'))
+vi.mock('@/components/report-sections/executive-overview', () => stub('ExecutiveOverviewReport'))
 
 import PortalSpa from '@/app/portal/[clientSlug]/reports/page'
 import DashboardSpa from '@/app/dashboard/[clientSlug]/reports/page'
@@ -31,9 +32,9 @@ import { exportReportElement } from './report-element'
 import { SERVER_EXPORT_SECTIONS, type ServerExportSection } from '@/lib/export/sections'
 
 const REPORTS = new Set(['OrganicSocialReport', 'PeecAIReport', 'PRInfluenceReport', 'ContentImpactReport', 'TechnicalAuditReport',
-  'PaidMediaOverviewReport', 'PaidSearchReport', 'MetaAdsReport', 'LinkedInAdsReport'])
+  'PaidMediaOverviewReport', 'PaidSearchReport', 'MetaAdsReport', 'LinkedInAdsReport', 'ExecutiveOverviewReport'])
 const CLIENT = {
-  name: 'Client', slug: 'c', logoUrl: null, enabledReports: ['organic-social', 'peec-ai', 'paid-media'], hiddenReports: [] as string[],
+  name: 'Client', slug: 'c', logoUrl: null, enabledReports: ['organic-social', 'peec-ai', 'paid-media', 'executive-overview'], hiddenReports: [] as string[],
   dashSocialConfig: { brandId: 1 }, reportSectionConfig: {},
 }
 const Q = { dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'previous_period', models: 'ChatGPT,Claude' }
@@ -89,6 +90,24 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
       else if (subsection !== 'not-a-tab') expect(button.props.periodLabel).not.toBeNull()
     })
   }
+
+  // Spec 2026-10-09 §4, §9.1: one page, no tabs; the page has no picker and mixes windows, so no period is stamped.
+  test(`${routeName}: the Executive Overview exports the report the page renders, titled as the page, with no period`, async () => {
+    const { report, button } = await onPage(Route, CLIENT, 'executive-overview')
+    const view = resolveExportView(CLIENT as ExportViewClient, 'executive-overview', null)
+    expect(view).toEqual({ section: 'executive-overview', subsectionId: null, channel: null, view: null, pageTitle: 'Executive Overview' })
+    const element = exportReportElement(view, params)
+    expect(nameOf(element.type)).toBe(nameOf(report.type))
+    // Named drift (Thomas, #354, Salesforce's 60 s timeout vs the export's 40 s ready budget): the export gives the CRM
+    // fetches a deadline, so a slow CRM prints its "Couldn't load" card instead of the export answering "still loading".
+    expect(element.props).toEqual({ ...report.props, crmDeadlineMs: 25_000 })
+    expect(view.pageTitle).toBe(button.props.pageTitle)
+    expect(button.props.periodLabel).toBeNull()
+    // Thomas, #354 reports/page.tsx:298: the page ignores ranges, so the button posts the fixed ones, never the URL's: a
+    // stale ?compareRange= the request validator refuses would otherwise turn the export into a 400.
+    expect(button.props.serverExport).toEqual({ clientSlug: 'c', section: 'executive-overview', subsection: null,
+      dateRange: 'last_30_days', compareRange: null, models: null })
+  })
 
   test(`${routeName}: a tab the client has hidden exports its section's Overview, as the page renders it`, async () => {
     const hidden = { ...CLIENT, hiddenReports: ['technical-audit'] }

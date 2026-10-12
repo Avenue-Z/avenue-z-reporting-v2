@@ -132,6 +132,12 @@ if (!process.env.AUTH_SECRET) {
     const pdf = readPdf(file)
     check(outsideBox(pdf).length === 0, `${name}: nothing outside the content box (${outsideBox(pdf).length} words)`)
     check(pdf.pages.every((p) => p.width === 792 && p.height === 612), `${name}: ${pdf.pages.length} pages, all Letter landscape`)
+    // Printed at full width, not shrunk to fit: anything laid out past the 979 px content width (a w-max hover tooltip, PR 4
+    // final review) makes Chromium scale every page down, which outsideBox can't see. The header stamp is right-aligned to
+    // the content box's right edge (763.2 pt), so it ends there unless the page was shrunk (an 11% shrink put it at ~680).
+    const stamp = pdf.words.find((w) => w.page === 1 && w.text === 'Exported')
+    const stampEnd = stamp ? Math.max(...pdf.words.filter((w) => w.page === 1 && Math.abs(w.yMin - stamp.yMin) < 2).map((w) => w.xMax)) : 0
+    check(stampEnd > 757, `${name}: printed at full width, not shrunk to fit (stamp ends at ${stampEnd.toFixed(1)} pt)`)
     // Vercel caps a function's response body at 4.5 MB; full-size WebP post images once made this export 31 MB.
     check(bytes.length < 4_500_000, `${name}: under Vercel's 4.5 MB response limit (${(bytes.length / 1e6).toFixed(2)} MB)`)
     // Every glyph comes from a web font the page loads, never from a system font: the server's Chromium has almost none
@@ -222,6 +228,34 @@ if (!process.env.AUTH_SECRET) {
       }
       if (s && c) check(body(s.pdf) === body(c.pdf), `${name}: the staff export prints exactly what the client export does`)
     }
+  }
+
+  // Executive Overview (PDF export PR 4): exported as a staff editor and as a client, posting a stale custom range the page
+  // ignores (spec 2026-10-09 §9.1). No toggle, tab, sort or hover-only text prints; no reporting period is stamped; the two
+  // exports print the same; exportAs logs the time to ready.
+  {
+    const eoClient = process.env.EO_CLIENT ?? 'renaissance'
+    const eoBody = { clientSlug: eoClient, section: 'executive-overview', subsection: null, dateRange: 'custom:2026-08-01,2026-08-31' }
+    const s = await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, eoBody, `eo-${eoClient}-staff`)
+    const c = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: eoClient }, eoBody, `eo-${eoClient}-client`)
+    for (const [who, r] of [['staff', s], ['client', c]] as const) {
+      if (!r) continue
+      const text = r.pdf.words.map((w) => w.text).join(' ')
+      // The sort headers print uppercase (CSS), so a leaked arrow reads "↓ SESSIONS": that part ignores case. The rest keeps
+      // it: "Prior period" is the hover layer, while every KPI delta legitimately reads "vs prior period".
+      const controls = [...(text.match(/By Conversion|7d avg|Prior period|rolling average/g) ?? []), ...(text.match(/[↓↑] (Sessions|CVR)/gi) ?? [])]
+      check(controls.length === 0, `eo-${eoClient}-${who}: no toggle, tab, sort or hover-only text (${[...new Set(controls)].join(', ') || 'none'})`)
+      check(!text.includes('Reporting period'), `eo-${eoClient}-${who}: no reporting period stamped`)
+      // Exact case: the Web Analytics label prints uppercase; the Journey's "sessions in the last 30 days" must not satisfy it.
+      check(text.includes('LAST 30 DAYS'), `eo-${eoClient}-${who}: Web Analytics keeps its 30-day window label`)
+      // The year-to-date and as-of-today labels are why no period is stamped (Thomas, #354 acceptance.mts:244). They print
+      // only when the CRM blocks loaded, so they're checked then; a run whose CRM failed says so instead of passing quietly.
+      const crmLoaded = !/Couldn't load (contact|lead|pipeline) data|CRM not connected/.test(text)
+      if (crmLoaded) {
+        check(text.includes('Year to date, by ISO week.') && text.includes('Open pipeline is as of today.'), `eo-${eoClient}-${who}: the CRM blocks keep their year-to-date and as-of-today labels`)
+      } else console.log(`  note  eo-${eoClient}-${who}: CRM blocks didn't load, so their window labels weren't checked`)
+    }
+    if (s && c) check(body(s.pdf) === body(c.pdf), `eo-${eoClient}: the staff export prints exactly what the client export does`)
   }
 }
 
