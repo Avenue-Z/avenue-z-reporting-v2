@@ -17,10 +17,10 @@ const UL = '<ul style="margin-top:10px;padding-left:20px;display:flex;flex-direc
 /** Draft only. Outlines and the Edit chip show only in edit mode (html.aeo-edit, set by the frame script). The chip is
  *  CSS ::after, so no element is added inside a slot and textContent stays exactly what Ryan typed (v1.1 §2). */
 export const EDITOR_STYLE = '<style>' + [
-  'html.aeo-edit [data-slot]{outline:1px dashed rgba(255,255,255,0.35);outline-offset:2px;cursor:text}',
-  'html.aeo-edit [data-slot]:hover,html.aeo-edit [data-slot]:focus{outline:2px solid #60FFEA;position:relative}',
-  'html.aeo-edit [data-slot]:hover::after,html.aeo-edit [data-slot]:focus::after{content:"Edit";position:absolute;top:-18px;right:0;padding:3px 5px;border-radius:3px;background:#60FFEA;color:#000;-webkit-text-fill-color:#000;font:700 10px/1 Avenir,sans-serif;letter-spacing:0.06em;text-transform:uppercase;pointer-events:none;z-index:5}',
-  'html.aeo-edit [data-mirror],html.aeo-edit [data-locked]{cursor:not-allowed}',
+  'html.aeo-edit [data-slot],html.aeo-edit [data-mirror-edit]{outline:1px dashed rgba(255,255,255,0.35);outline-offset:2px;cursor:text}',
+  'html.aeo-edit [data-slot]:hover,html.aeo-edit [data-slot]:focus,html.aeo-edit [data-mirror-edit]:hover,html.aeo-edit [data-mirror-edit]:focus{outline:2px solid #60FFEA;position:relative}',
+  'html.aeo-edit [data-slot]:hover::after,html.aeo-edit [data-slot]:focus::after,html.aeo-edit [data-mirror-edit]:hover::after,html.aeo-edit [data-mirror-edit]:focus::after{content:"Edit";position:absolute;top:-18px;right:0;padding:3px 5px;border-radius:3px;background:#60FFEA;color:#000;-webkit-text-fill-color:#000;font:700 10px/1 Avenir,sans-serif;letter-spacing:0.06em;text-transform:uppercase;pointer-events:none;z-index:5}',
+  'html.aeo-edit [data-mirror]:not([data-mirror-edit]),html.aeo-edit [data-locked]{cursor:not-allowed}',
   '.aeo-flash{outline:2px solid #FFFC60!important}',
   // AIVx styles .sidebar-industry span as a block; the wrapper spans must stay inline text (v1.1 §3, round-2 MINOR 1).
   'span.aeo-w,.sidebar-industry span.aeo-w{display:inline;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;margin:0}',
@@ -42,22 +42,22 @@ function post(m){parent.postMessage(m,'*')}
 function within(n,s){return n&&n.closest?n.closest(s):null}
 function slotEl(p){var a=document.querySelectorAll('[data-slot]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-slot')===p)return a[i]}return null}
 function clean(s){return s.replace(/[\x00-\x1f\x7f]/g,' ').replace(/\s+/g,' ').trim()}
-function mirror(p,v){var a=document.querySelectorAll('[data-mirror]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-mirror')===p)a[i].textContent=a[i].hasAttribute('data-upper')?v.toUpperCase():v}}
+function mirror(p,v,skip){var a=document.querySelectorAll('[data-mirror]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-mirror')===p&&a[i]!==skip&&a[i]!==document.activeElement)a[i].textContent=a[i].hasAttribute('data-upper')?v.toUpperCase():v}}
 function send(p){clearTimeout(t[p]);delete t[p];var el=slotEl(p);if(!el)return;var v=el.textContent||'';post({type:'edit',path:p,value:v});var c=clean(v);if(c)mirror(p,c)}
 function flush(){Object.keys(t).forEach(send)}
-function setMode(on){edit=on===true;document.documentElement.classList.toggle('aeo-edit',edit);var a=document.querySelectorAll('[data-slot]');for(var i=0;i<a.length;i++){if(edit)a[i].setAttribute('contenteditable',PLAIN?'plaintext-only':'true');else a[i].removeAttribute('contenteditable')}if(!edit)flush()}
+function setMode(on){edit=on===true;document.documentElement.classList.toggle('aeo-edit',edit);var a=document.querySelectorAll('[data-slot],[data-mirror-edit]');for(var i=0;i<a.length;i++){if(edit)a[i].setAttribute('contenteditable',PLAIN?'plaintext-only':'true');else a[i].removeAttribute('contenteditable')}if(!edit)flush()}
 window.addEventListener('message',function(e){if(e.source!==parent||!e.data||typeof e.data!=='object')return;var d=e.data;
 if(d.type==='mode')setMode(d.edit);
 else if(d.type==='flush')flush();
 else if(d.type==='focus'&&typeof d.path==='string'){var el=slotEl(d.path);if(!el)return;if(el.scrollIntoView)el.scrollIntoView({block:'center'});if(el.focus)el.focus();el.classList.add('aeo-flash');setTimeout(function(){el.classList.remove('aeo-flash')},1200)}});
-document.addEventListener('input',function(e){var el=within(e.target,'[data-slot]');if(!el||!edit)return;var p=el.getAttribute('data-slot');post({type:'dirty',path:p});clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});
-document.addEventListener('keydown',function(e){var el=within(e.target,'[data-slot]');if(edit&&el&&e.key==='Enter'){e.preventDefault();if(el.blur)el.blur()}});
-document.addEventListener('paste',function(e){var el=within(e.target,'[data-slot]');if(!el||!edit)return;e.preventDefault();var cd=e.clipboardData||window.clipboardData;var s=cd?cd.getData('text/plain'):'';if(document.execCommand)document.execCommand('insertText',false,s)});
-document.addEventListener('drop',function(e){if(edit&&within(e.target,'[data-slot]'))e.preventDefault()});
+document.addEventListener('input',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;var m=el.hasAttribute('data-mirror-edit');var p=el.getAttribute(m?'data-mirror':'data-slot');if(m){var v=el.textContent||'';var s=slotEl(p);if(s)s.textContent=v;mirror(p,v,el)}post({type:'dirty',path:p});clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});
+document.addEventListener('keydown',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(edit&&el&&e.key==='Enter'){e.preventDefault();if(el.blur)el.blur()}});
+document.addEventListener('paste',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;e.preventDefault();var cd=e.clipboardData||window.clipboardData;var s=cd?cd.getData('text/plain'):'';if(document.execCommand)document.execCommand('insertText',false,s)});
+document.addEventListener('drop',function(e){if(edit&&within(e.target,'[data-slot],[data-mirror-edit]'))e.preventDefault()});
 document.addEventListener('click',function(e){if(!edit)return;var n=e.target;if(!n||!n.closest)return;
 if(n.closest('a')||n.closest('.sidebar-nav'))e.preventDefault();
 var c=n.closest('[data-structure]');if(c){e.preventDefault();flush();post({type:'structure',op:c.getAttribute('data-structure'),path:c.getAttribute('data-path')});return}
-if(n.closest('[data-slot]'))return;
+if(n.closest('[data-slot],[data-mirror-edit]'))return;
 var m=n.closest('[data-mirror]');if(m){post({type:'locked',what:'fixed',path:m.getAttribute('data-mirror')});return}
 var l=n.closest('[data-locked]');if(l)post({type:'locked',what:l.getAttribute('data-locked')})},true);
 post({type:'ready'});
@@ -172,8 +172,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
     `<${tag}${cls ? ` class="${cls}"` : ''}${attrs}${attr('data-slot', path)}>\n${indent}  ${esc(value)}\n${indent}</${tag}>`
   /** Text that shares its element with other text: wrapped in draft only. */
   const wrap = (path: string, value: string) => (draft ? `<span class="aeo-w" data-slot="${esc(path)}">${esc(value)}</span>` : esc(value))
-  /** A copy of a slot edited elsewhere: plain text with data-mirror in draft. */
-  const mirror = (path: string, value: string, upper = false) => (draft ? `<span class="aeo-w" data-mirror="${esc(path)}"${upper ? ' data-upper' : ''}>${esc(value)}</span>` : esc(value))
+  /** A copy of a slot edited elsewhere: plain text with data-mirror in draft. The menu copies are also editable (data-mirror-edit, v1.1 §17.16). */
+  const mirror = (path: string, value: string, upper = false, editable = false) => (draft ? `<span class="aeo-w" data-mirror="${esc(path)}"${upper ? ' data-upper' : ''}${editable ? ' data-mirror-edit' : ''}>${esc(value)}</span>` : esc(value))
   /** Fixed by design (v1.1 §3): numbering and the Prepared date. */
   const fixed = (text: string) => (draft ? `<span class="aeo-w" data-locked="fixed">${esc(text)}</span>` : esc(text))
   const bullets = (key: 'competitive_bullets' | 'sources_bullets') => {
@@ -221,10 +221,10 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
     <span${attr('data-mirror', 'brand')}>${brand}</span>
   </div>
   <nav class="sidebar-nav">
-    <a href="#headline"><span class="nav-num"${fixedMark}>01</span> ${mirror('page.headline_label', p.headline_label)}</a>
-    <a href="#category-data"><span class="nav-num"${fixedMark}>02</span> ${mirror('page.section_1_title', t1)}</a>
-    <a href="#competitive-visibility"><span class="nav-num"${fixedMark}>03</span> ${mirror('page.section_2_title', t2)}</a>
-    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label)}</a>
+    <a href="#headline"><span class="nav-num"${fixedMark}>01</span> ${mirror('page.headline_label', p.headline_label, false, true)}</a>
+    <a href="#category-data"><span class="nav-num"${fixedMark}>02</span> ${mirror('page.section_1_title', t1, false, true)}</a>
+    <a href="#competitive-visibility"><span class="nav-num"${fixedMark}>03</span> ${mirror('page.section_2_title', t2, false, true)}</a>
+    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>
     <a href="#methodology"><span class="nav-num"${fixedMark}>05</span> ${wrap('page.method_nav', p.method_nav)}</a>
   </nav>
   <div class="sidebar-footer">

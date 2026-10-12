@@ -342,3 +342,101 @@ test('in edit mode a click marks nothing new', () => {
   click(link('competitive-visibility'))
   expect(actives()).toEqual(['#category-data'])
 })
+
+// Spec v1.1 §17.16: the four menu copies are editable where they are and stay in sync with their section.
+const menu = (p: string) => doc.querySelector(`.sidebar-nav [data-mirror="${p}"][data-mirror-edit]`) as HTMLElement
+const typeMenu = (p: string, text: string) => { const el = menu(p); el.textContent = text; el.dispatchEvent(new Event('input', { bubbles: true })) }
+const MENU_PATHS = ['page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label']
+
+test('menu copies become contenteditable with the mode, like slots', () => {
+  boot()
+  const all = () => [...doc.querySelectorAll('[data-mirror-edit]')]
+  expect(all()).toHaveLength(4)
+  fromParent({ type: 'mode', edit: true })
+  expect(all().every((e) => e.getAttribute('contenteditable') === 'plaintext-only')).toBe(true)
+  fromParent({ type: 'mode', edit: false })
+  expect(doc.querySelectorAll('[contenteditable]')).toHaveLength(0)
+})
+
+test('typing in menu 02 updates the section title and the section label copy, and posts one edit after the debounce', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  typeMenu('page.section_1_title', 'New   category')
+  expect(sent().slice(1)).toEqual([{ type: 'dirty', path: 'page.section_1_title' }])
+  expect(slot('page.section_1_title').textContent).toBe('New   category')
+  expect(doc.querySelector('.section-label [data-mirror="page.section_1_title"]')!.textContent).toBe('New   category')
+  vi.advanceTimersByTime(799)
+  expect(sent().filter((m) => (m as { type: string }).type === 'edit')).toEqual([])
+  vi.advanceTimersByTime(1)
+  expect(sent().filter((m) => (m as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.section_1_title', value: 'New   category' }])
+})
+
+test('typing in a menu copy again before the debounce ends still posts one edit', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  typeMenu('page.opps_label', 'A')
+  vi.advanceTimersByTime(500)
+  typeMenu('page.opps_label', 'AB')
+  vi.advanceTimersByTime(800)
+  expect(sent().filter((m) => (m as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.opps_label', value: 'AB' }])
+})
+
+test('typing in a section title updates its menu item after the debounce', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  for (const p of MENU_PATHS) {
+    type(p, `Typed ${p}`)
+    vi.advanceTimersByTime(800)
+    expect(menu(p).textContent).toBe(`Typed ${p}`)
+  }
+})
+
+test('mirror never rewrites the focused element, so the caret stays', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  const m = menu('page.section_1_title')
+  // A DOMParser document has no browsing context, so focus() cannot make m active: stand in for the focused element.
+  Object.defineProperty(doc, 'activeElement', { configurable: true, get: () => m })
+  m.textContent = 'Typed  twice '
+  const fresh = m.firstChild as Text
+  m.dispatchEvent(new Event('input', { bubbles: true }))
+  vi.advanceTimersByTime(800)
+  // The same text node survives: nothing wrote textContent on the focused element.
+  expect(m.firstChild).toBe(fresh)
+  expect(m.textContent).toBe('Typed  twice ')
+  expect(slot('page.section_1_title').textContent).toBe('Typed  twice ')
+})
+
+test('a click on a menu copy posts no locked and does not navigate; a section-label copy still posts locked', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  expect(click(menu('page.headline_label'))).toBe(false)
+  expect(sent()).toEqual([{ type: 'ready' }])
+  click(doc.querySelector('.section-label [data-mirror="page.section_1_title"]')!)
+  expect(sent().slice(1)).toEqual([{ type: 'locked', what: 'fixed', path: 'page.section_1_title' }])
+  click(doc.querySelector('.sidebar-nav .nav-num')!)
+  expect(sent().at(-1)).toEqual({ type: 'locked', what: 'fixed' })
+})
+
+test('Enter blurs a menu copy, paste inserts plain text and drop is blocked, as for slots', () => {
+  boot()
+  const m = menu('page.section_2_title')
+  const enter = () => new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  expect(m.dispatchEvent(enter())).toBe(true)
+  fromParent({ type: 'mode', edit: true })
+  expect(m.dispatchEvent(enter())).toBe(false)
+  const insert = vi.fn()
+  ;(doc as unknown as { execCommand: unknown }).execCommand = insert
+  const paste = new Event('paste', { bubbles: true, cancelable: true }) as Event & { clipboardData?: unknown }
+  paste.clipboardData = { getData: () => 'plain' }
+  expect(m.dispatchEvent(paste)).toBe(false)
+  expect(insert).toHaveBeenCalledWith('insertText', false, 'plain')
+  expect(m.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }))).toBe(false)
+})
+
+test('a menu edit posts nothing in Preview', () => {
+  boot()
+  typeMenu('page.headline_label', 'x')
+  vi.advanceTimersByTime(1000)
+  expect(sent()).toEqual([{ type: 'ready' }])
+})

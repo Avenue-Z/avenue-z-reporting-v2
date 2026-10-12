@@ -208,7 +208,7 @@ test('fixed by design means exactly the nav numbers, the section number prefixes
   expect(doc.querySelectorAll('[data-locked="chart"]')).toHaveLength(2)
 })
 
-test('exactly one editable element per path, every path present, and every mirror copies a path that has one', () => {
+test('one slot per path, the only other editable elements are the four menu copies, every path present, and every mirror copies a path that has one', () => {
   const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x'))
   const paths = [...doc.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
   expect(paths.length).toBe(new Set(paths).size)
@@ -218,6 +218,22 @@ test('exactly one editable element per path, every path present, and every mirro
   expect(mirrors).toEqual(new Set(['brand', 'page.series', 'page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label', 'page.method_nav']))
   for (const m of mirrors) expect(paths).toContain(m)
   expect(doc.querySelectorAll('[data-mirror][data-slot]')).toHaveLength(0)
+  const edits = [...doc.querySelectorAll('[data-mirror-edit]')]
+  expect(edits.map((e) => e.getAttribute('data-mirror'))).toEqual(['page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label'])
+  for (const e of edits) {
+    expect(e.hasAttribute('data-mirror')).toBe(true)
+    expect(e.closest('.sidebar-nav')).not.toBeNull()
+  }
+  expect(doc.querySelectorAll('.section-label [data-mirror-edit]')).toHaveLength(0)
+})
+
+test('the editor style outlines menu copies like slots and keeps the not-allowed cursor off them (spec v1.1 §17.16)', () => {
+  for (const sel of ['', ':hover', ':focus']) expect(EDITOR_STYLE).toContain(`[data-mirror-edit]${sel}`)
+  expect(EDITOR_STYLE).toContain('html.aeo-edit [data-mirror]:not([data-mirror-edit]),html.aeo-edit [data-locked]{cursor:not-allowed}')
+})
+
+test('preview and final carry no data-mirror-edit, (spec v1.1 §17.16)', () => {
+  for (const mode of ['preview', 'final'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 8, 2026')).not.toContain('data-mirror-edit')
 })
 
 test('the Powered by line and its slot appear only under a wordmark that is not Avenue Z (spec v1.1 §16.1)', () => {
