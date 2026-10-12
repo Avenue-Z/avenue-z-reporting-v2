@@ -1804,7 +1804,7 @@ test('Q10: the wordmark reads Avenue Z with no Powered by line, in every mode (s
   for (const mode of ['draft', 'preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 9, 2026')
     expect(h).toContain('<div class="aivx-brand">Avenue Z</div>\n  </div>')
-    expect(h).not.toContain('Powered by Avenue Z')
+    expect(h).not.toContain('<div class="powered">')
     expect(h).not.toContain('>AIVx<')
   }
 })
