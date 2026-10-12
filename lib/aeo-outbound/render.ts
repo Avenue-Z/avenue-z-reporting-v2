@@ -109,7 +109,8 @@ export const PAGE_CSS = [
 ].join('\n')
 
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
- *  the phone donut shows percentages (§17.2). Registered before the frame script's listener, so it runs first. */
+ *  the phone donut shows percentages (§17.2), and the menu marks 05 at the bottom of the page, where AIVx's scroll-spy
+ *  never reaches the short last section (§17.12). Registered before the frame script's listener, so it runs first. */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
 function setActive(h){for(var i=0;i<nav.length;i++){if(nav[i].getAttribute('href')===h)nav[i].classList.add('active');else nav[i].classList.remove('active')}}
