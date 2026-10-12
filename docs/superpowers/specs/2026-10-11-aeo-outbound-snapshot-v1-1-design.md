@@ -822,3 +822,19 @@ unchanged; `PAGE_CSS` has no `aeo-share-mobile` and the outside-rules list loses
 has no `aeo-share-mobile-btn`; the preview of a new final page (no share strings) is the stored page with the frame
 header changes only and no warning; an old row with the strings is still stripped exactly as before; the version 1 golden
 comparison records the removal as a deliberate difference.
+
+### 17.12 The menu highlights 05 at the bottom of the page (added 2026-10-12 after my dev QA)
+
+AIVx's scroll-spy (`lib/aeo-outbound/aivx/js.ts`, verbatim and pinned) marks as active the last `.section[id]` whose top
+is at most 120px from the top of the window. Methodology is the last section and short, so at the bottom of the page its
+top never reaches 120px and the menu stays on 04. AIVx's file is not changed; `PAGE_JS` (every mode) adds, after AIVx's
+listener so it runs second on each scroll:
+
+- at the bottom of the page (`innerHeight + scrollY >= scrollHeight - 2`), the last menu link (`05`) is the active one;
+- a menu click that `PAGE_JS` already handles (preview, final, and a draft outside edit mode, §17.1) marks the clicked link
+  active at once, so a click on 05 when already at the bottom (no scroll event) still highlights it;
+- once on load, the bottom rule runs (a short page that is already at the bottom).
+
+Uses AIVx's own selectors and class (`.sidebar-nav a[href^="#"]`, `active`). Reports already sent keep the old behaviour
+(frozen pages). Tests (frame, stubbed scroll metrics): at the bottom the last link alone is `active`, also after AIVx's
+handler ran; not at the bottom AIVx's choice stands; a click on 03 marks 03; in edit mode a click marks nothing.

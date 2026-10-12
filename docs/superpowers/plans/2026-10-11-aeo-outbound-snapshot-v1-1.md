@@ -9348,3 +9348,25 @@ where it asserts the share button on an approved page).
   no warning" case; the outside-rules exact list and the PAGE_CSS media tests updated; `v1-compat` records the removal as a
   deliberate difference with an exact transform and occurrence assertion. Commit subject:
   `Remove the Share button from sent reports`.
+
+### Task 23: The menu highlights 05 at the bottom of the page (spec v1.1 §17.12)
+
+**Files:** `lib/aeo-outbound/render.ts` (`PAGE_JS`), `lib/aeo-outbound/render.frame.test.ts`.
+
+In `PAGE_JS`, inside its IIFE, before the click listener:
+```
+var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
+function setActive(h){for(var i=0;i<nav.length;i++){if(nav[i].getAttribute('href')===h)nav[i].classList.add('active');else nav[i].classList.remove('active')}}
+function atBottom(){var d=document.documentElement;return window.innerHeight+window.scrollY>=d.scrollHeight-2}
+function bottomRule(){if(nav.length&&atBottom())setActive(nav[nav.length-1].getAttribute('href'))}
+window.addEventListener('scroll',bottomRule,{passive:true});
+```
+In the existing hash-link branch, right after `e.preventDefault();` add `if(a.closest('.sidebar-nav'))setActive(a.getAttribute('href'));`.
+Call `bottomRule()` once where the donut `init` is scheduled (`if(document.readyState==='complete')...`), i.e. in the same
+load handling: run it on load as well.
+
+Do not change `aivx/*`. Tests (first, frame tests running the real `AIVX_JS` then `PAGE_JS` in page order): with
+`innerHeight`, `scrollY` and `scrollHeight` stubbed to the bottom, a `scroll` event leaves only the 05 link `active`;
+stubbed mid-page, AIVx's choice stands (05 not forced); clicking the 03 link in preview marks 03 active; in edit mode
+(a `[data-slot][contenteditable]` present) a click marks nothing new. Commit subject:
+`Highlight 05 in the menu at the bottom of the report`.
