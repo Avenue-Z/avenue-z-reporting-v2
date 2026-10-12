@@ -164,3 +164,15 @@ test('B3: an unreadable draft answers 404 and never renders', async () => {
   m.getReport.mockResolvedValue(row({ unreadable: true, slots: { ...SLOTS, headline: 'Unvalidated headline.' } }))
   expect(await (await get(ID, '?mode=preview')).text()).toBe('Not found')
 })
+
+test('B3 follow-up: an approved row marked unreadable still serves its frozen HTML (and the preview), while an unreadable draft stays 404', async () => {
+  m.getReport.mockResolvedValue({ ...approved(FROZEN), unreadable: true })
+  const full = await get()
+  expect(full.status).toBe(200)
+  expect(await full.text()).toBe(FROZEN)
+  const preview = await get(ID, '?mode=preview')
+  expect(preview.status).toBe(200)
+  expect(await preview.text()).toBe(FROZEN.replace(SHARE_BUTTON, '').replace(AIVX_SHARE_BLOCK, ''))
+  m.getReport.mockResolvedValue(row({ unreadable: true }))
+  expect((await get()).status).toBe(404)
+})
