@@ -10,6 +10,10 @@
 > deleted). For current platform architecture see [`/README.md`](../README.md) and
 > [`/CLAUDE.md`](../CLAUDE.md).
 
+> **Removed in October 2026.** The meeting-prep widget (`components/meeting-prep/`) and its route
+> (`app/api/glean/meeting-brief`) were removed. `lib/glean.ts` now backs the configurable dashboard's
+> natural-language proposer (`lib/dashboard/nl/glean-chat.ts`) and the Peec AI synopses (`lib/peec/*synopsis.ts`).
+
 ---
 
 ## 1. Feature Overview

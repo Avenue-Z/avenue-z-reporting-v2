@@ -79,8 +79,6 @@ Clients and users live in a **Neon Postgres database**, accessed via Drizzle ORM
   api/
     auth/[...nextauth]/route.ts              # Auth.js handler
     auth/supermetrics-callback/route.ts      # Post-OAuth redirect from Supermetrics
-    pr-placements/route.ts                   # News API proxy (CORS-safe)
-    glean/meeting-brief/route.ts             # Glean AI meeting brief proxy
     cache-warm/route.ts                      # Pre-warm vendor caches
     health/route.ts                          # Health-check / alerting endpoint
     perf/route.ts                            # Report-loading perf telemetry
@@ -143,7 +141,6 @@ Clients and users live in a **Neon Postgres database**, accessed via Drizzle ORM
     ticket-sales/
 
   data-chat/index.tsx                        # AI chat overlay (BigQuery + Gemini)
-  meeting-prep/index.tsx                     # Glean meeting brief widget
   export-pdf-button.tsx                      # PDF export trigger
 
 /lib
@@ -211,7 +208,7 @@ Clients and users live in a **Neon Postgres database**, accessed via Drizzle ORM
     gemini.ts                                # Gemini AI client (used by data-chat)
 
   newsapi.ts                                 # News API client (PR placements)
-  glean.ts                                   # Glean AI client (meeting prep)
+  glean.ts                                   # Glean AI client (dashboard NL proposer, Peec AI synopses)
   platforms/constants.ts                     # Platform metadata (names, icons, slugs)
 
 /types
@@ -335,7 +332,7 @@ The split:
 - Direct HTTP to Profound AI API
 
 ### News API (`lib/newsapi.ts`)
-- PR placements data; proxied through `app/api/pr-placements/route.ts` to keep the API key server-side
+- PR placements data types and normalizers; the report fetches articles server-side in `components/report-sections/pr-placements/index.tsx`
 
 ### Supermetrics (`lib/supermetrics/`)
 - Only the **Data API** is live: `smQuery()` in `client.ts` (synchronous POST to `/query/data/json`, with `schedule_id` polling fallback for queued queries). The caller passes the API key in `SmQueryParams.apiKey`, read from the env var named in the client's `sm_api_key_env_var` column.
@@ -350,8 +347,8 @@ The split:
 - Experimental; not yet exposed in any client portal
 
 ### Glean (`lib/glean.ts`)
-- Powers the meeting prep widget
-- Internal use only
+- Backs the configurable dashboard's natural-language proposer (`lib/dashboard/nl/glean-chat.ts`) and the Peec AI synopses (`lib/peec/*synopsis.ts`)
+- Server-side only
 
 ---
 
