@@ -519,3 +519,94 @@ answers; null before any row keeps polling; a poll by id stops on the first null
 ignored; the clock counts from the click in the starting tab and never jumps back; a Peec category with a long dash is not
 flagged on a version 2 row; the hub and the editor's Rerun poll only while their request is in flight
 and stop on each of the three rules; the editor polls by id only while generating and refreshes when the row finishes.
+
+## 17. Amendment 6 (2026-10-12): testing on dev, the phone layout, and four fixes
+
+Sources: my dev test on 2026-10-12 (migration 0027 applied on dev, a real pitch-project draft) and the phone trial
+(`aeo-outbound-audit-notes/findings/2026-10-12-mobile-trial.md`). Code citations are to `feat/aeo-outbound-parts` at
+`068b4976`. Where this section and an earlier one disagree, this section governs.
+
+### 17.1 The 01 to 05 menu scrolls inside the report
+
+- Bug: in the editor the report is a `srcdoc` frame (`components/aeo-outbound/editor.tsx:460`), so its menu links
+  (`href="#headline"` and the rest, `lib/aeo-outbound/render.ts:151-155`) resolve against the editor's own address and load
+  the dashboard inside the sandboxed frame, which has no session: the sign-in page appears. The public page is a top-level
+  document and is not affected.
+- Fix: one page script, `PAGE_JS`, emitted in every mode after `HEADER_CLONE` (`render.ts:252`), handles a click on any
+  `a[href^="#"]` whose target id exists on the page: it prevents the default and calls `scrollIntoView({ behavior: 'smooth',
+  block: 'start' })`. A hash with no matching id is left alone. In edit mode the frame script's own click rule still runs
+  (`render.ts:57-58`); the scroll happens first and nothing navigates.
+
+### 17.2 The report on a phone (under 900px), desktop unchanged
+
+AIVx's own phone rules (hide the sidebar, stack columns, two KPI columns) stay. A stylesheet `PAGE_CSS`, emitted right
+after `AIVX_CSS` (`render.ts:245`) in every mode, adds, each verified in the trial:
+- Under 900px: the brand title `font-size: clamp(40px, 11vw, 64px) !important; line-height: 1.1` (the `!important` beats
+  the long-name inline 72px, `render.ts` long-name rule).
+- At every width: a KPI value longer than 7 characters (after trimming) gets the class `aeo-long`
+  (`font-size: 24px; line-height: 1.15`), so the rank card fits one line on desktop and two on a phone. The class is set at
+  render from the slot value.
+- Under 900px: the opportunities table becomes stacked cards: `thead` hidden; the table, `tbody`, rows and cells shown as
+  blocks; each row a rounded bordered card; each cell headed by its column title from a `data-label` attribute that render
+  sets on every opportunities cell (the escaped `page.opps_col_1` to `3` words) in every mode.
+- Under 900px: a second Share button in the final mode only, in a `div.aeo-share-mobile` before the footer, hidden at 901px
+  and up. `PAGE_JS` makes a click on it call `click()` on the sidebar's `.share-btn`, so AIVx's own pinned share block
+  (`lib/aeo-outbound/aivx/share.ts`, never edited) does the copy and the toast.
+- Under 900px, on load: `PAGE_JS` re-renders the donut (`#aeo-chart-sources`) with `Plotly.react` on a copy of its figure,
+  keeping a slice's label only when it is at least 5% of the total and adding each slice's percentage (one decimal) to its
+  legend name. The page's figure JSON stays AIVx's (the chart goldens are unchanged); `Plotly.restyle` is not used (it
+  throws on this figure, trial). Any error is caught and leaves the chart as it was.
+- The version 1 golden (`v1-compat.test.ts`) gains these as deliberate differences: the `PAGE_CSS` style element, the
+  `PAGE_JS` script, the `data-label` attributes, the `aeo-long` class where a value is long, and the phone Share block.
+
+### 17.3 The calendar on the date fields
+
+The hub's two `type="date"` inputs (`components/aeo-outbound/hub.tsx:291,295`) get `color-scheme: dark` (so the calendar
+icon shows on the dark background) and open the browser's calendar on any click: `onClick` calls
+`e.currentTarget.showPicker?.()` inside a `try` (a browser that refuses still lets Ryan type the date).
+
+### 17.4 Before you send can be minimized
+
+The panel stays where it is (over the report's right edge, `components/aeo-outbound/before-you-send.tsx:55`). Its header
+gains a "Minimize" button that closes it; while closed, a small pill reading "Before you send (N)" sits at the report's
+top-right corner and reopens it (the toolbar button still toggles it too). Docking it beside the report was rejected: on a
+common laptop width the frame would drop under AIVx's 900px breakpoint and switch the report to its phone layout while
+editing. Open by default on a draft and the generating-to-draft rule (§4, Task 10) are unchanged.
+
+### 17.5 The report name and the top-left name as settings
+
+- The top-left name (`sidebarWordmark`) becomes free text, 1 to 60 characters after `cleanValue`, no U+2013 or U+2014
+  (today a choice of AIVx or Avenue Z, `lib/aeo-outbound/settings.ts:129`, contract `contracts.ts:121`). Default
+  "Avenue Z". Label "Top-left name".
+- A new setting `series`, label "Report name", the same rules, default "AI Visibility Snapshot" (`PAGE_WORDS_V1.series`).
+  It is the default for `page.series` on every new report (`pageDefaults`, `lib/aeo-outbound/slots.ts:73`, called at
+  `generate.ts:88`), which drives the title, the hero, the sidebar and the footer series.
+- Storage: migration `0028` adds `series text not null default 'AI Visibility Snapshot'` to `aeo_outbound_settings`
+  (additive; the column default fills an existing row). The settings contract, `resolveSettings`, the change log fields,
+  `saveSettingsSql` (insert and update) and the form gain it. Each environment only on my written go, dev first, with the
+  same host guard as `0027`; until it is applied there, code that writes `series` must not reach that environment.
+- A settings change never alters an existing draft (unchanged rule).
+
+### 17.6 Edge cases
+
+| Case | Behavior |
+|---|---|
+| A menu hash with no matching section | Not intercepted; nothing happens. |
+| Plotly missing or the donut re-render throws | The chart stays as AIVx drew it. |
+| A phone in landscape over 900px | Desktop layout (AIVx's breakpoint). |
+| A KPI value of exactly 7 characters | No `aeo-long`. |
+| showPicker unsupported or refused | Typing the date still works. |
+| Settings name with a long dash | Refused: "Use a period or comma instead of a long dash." |
+| 0028 not applied where the code runs | The settings read fails its contract and falls back to the defaults (Task 5); a save fails and says so. |
+
+### 17.7 Tests (written before the code)
+
+Render: a menu click on `#headline` calls `scrollIntoView` on that section and prevents the default (frame test, every
+mode); a hash with no target is not prevented; `PAGE_CSS` and `PAGE_JS` present in draft, preview and final; `data-label`
+on every opportunities cell equal to its column word; `aeo-long` on an 8-character value and not on a 7-character one; the
+phone Share block in final only; the donut re-render keeps labels for slices of 5% or more and adds percentages to the
+legend under 900px and does nothing at 901px (a test with a stubbed `Plotly` and `matchMedia`); the version 1 golden with
+the new deliberate differences. Hub: `color-scheme` on both date inputs; a click calls `showPicker`; a throwing
+`showPicker` doesn't break typing. Editor: Minimize closes the panel and shows the pill with the count; the pill reopens it.
+Settings: free-text top-left name and report name accepted at 1 and 60 characters, refused at 0, 61 and with a long dash;
+`series` defaults, round trip, change log and SQL text; `pageDefaults` sets `series`; `0028` adds only that column.
