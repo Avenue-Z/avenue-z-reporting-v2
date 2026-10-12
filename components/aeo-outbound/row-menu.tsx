@@ -21,7 +21,7 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
   const wrapRef = useRef<HTMLSpanElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
-  
+
   useEffect(() => {
     if (!open) return
     const close = () => setOpen(false)

@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation'
 import { requireStaff } from '@/lib/auth/page-access'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { DECISIONS, PAGE_WORDS_V1 } from '@/lib/aeo-outbound/config'
@@ -8,6 +7,7 @@ import { needsValidationPaths, withDefaults } from '@/lib/aeo-outbound/slots'
 import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
 import { OutboundEditor, type OpenEvent } from '@/components/aeo-outbound/editor'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
+import { SnapshotNotFound } from '@/components/aeo-outbound/snapshot-not-found'
 
 export default async function NewBusinessEditorPage({
   params,
@@ -18,7 +18,7 @@ export default async function NewBusinessEditorPage({
   const session = await requireStaff()
   const access = await outboundAccess(session.user)
   if (!access.ok) return <NoAccess admins={access.admins} />
-  if (!isReportId(reportId)) notFound()
+  if (!isReportId(reportId)) return <SnapshotNotFound />
   let row: Awaited<ReturnType<typeof getReport>>
   try {
     row = await getReport(reportId)
@@ -27,7 +27,7 @@ export default async function NewBusinessEditorPage({
     console.error(`[aeo-outbound] editor read failed id=${reportId} reason=${errorLabel(e)}`)
     throw e
   }
-  if (!row) notFound()
+  if (!row) return <SnapshotNotFound />
   const now = Date.now()
   const status = displayStatus(row, now)
   const full = row.data && row.slots && !row.unreadable ? withDefaults(row.slots, row.data) : null

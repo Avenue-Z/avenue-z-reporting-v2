@@ -1,8 +1,8 @@
 // The editor page (app/tools/new-business/[reportId]/page.tsx). It lives here because vitest.config.ts lists no app/tools glob.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { SnapshotNotFound } from './snapshot-not-found'
 
 const m = vi.hoisted(() => ({ getReport: vi.fn(), opens: vi.fn() }))
-vi.mock('next/navigation', () => ({ notFound: () => { throw new Error('NEXT_NOT_FOUND') } }))
 vi.mock('@/lib/auth/page-access', () => ({ requireStaff: vi.fn(async () => ({ user: { email: 'ryan@avenuez.com', role: 'INTERNAL_ANALYST' } })) }))
 vi.mock('@/lib/aeo-outbound/access', () => ({ outboundAccess: vi.fn(async () => ({ ok: true })) }))
 vi.mock('@/lib/aeo-outbound/store', async (o) => ({ ...(await o<object>()), getReport: m.getReport, opensForReportQuery: m.opens }))
@@ -36,4 +36,21 @@ test('B4: a readable row still passes its notes and about', async () => {
   const props = (el as unknown as { props: Record<string, unknown> }).props
   expect(props.notes).toEqual([{ kind: 'long_dash', text: 'a note' }])
   expect(props.about).toMatchObject({ projectId: 'or_a' })
+})
+
+test('a malformed id renders the snapshot-gone page without reading the database', async () => {
+  const el = await NewBusinessEditorPage({ params: Promise.resolve({ reportId: 'not-a-uuid' }) })
+  expect((el as { type: unknown }).type).toBe(SnapshotNotFound)
+  expect(m.getReport).not.toHaveBeenCalled()
+})
+
+test('a well-formed id with no row renders the snapshot-gone page', async () => {
+  m.getReport.mockResolvedValue(null)
+  const el = await NewBusinessEditorPage({ params: Promise.resolve({ reportId: ID }) })
+  expect((el as { type: unknown }).type).toBe(SnapshotNotFound)
+})
+
+test('a database read failure still throws instead of showing the snapshot-gone page', async () => {
+  m.getReport.mockRejectedValue(new Error('db down'))
+  await expect(NewBusinessEditorPage({ params: Promise.resolve({ reportId: ID }) })).rejects.toThrow('db down')
 })
