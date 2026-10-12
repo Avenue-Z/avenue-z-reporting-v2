@@ -3,13 +3,27 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { SETTINGS_DEFAULTS } from '@/lib/aeo-outbound/settings'
 import { SettingsForm } from './settings-form'
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
+
 const { save } = vi.hoisted(() => ({ save: vi.fn() }))
 vi.mock('@/app/actions/aeo-outbound-settings', () => ({ saveSettingsAction: save }))
 
 const AT = '2026-10-10T09:00:00.000Z'
 const base = { initial: { ...SETTINGS_DEFAULTS, users: ['ana@avenuez.com'] }, updatedAt: AT, readFailed: false, invalid: false, envAdmins: ['ryan@avenuez.com'], log: [] }
-beforeEach(() => { save.mockReset() })
+beforeEach(() => { save.mockReset(); push.mockReset() })
 afterEach(() => cleanup())
+
+// Clicks Back and says whether the guard stopped it. The guard cancels and stops the click in the capture phase, so a
+// bubble listener on document only runs when nothing stopped it; that one cancels the click so jsdom does not navigate.
+function backStopped(): boolean {
+  let reached = false
+  const last = (e: Event) => { reached = true; e.preventDefault() }
+  document.addEventListener('click', last)
+  fireEvent.click(screen.getByRole('link', { name: 'Back' }))
+  document.removeEventListener('click', last)
+  return !reached
+}
 
 test('the form shows the current settings, the env admins and the note', () => {
   render(<SettingsForm {...base} />)
@@ -78,4 +92,67 @@ test('both names are text inputs that Save sends, and their errors show next to 
   expect(await screen.findByText('Use 1 to 60 characters.')).toBeInTheDocument()
   expect(screen.getByText('Use a period or comma instead of a long dash.')).toBeInTheDocument()
   expect(save.mock.calls[0][0]).toEqual(expect.objectContaining({ sidebarWordmark: 'AEO Lens', series: 'AEO Lens Report' }))
+})
+
+test('the bar has Back to New Business and Save settings, and the four cards come in order', () => {
+  render(<SettingsForm {...base} />)
+  expect(screen.getByRole('link', { name: 'Back' })).toHaveAttribute('href', '/tools/new-business')
+  expect(screen.getByRole('button', { name: 'Save settings' })).toBeInTheDocument()
+  const names = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+  expect(names).toEqual(['Report words', 'Report content', 'Who can use it', 'Recent changes'])
+  expect(screen.getByLabelText('Next-step sentence')).toHaveAttribute('rows', '4')
+})
+
+test('with an unsaved change Back asks; Stay keeps the page and Leave pushes', () => {
+  render(<SettingsForm {...base} />)
+  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  expect(backStopped()).toBe(true)
+  expect(screen.getByRole('dialog')).toHaveTextContent('You have unsaved edits. Leave anyway?')
+  fireEvent.click(screen.getByRole('button', { name: 'Stay' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(push).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('link', { name: 'Back' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+  expect(push).toHaveBeenCalledWith('/tools/new-business')
+})
+
+test('an unchanged form, or a change put back, does not stop Back', () => {
+  render(<SettingsForm {...base} />)
+  expect(backStopped()).toBe(false)
+  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Category data' } })
+  expect(backStopped()).toBe(false)
+})
+
+test('after a save Back is not stopped, and a further edit makes it ask again', async () => {
+  save.mockResolvedValueOnce({ ok: true, updatedAt: '2026-10-11T12:00:00.000Z' })
+  render(<SettingsForm {...base} />)
+  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+  expect(await screen.findByText('Saved')).toBeInTheDocument()
+  expect(backStopped()).toBe(false)
+  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths 2' } })
+  expect(backStopped()).toBe(true)
+})
+
+test('a failed save leaves the form unsaved', async () => {
+  save.mockResolvedValueOnce({ ok: false, error: 'invalid', fieldErrors: {} })
+  render(<SettingsForm {...base} />)
+  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+  await waitFor(() => expect(save).toHaveBeenCalled())
+  expect(backStopped()).toBe(true)
+})
+
+test('beforeunload is registered only while the form is unsaved', () => {
+  const add = vi.spyOn(window, 'addEventListener')
+  const count = () => add.mock.calls.filter(([t]) => t === 'beforeunload').length
+  render(<SettingsForm {...base} />)
+  expect(count()).toBe(0)
+  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  expect(count()).toBe(1)
+  const e = new Event('beforeunload', { cancelable: true })
+  window.dispatchEvent(e)
+  expect(e.defaultPrevented).toBe(true)
+  add.mockRestore()
 })

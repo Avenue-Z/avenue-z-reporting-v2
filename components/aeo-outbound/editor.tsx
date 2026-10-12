@@ -32,6 +32,7 @@ import { RETRY_MESSAGE, SaveQueue, type SaveState, type SendResult } from './sav
 import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 import { btnCls, cardCls, inputCls, primaryBtnCls } from './ui'
 import { useGenerationProgress } from './use-generation-progress'
+import { useLeaveGuard } from './use-leave-guard'
 
 export interface OpenEvent { openedAt: string; uaFamily: string; likelyAutomated: boolean; reason: string | null }
 export interface OutboundEditorProps {
@@ -303,33 +304,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
 
   // An edit not yet saved: the browser warns on unload, and in-app navigation asks first in the in-app dialog.
   const unsaved = status === 'draft' && !!save && (save.dirty || save.saving || save.structuring)
-  useEffect(() => {
-    if (!unsaved) return
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [unsaved])
-  // In-app links outside the editor (the sidebar) would unmount it and drop a queued edit: ask first. The browser Back
-  // button (popstate) is not guarded; only beforeunload covers a full unload.
-  useEffect(() => {
-    if (!unsaved) return
-    const onClick = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-      const a = e.target instanceof Element ? e.target.closest('a') : null
-      if (!a || a.target === '_blank' || a.closest('[role="dialog"]')) return
-      const href = a.getAttribute('href')
-      if (!href) return
-      let url: URL
-      try { url = new URL(href, window.location.href) } catch { return }
-      if (url.origin !== window.location.origin) return
-      e.preventDefault()
-      e.stopPropagation()
-      setDialog({ kind: 'leave', then: () => router.push(`${url.pathname}${url.search}${url.hash}`) })
-    }
-    document.addEventListener('click', onClick, true)
-    return () => document.removeEventListener('click', onClick, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unsaved])
+  useLeaveGuard(unsaved, (go) => setDialog({ kind: 'leave', then: go }))
   // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
   const wasStructuring = useRef(false)
   useEffect(() => {
