@@ -95,6 +95,8 @@ Modified files are listed in each task with the line ranges read at `feat/aeo-ou
 1. Baseline, version 1 fixtures, zod, contracts core, `PeecError.code`
 2. Schema, migration `0027`, store and settings-store queries
 3. Data version 2: structured notes, metrics, Data block, charts
+3b. Ryan's answers (amendment 5, spec v1.1 §16.1)
+3c. The share link: locked domain and the brand in the path (§16.2)
 4. Peec contracts and error codes in pull, generate and the generate route
 5. Settings model and `outboundAccess` everywhere
 6. Slots model v1.1, labels, grounding on every slot, stored contracts, the slots route
@@ -1695,6 +1697,481 @@ Co-Authored-By: Claude <model> <noreply@anthropic.com>
 (No edge-case list: pure functions over data already parsed; no boundary, untrusted input or shared state changes here.) Push.
 
 ---
+### Task 3b: Ryan's answers (spec v1.1 §16.1)
+
+Covers v1.1 §16.1 (Q3, Q5, Q7 and Q10), the Task 3b bullet of §16.4, and the "Answers" tests of §16.6. Added on 2026-10-12 after Tasks 1 to 3 were built; line numbers cite `feat/aeo-outbound-parts` at `0ac4b5b9`.
+
+**Files:**
+- Modify: `lib/aeo-outbound/config.ts:14-15,20-21,26-27`, `lib/aeo-outbound/prompt.ts:88,90`, `lib/aeo-outbound/generate.ts:9,59`, `lib/aeo-outbound/slots.ts:41`, `lib/aeo-outbound/grounding.ts:3-4,13-14,38`, `lib/aeo-outbound/render.ts:63-67`
+- Create: `lib/aeo-outbound/config.test.ts`
+- Modify tests: `lib/aeo-outbound/prompt.test.ts:123` (and append), `lib/aeo-outbound/generate.test.ts` (append), `lib/aeo-outbound/slots.test.ts` (append), `lib/aeo-outbound/grounding.test.ts` (append), `lib/aeo-outbound/render.test.ts` (append), `lib/aeo-outbound/v1-compat.test.ts:19-27`
+
+**Interfaces:**
+- Consumes: `settingsUsedOf` (`metrics.ts:24`), `cleanValue` and `MAX_LEAD` (`slots.ts:21,26`), `NEEDS_VALIDATION` (`config.ts:30`).
+- Produces: `showsPowered(wordmark: string): boolean` (`render.ts`), used again by Task 7's render. The four `DECISIONS` values below, which Task 5 turns into `SETTINGS_DEFAULTS`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `lib/aeo-outbound/config.test.ts`:
+```ts
+import { expect, test } from 'vitest'
+import { DECISIONS } from './config'
+
+test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
+  expect(DECISIONS.sectionTitles).toEqual(['Category data', 'Competitive visibility'])
+  expect(DECISIONS.rankAmong).toBeNull()
+  expect(DECISIONS.writeSpecificCategory).toBe(true)
+  expect(DECISIONS.competitorSiteGaps).toBe(true)
+  expect(DECISIONS.peecOpportunityRows).toBe(1)
+  expect(DECISIONS.methodologyStatesPromptsAndModels).toBe(true)
+  expect(DECISIONS.fixedNextStep).toBe('A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.')
+  expect(DECISIONS.needsValidationBlocksApprove).toBe(true)
+  expect(DECISIONS.pitchOnly).toBe(true)
+  expect(DECISIONS.showAivxName).toBe(false)
+})
+```
+
+In `lib/aeo-outbound/prompt.test.ts`, replace line 123 (`expect(p).toContain('exactly 2 of the 3 must be based on those actions')`) with:
+```ts
+  expect(p).toContain('If the Peec recommended actions list is not "none", you may base at most 2 of the 3 on those actions, and only where an action fits the data. Never force one. An opportunity based on an action has a signal that starts with "Peec recommends".')
+  expect(p).not.toContain('exactly 2 of the 3')
+```
+and append:
+```ts
+test('Q5: with 0 Peec rows the prompt says nothing about actions; Q3: the category line names the 80-character limit', () => {
+  const zero = { ...D2, settingsUsed: { rankAmong: null, peecOpportunityRows: 0, methodologyStatesPromptsAndModels: true, fixedNextStep: null } } as unknown as SnapshotData
+  const p = buildPrompt(zero, [])
+  expect(p).not.toContain('Peec recommends')
+  expect(p).not.toContain('at most 0')
+  expect(p).toContain('- category: a short, specific category for the brand based on the data, at most 80 characters.\n')
+})
+```
+
+Append to `lib/aeo-outbound/generate.test.ts` (add `import { DECISIONS } from './config'` to the imports):
+```ts
+test('Q3: a written category of 1 to 80 characters is used; a long, blank or non-string one keeps the code value, with no extra Glean call and no failure', async () => {
+  const baseline = vi.fn(async () => reply(GOOD))
+  await generateSnapshot('or_a', deps(baseline))
+  const used = await generateSnapshot('or_a', deps(vi.fn(async () => reply(JSON.stringify({ ...JSON.parse(GOOD), category: '  Consumer  lending ' })))))
+  expect(used.ok && used.slots.category).toBe('Consumer lending')
+  for (const category of ['x'.repeat(81), '   ', 42, null]) {
+    const glean = vi.fn(async () => reply(JSON.stringify({ ...JSON.parse(GOOD), category })))
+    const r = await generateSnapshot('or_a', deps(glean))
+    expect(r.ok && r.slots.category).toBe('Fintech')
+    expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
+  }
+})
+
+test('Q7: the fixed next step is written into next_step', async () => {
+  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))))
+  expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
+})
+```
+
+Append to `lib/aeo-outbound/slots.test.ts`:
+```ts
+test('Q3: an edited category is limited to 80 characters; market keeps 1,000', () => {
+  expect(applySlotPatch(S, 'category', 'x'.repeat(80)).ok).toBe(true)
+  expect(applySlotPatch(S, 'category', 'x'.repeat(81))).toEqual({ ok: false, error: 'Keep this under 80 characters.' })
+  expect(applySlotPatch(S, 'market', 'x'.repeat(81)).ok).toBe(true)
+})
+```
+
+Append to `lib/aeo-outbound/grounding.test.ts`:
+```ts
+test('long-dash exemption (spec v1.1 §16.1): category on version 1 always, on version 2 only while it is the code value; next_step only while it is the fixed sentence; market always', () => {
+  const dash = String.fromCharCode(0x2014)
+  const fixed = 'A fixed sentence.'
+  const v2 = { ...D, schemaVersion: 2, category: `Fin${dash}tech`, settingsUsed: { rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: fixed } } as unknown as SnapshotData
+  const flag = (path: string) => `${path}: contains a long dash; use a period or comma`
+  // Peec's own category, untouched, and the untouched fixed sentence: Glean can't fix either, so no flag.
+  expect(groundingFlags({ ...base, category: `Fin${dash}tech`, market: `U${dash}S`, next_step: fixed }, v2, allowed)).toEqual([])
+  // A written or edited category with a dash.
+  expect(groundingFlags({ ...base, category: `Consumer ${dash} lending`, next_step: fixed }, v2, allowed)).toEqual([flag('category')])
+  // An edited next step with a dash.
+  expect(groundingFlags({ ...base, category: `Fin${dash}tech`, next_step: `Book ${dash} soon` }, v2, allowed)).toEqual([flag('next_step')])
+  // No Peec category: the code value is Needs validation.
+  const noCategory = { ...v2, category: null } as unknown as SnapshotData
+  expect(groundingFlags({ ...base, category: 'Needs validation', next_step: fixed }, noCategory, allowed)).toEqual([])
+  // Version 1 (no schemaVersion, no settingsUsed): category always exempt; next_step never, its fixed sentence was null.
+  expect(groundingFlags({ ...base, category: `Consumer ${dash} lending`, next_step: `Book ${dash} soon` }, D, allowed)).toEqual([flag('next_step')])
+})
+```
+
+Append to `lib/aeo-outbound/render.test.ts` (add `showsPowered` to the `./render` import):
+```ts
+test('Q10: the wordmark reads Avenue Z with no Powered by line, in every mode (spec v1.1 §16.1)', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'Oct 9, 2026')
+    expect(h).toContain('<div class="aivx-brand">Avenue Z</div>\n  </div>')
+    expect(h).not.toContain('Powered by Avenue Z')
+    expect(h).not.toContain('>AIVx<')
+  }
+})
+
+test('showsPowered: only a wordmark that is not Avenue Z, trimmed and compared without case, gets the line', () => {
+  expect(showsPowered('AIVx')).toBe(true)
+  for (const w of ['Avenue Z', 'avenue z ', ' AVENUE Z']) expect(showsPowered(w)).toBe(false)
+})
+```
+
+In `lib/aeo-outbound/v1-compat.test.ts`, replace lines 19 to 24 (the comment and the `v11` function) with:
+```ts
+// Deliberate differences from v1.0 (spec v1.1 §9 and §16.1), applied to the frozen v1.0 golden. Later tasks add to this list.
+// Also deliberate for version 1 drafts: the own brand replaces the 10th bar (§9); the golden has too few brands to show it (charts.test.ts pins it).
+// §16.1 Q10: no AIVx wordmark, and no "Powered by Avenue Z" line under the Avenue Z one.
+const V10_LOGO = '<div class="aivx-brand">AIVx</div>\n    <div class="powered">Powered by Avenue Z</div>'
+const v11 = (html: string) => {
+  expect(html.split('Citations: %{value}')).toHaveLength(2)
+  expect(html.split(V10_LOGO)).toHaveLength(2)
+  return html.split('Citations: %{value}').join('Retrievals: %{value}').split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
+}
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `perl -e 'alarm 590; exec @ARGV' -- npx vitest run lib/aeo-outbound/config.test.ts lib/aeo-outbound/prompt.test.ts lib/aeo-outbound/generate.test.ts lib/aeo-outbound/slots.test.ts lib/aeo-outbound/grounding.test.ts lib/aeo-outbound/render.test.ts lib/aeo-outbound/v1-compat.test.ts`
+Expected: FAIL in each file on the new or changed assertions (config values, the prompt sentence, the category rule, the 80-character edit limit, the dash rules, the wordmark, the golden).
+
+- [ ] **Step 3: Implement**
+
+`lib/aeo-outbound/config.ts`: change only these three values and their comments (lines 14-15, 20-21, 26-27):
+```ts
+  /** Q3 (Ryan, 2026-10-12: yes): Glean writes a more specific category instead of using Peec's `industry` (spec v1.1 §16.1). */
+  writeSpecificCategory: true as boolean,
+```
+```ts
+  /** Q7 (Ryan, 2026-10-12: "This looks repeatable, yes"): one fixed next-step sentence for every report, the one from his
+   *  own example; null would mean one written per brand (spec v1.1 §16.1). */
+  fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.' as string | null,
+```
+```ts
+  /** Q10 (Ryan, 2026-10-12: leave AIVx off the report): false makes the sidebar wordmark read "Avenue Z" (spec v1.1 §16.1). */
+  showAivxName: false as boolean,
+```
+Also change the Q5 comment (line 16) to: `/** Q5 (Ryan, 2026-10-12: only when relevant): at most this many of the three opportunities may come from Peec actions, never forced (spec v1.1 §16.1). */` with the value `1` unchanged.
+
+`lib/aeo-outbound/prompt.ts` line 88: replace the conditional sentence (from `If the Peec recommended actions list` to `"Peec recommends".`) so the whole template piece reads:
+```ts
+${peecRows > 0 ? ` If the Peec recommended actions list is not "none", you may base at most ${peecRows} of the 3 on those actions, and only where an action fits the data. Never force one. An opportunity based on an action has a signal that starts with "Peec recommends".` : ''}
+```
+Line 90: the category line becomes `'- category: a short, specific category for the brand based on the data, at most 80 characters.\n'`.
+
+`lib/aeo-outbound/generate.ts`: line 9 becomes `import { cleanValue, MAX_LEAD, validateGeneratedSlots, type Slots } from './slots'`. Line 59 becomes:
+```ts
+      if (parsed && DECISIONS.writeSpecificCategory && typeof parsed.category === 'string') {
+        // Glean's category only when it fits (spec v1.1 §16.1); anything else keeps the code value and never retries or fails.
+        const written = cleanValue(parsed.category)
+        if (written && written.length <= MAX_LEAD) fixedNow.category = written
+      }
+```
+
+`lib/aeo-outbound/slots.ts` line 41 becomes:
+```ts
+  const checked = checkValue(raw, m[4] === 'lead' || m[1] === 'category' ? MAX_LEAD : MAX_VALUE)
+```
+
+`lib/aeo-outbound/grounding.ts`: line 3 becomes `import { NEEDS_VALIDATION } from './config'`; line 4 becomes `import { settingsUsedOf, type SnapshotData } from './metrics'`. Replace lines 13-14 (the `CODE_SET` comment and constant) with:
+```ts
+/**
+ * Paths whose long dash is not flagged because code set the text and Glean can't fix it (spec v1.1 §16.1): market always;
+ * category on a version 1 row always, on a version 2 row only while it is still the code value (Peec's category or
+ * "Needs validation"); next_step only while it is still the row's fixed sentence.
+ */
+function dashExempt(path: string, slots: Slots, d: SnapshotData): boolean {
+  if (path === 'market') return true
+  if (path === 'category') return d.schemaVersion !== 2 || slots.category === (d.category ?? NEEDS_VALIDATION)
+  if (path === 'next_step') {
+    const fixed = settingsUsedOf(d).fixedNextStep
+    return fixed !== null && slots.next_step === fixed
+  }
+  return false
+}
+```
+and line 38 becomes `    if (!dashExempt(path, slots, d) && DASHES.test(text)) flags.push(\`${path.split('.')[0]}: contains a long dash; use a period or comma\`)`.
+
+`lib/aeo-outbound/render.ts`: after the `SHARE_BUTTON` export (line 32) add:
+```ts
+
+/** The "Powered by Avenue Z" line shows only under a wordmark that is not already Avenue Z (spec v1.1 §16.1). */
+export const showsPowered = (wordmark: string): boolean => wordmark.trim().toLowerCase() !== 'avenue z'
+```
+Inside `renderSnapshotHtml`, before `const sidebar =` add `  const wordmark = DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z'`, and replace the two logo lines inside `<div class="sidebar-logo">` (lines 66-67) with exactly one line:
+```ts
+    <div class="aivx-brand">${wordmark}</div>${showsPowered(wordmark) ? '\n    <div class="powered">Powered by Avenue Z</div>' : ''}
+```
+so the AIVx case renders byte for byte as before.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run the Step 2 command. Expected: PASS. Then the gate: `DATABASE_URL=postgresql://ci:ci@db.invalid/ci perl -e 'alarm 590; exec @ARGV' -- make check` (Bash tool timeout 600000). Expected: exit 0.
+
+- [ ] **Step 5: Commit and push**
+
+Commit every file this task touched, by name, with subject `Apply Ryan's answers: specific category, optional Peec rows, fixed next step, no AIVx` and a body that lists the four answers, then this edge-case list (the Glean reply is untrusted input):
+- external failure: a Glean category that is missing, not a string, blank or over 80 characters keeps the code value and never retries or fails the run: fix
+- operator visibility: unchanged; a bad category leaves no flag because the code value is shown and Ryan can edit it: decline
+- bounds: a written category is at most 80 characters, and so is an edit: fix
+- input boundaries: the category reply is cleaned with cleanValue before its length is checked: fix
+- state and concurrency: none touched: decline
+- security: the category is escaped at render like every slot (render.ts esc): decline, unchanged
+
+Then `perl -e 'alarm 120; exec @ARGV' -- git push origin feat/aeo-outbound-parts`.
+
+### Task 3c: The share link: locked domain and the brand in the path (spec v1.1 §16.2)
+
+Covers v1.1 §16.2, the Task 3c bullet of §16.4, and the "Link" tests of §16.6. Line numbers cite `feat/aeo-outbound-parts` at `0ac4b5b9`.
+
+**Files:**
+- Create: `lib/aeo-outbound/share-link.ts`, `lib/aeo-outbound/share-link.test.ts`, `lib/aeo-outbound/share-origin.ts`, `lib/aeo-outbound/share-origin.test.ts`
+- Modify: `lib/aeo-outbound/token.ts:5` (re-export), `app/snapshot/[token]/route.ts:9,27-29,55-66`, `app/snapshot/[token]/route.test.ts` (append)
+- Modify: `components/aeo-outbound/status.ts:26` (delete `snapshotUrl`), `components/aeo-outbound/status.test.ts:2,24-26` (drop its import and test)
+- Modify: `components/aeo-outbound/hub.tsx:15,17-31,53,234-235` (and a test-link line), `components/aeo-outbound/hub.test.tsx:22-25,242-249` (and append)
+- Modify: `components/aeo-outbound/editor.tsx:21,23-41,264-265` (and a test-link line), `components/aeo-outbound/editor.test.tsx:35-37,195` (and append)
+- Modify: `app/tools/new-business/page.tsx:1-27`, `app/tools/new-business/[reportId]/page.tsx:30-41`
+- Modify: `.env.example:99-100` (one line added)
+
+**Interfaces:**
+- Consumes: the token recipe (`token.ts:4`, unchanged).
+- Produces (client-safe, `share-link.ts`, no Node imports): `SLUG_MAX = 40`, `TEST_LINK_NOTE`, `isShareTokenShape(t: string): boolean` (moved here from `token.ts`, which re-exports it), `brandSlug(brandName: string | null): string`, `sharePath(brandName: string | null, token: string): string`, `shareUrl(origin: string, brandName: string | null, token: string): string`, `tokenFromSegment(segment: string): string | null`.
+- Produces (server only, `share-origin.ts`): `SHARE_ORIGINS`, `shareOrigin(targetEnv?: string): string | null`.
+- Produces: `HubRow.linkBrand: string | null`; `OutboundHub` prop `shareOrigin?: string | null` (default null); `OutboundEditorProps.linkBrand: string | null` and `shareOrigin: string | null`. Tasks 9, 10 and 11 use `shareUrl` and these props; `snapshotUrl` no longer exists.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `lib/aeo-outbound/share-link.test.ts`:
+```ts
+import { expect, test } from 'vitest'
+import { SLUG_MAX, brandSlug, sharePath, shareUrl, tokenFromSegment } from './share-link'
+
+const T = 'AbCdEfGhIjKlMnOpQrStUv_-'
+
+test('brandSlug: NFKD, marks removed, lowercase, one dash per run of other characters, trimmed, at most 40', () => {
+  expect(brandSlug('Example Co')).toBe('example-co')
+  expect(brandSlug('Café Société & Fils')).toBe('cafe-societe-fils')
+  expect(brandSlug('  --Acme!!  Labs--  ')).toBe('acme-labs')
+  expect(brandSlug('ＡＢＣ　１２３')).toBe('abc-123')
+  expect(brandSlug('🙂🙂')).toBe('')
+  expect(brandSlug('日本')).toBe('')
+  expect(brandSlug(null)).toBe('')
+  expect(brandSlug('')).toBe('')
+  const long = brandSlug('alpha '.repeat(10))
+  expect(long.length).toBeLessThanOrEqual(SLUG_MAX)
+  expect(long.endsWith('-')).toBe(false)
+  expect(long).toBe('alpha-alpha-alpha-alpha-alpha-alpha-alph')
+  expect(brandSlug('a'.repeat(39) + ' b')).toBe('a'.repeat(39))
+})
+
+test('sharePath and shareUrl: brand slug then the token; no slug gives the bare token', () => {
+  expect(sharePath('Example Co', T)).toBe(`/snapshot/example-co-${T}`)
+  expect(sharePath(null, T)).toBe(`/snapshot/${T}`)
+  expect(sharePath('🙂', T)).toBe(`/snapshot/${T}`)
+  expect(shareUrl('https://reporting.avenuez.com', 'Example Co', T)).toBe(`https://reporting.avenuez.com/snapshot/example-co-${T}`)
+})
+
+test('tokenFromSegment: a bare token, or a well-formed slug then "-" then a token; anything else is null', () => {
+  expect(tokenFromSegment(T)).toBe(T)
+  expect(tokenFromSegment(`example-co-${T}`)).toBe(T)
+  expect(tokenFromSegment(`a-${T}`)).toBe(T)
+  expect(tokenFromSegment(`${'a'.repeat(40)}-${T}`)).toBe(T)
+  for (const bad of [`${'a'.repeat(41)}-${T}`, `Example-${T}`, `ex_ample-${T}`, `-${T}`, `ex--co-${T}`, `x${T}`, T.slice(1), `example-co-${T.slice(1)}`, `example-co-${T}x`, `example co-${T}`, '', 'short']) {
+    expect(tokenFromSegment(bad)).toBeNull()
+  }
+  // Every built path reads back to its token.
+  for (const brand of ['Example Co', 'Café', null, '🙂', 'alpha '.repeat(10)]) {
+    expect(tokenFromSegment(sharePath(brand, T).slice('/snapshot/'.length))).toBe(T)
+  }
+})
+```
+Check one expectation before relying on it: `'alpha '.repeat(10)` slugs to `alpha-alpha-...-alpha` (59 characters); its first 40 are `alpha-alpha-alpha-alpha-alpha-alpha-alph` (6 × 6 = 36 characters of `alpha-`, then `alph`), which ends in a letter, so nothing is trimmed.
+
+Create `lib/aeo-outbound/share-origin.test.ts`:
+```ts
+import { afterEach, expect, test, vi } from 'vitest'
+import { SHARE_ORIGINS, shareOrigin } from './share-origin'
+
+afterEach(() => { vi.unstubAllEnvs() })
+
+test('the origin is locked per Vercel environment (spec v1.1 §16.2)', () => {
+  expect(SHARE_ORIGINS).toEqual({ production: 'https://reporting.avenuez.com', staging: 'https://staging.reporting.avenuez.com' })
+  expect(shareOrigin('production')).toBe('https://reporting.avenuez.com')
+  expect(shareOrigin('staging')).toBe('https://staging.reporting.avenuez.com')
+  for (const env of ['preview', 'development', '', undefined, 'Production']) expect(shareOrigin(env)).toBeNull()
+})
+
+test('with no argument it reads VERCEL_TARGET_ENV', () => {
+  vi.stubEnv('VERCEL_TARGET_ENV', 'production')
+  expect(shareOrigin()).toBe('https://reporting.avenuez.com')
+  vi.stubEnv('VERCEL_TARGET_ENV', 'preview')
+  expect(shareOrigin()).toBeNull()
+})
+```
+
+Append to `app/snapshot/[token]/route.test.ts`:
+```ts
+test('a slugged segment resolves by its token for GET and HEAD; a bad slug shape is the same 404 (spec v1.1 §16.2)', async () => {
+  const ok = await settle(GET(req(), ctx(`example-co-${TOKEN}`)))
+  expect(ok.status).toBe(200)
+  expect(await ok.text()).toBe(HTML)
+  expect(store.getLiveByToken).toHaveBeenLastCalledWith(TOKEN)
+  const head = await HEAD(req({ method: 'HEAD' }), ctx(`example-co-${TOKEN}`))
+  expect(head.status).toBe(200)
+  const unknown = await (await settle(GET(req(), ctx('short')))).text()
+  vi.mocked(store.getLiveByToken).mockClear()
+  for (const bad of [`Example-${TOKEN}`, `${'a'.repeat(41)}-${TOKEN}`, `example_co-${TOKEN}`]) {
+    const r = await settle(GET(req(), ctx(bad)))
+    expect(r.status).toBe(404)
+    expect(await r.text()).toBe(unknown)
+  }
+  expect(store.getLiveByToken).not.toHaveBeenCalled()
+})
+```
+
+In `components/aeo-outbound/status.test.ts`: delete line 24 to 26 (the `snapshotUrl` test) and remove `snapshotUrl` from the import on line 2.
+
+In `components/aeo-outbound/hub.test.tsx`: add `linkBrand: null,` to the `row` helper's object (line 22 to 25). Append:
+```ts
+test('Copy link uses the locked origin and the brand slug when the server passes them (spec v1.1 §16.2)', async () => {
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  render(<OutboundHub shareOrigin="https://reporting.avenuez.com" rows={[row({ status: 'live', token: 'tok_123', linkBrand: 'Example Co', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })]} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+  expect(writeText).toHaveBeenCalledWith('https://reporting.avenuez.com/snapshot/example-co-tok_123')
+  expect(screen.queryByText('Test link: it works on this environment only.')).not.toBeInTheDocument()
+  await screen.findByRole('option', { name: 'Acme pitch' })
+})
+
+test('with no locked origin the hub labels its links as test links', async () => {
+  render(<OutboundHub rows={[row({ status: 'live', token: 'tok_123', recipient: 'R', approvedAt: '2026-10-02T15:00:00.000Z' })]} />)
+  expect(screen.getByText('Test link: it works on this environment only.')).toBeInTheDocument()
+  await screen.findByRole('option', { name: 'Acme pitch' })
+})
+```
+In `components/aeo-outbound/editor.test.tsx`: add `linkBrand: null, shareOrigin: null,` to `base` (line 35 to 37). Append:
+```ts
+test('a live snapshot copies the locked link with the brand slug (spec v1.1 §16.2)', async () => {
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  await setup({ status: 'live', token: 'tok_123', linkBrand: 'Example Co', shareOrigin: 'https://reporting.avenuez.com' })
+  fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+  expect(writeText).toHaveBeenCalledWith('https://reporting.avenuez.com/snapshot/example-co-tok_123')
+  expect(screen.queryByText('Test link: it works on this environment only.')).not.toBeInTheDocument()
+})
+
+test('a live snapshot with no locked origin labels the link as a test link', async () => {
+  await setup({ status: 'live', token: 'tok_123' })
+  expect(screen.getByText('Test link: it works on this environment only.')).toBeInTheDocument()
+})
+```
+(The existing hub test at line 247 and editor test at line 195 keep expecting `${window.location.origin}/snapshot/tok_123`: no origin and a null `linkBrand` give exactly that.)
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `perl -e 'alarm 590; exec @ARGV' -- npx vitest run lib/aeo-outbound/share-link.test.ts lib/aeo-outbound/share-origin.test.ts "app/snapshot/[token]/route.test.ts" components/aeo-outbound/status.test.ts components/aeo-outbound/hub.test.tsx components/aeo-outbound/editor.test.tsx`
+Expected: FAIL (the new modules don't exist; the route 404s a slugged segment; the props are unknown).
+
+- [ ] **Step 3: Implement**
+
+Create `lib/aeo-outbound/share-link.ts`:
+```ts
+// The public link's path (spec v1.1 §16.2): the brand slug, the token, and the rule the route reads back. Client-safe:
+// no Node imports, so the hub and editor build links with it. The origin comes from share-origin.ts on the server.
+
+export const SLUG_MAX = 40
+export const TEST_LINK_NOTE = 'Test link: it works on this environment only.'
+/** Combining marks left by NFKD in the Latin, extended and symbol mark blocks. ES2017 has no \p{M}. */
+const MARKS = /[̀-ͯ᪰-᫿᷀-᷿⃐-⃿︠-︯]/g
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+export const isShareTokenShape = (t: string): boolean => /^[A-Za-z0-9_-]{24}$/.test(t)
+
+/** The brand part of the path: NFKD, marks removed, lowercase, each run outside a-z0-9 one "-", trimmed, at most 40. */
+export function brandSlug(brandName: string | null): string {
+  if (!brandName) return ''
+  const s = brandName.normalize('NFKD').replace(MARKS, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  return s.slice(0, SLUG_MAX).replace(/-+$/, '')
+}
+
+export function sharePath(brandName: string | null, token: string): string {
+  const slug = brandSlug(brandName)
+  return `/snapshot/${slug ? `${slug}-` : ''}${token}`
+}
+
+export const shareUrl = (origin: string, brandName: string | null, token: string): string => `${origin}${sharePath(brandName, token)}`
+
+/** The token a /snapshot segment names, or null: a bare token, else a well-formed slug, "-", then a token. */
+export function tokenFromSegment(segment: string): string | null {
+  if (isShareTokenShape(segment)) return segment
+  if (segment.length < 26 || segment[segment.length - 25] !== '-') return null
+  const slug = segment.slice(0, -25)
+  const token = segment.slice(-24)
+  return slug.length <= SLUG_MAX && SLUG.test(slug) && isShareTokenShape(token) ? token : null
+}
+```
+
+Create `lib/aeo-outbound/share-origin.ts`:
+```ts
+// Server only (spec v1.1 §16.2): the origin every public link uses on this deployment. VERCEL_TARGET_ENV names the
+// system or custom environment (Vercel docs, read 2026-10-12); the domains were read from the Vercel project the same
+// day. Anywhere else (a preview, local dev) there is no locked origin and the page's own is used, labelled as a test link.
+export const SHARE_ORIGINS = { production: 'https://reporting.avenuez.com', staging: 'https://staging.reporting.avenuez.com' } as const
+
+export function shareOrigin(targetEnv: string | undefined = process.env.VERCEL_TARGET_ENV): string | null {
+  if (targetEnv === 'production') return SHARE_ORIGINS.production
+  if (targetEnv === 'staging') return SHARE_ORIGINS.staging
+  return null
+}
+```
+
+`lib/aeo-outbound/token.ts` line 5 becomes `export { isShareTokenShape } from './share-link'` (its two importers, `store.ts:11` and the route, keep working; the route switches below).
+
+`app/snapshot/[token]/route.ts`: line 9 becomes `import { tokenFromSegment } from '@/lib/aeo-outbound/share-link'`. The `live` helper (lines 26-35) takes the segment:
+```ts
+/** The live row for a /snapshot segment (spec v1.1 §16.2), or undefined. A failed lookup answers like an unknown token, logged without the token. */
+async function live(segment: string) {
+  const token = tokenFromSegment(segment)
+  if (!token) return undefined
+  try {
+    return await getLiveByToken(token)
+  } catch (e) {
+    console.error(`[aeo-outbound] snapshot lookup failed reason=${errorLabel(e)}`)
+    return undefined
+  }
+}
+```
+`GET` and `HEAD` keep `const { token } = await ctx.params` and pass it to `live` unchanged (the folder name `[token]` stays; it now holds a segment).
+
+`components/aeo-outbound/status.ts`: delete line 26 (`snapshotUrl`).
+
+`components/aeo-outbound/hub.tsx`: line 15 drops `snapshotUrl` from the `./status` import; add `import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'`. `HubRow` gains `linkBrand: string | null` (after `brand`, with the comment `/** The row's own brand_name for the link slug; null when Peec never named it (never the project name). */`). The component signature becomes `export function OutboundHub({ rows, shareOrigin = null }: { rows: HubRow[]; shareOrigin?: string | null })`. The Copy link `onClick` (line 235) becomes `onClick={() => r.token && void navigator.clipboard?.writeText(shareUrl(shareOrigin ?? window.location.origin, r.linkBrand, r.token))}`. Directly above the table's wrapping element, when `shareOrigin === null && rows.some((r) => r.token)`, render `<p className="text-xs text-text-muted">{TEST_LINK_NOTE}</p>`.
+
+`components/aeo-outbound/editor.tsx`: line 21 becomes `import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'`. `OutboundEditorProps` gains `linkBrand: string | null` and `shareOrigin: string | null`. The Copy link `onClick` (line 265) becomes `onClick={() => token && void navigator.clipboard?.writeText(shareUrl(props.shareOrigin ?? window.location.origin, props.linkBrand, token))}`; directly after that button, when `props.shareOrigin === null`, render `<span className="text-xs text-text-muted">{TEST_LINK_NOTE}</span>`.
+
+`app/tools/new-business/page.tsx`: add `import { shareOrigin } from '@/lib/aeo-outbound/share-origin'`; each row adds `linkBrand: r.brandName,` after `brand`; the return becomes `return <OutboundHub rows={rows} shareOrigin={shareOrigin()} />`.
+
+`app/tools/new-business/[reportId]/page.tsx`: add the same import, and the props `linkBrand={row.brandName}` and `shareOrigin={shareOrigin()}` after `brand={...}`.
+
+`.env.example`: after line 100 (`# VERCEL_URL=`) add:
+```
+# VERCEL_TARGET_ENV=                # [vercel] 'production' | 'preview' | 'development' | a custom environment such as 'staging'; locks the AEO Outbound share-link domain
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run the Step 2 command, then `perl -e 'alarm 590; exec @ARGV' -- npx vitest run lib/aeo-outbound/token.test.ts lib/aeo-outbound/store.test.ts`. Expected: PASS. Then the gate (`make check`, as in Task 3b Step 4). Expected: exit 0, including check:rsc (the new props are plain strings or null).
+
+- [ ] **Step 5: Commit and push**
+
+Commit every file this task touched, by name, with subject `Lock the share link to our domain and put the brand name in it` and this edge-case list in the body (the route parses an untrusted path segment):
+- external failure: none added; a lookup failure still answers the unknown-token 404: decline, unchanged
+- operator visibility: the route still never logs the segment or the token: fix, kept
+- bounds: a segment is a token, or at most 40 slug characters plus "-" plus a token; anything longer is a 404 before the database: fix
+- input boundaries: the slug must match ^[a-z0-9]+(-[a-z0-9]+)*$ and the token its 24-character shape, else the same 404 as an unknown token: fix
+- state and concurrency: none: decline
+- security: the slug is not trusted or checked against the row, the token alone is the credential, as before; the origin is a server constant per environment, never read from the request: fix
+
+Then push.
+
 ### Task 4: Peec contracts and error codes in pull, generate and the generate route
 
 Covers v1.1 §7 (error codes on the error object, the `error_code` column, the unawaited `progress_step` writer, step 9 before the Glean call), §9 (`/actions/list` paging, a missing Peec key answers 502 JSON), §10 (each Peec endpoint, the Glean reply and the generate body checked against their contracts), round-2 MINOR 10.
