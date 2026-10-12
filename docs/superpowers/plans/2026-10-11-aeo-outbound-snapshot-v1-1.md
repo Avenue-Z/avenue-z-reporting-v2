@@ -9386,3 +9386,37 @@ Tests (first): in draft, preview and final the methodology section's `.section-l
 `methodology`, the second `page.next_label` and `next_step`; the existing slot-coverage tests pass unchanged; v1-compat
 records the new section markup as a deliberate difference with an exact transform and occurrence assertion. Commit subject:
 `Give Methodology a section heading and put Next step on its own line`.
+
+### Task 25: Methodology styled like Ryan's example (spec v1.1 §17.14 Style)
+
+**Files:** `lib/aeo-outbound/slots.ts` (`PAGE_KEYS` gains `'method_title'`), `lib/aeo-outbound/config.ts`
+(`PAGE_WORDS_V1.method_title = 'Methodology and next step'`), `lib/aeo-outbound/labels.ts` (`method_title: 'Methodology
+title'`), `lib/aeo-outbound/render.ts` (the methodology h2 and the second block, `PAGE_CSS`), and tests (`render.test.ts`,
+`slots.test.ts`, `labels.test.ts`, `v1-compat.test.ts`, and any test that lists every page key or default).
+
+- h2: `${slot('h2', 'page.method_title', p.method_title, 'section-title')}` in place of the mirror h2.
+- Second block: `<div>` (drop `style="margin-top:10px"`).
+- `PAGE_CSS`, after the chart-wrap rule and before the media query, exactly the three rules in spec §17.14, in that order.
+- Update the outside-rules exact list, the "one editable element per path" and slot-coverage expectations for the new
+  slot and the dropped h2 mirror, and v1-compat's deliberate difference.
+
+Tests (first): h2 text "Methodology and next step", `data-slot="page.method_title"` in draft; a stored
+`page.method_title` override shows; old rows without the key render the default; the three rules verbatim, outside the
+media query, once per mode; the second `.method-note` child has no `style`. Commit subject:
+`Style Methodology like Ryan's example`.
+
+### Task 26: Check every written date against the data window (spec v1.1 §17.14 Dates)
+
+**Files:** `lib/aeo-outbound/grounding.ts`, `lib/aeo-outbound/notes.ts` (`NOTE_KINDS` gains `'date_not_in_window'`, not
+in `ABOUT`), and tests (`grounding.test.ts`, `notes.test.ts`, any contract test listing note kinds).
+
+In `groundingFlags`, inside the existing `if (path !== 'page.series' && path !== 'page.sidebar_wordmark')` branch, after
+the number check, run a `datesOutsideWindow(value, d.window)` helper and `add('date_not_in_window', path, ...)` for each.
+The helper implements the matches and rules in spec §17.14 exactly (UTC, inclusive bounds, month names full, three-letter
+and `Sept`, optional period, capitalised; impossible dates flagged). Text: `"{match}" is outside the data window
+({d.windowLabel})`.
+
+Tests (first): every pass and flag case listed in spec §17.14; a single-day window; a window spanning a year end (Dec 20,
+2025 to Jan 10, 2026: "Dec 25" and "Jan 3" pass, "Feb 1" flags); dates in `window_label`, `page.series`, KPI values and
+`brand` are not date-checked; the note is in the "check" group; `isNote` accepts the new kind. Commit subject:
+`Flag any written date outside the data window`.

@@ -858,3 +858,37 @@ label mirrors its title. No new page word, no new slot, no change to the methodo
 mode; in draft both are `data-mirror="page.method_nav"` and the existing "every visible text is a slot, mirror, fixed or
 chart" and "one editable element per path" tests pass; the methodology and next-step slots sit in two separate blocks; the
 version 1 golden records the new markup as a deliberate difference.
+
+### 17.14 Methodology styled like Ryan's example, and every written date checked against the window (added 2026-10-12)
+
+**Style (my decision from Ryan's PDF, "Peec - Z_OS One Page Audit Example.pdf", page 2):** his last section is headed
+"Methodology and next step", with two plain paragraphs ("Methodology: ..." and "Next step: ..."), not italic, not boxed.
+Ours (§17.13) uses AIVx's `.method-note` (`aivx/css.ts`: 13px italic, 50% white, boxed). Changes, `aivx/*` untouched:
+- A new page word `method_title`, default `Methodology and next step` (`PAGE_KEYS`, `PAGE_WORDS_V1`, `PAGE_LABELS`
+  "Methodology title"). The section's `h2.section-title` becomes `slot('h2', 'page.method_title', p.method_title,
+  'section-title')`; the label stays `05 / ` plus the menu word mirror. Rows without the key get the default
+  (`withDefaults`), as for every page word.
+- The second block's inline `style="margin-top:10px"` goes; `PAGE_CSS` (outside the phone query) adds
+  `#methodology .method-note{background:none;border:none;border-radius:0;padding:0;margin-top:16px;max-width:none;font-style:normal;font-size:15px;line-height:1.75;color:rgba(255,255,255,0.75)}`,
+  `#methodology .method-note>div+div{margin-top:14px}` and
+  `#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}`
+  (15px, 1.75 and 75% white are "Why it matters"' paragraph, measured on dev).
+
+**Dates (closes a gap found reading `grounding.ts`):** today a written date is checked by its digits only
+(`grounding.ts:68`, `:110`), so "Aug 17 to Aug 29" passes for a Sep 17 to Sep 29 window. `groundingFlags` adds a date
+check on every slot it already checks for numbers (so not `brand`, `window_label`, KPI values, `page.series`,
+`page.sidebar_wordmark`):
+- Matches: `Month D, YYYY` and `Month D` (month full or three-letter, optional period, `Sept` too, capitalised), `Month
+  YYYY`, and `YYYY-MM-DD`.
+- With a year: the day (or for `Month YYYY` the month) must fall within `d.window.start` to `d.window.end` inclusive.
+  Without a year: the month and day must fall within the window in at least one of the window's years.
+- Otherwise a new note kind `date_not_in_window` (group "check", so it shows under Check these with a Looks right
+  tick, like the number flags) with text `"{match}" is outside the data window ({d.windowLabel})` and the slot's path.
+- An impossible date ("Feb 30") is flagged the same way. The existing number check is unchanged.
+`NOTE_KINDS` gains the kind (additive: stored rows stay valid).
+
+Tests: the section's h2 is "Methodology and next step" and editable as `page.method_title`; a renamed title shows; the
+three CSS rules verbatim and outside the phone query; the second block has no inline style; grounding: "Sep 17, 2026",
+"Sep 29", "September 2026" and "2026-09-20" pass for a Sep 17 to 29, 2026 window; "Aug 17, 2026", "Aug 17", "Oct 2026",
+"2026-10-01" and "Feb 30" are flagged with the path; a date in `window_label` or `page.series` is not date-checked; the
+note's group is "check".
