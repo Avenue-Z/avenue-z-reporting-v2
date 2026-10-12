@@ -76,3 +76,42 @@ test('no target polls nothing', async () => {
   await tick(3000)
   expect(fetchMock).not.toHaveBeenCalled()
 })
+
+test('a slow null never finishes the run early once a row has answered; polls do not overlap (spec v1.1 §16.3)', async () => {
+  const slowNull: Answer = () => new Promise((r) => setTimeout(() => r(json(200, { step: null })), 1500))
+  answers = [slowNull, row(6)]
+  const onFinished = vi.fn()
+  const { result } = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }, 0, onFinished))
+  await tick(3000)
+  expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(3)
+  expect(result.current.finished).toBe(false)
+  expect(onFinished).not.toHaveBeenCalled()
+  await tick(2000)
+  expect(result.current.step).toBe(6)
+})
+
+test('against a fetch that never resolves, one request is in flight at a time and polling resumes after the 5 second abort', async () => {
+  let open = 0, peak = 0
+  fetchMock.mockImplementation(((_u: string, init?: RequestInit) => new Promise<Response>((_res, rej) => {
+    open++; peak = Math.max(peak, open)
+    init?.signal?.addEventListener('abort', () => { open--; rej(new DOMException('aborted', 'AbortError')) })
+  })) as never)
+  renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }))
+  await tick(4900)
+  expect(fetchMock.mock.calls.length).toBe(1)
+  await tick(10_000)
+  expect(peak).toBe(1)
+  expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+  fetchMock.mockImplementation(async (_url: string, _init?: RequestInit) => (answers.length > 1 ? answers.shift()! : answers[0])())
+})
+
+test('clearing the target resets to the initial step, so the next run never shows the last one', async () => {
+  answers = [row(7)]
+  const { result, rerender } = renderHook(({ t }: { t: { projectId: string; clickedAt: number } | null }) => useGenerationProgress(t, 2), { initialProps: { t: { projectId: 'p1', clickedAt: CLICK } as { projectId: string; clickedAt: number } | null } })
+  await tick()
+  expect(result.current.step).toBe(7)
+  rerender({ t: null })
+  expect(result.current.step).toBe(2)
+  rerender({ t: { projectId: 'p1', clickedAt: CLICK + 1 } })
+  expect(result.current.step).toBe(2)
+})

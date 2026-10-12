@@ -585,3 +585,23 @@ test('while its Generate request runs, the hub polls progress by project and sho
   await new Promise((r) => setTimeout(r, 1500))
   expect(fetchMock.mock.calls.slice(calls).filter(([u]) => String(u).startsWith('/api/aeo-outbound/progress'))).toHaveLength(0)
 }, 10_000)
+
+test("a refresh that lists the generating row keeps this tab's checklist, the click's clock and the polling until the request answers (spec v1.1 §16.3)", async () => {
+  let release: (r: Response) => void = () => {}
+  generate = () => new Promise((r) => { release = r })
+  const created = new Date(Date.now() + 1000).toISOString()
+  progress = async () => json(200, { id: ID(9), step: 5, createdAt: created })
+  const { rerender } = await pickAndGenerate()
+  await screen.findByRole('status', { name: 'Generation progress' })
+  const listed = row({ id: ID(9), status: 'generating', projectId: 'p1', createdAt: new Date(Date.now() + 1000).toISOString(), progressStep: 5 })
+  rerender(<OutboundHub {...props({ rows: [listed], counts: { ...COUNTS, all: 1 } })} />)
+  const box = await within(screen.getByTestId(`row-${ID(9)}`)).findByRole('status', { name: 'Generation progress' })
+  expect(within(box).getByText(/^0:0\d$/)).toBeInTheDocument()
+  const seen = fetchMock.mock.calls.length
+  await waitFor(() => expect(fetchMock.mock.calls.slice(seen).some(([u]) => String(u).startsWith('/api/aeo-outbound/progress?projectId=p1'))).toBe(true), { timeout: 3000 })
+  await act(async () => release(json(200, { id: ID(9), status: 'draft' })))
+  await waitFor(() => expect(push).toHaveBeenCalledWith(`/tools/new-business/${ID(9)}`))
+  const calls = fetchMock.mock.calls.length
+  await new Promise((r) => setTimeout(r, 1500))
+  expect(fetchMock.mock.calls.slice(calls).filter(([u]) => String(u).startsWith('/api/aeo-outbound/progress'))).toHaveLength(0)
+}, 10_000)

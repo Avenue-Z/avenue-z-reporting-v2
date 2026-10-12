@@ -264,10 +264,15 @@ test('a generating snapshot shows the checklist, polls its row by id every secon
   expect(container.querySelector('iframe')).toBeNull()
   await act(() => vi.advanceTimersByTimeAsync(1000))
   expect(within(box).getByText('Loading the sources AI used…')).toBeInTheDocument()
-  expect(fetchMock).toHaveBeenCalledWith(`/api/aeo-outbound/progress?id=${ID}`, { cache: 'no-store' })
+  expect(fetchMock).toHaveBeenCalledWith(`/api/aeo-outbound/progress?id=${ID}`, expect.objectContaining({ cache: 'no-store' }))
   const before = refresh.mock.calls.length
   await act(() => vi.advanceTimersByTimeAsync(1000))
   expect(refresh.mock.calls.length).toBe(before + 1)
+  // The 5 second refresh while generating, apart from the one finish refresh above.
+  const finished = refresh.mock.calls.length
+  progress = async () => json(200, { id: ID, step: 6, createdAt: '2026-10-08T15:00:00.000Z' })
+  await act(() => vi.advanceTimersByTimeAsync(10_000))
+  expect(refresh.mock.calls.length).toBe(finished + 2)
   expect(fetchMock.mock.calls.filter(([u]) => u.includes('/view'))).toHaveLength(0)
 })
 

@@ -351,7 +351,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
                   <td className="px-4 py-3">
                     <StatusPill status={r.status} error={r.error} />
                     {r.status === 'failed' && <p className="mt-1 max-w-xs text-xs text-[#FF6B6B]">{failureText(r.errorCode, r.error, r.id)}</p>}
-                    {r.status === 'generating' && progress(r.progressStep, r.createdAt)}
+                    {r.status === 'generating' && (pending[r.projectId] ? <PendingProgress projectId={r.projectId} startedAt={pending[r.projectId].startedAt} /> : progress(r.progressStep, r.createdAt))}
                     {ready.has(r.id) && (
                       <p className="mt-1 text-xs text-[#60FF80]">{draftReady(r.brand)} <Link href={`/tools/new-business/${r.id}`} className="underline">{OPEN}</Link></p>
                     )}
