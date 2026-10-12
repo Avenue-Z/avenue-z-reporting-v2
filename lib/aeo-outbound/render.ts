@@ -109,6 +109,18 @@ export const PAGE_CSS = [
   '.leaderboard td{padding:8px 20px}',
   '.leaderboard td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px}',
   '}',
+  '@media (min-width: 901px){',
+  '#opportunities .leaderboard-wrap{border:none;border-radius:0;overflow:visible;margin:24px -3px 0}',
+  '#opportunities .leaderboard{table-layout:fixed;width:100%;font-size:15px;border-collapse:separate;border-spacing:3px}',
+  '#opportunities .leaderboard thead tr,#opportunities .leaderboard tbody tr{border-bottom:none}',
+  '#opportunities .leaderboard th{width:33.333%;background:rgba(96,255,234,0.08);color:#60FFEA;-webkit-text-fill-color:#60FFEA;box-shadow:inset 0 -2px 0 #60FFEA;font-size:14px;font-weight:800;letter-spacing:0;text-transform:none;padding:12px 16px;white-space:normal;cursor:default;vertical-align:bottom}',
+  '#opportunities .leaderboard th:hover{color:#60FFEA}',
+  '#opportunities .leaderboard td{padding:14px 16px;vertical-align:top;line-height:1.6;color:rgba(255,255,255,0.88);overflow-wrap:anywhere}',
+  '#opportunities .leaderboard tbody tr:nth-child(odd) td{background:rgba(255,255,255,0.08)}',
+  '#opportunities .leaderboard tbody tr:nth-child(even) td{background:rgba(255,255,255,0.035)}',
+  '#opportunities .leaderboard tbody tr:hover{background:none}',
+  '#opportunities .chart-takeaway{border-top:none;padding:16px 0 0;margin:0;color:rgba(255,255,255,0.6)}',
+  '}',
 ].join('\n')
 
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and

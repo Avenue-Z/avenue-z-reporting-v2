@@ -350,6 +350,20 @@ const METHOD_RULES = [
   '#methodology .method-note>div+div{margin-top:14px}',
   '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
 ]
+/** v1.1 §17.15: Opportunities laid out like Ryan's table, in its own desktop block after the phone block, verbatim and in order. */
+const DESKTOP_OPEN = '@media (min-width: 901px){'
+const DESKTOP_RULES = [
+  '#opportunities .leaderboard-wrap{border:none;border-radius:0;overflow:visible;margin:24px -3px 0}',
+  '#opportunities .leaderboard{table-layout:fixed;width:100%;font-size:15px;border-collapse:separate;border-spacing:3px}',
+  '#opportunities .leaderboard thead tr,#opportunities .leaderboard tbody tr{border-bottom:none}',
+  '#opportunities .leaderboard th{width:33.333%;background:rgba(96,255,234,0.08);color:#60FFEA;-webkit-text-fill-color:#60FFEA;box-shadow:inset 0 -2px 0 #60FFEA;font-size:14px;font-weight:800;letter-spacing:0;text-transform:none;padding:12px 16px;white-space:normal;cursor:default;vertical-align:bottom}',
+  '#opportunities .leaderboard th:hover{color:#60FFEA}',
+  '#opportunities .leaderboard td{padding:14px 16px;vertical-align:top;line-height:1.6;color:rgba(255,255,255,0.88);overflow-wrap:anywhere}',
+  '#opportunities .leaderboard tbody tr:nth-child(odd) td{background:rgba(255,255,255,0.08)}',
+  '#opportunities .leaderboard tbody tr:nth-child(even) td{background:rgba(255,255,255,0.035)}',
+  '#opportunities .leaderboard tbody tr:hover{background:none}',
+  '#opportunities .chart-takeaway{border-top:none;padding:16px 0 0;margin:0;color:rgba(255,255,255,0.6)}',
+]
 const outsideRules = () => PAGE_CSS.slice(0, PAGE_CSS.indexOf('@media (max-width: 900px){')).split('\n').filter(Boolean)
 
 test('every PAGE_CSS rule except aeo-long, the chart spacing rules sits inside the phone media query', () => {
@@ -359,10 +373,13 @@ test('every PAGE_CSS rule except aeo-long, the chart spacing rules sits inside t
   expect(PAGE_CSS.endsWith('}')).toBe(true)
   const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
   expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES, ...METHOD_RULES])
-  const inside = PAGE_CSS.slice(at + open.length, -1).split('\n').filter(Boolean)
+  const desktopAt = PAGE_CSS.indexOf(DESKTOP_OPEN)
+  expect(desktopAt).toBeGreaterThan(at)
+  expect(PAGE_CSS.slice(desktopAt - 2, desktopAt)).toBe('}\n')
+  const inside = PAGE_CSS.slice(at + open.length, desktopAt - 2).split('\n').filter(Boolean)
   expect(inside.length).toBeGreaterThan(5)
   expect(inside.every((r) => r.endsWith('}') && !r.includes('@media'))).toBe(true)
-  expect(PAGE_CSS.split('@media')).toHaveLength(2)
+  expect(PAGE_CSS.split('@media')).toHaveLength(3)
   expect(inside).toContain('.kpi-strip[data-kpis="3"]{grid-template-columns:repeat(2,1fr)!important}')
   expect(PAGE_CSS).not.toMatch(/[\u2013\u2014]/)
 })
@@ -494,4 +511,27 @@ test('the Methodology title is a page word: a stored value shows in every mode, 
   }
   const draft = parse(renderSnapshotHtml(DATA, SLOTS, 'draft', 'x'))
   expect(draft.querySelectorAll('[data-slot="page.method_title"]')).toHaveLength(1)
+})
+
+test('Opportunities table rules (v1.1 §17.15): verbatim, after the phone block, all inside (min-width: 901px), phone block unchanged', () => {
+  const phoneOpen = '@media (max-width: 900px){'
+  const phoneAt = PAGE_CSS.indexOf(phoneOpen)
+  const at = PAGE_CSS.indexOf(DESKTOP_OPEN)
+  expect(at).toBeGreaterThan(phoneAt)
+  expect(PAGE_CSS.endsWith('\n}')).toBe(true)
+  expect(PAGE_CSS.slice(at).split('\n')).toEqual([DESKTOP_OPEN, ...DESKTOP_RULES, '}'])
+  const phone = PAGE_CSS.slice(phoneAt + phoneOpen.length, at - 2).split('\n').filter(Boolean)
+  expect(phone).toHaveLength(8)
+  expect(phone[0]).toBe('.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}')
+  expect(phone[7]).toBe('.leaderboard td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px}')
+  expect(PAGE_CSS.slice(0, phoneAt).split('\n').filter(Boolean).some((r) => r.includes('#opportunities'))).toBe(false)
+  expect(phone.some((r) => r.includes('#opportunities'))).toBe(false)
+})
+
+test('Opportunities table rules (v1.1 §17.15): each is in the draft, preview and final page exactly once', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    expect(h.split(DESKTOP_OPEN).length - 1, `${mode} open`).toBe(1)
+    for (const r of DESKTOP_RULES) expect(h.split(r).length - 1, `${mode} ${r.slice(0, 40)}`).toBe(1)
+  }
 })
