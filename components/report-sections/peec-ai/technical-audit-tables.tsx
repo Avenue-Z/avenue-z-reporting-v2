@@ -209,7 +209,7 @@ export function WhatChangedTable({ delta, hasPrev }: WhatChangedTableProps) {
         <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
           <p className="text-xs text-text-muted">
             {!hasPrev
-              ? 'Upload a prior crawl CSV to enable delta comparison'
+              ? 'No earlier crawl to compare yet.' // setup (staff): set the prior crawl CSV (sfPrevCsvFileId) to enable the delta
               : 'No issue changes detected between crawls'}
           </p>
         </div>
@@ -864,7 +864,7 @@ export function FixListTable({ rows, hasDelta, errorPageHits }: FixListTableProp
         <span className="text-sm font-bold text-white">What should SEO and dev fix next?</span>
         <InfoTooltip text={AVZ_RECOMMENDED_ACTION} />
         {!hasDelta && (
-          <span className="ml-2 text-[10px] text-white/30">Showing top current issues — upload a prior crawl CSV for delta-based prioritization</span>
+          <span className="ml-2 text-[10px] text-white/30">Showing top current issues. No earlier crawl to compare yet.</span>
         )}
       </div>
       <SortableTable
