@@ -33,10 +33,10 @@ function fields(e: unknown): string {
   return `kind=other status=none error=${name}`
 }
 
-export function logYtdMonthFailed(version: 1 | 2 | 3, slug: string, channel: string, month: string, e: unknown): void {
+export function logYtdMonthFailed(version: 1 | 2 | 3 | 4, slug: string, channel: string, month: string, e: unknown): void {
   console.error(`[organic-social] ytd-review@${version} Dash request failed slug=${slug} channel=${channel} month=${month} ${ytdFailureFields(e)}`)
 }
 
-export function logYtdClientReadFailed(version: 1 | 2 | 3, slug: string): void {
+export function logYtdClientReadFailed(version: 1 | 2 | 3 | 4, slug: string): void {
   console.error(`[organic-social] ytd-review@${version} client read failed slug=${slug}`)
 }

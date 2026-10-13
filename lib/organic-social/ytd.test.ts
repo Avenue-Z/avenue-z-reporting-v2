@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { monthsNeedingDash, ytdConfig, ytdLiveMonths, ytdMonths, ytdSeries, ytdSheetMonths, ytdSheetSeries } from './ytd'
+import { monthsNeedingDash, ytdConfig, ytdLiveMonths, ytdLockedMonths, ytdMonths, ytdSeries, ytdSheetMonths, ytdSheetSeries } from './ytd'
 import { clockFor } from './reporting-months'
 import type { YtdCell, YtdTab } from './ytd-sheet'
 
@@ -233,3 +233,19 @@ test('ytdLiveMonths: every hour of 2026 and of 2028 shows January through the la
     }
   }
 }, 60_000) // 17,568 hours through the real clock: seconds under a loaded full run, so not the 5 s default
+
+test('ytdLockedMonths: January of the year on screen through the month on screen, whole months, no comparison, never a partial month', () => {
+  const cfg = { firstMonth: '2026-07', comparison: 'previous-month' as const }
+  const sept = ytdLockedMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', cfg)!
+  expect(sept.map((m) => m.key)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'])
+  expect(sept.every((m) => m.compareRange === null && !m.partial)).toBe(true)
+  expect(sept[8].dateRange).toBe('custom:2026-09-01,2026-09-30')
+  // The team's live month: the month in progress is left off.
+  const live = ytdLockedMonths('custom:2026-10-01,2026-10-12', 'custom:2026-09-01,2026-09-12', cfg)!
+  expect(live.map((m) => m.key).at(-1)).toBe('2026-09')
+  expect(live.some((m) => m.key === '2026-10')).toBe(false)
+  // The team's live January: nothing of that year has finished.
+  expect(ytdLockedMonths('custom:2027-01-01,2027-01-12', 'custom:2026-12-01,2026-12-12', cfg)).toEqual([])
+  // Not a month starting on the 1st: null, as ytd-review@2.
+  expect(ytdLockedMonths('last_30_days', 'previous_period', cfg)).toBeNull()
+})
