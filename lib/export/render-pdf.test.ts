@@ -30,8 +30,9 @@ test('renders the export page at the content width, once ready, with screen medi
   expect(page.emulateMediaType).toHaveBeenCalledWith('screen')
   // Spec 2026-10-13 §3: size and margins come from the export page's @page rule, which also paints the page black to its
   // edges; a page.pdf() margin would print as a white frame.
-  // The 11 × 8.5 in size stays as the fallback for a page with no @page rule (it would otherwise print portrait).
-  expect(page.pdf).toHaveBeenCalledWith({ width: '11in', height: '8.5in', preferCSSPageSize: true, printBackground: true, timeout: expect.any(Number) })
+  // No width/height: combined with preferCSSPageSize they made Chromium shrink pages with a wide chart to ~70% (seen on the
+  // A Place for Mom export: the stamp ended at 532 pt, not 762). The page's @page rule (EXPORT_PAGE_CSS) sets the size.
+  expect(page.pdf).toHaveBeenCalledWith({ preferCSSPageSize: true, printBackground: true, timeout: expect.any(Number) })
   expect(browser.close).toHaveBeenCalled()
 })
 

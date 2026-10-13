@@ -47,7 +47,7 @@ export interface PageLike {
   url(): string
   waitForFunction(fn: string, o: { timeout: number; polling: number }): Promise<unknown>
   emulateMediaType(type: 'screen'): Promise<void>
-  pdf(o: { width: string; height: string; preferCSSPageSize: boolean; printBackground: boolean; timeout: number }): Promise<Uint8Array>
+  pdf(o: { preferCSSPageSize: boolean; printBackground: boolean; timeout: number }): Promise<Uint8Array>
 }
 export interface BrowserLike {
   setCookie(...c: { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure: boolean }[]): Promise<void>
@@ -140,8 +140,9 @@ export async function renderPdf(
     try {
       await within(page.emulateMediaType('screen'), pdfLeft())
       // Size and margins from the page's @page rule (EXPORT_PAGE_CSS): a page.pdf() margin would print as a white frame
-      // around the black page. 11 × 8.5 in stays as the fallback for a page without the rule.
-      return await page.pdf({ width: '11in', height: '8.5in', preferCSSPageSize: true, printBackground: true, timeout: pdfLeft() })
+      // around the black page. No width/height either: with preferCSSPageSize they made Chromium shrink a page holding a
+      // wide chart to ~70%.
+      return await page.pdf({ preferCSSPageSize: true, printBackground: true, timeout: pdfLeft() })
     } catch (e) {
       throw new ExportRenderError('pdf', e)
     }
