@@ -1,7 +1,7 @@
 // Spec §7 steps 1-8 over one window. Every report call sends project_id, start_date and end_date and no
 // model filter (all models; T3 confirmed). Guards fail with a reason Ryan can act on.
 import { DECISIONS, PITCH_STATUSES } from './config'
-import { isPeecTimeout, PeecClient, PeecError, rowsOf } from './peec'
+import { isPeecDeadline, PeecClient, PeecError, rowsOf } from './peec'
 import { defaultRange, type DayRange } from './range'
 
 export interface PeecProject { id: string; name: string; status: string }
@@ -85,13 +85,14 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   const brands = await client.all<BrandReportRow>('POST', '/reports/brands', W, (r) => r.brand.id, 10_000)
   if (!brands.some((r) => r.brand.id === owned[0].id)) throw new PeecError('The own brand has no row in the Peec brands report for this window')
   const warnings: string[] = []
-  // Both calls below only supply model names, so a failure other than an exhausted budget is a warning.
+  // Both calls below only supply model names, so any failure but a spent deadline is a warning, a per-call
+  // timeout included (spec 18.3).
   let byModel: { brand: { id: string }; model_channel?: { id?: string } | null; visibility_total?: number | null }[] = []
   try {
     byModel = await client.all<{ brand: { id: string }; model_channel?: { id?: string } | null; visibility_total?: number | null }>(
       'POST', '/reports/brands', { ...W, dimensions: ['model_channel_id'] }, (r) => `${r.brand.id}|${r.model_channel?.id}`, 10_000)
   } catch (e) {
-    if (isPeecTimeout(e)) throw e
+    if (isPeecDeadline(e)) throw e
     warnings.push("Peec's model breakdown could not be loaded, so the models covered are not listed.")
   }
   const channelIds = [...new Set(byModel.filter((r) => (r.visibility_total ?? 0) > 0).map((r) => r.model_channel?.id).filter((x): x is string => !!x))].sort()
@@ -100,7 +101,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   try {
     channels = rowsOf(await client.call('GET', '/model-channels', { params: { project_id: projectId, limit: 100 } }))
   } catch (e) {
-    if (isPeecTimeout(e)) throw e
+    if (isPeecDeadline(e)) throw e
     warnings.push("Peec's model names could not be loaded, so models are shown by id.")
   }
   const models = channelIds.map((id) => { const c = channels.find((x) => x.id === id); return c?.description || c?.current_model?.id || id })
@@ -115,7 +116,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   try {
     actions = rowsOf<ActionRow>(await client.call('POST', '/actions/list', { body: { project_id: projectId, limit: 50 } })).filter((a) => a.status === 'PENDING').slice(0, 10)
   } catch (e) {
-    if (isPeecTimeout(e)) throw e
+    if (isPeecDeadline(e)) throw e
     warnings.push('Peec actions could not be loaded, so opportunities come from the data only.')
   }
   // Optional: the methodology leaves the count out when this fails.
@@ -123,7 +124,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   try {
     prompts = (await client.call('GET', '/prompts', { params: { project_id: projectId, limit: 1 } })) as { total_count?: number } | null
   } catch (e) {
-    if (isPeecTimeout(e)) throw e
+    if (isPeecDeadline(e)) throw e
     warnings.push("Peec's prompt count could not be loaded, so the methodology leaves it out.")
   }
 

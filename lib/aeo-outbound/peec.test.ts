@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
-import { isPeecTimeout, PeecClient, PeecError, retryDelayMs, rowsOf } from './peec'
+import { isPeecDeadline, isPeecTimeout, PeecClient, PeecDeadlineError, PeecError, retryDelayMs, rowsOf } from './peec'
 
 const KEY = 'skc-test-key-123'
 
@@ -276,4 +276,71 @@ test('isPeecTimeout is true for a deadline and a timeout from the client, false 
   expect(isPeecTimeout(repeat)).toBe(false)
   expect(isPeecTimeout(new Error('timed out after 5ms'))).toBe(false)
   expect(new PeecError('x').timeout).toBe(false)
+})
+
+// Spec 18.3: only a spent deadline is PeecDeadlineError; a 45s timer with budget left is a plain timed-out PeecError.
+const hangUntilAbort = vi.fn((_u: string, init?: RequestInit) => new Promise<Response>((_r, rej) => {
+  init?.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+}))
+
+test('the deadline reached before a call is a PeecDeadlineError, still a timeout, named PeecError', async () => {
+  const err = await new PeecClient(KEY, { fetch: vi.fn(), now: () => 5, deadline: 5 }).call('GET', '/x').catch((e: unknown) => e)
+  expect(err).toBeInstanceOf(PeecDeadlineError)
+  expect(err).toBeInstanceOf(PeecError)
+  expect((err as Error).message).toBe('[PEEC API] /x: deadline reached')
+  expect((err as Error).name).toBe('PeecError')
+  expect((err as PeecError).timeout).toBe(true)
+  expect(isPeecDeadline(err)).toBe(true)
+  expect(isPeecTimeout(err)).toBe(true)
+})
+
+test('a timer capped by the deadline is a PeecDeadlineError when it fires', async () => {
+  vi.useFakeTimers()
+  try {
+    const c = new PeecClient(KEY, { fetch: hangUntilAbort as unknown as typeof globalThis.fetch, now: () => 0, deadline: 30_000 })
+    const p = c.call('GET', '/prompts').catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(30_000)
+    const err = await p
+    expect(err).toBeInstanceOf(PeecDeadlineError)
+    expect((err as Error).message).toBe('[PEEC API] /prompts: timed out after 30000ms')
+    expect(isPeecDeadline(err)).toBe(true)
+    expect(isPeecTimeout(err)).toBe(true)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('a timer of exactly 45s with exactly 45s left counts as capped by the deadline', async () => {
+  const fetch = vi.fn(async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }) })
+  const err = await new PeecClient(KEY, { fetch, now: () => 0, deadline: 45_000 }).call('GET', '/x').catch((e: unknown) => e)
+  expect((err as Error).message).toBe('[PEEC API] /x: timed out after 45000ms')
+  expect(isPeecDeadline(err)).toBe(true)
+})
+
+test('a 45s timer with budget left is a plain timed-out PeecError, not a deadline', async () => {
+  vi.useFakeTimers()
+  try {
+    const c = new PeecClient(KEY, { fetch: hangUntilAbort as unknown as typeof globalThis.fetch, now: () => 0, deadline: 195_000 })
+    const p = c.call('GET', '/prompts').catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(45_000)
+    const err = await p
+    expect(err).toBeInstanceOf(PeecError)
+    expect(err).not.toBeInstanceOf(PeecDeadlineError)
+    expect((err as Error).message).toBe('[PEEC API] /prompts: timed out after 45000ms')
+    expect((err as PeecError).timeout).toBe(true)
+    expect(isPeecTimeout(err)).toBe(true)
+    expect(isPeecDeadline(err)).toBe(false)
+  } finally {
+    vi.useRealTimers()
+  }
+  const noDeadline = await new PeecClient(KEY, { fetch: vi.fn(async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }) }) }).call('GET', '/x').catch((e: unknown) => e)
+  expect(isPeecDeadline(noDeadline)).toBe(false)
+  expect(isPeecTimeout(noDeadline)).toBe(true)
+})
+
+test('isPeecDeadline is false for an HTTP error, a plain PeecError and a non-Peec error', async () => {
+  const http = await new PeecClient(KEY, { fetch: vi.fn(async () => new Response('bad', { status: 400 })) }).call('GET', '/x').catch((e: unknown) => e)
+  expect(isPeecDeadline(http)).toBe(false)
+  expect(isPeecDeadline(new PeecError('x', true))).toBe(false)
+  expect(isPeecDeadline(new Error('deadline reached'))).toBe(false)
 })
