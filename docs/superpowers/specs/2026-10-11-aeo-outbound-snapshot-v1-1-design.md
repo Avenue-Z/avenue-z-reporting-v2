@@ -1151,11 +1151,39 @@ Every existing test keeps passing unless a part names the expectation it changes
 No scratch trial: every behaviour here is deterministic and runs in these tests. The one part they cannot run is Postgres
 accepting `0029`, which the dev apply's read-back checks (on my written go).
 
-### 18.12 Ryan can add up to 6 findings per box, and remove down to 1 (my decision, 2026-10-13; to be specced in full)
+### 18.12 Ryan can add up to 6 findings per box, and remove down to 1 (my decision, 2026-10-13)
 
-Today each of the two finding boxes holds 2 or 3 bullets, enforced in `slots.ts:47-49` (paths and `STRUCTURE`, index
-`[0-2]`), `applyStructure` (`slots.ts:119,122`), and the stored and generated contracts (`contracts.ts:101,152`,
-`.min(2).max(3)`). My decision: Ryan can add bullets up to **6** per box and remove down to **1**; Glean still writes 2 or
-3. The layout must stay clean at every count on desktop and phone. Before this is specced in full: a mock at 1, 3 and 6
-bullets in each box, desktop (1280, 1440) and phone (390), for me to look at. Built together with 18.4, which edits the
-same structure path.
+Glean still writes 2 or 3 bullets per box (`prompt.ts:85-86`, `GLEAN_SLOTS` `contracts.ts:101`, `validateGeneratedSlots`
+`slots.ts:154`, all unchanged). In a draft Ryan can add bullets up to `MAX_BULLETS = 6` and remove down to
+`MIN_BULLETS = 1`, in each box separately (#368):
+
+- `slots.ts`: `MIN_BULLETS = 1`, `MAX_BULLETS = 6` exported. `STRUCTURE` becomes
+  `/^(competitive_bullets|sources_bullets)\.(?:add|([0-5])\.remove)$/`. `applyStructure`: an add needs
+  `length < MAX_BULLETS` (else `STRUCTURE_ERRORS.full`, "A list can have at most six bullets."); a remove needs
+  `length > MIN_BULLETS` and an index below `length` (else `STRUCTURE_ERRORS.min`, "A list needs at least one bullet.", or
+  `unknown field` for an index past the end). An added bullet is "Needs validation" in both parts, as today, so Approve stays
+  blocked until Ryan fills it in or removes it (`needsValidationBlocksApprove`, `config.ts:24`). `PATH`'s `(\d)` already
+  allows indexes 0 to 9; a patch to a bullet past the end stays `unknown field` (`slots.ts:93`).
+- `contracts.ts:152` (the stored row): each list `.min(1).max(6)`, so a stored row of 1 to 6 bullets reads back and every
+  older row of 2 or 3 still does.
+- `render.ts:183-187` (draft only): each bullet gets Remove when `list.length > MIN_BULLETS`, and the list gets Add bullet
+  when `list.length < MAX_BULLETS`. Preview and final pages carry neither (unchanged).
+- `labels.ts:27` already reads one digit, so "bullet 1" to "bullet 6" label correctly. The editor posts
+  `${path}.${op}` and checks `isStructuralPath` (`editor.tsx:211-215`), so it follows the new pattern with no change.
+- **Layout** (trial `aeo-outbound-audit-notes/findings/2026-10-13-bullets-1-to-6-trial/`): past about 4 bullets the box
+  outgrows the chart card (box 707px, card 484px at 1440 wide) and the card stops short. `PAGE_CSS` adds, scoped to
+  `#category-data` and `#competitive-visibility`: `.two-col>div:last-child{display:flex}`,
+  `.chart-wrap{flex:1;display:flex;flex-direction:column}` and `.chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}`.
+  The card then matches the box and the chart keeps its size (420px) and sits centred. Measured: 1 to 3 bullets unchanged
+  (484 and 484); 6 bullets 707 and 707 at 1440, 752 and 752 at 1280; at 390 the columns stack and the box grows; no
+  sideways scroll anywhere. The figures (`charts.ts`) and the chart goldens are untouched.
+- With 18.4: a lost add whose retry would now succeed (a list of 3 can take a 4th) is exactly the case step 2 answers
+  before the patch, so a bullet is never added twice.
+
+Edge cases: add at 5 gives 6 and hides Add; add at 6 is 400 "at most six"; remove at 2 gives 1 and hides Remove; remove at
+1 is 400 "at least one"; remove index 5 of a list of 3 is 400 `unknown field`; a row stored with 2 bullets renders and
+edits as before; a stored row with 0 or 7 bullets fails the read contract (unreadable, as any broken row today).
+Tests (first): every edge case in `slots.test.ts`; `contracts.test.ts` for 1, 6, 0 and 7; `render.test.ts` for the Add and
+Remove controls at 1, 2, 5 and 6 in draft and none in preview and final; the three CSS rules appear once per mode inside
+the scoped selectors; `labels.test.ts` for bullet 6; the slots `route.test.ts` for an add at 3 and a remove at 2; the
+frame test that a Remove at index 4 posts `competitive_bullets.4` and `remove`.
