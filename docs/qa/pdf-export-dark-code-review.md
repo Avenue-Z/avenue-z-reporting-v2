@@ -85,7 +85,7 @@ Both are on branch `docs/pdf-export-all-reports-spec`.
 
 | # | Sev | Status | Location | Finding | Outcome |
 |---|-----|--------|----------|---------|---------|
-| 1 | ● | PLAUSIBLE | `render-pdf.ts:145`, `:13` | Production's Chromium 153 (headless shell) is untested. If it ignored `@page` background or handled `preferCSSPageSize` differently, PDFs would get a white frame or print shrunk. | **Gate:** measured preview check (§5); `measure.mts` added |
+| 1 | ● | CONFIRMED | `render-pdf.ts:145`, `:13` | Production's Chromium 153 (headless shell) is untested. If it ignored `@page` background or handled `preferCSSPageSize` differently, PDFs would get a white frame or print shrunk. | **Passed** on the Vercel preview, 2026-10-13 (§6) |
 | 2 | ○ | CONFIRMED | `structure.export.test.tsx` | A test read the theme's CRM-bar rules that Task 2 deleted. | Removed in Task 2 (ruling) |
 | 3 | ● | CONFIRMED | `e2e/export/acceptance.mts` | Fixture pages (no `@page`) printed portrait with no margins once `page.pdf` stopped setting them. | **Fixed** `e6cf0f9`: one shared `EXPORT_PAGE_CSS` |
 | 4 | ● | CONFIRMED | `render-pdf.ts:145` | `width`/`height` plus `preferCSSPageSize` shrank the A Place for Mom and PR Influence pages to about 70% (stamp 532/523 pt). | **Fixed** `39e63ac` (reverses the `e6cf0f9` fallback); measured 532 / 762.7 / 762.7 |
@@ -120,7 +120,7 @@ It passes the dark PDFs and fails a white-version Executive Overview PDF on all 
 
 ## §5 Follow-ups
 
-**Gate before merge (needs a signed-in export)**
+**Gate before merge (needs a signed-in export): passed, see §6**
 - On PR #380's Vercel preview, download these exports:
   - AEO Technical Audit;
   - A Place for Mom Instagram;
@@ -132,3 +132,23 @@ It passes the dark PDFs and fails a white-version Executive Overview PDF on all 
 
 **Cleanup**
 - #9: escape the apostrophe in `technical-audit.tsx:411` (from #362).
+
+---
+
+## §6 Preview check (Chromium 153): passed, 2026-10-13
+
+Paul exported four PDFs signed in on PR #380's Vercel preview, and they were measured with `npx tsx e2e/export/measure.mts`. Every PDF's metadata reads `Producer: Skia/PDF m153`: the deployed `@sparticuz/chromium` 153.
+
+| PDF | Pages | Letter landscape | Dark to every edge | Stamp end (> 757 pt) |
+|---|---|---|---|---|
+| Avenue Z – Technical Performance | 7 | ✅ | ✅ | 762.7 pt |
+| A Place For Mom – Instagram | 6 | ✅ | ✅ | 762.7 pt |
+| Joy of Life – Instagram | 6 | ✅ | ✅ | 762.7 pt |
+| Renaissance – Executive Overview | 5 | ✅ | ✅ | 762.7 pt |
+
+All 24 pages were viewed: black to the edges, with consistent dark surfaces, and continuation tables intact. #1 is resolved, and the `box-decoration-break` fallback is not needed.
+
+**Still unprinted** (plain live markup, low risk):
+- KPI Check-In: wanted in one Organic Social overview export before production.
+- The Executive Overview CRM sections: Salesforce doesn't load on the preview either.
+
