@@ -265,10 +265,8 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     ? { labelFormatter: (label: ReactNode) => (typeof label === 'string' || typeof label === 'number' ? formatMonthDay(label) : label) }
     : {}
   const hasCallouts = !!callouts && callouts.length > 0 && yKeys.length > 0
-  // In the PDF export the lines must be complete on first paint (no draw-in animation to catch half way),
-  // and the panel keeps the dark theme its colours were chosen for (app/export/export-theme.css).
+  // In the PDF export the lines must be complete on first paint (no draw-in animation to catch half way).
   const exportMode = useExportMode()
-  const panel = exportMode ? { 'data-export-chart': '' } : {}
   const [layout, setLayout] = useState<CalloutLayout | null>(null)
   const [open, setOpen] = useState<{ x: string; by: 'pointer' | 'key' } | null>(null)
   // A refresh can remove the open card's callout (a deleted draft, a top day that moved). That card
@@ -439,7 +437,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
       </RechartsLineChart>
     </ResponsiveContainer>
   )
-  if (!hasCallouts) return <div {...panel} className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
+  if (!hasCallouts) return <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
   const callout = openLive ? callouts!.find((c) => c.x === openLive.x) : undefined
   const spot = openLive ? layout?.spots.find((s) => s.x === openLive.x) : undefined
   let card = null
@@ -481,7 +479,7 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     ]
   })
   return (
-    <div {...panel} className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       {/* Focus moving to anything outside this chart closes its card, as a tap outside does (C8): with the
           keyboard, Tab to the other graph's dot then Enter left both cards open (Paul's second review,
           R5). Focus lost to nothing (the window, a removed element) leaves the card as it is. */}

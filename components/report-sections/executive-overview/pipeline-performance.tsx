@@ -158,8 +158,7 @@ export function PipelinePerformance({ data }: { data: PipelineData }) {
               : 'No open deals by owner.'}
           </p>
         ) : (
-          // data-export-bars: the brand-green owner bars print darkened on white paper (export-theme.css).
-          <div className="space-y-2" data-export-wrap="" data-export-bars="">
+          <div className="space-y-2" data-export-wrap="">
             {byOwner.map((o) => (
               <div key={o.owner} data-testid="owner-row" className="flex items-center gap-3 text-sm">
                 <span className="w-40 flex-shrink-0 truncate text-text-muted">{o.owner}</span>

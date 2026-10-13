@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { parseBbox, printedContent, printedDifference, type PdfText, type Word } from './pdf-check'
+import { cornerLevels, judgeCorners, parseBbox, printedContent, printedDifference, type PdfText, type Word } from './pdf-check'
 
 // A word at (x, y); width from its length, so neighbours on a line don't overlap.
 const w = (text: string, x: number, y: number, page = 1): Word => ({ text, page, xMin: x, yMin: y, xMax: x + text.length * 5, yMax: y + 9 })
@@ -84,4 +84,27 @@ test('a negative coordinate parses as a number', () => {
 test('an apostrophe and the other XML entities decode', () => {
   const xml = '<page width="792" height="612"><word xMin="1" yMin="1" xMax="2" yMax="2">Couldn&apos;t</word><word xMin="3" yMin="1" xMax="4" yMax="2">&lt;a&gt;&amp;&quot;&#39;</word></page>'
   expect(parseBbox(xml).words.map((w) => w.text)).toEqual(["Couldn't", '<a>&"\''])
+})
+
+// Spec 2026-10-13 §6: a page whose corner isn't dark printed a white frame (the old page.pdf margin) or a white page.
+test('the four corner levels of a PGM page', () => {
+  const w = 3, h = 2, px = [10, 200, 20, 30, 40, 250] // rows: [10 200 20] [30 40 250]
+  const pgm = Buffer.concat([Buffer.from(`P5\n${w} ${h}\n255\n`), Buffer.from(px)])
+  expect(cornerLevels(pgm)).toEqual([10, 20, 30, 250])
+})
+
+// Final review: the corner check could pass without testing anything. A truncated or garbled image must throw, not read as
+// dark (undefined levels gave NaN, and NaN > limit is false); the header loop must stop at the end of the buffer.
+test('a truncated or garbled PGM throws instead of reading as dark', () => {
+  expect(() => cornerLevels(Buffer.from('P5\n3 2\n255\n'))).toThrow(/truncated/)
+  expect(() => cornerLevels(Buffer.from('P5\n3'))).toThrow()
+  expect(() => cornerLevels(Buffer.from('P5\nx y\n255\n123456'))).toThrow(/size/)
+})
+
+// Final review: with no page images the check passed; and a limit of 40 let a #272727 card (grey ≈ 39) in the corner of a
+// page that lost its margin count as dark. Real margins measure 0.
+test('corners are judged per page: every page must be imaged, and only near-black counts as dark', () => {
+  expect(judgeCorners([[0, 0, 0, 0], [0, 3, 0, 0]], 2)).toEqual([])
+  expect(judgeCorners([[0, 0, 0, 0], [39, 0, 0, 0]], 2)).toEqual([2])
+  expect(() => judgeCorners([], 3)).toThrow(/3 pages, 0 page images/)
 })
