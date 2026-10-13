@@ -379,7 +379,7 @@ Until this change merges to `dev`, keep the top-left name on dev to `AIVx` or `A
 dev database still check it against the old two-value list, and a row outside it fails their settings contract, which
 drops Settings-only users and admins there.
 
-## Add `last_writer` and `last_seq` to aeo_outbound_reports (not applied anywhere)
+## Add `last_writer` and `last_seq` to aeo_outbound_reports (applied on dev, awaiting staging and production)
 
 `drizzle/0029_aeo_outbound_save_writer.sql` is two statements: `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_writer"
 uuid;` and `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_seq" integer;`. They record which editor queue (`writer`, a
@@ -418,3 +418,10 @@ Rollback (spec v1.1 section 18.12, which ships in the same PR): a build without 
 bullets in a list as unreadable (`lib/aeo-outbound/contracts.ts` stored slots, `lib/aeo-outbound/store.ts` `typed`),
 drafts and approved rows alike. Rolling back past this build after anyone has saved such a row breaks those rows until it
 is rolled forward. The columns `0029` adds are harmless to an older build once applied (it never names them).
+
+Dev: `0029` applied to the dev database on 2026-10-13, on my written go. The dev-only host guard first, then a read-only
+dry run: exactly `0029_aeo_outbound_save_writer` pending, the ledger at 34, neither column present, 11 report rows. The
+apply refused to run unless exactly that one entry was pending, then ran `scripts/migrate-http.ts` given only the dev URL
+(`apply 0029_aeo_outbound_save_writer (2 stmt) ... done`, `applied 1 migration(s)`). Read back: `last_writer` is `uuid`
+nullable and `last_seq` is `integer` nullable, both with no default; all 11 rows read NULL in both; the ledger at 35 with
+nothing pending. Staging and production: not applied.
