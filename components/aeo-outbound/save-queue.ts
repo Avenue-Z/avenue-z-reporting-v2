@@ -14,6 +14,17 @@ export const SAVE_TIMEOUT_MS = 15_000
 export interface SendMeta { writer: string; seq: number; signal: AbortSignal }
 type Item = { value: string; stamp: number; seq?: number }
 
+// crypto.randomUUID exists only in secure contexts, so the dev server opened by its LAN IP over plain http has none.
+// getRandomValues has no such limit: build an RFC 4122 version 4 UUID from 16 random bytes.
+export function newSaveId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
 export class SaveQueue {
   private pending = new Map<string, Item>()
   private typed = new Map<string, number>()
@@ -25,6 +36,8 @@ export class SaveQueue {
   private nextSeq = 1
   // The path whose last attempt came back `retry`: its pending value is the next one sent.
   private retryPath: string | null = null
+  // The attempt in flight, so stop() can abort it.
+  private inFlight: AbortController | null = null
   readonly writer: string
   state: SaveState
 
@@ -33,7 +46,7 @@ export class SaveQueue {
     revision: number,
     private readonly onState: (s: SaveState) => void,
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
-    newId: () => string = () => crypto.randomUUID(),
+    newId: () => string = newSaveId,
     private readonly timeoutMs: number = SAVE_TIMEOUT_MS,
   ) {
     this.writer = newId()
@@ -68,7 +81,10 @@ export class SaveQueue {
     void this.run()
   }
 
-  stop(message: string) { this.set({ stopped: true, saving: false, error: message }) }
+  stop(message: string) {
+    this.set({ stopped: true, saving: false, error: message })
+    this.inFlight?.abort()
+  }
 
   // Retry first, then insertion order (an edit re-inserts its path, so the oldest untouched field goes first).
   private next(): [string, Item] {
@@ -77,19 +93,24 @@ export class SaveQueue {
     return this.pending.entries().next().value as [string, Item]
   }
 
-  // One attempt: a synchronous throw or a rejection is a `retry`, and so is no answer within timeoutMs, which also
-  // aborts the attempt's signal. The race settles once, so a late answer from an aborted attempt is ignored, and the
-  // timer is cleared as soon as either side settles.
+  // One attempt: a synchronous throw or a rejection is a `retry`, and so is an abort, by the timer after timeoutMs
+  // or by stop(). The race settles once, so a late answer from an aborted attempt is ignored, and the timer is
+  // cleared as soon as either side settles.
   private attemptSend(path: string, value: string, revision: number, seq: number): Promise<SendResult> {
     const controller = new AbortController()
+    this.inFlight = controller
     let timer: ReturnType<typeof setTimeout> | undefined
-    const timedOut = new Promise<SendResult>((resolve) => {
-      timer = setTimeout(() => { controller.abort(); resolve({ kind: 'retry' }) }, this.timeoutMs)
+    const aborted = new Promise<SendResult>((resolve) => {
+      controller.signal.addEventListener('abort', () => resolve({ kind: 'retry' }), { once: true })
+      timer = setTimeout(() => controller.abort(), this.timeoutMs)
     })
     const answered = Promise.resolve()
       .then(() => this.send(path, value, revision, { writer: this.writer, seq, signal: controller.signal }))
       .catch((): SendResult => ({ kind: 'retry' }))
-    return Promise.race([answered, timedOut]).finally(() => clearTimeout(timer))
+    return Promise.race([answered, aborted]).finally(() => {
+      clearTimeout(timer)
+      if (this.inFlight === controller) this.inFlight = null
+    })
   }
 
   private async run() {

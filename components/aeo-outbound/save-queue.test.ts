@@ -200,6 +200,7 @@ test('seq is 1, 2, 3 in send order, and a retry of the same item keeps its seq',
   expect(log.map((s) => [s.path, s.seq])).toEqual([['headline', 1], ['why', 2], ['why', 2], ['lead', 3]])
   expect(log[2].revision).toBe(1)
 })
+// P is first in insertion order here anyway; the edit-during-backoff test below is the one that proves retry first.
 test('after a retry on P with Q pending, the next send is P again', async () => {
   const sleep = vi.fn(async (_ms: number) => {})
   const log: Sent[] = []
@@ -290,5 +291,44 @@ test('the timer is cleared as soon as send settles, whatever the answer', async 
     expect(vi.getTimerCount()).toBe(0)
   } finally {
     vi.useRealTimers()
+  }
+})
+test('stop() during a hanging send aborts its signal, clears the timer, and ignores the late answer', async () => {
+  vi.useFakeTimers()
+  try {
+    const signals: AbortSignal[] = []
+    let late: (r: SendResult) => void = () => {}
+    const send = vi.fn((_p: string, _v: string, _r: number, m: Meta): Promise<SendResult> => {
+      signals.push(m.signal)
+      return new Promise((r) => { late = r })
+    })
+    const q = new SaveQueue(send, 5, () => {}, async () => {}, () => 'w')
+    q.markDirty('why'); q.edit('why', 'x')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(signals).toHaveLength(1)
+    expect(vi.getTimerCount()).toBe(1)
+    q.stop('This snapshot changed. Reload.')
+    expect(signals[0].aborted).toBe(true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(vi.getTimerCount()).toBe(0)
+    late({ kind: 'ok', revision: 9 }); await vi.advanceTimersByTimeAsync(SAVE_TIMEOUT_MS)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(q.state).toMatchObject({ revision: 5, stopped: true, saving: false, error: 'This snapshot changed. Reload.' })
+  } finally {
+    vi.useRealTimers()
+  }
+})
+test('without crypto.randomUUID (plain http), the writer is a version 4 UUID built from getRandomValues', () => {
+  const real = globalThis.crypto
+  vi.stubGlobal('crypto', { getRandomValues: real.getRandomValues.bind(real) })
+  try {
+    expect(typeof (globalThis.crypto as Partial<Crypto>).randomUUID).toBe('undefined')
+    const a = new SaveQueue(vi.fn(), 0, () => {}).writer
+    const b = new SaveQueue(vi.fn(), 0, () => {}).writer
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(b).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(b).not.toBe(a)
+  } finally {
+    vi.unstubAllGlobals()
   }
 })
