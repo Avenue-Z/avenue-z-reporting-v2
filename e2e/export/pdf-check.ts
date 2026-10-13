@@ -1,6 +1,9 @@
 // Reads a PDF's words with their page and position (poppler's `pdftotext -bbox-layout`), for the export
 // acceptance checks in ./acceptance.ts. Local only: needs poppler (`brew install poppler`).
 import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 export interface Word { text: string; page: number; xMin: number; yMin: number; xMax: number; yMax: number }
 export interface PdfText { pages: { width: number; height: number }[]; words: Word[] }
@@ -99,4 +102,36 @@ export function printedDifference(a: PdfText, b: PdfText): string | null {
     }
   }
   return null
+}
+
+/** The grey levels of a binary PGM's four corners: top left, top right, bottom left, bottom right. */
+export function cornerLevels(pgm: Buffer): number[] {
+  // P5 header: magic, width, height, max value, separated by whitespace; one whitespace byte, then the pixels.
+  let i = 0
+  const field = () => {
+    while (/\s/.test(String.fromCharCode(pgm[i]))) i++
+    const start = i
+    while (!/\s/.test(String.fromCharCode(pgm[i]))) i++
+    return pgm.subarray(start, i).toString('ascii')
+  }
+  const magic = field()
+  if (magic !== 'P5') throw new Error(`not a binary PGM (${magic})`)
+  const [w, h] = [Number(field()), Number(field())]
+  field() // max value
+  const data = pgm.subarray(i + 1)
+  return [data[0], data[w - 1], data[(h - 1) * w], data[h * w - 1]]
+}
+
+/** The 1-based pages of a PDF with a corner lighter than `limit` (of 255): the page isn't dark to its edges (spec
+ *  2026-10-13: a page.pdf margin prints as a white frame). Rasterised by poppler at 10 dpi, which is enough for corners. */
+export function lightCorners(file: string, limit = 40): number[] {
+  const dir = mkdtempSync(join(tmpdir(), 'export-corners-'))
+  try {
+    execFileSync('pdftoppm', ['-gray', '-r', '10', file, join(dir, 'p')])
+    return readdirSync(dir).filter((f) => f.endsWith('.pgm'))
+      .map((f) => ({ page: Number(/-(\d+)\.pgm$/.exec(f)?.[1]), levels: cornerLevels(readFileSync(join(dir, f))) }))
+      .filter((p) => Math.max(...p.levels) > limit).map((p) => p.page).sort((a, b) => a - b)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }

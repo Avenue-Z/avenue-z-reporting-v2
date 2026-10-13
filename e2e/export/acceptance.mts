@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
 import { ExportNotReadyError, renderPdf, CONTENT_WIDTH } from '../../lib/export/render-pdf'
-import { countLinks, fontsOf, outsideBox, pagesOf, printedDifference, readPdf } from './pdf-check'
+import { countLinks, fontsOf, lightCorners, outsideBox, pagesOf, printedDifference, readPdf } from './pdf-check'
 import { exportPair } from './pair'
 
 const out = mkdtempSync(join(tmpdir(), 'export-acceptance-'))
@@ -145,6 +145,10 @@ if (!process.env.AUTH_SECRET) {
     // (only Open Sans), so a character borrowed from a Mac font here prints as an empty box there (↑ ↓ ↗, emoji).
     const system = fontsOf(file).filter((f) => !/^(NunitoSans|NotoSansMath|NotoColorEmoji|NotoSansMono)/.test(f))
     check(system.length === 0, `${name}: every glyph from the page's web fonts, none from a system font (${system.join(', ') || 'none'})`)
+    // Spec 2026-10-13: the PDF prints dark like the reporting page, every page black to its edges. A light corner is the
+    // white frame a page.pdf() margin prints, or a page that lost the dark background.
+    const light = lightCorners(file)
+    check(light.length === 0, `${name}: every page dark to its edges (light: ${light.join(', ') || 'none'})`)
     console.log(`  ${name} PDF: ${file}`)
     return { res, bytes, pdf }
   }
