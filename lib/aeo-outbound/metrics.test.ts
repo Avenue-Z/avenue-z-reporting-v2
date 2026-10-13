@@ -255,11 +255,21 @@ test('a note says when the data covers fewer days than the range Ryan picked, an
   expect(texts(dflt.notes).join(' ')).not.toContain('Requested')
 })
 
-test('a higher displayed visibility whose exact gap rounds to 0.0 is not a leader gap', () => {
-  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A')]
-  const brands = [ROW('kw_own', 'Own', 0.12349), ROW('kw_a', 'A', 0.12351)]
+test('spec 18.10 row 1: a higher displayed visibility whose exact gap rounds to 0.0 is listed at 0.1, so rank and gaps agree', () => {
+  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A'), REF('kw_b', 'B')]
+  const brands = [ROW('kw_own', 'Own', 0.12349), ROW('kw_a', 'A', 0.12351), ROW('kw_b', 'B', 0.05)]
   const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
-  expect(d.own.rank).toBe(2)
+  expect(d.brands.map((b) => [b.name, b.visibilityPct])).toEqual([['A', 12.4], ['Own', 12.3], ['B', 5]])
+  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#2 of 3 brands' })
+  expect(d.leaderGaps).toEqual([{ name: 'A', visibilityPoints: 0.1, sovPoints: 0 }])
+})
+
+test('spec 18.10 row 2: a rival that also shows 12.3% is not a leader gap and the brand ranks first', () => {
+  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A'), REF('kw_b', 'B')]
+  const brands = [ROW('kw_own', 'Own', 0.1231), ROW('kw_a', 'A', 0.1234), ROW('kw_b', 'B', 0.05)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
+  expect(d.brands.filter((b) => b.name !== 'B').map((b) => [b.name, b.visibilityPct, b.rank])).toEqual([['A', 12.3, 1], ['Own', 12.3, 1]])
+  expect(d.kpis.at(-1)).toEqual({ label: 'Competitive rank', value: '#1 of 3 brands' })
   expect(d.leaderGaps).toEqual([])
 })
 
@@ -360,4 +370,32 @@ test('the kind of the remaining notes is pinned: no_competitors, high_visibility
 test('date and time in US Eastern, for the hub and the open list', () => {
   expect(fmtEasternDateTime(new Date('2026-10-02T15:00:00Z'))).toBe('Oct 2, 2026, 11:00 AM')
   expect(fmtEasternDateTime(new Date('2026-01-15T17:05:00Z'))).toBe('Jan 15, 2026, 12:05 PM')
+})
+
+test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row; a lookalike domain is not', () => {
+  const ownBrand = { ...PULL.ownBrand, domains: ['Brand.com', ''] }
+  const roster = [ownBrand, ...PULL.roster.slice(1)]
+  const row = (domain: string, classification: string | null, chats: number) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, retrieved_percentage: chats / 1000 })
+  const domains = [row('brand.com', null, 100), row('blog.brand.com', 'EDITORIAL', 40), row('other.com', 'OWN', 7), row('notbrand.com', 'EDITORIAL', 900)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
+  expect(d.ownSites).toEqual([
+    { domain: 'brand.com', retrievedChats: 100, retrievedPct: 10 },
+    { domain: 'blog.brand.com', retrievedChats: 40, retrievedPct: 4 },
+    { domain: 'other.com', retrievedChats: 7, retrievedPct: 0.7 },
+  ])
+  expect(d.ownRetrievedChats).toBe(147)
+  expect(d.ownRetrievedPct).toBeNull()
+  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 3 own domains with retrievals; each is listed with its own count and percentage.' })
+  expect(texts(d.notes).join(' ')).not.toContain("No retrievals of the brand's own site")
+  expect(d.ownDomains).toEqual(['brand.com', ''])
+})
+
+test('an empty own domain matches nothing, so a brand with only that has no own rows', () => {
+  const ownBrand = { ...PULL.ownBrand, domains: [''] }
+  const roster = [ownBrand, ...PULL.roster.slice(1)]
+  const domains = [{ domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 9, retrieval_count: 1 }]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
+  expect(d.ownRetrievedChats).toBe(0)
+  expect(d.ownSites).toEqual([])
+  expect(texts(d.notes)).toContain("No retrievals of the brand's own site in this window.")
 })

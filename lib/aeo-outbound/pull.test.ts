@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { PeecClient, PeecError } from './peec'
+import { isPeecDeadline, PeecClient, PeecError } from './peec'
 import { listProjects, pullSnapshot } from './pull'
 
 // The client logs each retry; keep the file quiet.
@@ -49,6 +49,10 @@ const base: Record<string, Route> = {
   '/prompts': () => ({ data: [{ id: 'p1' }], total_count: 100 }),
 }
 const NOW = Date.parse('2026-10-08T12:00:00Z')
+// 30s left on every call, so each per-call timer is capped by the deadline (spec 18.10 row 5).
+const CAPPED = { now: () => 0, deadline: 30_000 }
+// 150s left on every call, so a per-call timer fires at 45s with budget to spare (spec 18.10 row 4).
+const ROOMY = { now: () => 0, deadline: 150_000 }
 
 test('lists only pitch projects, sorted by name', async () => {
   const { client } = fakePeec(base)
@@ -124,29 +128,29 @@ test('a failing prompt count is non-fatal: null and a warning', async () => {
   expect(pull.warnings).toContain("Peec's prompt count could not be loaded, so the methodology leaves it out.")
 })
 
-test('a deadline or timeout in an optional call propagates instead of becoming a warning', async () => {
+test('a deadline, or a timer the deadline capped, in an optional call propagates instead of becoming a warning', async () => {
   const now = () => (seen.some((s) => s.path === '/actions/list') ? 100 : 0)
   const { client, seen } = fakePeec(base, { deadline: 50, now })
   await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow(/\/prompts: deadline reached$/)
-  const t = fakePeec({ ...base, '/actions/list': () => { throw { abort: true } } })
-  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/actions\/list: timed out after \d+ms$/)
-  const p = fakePeec({ ...base, '/prompts': () => { throw { abort: true } } })
-  await expect(pullSnapshot(p.client, 'or_a', NOW)).rejects.toThrow(/\/prompts: timed out after \d+ms$/)
+  const t = fakePeec({ ...base, '/actions/list': () => { throw { abort: true } } }, CAPPED)
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/actions\/list: timed out after 30000ms$/)
+  const p = fakePeec({ ...base, '/prompts': () => { throw { abort: true } } }, CAPPED)
+  await expect(pullSnapshot(p.client, 'or_a', NOW)).rejects.toThrow(/\/prompts: timed out after 30000ms$/)
 })
 
-test('a deadline or timeout on the model names propagates; any other failure gives the ids and a warning', async () => {
+test('a deadline, or a timer the deadline capped, on the model names propagates; any other failure gives the ids and a warning', async () => {
   const now = () => (seen.filter((s) => (s.body?.dimensions as string[] | undefined)?.includes('model_channel_id')).length >= 2 ? 100 : 0)
   const { client, seen } = fakePeec(base, { deadline: 50, now })
   await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow(/\/model-channels: deadline reached$/)
-  const t = fakePeec({ ...base, '/model-channels': () => { throw { abort: true } } })
-  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/model-channels: timed out after \d+ms$/)
+  const t = fakePeec({ ...base, '/model-channels': () => { throw { abort: true } } }, CAPPED)
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/model-channels: timed out after 30000ms$/)
   const f = fakePeec({ ...base, '/model-channels': () => { throw { status: 500 } } })
   const pull = await pullSnapshot(f.client, 'or_a', NOW)
   expect(pull.models).toEqual(['openai-0'])
   expect(pull.warnings).toContain("Peec's model names could not be loaded, so models are shown by id.")
 })
 
-test('a failing by-model breakdown is non-fatal: no models and a warning; a timeout there propagates', async () => {
+test('a failing by-model breakdown is non-fatal: no models and a warning; a timer the deadline capped there propagates', async () => {
   const dimBrands = base['/reports/brands']
   const fail: Route = (u, b) => { if (b?.dimensions) throw { status: 500 }; return dimBrands(u, b) }
   const { client } = fakePeec({ ...base, '/reports/brands': fail })
@@ -154,8 +158,8 @@ test('a failing by-model breakdown is non-fatal: no models and a warning; a time
   expect(pull.models).toEqual([])
   expect(pull.warnings).toContain("Peec's model breakdown could not be loaded, so the models covered are not listed.")
   const abort: Route = (u, b) => { if (b?.dimensions) throw { abort: true }; return dimBrands(u, b) }
-  const t = fakePeec({ ...base, '/reports/brands': abort })
-  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/reports\/brands: timed out after \d+ms$/)
+  const t = fakePeec({ ...base, '/reports/brands': abort }, CAPPED)
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/reports\/brands: timed out after 30000ms$/)
   const dup: Route = (u, b) => (b?.dimensions ? [{ brand: { id: 'kw_own' }, visibility_total: 1 }, { brand: { id: 'kw_own' }, visibility_total: 2 }] : dimBrands(u, b))
   const d = fakePeec({ ...base, '/reports/brands': dup })
   expect((await pullSnapshot(d.client, 'or_a', NOW)).models).toEqual([])
@@ -246,3 +250,35 @@ test('/actions/list stops at 5 pages, and on a short page', async () => {
   await pullSnapshot(short.client, 'or_a', NOW)
   expect(short.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50])
 })
+
+// Spec 18.3: each optional call, timing out after 45s with budget left, gives its warning and the pull completes;
+// the same timeout with the timer capped by the deadline is rethrown as a deadline.
+const dimBrandsRoute = base['/reports/brands']
+const OPTIONAL: { name: string; routes: Record<string, Route>; path: string; warning: string }[] = [
+  {
+    name: 'model breakdown',
+    routes: { '/reports/brands': (u, b) => { if (b?.dimensions) throw { abort: true }; return dimBrandsRoute(u, b) } },
+    path: '/reports/brands',
+    warning: "Peec's model breakdown could not be loaded, so the models covered are not listed.",
+  },
+  { name: '/model-channels', routes: { '/model-channels': () => { throw { abort: true } } }, path: '/model-channels', warning: "Peec's model names could not be loaded, so models are shown by id." },
+  { name: '/actions/list', routes: { '/actions/list': () => { throw { abort: true } } }, path: '/actions/list', warning: 'Peec actions could not be loaded, so opportunities come from the data only.' },
+  { name: '/prompts', routes: { '/prompts': () => { throw { abort: true } } }, path: '/prompts', warning: "Peec's prompt count could not be loaded, so the methodology leaves it out." },
+]
+
+for (const c of OPTIONAL) {
+  test(`${c.name}: a per-call timeout with budget left becomes its warning and the pull completes`, async () => {
+    const { client, seen } = fakePeec({ ...base, ...c.routes }, ROOMY)
+    const pull = await pullSnapshot(client, 'or_a', NOW)
+    expect(pull.warnings).toEqual([c.warning])
+    expect(pull.domains.length).toBe(1)
+    expect(seen.some((s) => s.path === '/prompts')).toBe(true)
+  })
+
+  test(`${c.name}: a timeout whose timer the deadline capped is rethrown as a deadline`, async () => {
+    const { client } = fakePeec({ ...base, ...c.routes }, CAPPED)
+    const err = await pullSnapshot(client, 'or_a', NOW).catch((e: unknown) => e)
+    expect((err as Error).message).toBe(`[PEEC API] ${c.path}: timed out after 30000ms`)
+    expect(isPeecDeadline(err)).toBe(true)
+  })
+}

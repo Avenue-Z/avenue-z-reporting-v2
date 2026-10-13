@@ -3,7 +3,7 @@
 // words (v1.1 §7). Every Peec response is checked against its contract before it is used (v1.1 §10).
 import { DECISIONS, MAX_WINDOW_DAYS, PITCH_STATUSES } from './config'
 import { peecContract } from './contracts'
-import { isPeecContractViolation, isPeecRowCap, isPeecTimeout, PeecClient, PeecError, rowsOf } from './peec'
+import { isPeecContractViolation, isPeecDeadline, isPeecRowCap, PeecClient, PeecError, rowsOf } from './peec'
 import { defaultRange, type DayRange } from './range'
 
 export interface PeecProject { id: string; name: string; status: string }
@@ -47,8 +47,9 @@ export interface PeecPull {
 const ACTION_PAGE = 50
 const ACTION_PAGES = 5
 const ACTIONS_WANTED = 10
-/** An optional call's failure becomes a warning, except an exhausted budget or a broken contract. */
-const mustRethrow = (e: unknown): boolean => isPeecTimeout(e) || isPeecContractViolation(e)
+/** An optional call's failure becomes a warning, except a spent deadline or a broken contract. A per-call timeout
+ *  with budget left is a warning too (spec 18.3). */
+const mustRethrow = (e: unknown): boolean => isPeecDeadline(e) || isPeecContractViolation(e)
 
 export const isUsableProject = (p: PeecProject): boolean => !DECISIONS.pitchOnly || PITCH_STATUSES.includes(p.status)
 
@@ -101,7 +102,8 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   const brands = peecContract('peec.brands_report', await client.all<BrandReportRow>('POST', '/reports/brands', W, (r) => r.brand.id, 10_000))
   if (!brands.some((r) => r.brand.id === owned[0].id)) throw new PeecError('The own brand has no row in the Peec brands report for this window', false, false, 'own_brand_no_row')
   const warnings: string[] = []
-  // Both calls below only supply model names, so a failure other than an exhausted budget or a broken contract is a warning.
+  // Both calls below only supply model names, so any failure but a spent deadline or a broken contract is a
+  // warning, a per-call timeout included (spec 18.3).
   let byModel: { brand: { id: string }; model_channel?: { id?: string } | null; visibility_total?: number | null }[] = []
   try {
     byModel = peecContract('peec.brands_by_model', await client.all<{ brand: { id: string }; model_channel?: { id?: string } | null; visibility_total?: number | null }>(

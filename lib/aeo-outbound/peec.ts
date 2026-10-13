@@ -26,11 +26,23 @@ export class PeecError extends Error {
   }
 }
 
-/** Optional calls rethrow these instead of turning them into a warning. */
+/** The overall deadline is spent: reached before a call started, or it capped the timer that fired
+ *  (spec 18.3). A subclass rather than a constructor flag, so PeecError's arguments keep their positions. */
+export class PeecDeadlineError extends PeecError {
+  constructor(message: string) {
+    super(message, true)
+    this.name = 'PeecError'
+  }
+}
+
+/** Any timeout: the deadline or a per-call timer. A required call reports either as a timeout. */
 export const isPeecTimeout = (e: unknown): boolean => e instanceof PeecError && e.timeout
 export const isPeecRowCap = (e: unknown): boolean => e instanceof PeecError && e.rowCap
 /** A Peec field broke its enforced contract (lib/aeo-outbound/contracts.ts). Never downgraded to a warning. */
 export const isPeecContractViolation = (e: unknown): boolean => e instanceof PeecError && e.code === 'contract_violation'
+
+/** Only a spent deadline. Optional calls rethrow this and turn a per-call timeout into a warning. */
+export const isPeecDeadline = (e: unknown): boolean => e instanceof PeecDeadlineError
 
 export interface PeecClientOptions {
   fetch?: typeof globalThis.fetch
@@ -84,10 +96,15 @@ export class PeecClient {
     let rateAttempts = 0 // 429 attempts, counted apart from the transient retry
     for (;;) {
       const left = this.deadline - this.now()
-      if (left <= 0) throw new PeecError(`[PEEC API] ${path}: deadline reached`, true)
+      if (left <= 0) throw new PeecDeadlineError(`[PEEC API] ${path}: deadline reached`)
       const timeoutMs = Math.min(CALL_TIMEOUT_MS, left)
+      // When the deadline caps this attempt's timer, the timer firing means the budget is spent.
+      const capped = left <= CALL_TIMEOUT_MS
       const controller = new AbortController()
-      const timeoutErr = () => new PeecError(`[PEEC API] ${path}: timed out after ${timeoutMs}ms`, true)
+      const timeoutErr = () => {
+        const message = `[PEEC API] ${path}: timed out after ${timeoutMs}ms`
+        return capped ? new PeecDeadlineError(message) : new PeecError(message, true)
+      }
       // Rejects when the timeout fires. Racing every await against it means a stalled body fails
       // even if the fetch implementation ignores the signal.
       const aborted = new Promise<never>((_, reject) => {

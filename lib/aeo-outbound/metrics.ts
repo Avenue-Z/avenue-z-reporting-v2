@@ -164,23 +164,30 @@ export function buildSnapshotData(
     note('requested_range', `Requested ${pull.requested.start} to ${pull.requested.end}; Peec data covers ${pull.window.start} to ${pull.window.end}.`)
   }
 
-  // Spec 5a row 17: competitor minus own from the exact ratios, rounded once at the end. Only brands with a
-  // higher displayed visibility and an exact gap above 0 are listed, so a tied brand is never a leader.
+  // Spec 5a row 17: competitor minus own from the exact ratios, rounded once at the end. Every brand with a
+  // higher displayed visibility is listed, at least 0.1 points, so the gaps always agree with the rank card;
+  // a tied brand is never a leader (spec 18.1).
   const ownEntry = byId.get(own.id)!
   const leaderGaps = ranked
     .filter((e) => e.hasRow && e.pct > own.visibilityPct)
     .map((rival) => ({
       name: rival.name,
-      visibilityPoints: pyRound((rival.visibility - ownEntry.visibility) * 100, 1),
+      visibilityPoints: Math.max(0.1, pyRound((rival.visibility - ownEntry.visibility) * 100, 1)),
       sovPoints: typeof rival.share_of_voice === 'number' && typeof ownEntry.share_of_voice === 'number'
         ? pyRound((rival.share_of_voice - ownEntry.share_of_voice) * 100, 1)
         : null,
     }))
-    .filter((g) => g.visibilityPoints > 0)
 
   // v1.1 §9: each own domain keeps its own count and percentage; the sum is never paired with one domain's percentage.
   const ownDomains = (pull.ownBrand.domains ?? []).map(bare)
-  const ownRows = pull.domains.filter((r) => ownDomains.includes(bare(r.domain)))
+  // A row is own when Peec classifies it OWN, or its domain is an own domain or a subdomain of one, the same
+  // match the gap filter uses below (spec 18.2). An empty entry is skipped so it can never match by suffix.
+  const ownMatch = ownDomains.filter(Boolean)
+  const ownRows = pull.domains.filter((r) => {
+    if (r.classification === 'OWN') return true
+    const d = bare(r.domain)
+    return ownMatch.some((od) => d === od || d.endsWith(`.${od}`))
+  })
   const ownSites: OwnSite[] = ownRows
     .map((r) => ({ domain: r.domain, retrievedChats: r.retrieved_chat_count ?? 0, retrievedPct: typeof r.retrieved_percentage === 'number' ? pct1(r.retrieved_percentage) : null }))
     .sort((a, b) => (b.retrievedChats - a.retrievedChats) || (a.domain < b.domain ? -1 : 1))
