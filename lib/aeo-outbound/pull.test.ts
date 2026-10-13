@@ -51,8 +51,8 @@ const base: Record<string, Route> = {
 const NOW = Date.parse('2026-10-08T12:00:00Z')
 // 30s left on every call, so each per-call timer is capped by the deadline (spec 18.10 row 5).
 const CAPPED = { now: () => 0, deadline: 30_000 }
-// 195s left on every call, so a per-call timer fires at 45s with budget to spare (spec 18.10 row 4).
-const ROOMY = { now: () => 0, deadline: 195_000 }
+// 150s left on every call, so a per-call timer fires at 45s with budget to spare (spec 18.10 row 4).
+const ROOMY = { now: () => 0, deadline: 150_000 }
 
 test('lists only pitch projects, sorted by name', async () => {
   const { client } = fakePeec(base)

@@ -344,3 +344,25 @@ test('isPeecDeadline is false for an HTTP error, a plain PeecError and a non-Pee
   expect(isPeecDeadline(new PeecError('x', true))).toBe(false)
   expect(isPeecDeadline(new Error('deadline reached'))).toBe(false)
 })
+
+test('capped is decided per attempt: a roomy first attempt gets a 429, the retry starts 30s before the deadline and its timer is a deadline', async () => {
+  vi.useFakeTimers()
+  try {
+    let t = 0
+    const sleep = vi.fn(async (_ms: number) => { t = 170_000 })
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json({}, 429, { 'X-RateLimit-Reset': '1' }))
+      .mockImplementationOnce(hangUntilAbort)
+    const c = new PeecClient(KEY, { fetch: fetch as unknown as typeof globalThis.fetch, sleep, now: () => t, deadline: 200_000 })
+    const p = c.call('GET', '/prompts').catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(30_000)
+    const err = await p
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(sleep.mock.calls.map((x) => x[0])).toEqual([1000])
+    expect(err).toBeInstanceOf(PeecDeadlineError)
+    expect((err as Error).message).toBe('[PEEC API] /prompts: timed out after 30000ms')
+    expect(isPeecDeadline(err)).toBe(true)
+  } finally {
+    vi.useRealTimers()
+  }
+})
