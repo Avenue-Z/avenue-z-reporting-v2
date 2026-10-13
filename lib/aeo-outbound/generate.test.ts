@@ -297,3 +297,37 @@ test('A1: a fixed next step with a number in it is a note, not a reason to retry
   expect(glean).toHaveBeenCalledTimes(baseline.mock.calls.length)
   expect(r.ok && r.notes.some((n) => typeof n !== 'string' && n.kind === 'number_not_in_data' && n.path === 'next_step' && /"30"/.test(n.text))).toBe(true)
 })
+
+// Spec v1.1 §18.7: a worse second Glean attempt never replaces a better first one; a tie takes the second.
+const GROUNDED = { ...JSON.parse(GOOD), summary: 'Example Co has solid visibility.', context: 'Rival leads.', sources_bullets: [{ lead: 'Gap:', text: 'Trails Rival.' }, { lead: 'Mix:', text: 'You leads the mix.' }] }
+const numberFlags = (r: Awaited<ReturnType<typeof generateSnapshot>>) =>
+  r.ok ? r.notes.filter((n) => typeof n !== 'string' && n.kind === 'number_not_in_data') : []
+
+test('§18.7: attempt 1 with one fixable flag beats attempt 2 with four: attempt 1 copy and its one flag are saved', async () => {
+  const first = { ...GROUNDED, why: 'Visibility rose 42.0% last year.' }
+  const second = { ...GROUNDED, why: 'Visibility rose 37.0% last year.', summary: 'Example Co has 61.0% reach.', context: 'Rival leads at 88.0%.', headline: 'Up 19.0% this year' }
+  const glean = vi.fn().mockResolvedValueOnce(reply(JSON.stringify(first))).mockResolvedValueOnce(reply(JSON.stringify(second)))
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(glean).toHaveBeenCalledTimes(2)
+  expect(r.ok && r.slots.why).toBe('Visibility rose 42.0% last year.')
+  expect(r.ok && r.slots.summary).toBe('Example Co has solid visibility.')
+  const flags = numberFlags(r)
+  expect(flags).toHaveLength(1)
+  expect(flags[0]).toMatchObject({ path: 'why' })
+  expect(JSON.stringify(flags[0])).toContain('42.0%')
+  // The same second reply, kept on its own (attempt 1 unreadable), carries four flags.
+  const alone = vi.fn().mockResolvedValueOnce(reply('not json')).mockResolvedValueOnce(reply(JSON.stringify(second)))
+  expect(numberFlags(await generateSnapshot('or_a', deps(alone)))).toHaveLength(4)
+})
+
+test('§18.7: a tie in flag count keeps attempt 2', async () => {
+  const first = { ...GROUNDED, why: 'Visibility rose 42.0% last year.' }
+  const second = { ...GROUNDED, why: 'Visibility rose 37.0% last year.' }
+  const glean = vi.fn().mockResolvedValueOnce(reply(JSON.stringify(first))).mockResolvedValueOnce(reply(JSON.stringify(second)))
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(glean).toHaveBeenCalledTimes(2)
+  expect(r.ok && r.slots.why).toBe('Visibility rose 37.0% last year.')
+  const flags = numberFlags(r)
+  expect(flags).toHaveLength(1)
+  expect(JSON.stringify(flags[0])).toContain('37.0%')
+})

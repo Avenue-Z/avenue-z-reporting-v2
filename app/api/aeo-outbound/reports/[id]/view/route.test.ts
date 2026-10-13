@@ -229,3 +229,24 @@ test('B3 follow-up: an approved row marked unreadable still serves its frozen HT
   m.getReport.mockResolvedValue(row({ unreadable: true }))
   expect((await get()).status).toBe(404)
 })
+
+test("§18.6: a draft and its preview carry today's Eastern day as the Prepared date, not the generation day; approved is unchanged", async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    // The draft was generated Oct 8 (15:00 UTC). 02:00 UTC on Oct 10 is Oct 9 in New York, a day after the generation day,
+    // and a UTC date would say Oct 10.
+    vi.setSystemTime(new Date('2026-10-10T02:00:00Z'))
+    const draft = await (await get()).text()
+    expect(draft).toBe(renderSnapshotHtml(DATA, SLOTS, 'draft', 'Oct 9, 2026'))
+    expect(draft).not.toBe(renderSnapshotHtml(DATA, SLOTS, 'draft', 'Oct 8, 2026'))
+    expect(draft).not.toBe(renderSnapshotHtml(DATA, SLOTS, 'draft', 'Oct 10, 2026'))
+    const preview = await (await get(ID, '?mode=preview')).text()
+    expect(preview).toBe(renderSnapshotHtml(DATA, SLOTS, 'preview', 'Oct 9, 2026'))
+    const html = '<!DOCTYPE html><p>frozen, Prepared Oct 9, 2026</p>'
+    m.getReport.mockResolvedValue(row({ status: 'approved', html, approvedAt: new Date('2026-10-09T14:00:00Z') }))
+    expect(await (await get()).text()).toBe(html)
+    expect(await (await get(ID, '?mode=preview')).text()).toBe(html)
+  } finally {
+    vi.useRealTimers()
+  }
+})

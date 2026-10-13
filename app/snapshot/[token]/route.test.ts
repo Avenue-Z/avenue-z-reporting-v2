@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 vi.mock('@/lib/aeo-outbound/store', () => ({ getLiveByToken: vi.fn(), recordOpen: vi.fn() }))
+// `after` (spec v1.1 §18.5) is captured, not run: a test runs the scheduled work itself, after the Response exists.
+const scheduled: Array<() => unknown> = []
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (cb: () => unknown) => { scheduled.push(cb) },
+}))
 
 import { auth } from '@/auth'
 import * as store from '@/lib/aeo-outbound/store'
@@ -25,6 +31,7 @@ let warn: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   vi.resetAllMocks()
+  scheduled.length = 0
   vi.useFakeTimers()
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.mocked(store.getLiveByToken).mockResolvedValue({ id: ID, html: HTML, approvedAt: APPROVED })
@@ -32,7 +39,14 @@ beforeEach(() => {
 })
 afterEach(() => { vi.useRealTimers(); warn.mockRestore() })
 
-const settle = async (p: Promise<Response>, ms = 0) => { const done = p; await vi.advanceTimersByTimeAsync(ms); return done }
+/** The Response, then the work `after` scheduled, run to the end (advancing fake time by `ms` while it runs). */
+const settle = async (p: Promise<Response>, ms = 0) => {
+  const r = await p
+  const work = Promise.all(scheduled.splice(0).map((cb) => cb()))
+  await vi.advanceTimersByTimeAsync(ms)
+  await work
+  return r
+}
 
 test('unknown, malformed, revoked and discarded tokens get the identical 404', async () => {
   const bodies: string[] = []
@@ -124,19 +138,54 @@ test('a client-portal session IS counted', async () => {
   expect(store.recordOpen).toHaveBeenCalledTimes(1)
 })
 
-test('a session read that resolves after the cap is not counted: one timeout line, same bytes', async () => {
-  authMock.mockImplementation(() => new Promise((res) => setTimeout(() => res({ user: { role: 'CLIENT_VIEWER', email: 'someone@client.example' } }), 2000)))
-  const p = GET(req({ cookie: SESSION_COOKIE }), ctx())
-  await vi.advanceTimersByTimeAsync(2100)
-  const r = await p
+test('§18.5: the Response is returned before the open work runs, and running it records the open', async () => {
+  authMock.mockResolvedValue({ user: { role: 'CLIENT_VIEWER', email: 'someone@client.example' } })
+  const r = await GET(req({ cookie: SESSION_COOKIE }), ctx())
   expect(await r.text()).toBe(HTML)
+  expect(scheduled).toHaveLength(1)
+  expect(authMock).not.toHaveBeenCalled()
   expect(store.recordOpen).not.toHaveBeenCalled()
-  expect(logged(warn)).toEqual([`[aeo-outbound] open not recorded id=${ID} reason=timeout`])
+  expect(vi.getTimerCount()).toBe(0)
+  await scheduled[0]()
+  expect(authMock).toHaveBeenCalledTimes(1)
+  expect(store.recordOpen).toHaveBeenCalledWith(ID, expect.any(Date), { uaFamily: 'Other', linkFresh: false })
+  expect(warn).not.toHaveBeenCalled()
 })
 
-async function failure(arrange: () => void, cookie?: string) {
+test('§18.5: a 404 and a HEAD schedule no open work', async () => {
+  await HEAD(req({ method: 'HEAD' }), ctx())
+  vi.mocked(store.getLiveByToken).mockResolvedValue(undefined)
+  await GET(req(), ctx())
+  expect(scheduled).toHaveLength(0)
+})
+
+test('§18.5: a session read that resolves after 2s is still counted, with no line (the 1.5s budget is gone)', async () => {
+  authMock.mockImplementation(() => new Promise((res) => setTimeout(() => res({ user: { role: 'CLIENT_VIEWER', email: 'someone@client.example' } }), 2000)))
+  const r = await settle(GET(req({ cookie: SESSION_COOKIE }), ctx()), 2100)
+  expect(await r.text()).toBe(HTML)
+  expect(store.recordOpen).toHaveBeenCalledTimes(1)
+  expect(warn).not.toHaveBeenCalled()
+})
+
+test('§18.5: a write that takes 12s logs one open slow line at 10s and still records', async () => {
+  vi.mocked(store.recordOpen).mockImplementation(() => new Promise((res) => setTimeout(() => res(undefined as never), 12_000)) as never)
+  const r = await GET(req(), ctx())
+  expect(await r.text()).toBe(HTML)
+  const work = scheduled[0]()
+  await vi.advanceTimersByTimeAsync(9_999)
+  expect(warn).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(logged(warn)).toEqual([`[aeo-outbound] open slow id=${ID}`])
+  await vi.advanceTimersByTimeAsync(2_000)
+  await work
+  expect(store.recordOpen).toHaveBeenCalledTimes(1)
+  expect(logged(warn)).toEqual([`[aeo-outbound] open slow id=${ID}`])
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+async function failure(arrange: () => void, cookie?: string, ms = 0) {
   arrange()
-  const r = await settle(GET(req({ cookie }), ctx()), 1600)
+  const r = await settle(GET(req({ cookie }), ctx()), ms)
   expect(r.status).toBe(200)
   expect(await r.text()).toBe(HTML)
   expect(r.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox')
@@ -147,17 +196,39 @@ const never = () => new Promise<never>(() => {})
 test.each([
   ['session', () => authMock.mockRejectedValue(new Error('boom')), SESSION_COOKIE],
   ['error', () => vi.mocked(store.recordOpen).mockRejectedValue(new Error('boom with ' + TOKEN)), undefined],
-  ['timeout', () => authMock.mockImplementation(never), SESSION_COOKIE],
-  ['timeout', () => vi.mocked(store.recordOpen).mockImplementation(never as never), undefined],
 ])('not counted, one log line with reason=%s, same bytes', async (reason, arrange, cookie) => {
   const lines = await failure(arrange, cookie)
   expect(lines).toEqual([`[aeo-outbound] open not recorded id=${ID} reason=${reason}`])
   expect(lines[0]).not.toContain(TOKEN)
 })
 
-test('the timer is cleared when the race settles', async () => {
+test.each([
+  ['session read', () => authMock.mockImplementation(never), SESSION_COOKIE],
+  ['write', () => vi.mocked(store.recordOpen).mockImplementation(never as never), undefined],
+])('§18.5: a %s that never settles logs one open slow line and no timeout line, same bytes', async (_what, arrange, cookie) => {
+  arrange()
+  const r = await GET(req({ cookie }), ctx())
+  expect(await r.text()).toBe(HTML)
+  void scheduled[0]()
+  await vi.advanceTimersByTimeAsync(60_000)
+  const lines = logged(warn)
+  expect(lines).toEqual([`[aeo-outbound] open slow id=${ID}`])
+  expect(lines[0]).not.toContain(TOKEN)
+  expect(lines.join(' ')).not.toContain('reason=timeout')
+})
+
+test('the slow timer is cleared when the open work settles', async () => {
   await settle(GET(req(), ctx()))
+  expect(store.recordOpen).toHaveBeenCalledTimes(1)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+test('§18.5: the open work resolves and never rejects when the write throws synchronously', async () => {
+  const r = await GET(new Request('https://app.example/snapshot/' + TOKEN, { headers: { 'user-agent': 'x' } }), ctx())
+  expect(r.status).toBe(200)
+  vi.mocked(store.recordOpen).mockImplementation(() => { throw new Error('sync boom') })
+  await expect(Promise.resolve(scheduled[0]())).resolves.toBeUndefined()
+  expect(logged(warn)).toEqual([`[aeo-outbound] open not recorded id=${ID} reason=error`])
 })
 
 test('a slugged segment resolves by its token for GET and HEAD; a bad slug shape is the same 404 (spec v1.1 §16.2)', async () => {

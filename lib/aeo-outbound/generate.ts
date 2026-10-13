@@ -50,7 +50,8 @@ export async function generateSnapshot(
     const block = dataBlock(data)
     let problems: string[] = []
     let lastSearched = false
-    /** A shape-valid reply whose only problem was grounding: kept so a worse second attempt can't lose it. */
+    /** A shape-valid reply whose only problem was grounding. A second attempt replaces it only with no more flags (a tie
+     *  takes the second), and a second attempt that fails shape, is searched or aborts never does (spec v1.1 §18.7). */
     let groundedFallback: { slots: FullSlots; flags: Note[] } | null = null
     reach(WRITING_STEP)
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -88,7 +89,7 @@ export async function generateSnapshot(
       const full: FullSlots = { ...withDefaults(checked.slots, data), page: pageDefaults(settings) }
       const flags = groundingFlags(full, data, block)
       if (!flags.length) return { ok: true, brandName, data, slots: full, notes: data.notes }
-      groundedFallback = { slots: full, flags }
+      if (!groundedFallback || flags.length <= groundedFallback.flags.length) groundedFallback = { slots: full, flags }
       // Only flags on words Glean writes are worth a retry: page words, KPIs, brand, window label and market are code- or settings-set,
       // and so is next_step while a fixed sentence is set (every flag is still stored as a note).
       const codeSet = ['brand', 'window_label', 'market', ...(settings.fixedNextStep !== null ? ['next_step'] : [])]

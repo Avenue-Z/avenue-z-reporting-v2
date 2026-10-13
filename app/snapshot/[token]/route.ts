@@ -1,6 +1,7 @@
 // The public, no-login link (spec §8). Outside the proxy matcher (proxy.ts:24-26). The token is the credential;
-// unknown, revoked and discarded tokens get the same response. A live GET may record an open, inside one 1.5s budget,
-// and never logs the token or the recipient.
+// unknown, revoked and discarded tokens get the same response. A live GET responds at once and counts the open after
+// the response is sent (`after`, spec v1.1 §18.5), so counting never delays the page. Never logs the token or the recipient.
+import { after } from 'next/server'
 import { auth } from '@/auth'
 import { isStaff } from '@/lib/auth/route-access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
@@ -12,12 +13,13 @@ import { tokenFromSegment } from '@/lib/aeo-outbound/share-link'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const OPEN_BUDGET_MS = 1500
+/** How long the open work may run before one `open slow` line says so. It keeps waiting after that (spec v1.1 §18.5). */
+const OPEN_SLOW_MS = 10_000
 const BASE = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' }
 const GONE = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="robots" content="noindex,nofollow"><title>Not available</title></head><body style="background:#000;color:#A6A6A6;font-family:sans-serif;padding:48px">This link is not available.</body></html>'
 
 type Ctx = { params: Promise<{ token: string }> }
-type Reason = 'session' | 'error' | 'timeout'
+type Reason = 'session' | 'error'
 
 function respond(html: string | undefined, withBody: boolean): Response {
   if (!html) return new Response(withBody ? GONE : null, { status: 404, headers: { ...BASE, 'Content-Type': 'text/html; charset=utf-8' } })
@@ -36,32 +38,34 @@ async function live(segment: string) {
   }
 }
 
-/** Counts the open when the viewer is a recipient, as the counter and one event in one statement (v1.1 §6). The session
- *  read and the write share one budget. Never throws. */
+/** Counts the open when the viewer is a recipient, as the counter and one event in one statement (v1.1 §6). Runs after the
+ *  response (spec v1.1 §18.5): the session read and the write are awaited with no race, so a slow write is never cut off,
+ *  and past OPEN_SLOW_MS one `open slow` line makes a hang visible. Never throws. */
 async function countOpen(req: Request, found: { id: string; approvedAt: Date | null }): Promise<void> {
   let reason: Reason | null = null
-  let expired = false
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const work = (async () => {
+  const timer = setTimeout(() => console.warn(`[aeo-outbound] open slow id=${found.id}`), OPEN_SLOW_MS)
+  try {
     let staff = false
     if (hasSessionCookie(req.headers)) {
       try { staff = isStaff((await auth())?.user ?? {}) } catch { reason = 'session'; return }
     }
-    if (expired || !shouldCountOpen(req, staff)) return
+    if (!shouldCountOpen(req, staff)) return
     const now = new Date()
     const linkFresh = found.approvedAt ? now.getTime() - found.approvedAt.getTime() < LINK_FRESH_MS : false
-    try { await recordOpen(found.id, now, { uaFamily: uaFamily(req.headers.get('user-agent')), linkFresh }) } catch { reason = 'error' }
-  })()
-  const budget = new Promise<void>((resolve) => { timer = setTimeout(() => { expired = true; reason ??= 'timeout'; resolve() }, OPEN_BUDGET_MS) })
-  try { await Promise.race([work, budget]) } finally { clearTimeout(timer) }
-  if (reason) console.warn(`[aeo-outbound] open not recorded id=${found.id} reason=${reason}`)
+    await recordOpen(found.id, now, { uaFamily: uaFamily(req.headers.get('user-agent')), linkFresh })
+  } catch {
+    reason = 'error'
+  } finally {
+    clearTimeout(timer)
+    if (reason) console.warn(`[aeo-outbound] open not recorded id=${found.id} reason=${reason}`)
+  }
 }
 
 export async function GET(req: Request, ctx: Ctx) {
   const { token } = await ctx.params
   const found = await live(token)
   if (!found) return respond(undefined, true)
-  await countOpen(req, found)
+  after(() => countOpen(req, found))
   return respond(found.html, true)
 }
 

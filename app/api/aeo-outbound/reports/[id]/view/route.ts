@@ -53,5 +53,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return new Response(preview ? withoutShare(row.html, id) : row.html, { headers: HEADERS })
   }
   if (row.status !== 'draft' || !row.data || !row.slots) return notFound()
-  return new Response(renderSnapshotHtml(row.data, row.slots, preview ? 'preview' : 'draft', fmtEasternDay(new Date(row.data.generatedAt))), { headers: HEADERS })
+  // Today's Eastern day, the date approving now would freeze (app/actions/aeo-outbound.ts), so the editor and its
+  // preview show the Prepared date the prospect will see (spec v1.1 §18.6).
+  return new Response(renderSnapshotHtml(row.data, row.slots, preview ? 'preview' : 'draft', fmtEasternDay(new Date())), { headers: HEADERS })
 }
