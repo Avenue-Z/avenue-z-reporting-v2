@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { isLateLock, lockOn, parseLockDay, priorParams, requestKey, requestPeriodEnd, settledThrough } from './lock-day'
+import { isLateLock, lockedFrom, lockOn, parseLockDay, priorParams, requestKey, requestPeriodEnd, settledThrough } from './lock-day'
 import { opensOn } from './reporting-months'
 
 const CFG = { firstMonth: '2026-08' }
@@ -74,4 +74,26 @@ test("a late lock: captured after its month's lock day (the sweep captures on th
   expect(isLateLock('2026-09-30', CFG, '2026-10-05')).toBe(false)
   expect(isLateLock('2026-09-30', CFG, '2026-10-06')).toBe(true)
   expect(isLateLock('2026-08-31', CFG, '2026-10-05')).toBe(true)
+})
+
+test('the first lockable day is the 1st of firstMonth; nothing when the config is malformed', () => {
+  expect(lockedFrom({ firstMonth: '2026-07' })).toBe('2026-07-01')
+  expect(lockedFrom({ firstMonth: '2026-07', clientMonths: 1 })).toBe('2026-07-01')
+  for (const bad of [null, {}, { firstMonth: '2026-13' }, { firstMonth: 202607 }]) expect(lockedFrom(bad)).toBeNull()
+})
+
+test('settledThrough is always last month or the month before last, for every lock day, opening day, weekend rule and day of a year', () => {
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  const endOfMonthBefore = (day: string, back: number) => iso(new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - back, 0)))
+  for (const weekendRule of ['next-monday', 'previous-friday'] as const) {
+    for (const opensOnDay of [4, 12, 28]) {
+      for (let lockDay = 4; lockDay <= 28; lockDay++) {
+        const cfg = { firstMonth: '2025-01', opensOnDay, weekendRule, lockDay }
+        for (let t = Date.UTC(2026, 0, 1); t <= Date.UTC(2027, 0, 31); t += 86_400_000) {
+          const today = iso(new Date(t))
+          expect([endOfMonthBefore(today, 1), endOfMonthBefore(today, 2)]).toContain(settledThrough(cfg, today))
+        }
+      }
+    }
+  }
 })

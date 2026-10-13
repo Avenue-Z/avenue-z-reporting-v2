@@ -8,7 +8,7 @@ import { outlineSpecsFor } from './outline-layout'
 import type { ReportsDataParams } from '@/lib/dash-social/types'
 
 const BRAND = 7
-const OPTS = { clientId: 'c1', slug: 'client-a', settled: '2026-09-30', late: () => false }
+const OPTS = { clientId: 'c1', slug: 'client-a', settled: '2026-09-30', from: null, late: () => false }
 const SEPT: ReportsDataParams = {
   brandId: BRAND, channels: ['INSTAGRAM'], metrics: ['TOTAL_FOLLOWERS', 'TOTAL_ENGAGEMENTS'],
   startDate: '2026-09-01T04:00:00Z', endDate: '2026-09-30T04:00:00Z',
@@ -370,4 +370,29 @@ test('every follower and profile-views tile, on every channel and basis, is guar
     expect(completeReportsData(params, answer(null)), name).toBe(false)
     expect(completeReportsData(params, answer(3)), name).toBe(true)
   }
+})
+
+test('4.2c: a request ending before the first lockable day reads live and is never stored; one ending in it locks as before', async () => {
+  const opts = { ...OPTS, from: '2026-09-01' }
+  const AUG: ReportsDataParams = { ...SEPT, startDate: '2026-08-01T04:00:00Z', endDate: '2026-08-31T04:00:00Z', contextStartDate: '2026-07-01T04:00:00Z', contextEndDate: '2026-07-31T04:00:00Z' }
+  const inner = innerFake(); const deps = depsFake()
+  inner.getReportsData.mockResolvedValue(total(1, 1))
+  inner.getContent.mockResolvedValue(content)
+  expect(await lockingClient(inner, opts, deps).getReportsData(AUG)).toEqual(total(1, 1))
+  expect(await lockingClient(inner, opts, deps).getContent({ ...contentParams, startDate: '2026-08-01', endDate: '2026-08-31' })).toEqual(content)
+  expect(deps.read).not.toHaveBeenCalled()
+  expect(deps.write).not.toHaveBeenCalled()
+  expect(deps.capture.getReportsData).not.toHaveBeenCalled()
+  expect(deps.capture.getContent).not.toHaveBeenCalled()
+  // September ends on or after the first lockable day: captured, stored, and its baseline read from the store as today.
+  const inner2 = innerFake(); const deps2 = depsFake()
+  deps2.capture.getReportsData.mockResolvedValue(total(5, 4))
+  await lockingClient(inner2, opts, deps2).getReportsData(SEPT)
+  expect(inner2.getReportsData).not.toHaveBeenCalled()
+  expect(deps2.write).toHaveBeenCalledTimes(1)
+  const prior = { ...SEPT, startDate: '2026-08-01T04:00:00Z', endDate: '2026-08-31T04:00:00Z', contextStartDate: '2026-07-01T04:00:00Z', contextEndDate: '2026-07-31T04:00:00Z' }
+  expect(deps2.read.mock.calls.map((c) => c[1])).toEqual([
+    requestKey('getReportsData', SEPT as unknown as Record<string, unknown>),
+    requestKey('getReportsData', prior as unknown as Record<string, unknown>),
+  ])
 })
