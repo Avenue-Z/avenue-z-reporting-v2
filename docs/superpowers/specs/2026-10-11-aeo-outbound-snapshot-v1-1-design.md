@@ -1134,7 +1134,7 @@ hook takes `offset = Date.parse(now) - Date.now()` (0 when `now` is missing or u
 | Draft generated Oct 1, opened Oct 13 | editor and preview say Oct 13 |
 | Attempt 1 one flag, attempt 2 four flags | attempt 1's copy and its one flag are saved |
 | Type during the push's render; then Back | text kept; Back re-syncs the box |
-| Two pushes ("acme", "acme co"), "acme" renders first | box kept; "acme co" arriving later is also kept |
+| Two pushes ("acme", "acme co"): Next drops the pending first one, only "acme co" arrives | box kept; Back re-syncs (a push of the current `q` clears the pending list, so a dropped value never strands Back) |
 | Box cleared while "acme" renders | the empty search is pushed after the pause |
 | Show older twice, then Generate adds a row | older rows clear, Show older resumes after the new last row |
 | Browser clock 60s ahead | this tab's run shows its steps |
