@@ -115,7 +115,8 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'created', dir: 'desc' })
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState(q)
-  const [older, setOlder] = useState<{ q: string; rows: HubRow[]; cursor: HubCursor | null } | null>(null)
+  /** Rows from Show older, for the search `q` and the first page they continued from (`base`, spec v1.1 §18.8). */
+  const [older, setOlder] = useState<{ q: string; base: string; rows: HubRow[]; cursor: HubCursor | null } | null>(null)
   const [olderLoading, setOlderLoading] = useState(false)
   const [olderError, setOlderError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<HubDialog | null>(null)
@@ -146,20 +147,36 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadProjects])
 
-  // v1.1 §5: search is server-side, through ?q=. The box follows the page's q (Back and Forward change it), and a push
-  // starts only from typing, after a short pause, and only when the cleaned text differs from q.
-  const qRef = useRef(q)
+  // v1.1 §5: search is server-side, through ?q=. A push starts only from typing, after a short pause, and only when the
+  // cleaned text differs from `target`, the last value pushed or re-synced. `pushed` holds, in order, the cleaned values
+  // this tab pushed that have not arrived as q yet. When one arrives, it and every earlier one are dropped and the box and
+  // timer are left alone, so typing during the push's render is kept. Any other q (Back, Forward) re-syncs the box
+  // (spec v1.1 §18.8). The page cleans q with the same cleanSearch, so equal text compares equal.
+  const pushed = useRef<string[]>([])
+  const target = useRef(q)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stopSearchTimer = () => { if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null } }
-  useEffect(() => { qRef.current = q; stopSearchTimer(); setSearch(q) }, [q])
+  useEffect(() => {
+    const i = pushed.current.indexOf(q)
+    if (i >= 0) { pushed.current = pushed.current.slice(i + 1); return }
+    pushed.current = []
+    target.current = q
+    stopSearchTimer()
+    setSearch(q)
+  }, [q])
   useEffect(() => stopSearchTimer, [])
+  function pushSearch(next: string) {
+    pushed.current.push(next)
+    target.current = next
+    router.push(next ? `/tools/new-business?q=${encodeURIComponent(next)}` : '/tools/new-business')
+  }
   function onSearchInput(value: string) {
     setSearch(value)
     stopSearchTimer()
     searchTimer.current = setTimeout(() => {
       searchTimer.current = null
       const next = cleanSearch(value) ?? ''
-      if (next !== qRef.current) router.push(next ? `/tools/new-business?q=${encodeURIComponent(next)}` : '/tools/new-business')
+      if (next !== target.current) pushSearch(next)
     }, 300)
   }
   useEffect(() => { setPage(1) }, [q, tab, sort])
@@ -228,8 +245,13 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
     }
   }
 
-  const olderRows = older && older.q === q ? older.rows : []
-  const nextCursor = older && older.q === q ? older.cursor : cursor
+  // Older rows count only while the first page is the one they continued from, compared by value (router.refresh()
+  // makes a new cursor object each time). A refresh that adds a row moves the first page's cursor, so they clear and
+  // Show older starts again from the new cursor; no cursor means no match (spec v1.1 §18.8).
+  const base = cursor ? `${cursor.before}|${cursor.beforeId}` : null
+  const olderNow = older && older.q === q && base !== null && older.base === base ? older : null
+  const olderRows = olderNow ? olderNow.rows : []
+  const nextCursor = olderNow ? olderNow.cursor : cursor
   async function showOlder() {
     if (!nextCursor) return
     setOlderLoading(true)
@@ -240,7 +262,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
       if (res.status !== 200) throw new Error(String(res.status))
       const b = (await res.json()) as { rows?: unknown; cursor?: unknown }
       if (!Array.isArray(b.rows)) throw new Error('shape')
-      setOlder({ q, rows: [...olderRows, ...(b.rows as HubRow[])], cursor: (b.cursor as HubCursor | null) ?? null })
+      setOlder({ q, base: base ?? '', rows: [...olderRows, ...(b.rows as HubRow[])], cursor: (b.cursor as HubCursor | null) ?? null })
     } catch {
       setOlderError(OLDER_FAILED)
     } finally {
@@ -265,7 +287,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
   const cur = Math.min(page, pages)
   const shown = sorted.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'created' || key === 'sent' || key === 'opens' ? 'desc' : 'asc' }))
-  const clearFilters = () => { setTab('all'); stopSearchTimer(); setSearch(''); if (q) router.push('/tools/new-business') }
+  const clearFilters = () => { setTab('all'); stopSearchTimer(); setSearch(''); if (target.current) pushSearch('') }
   const localPending = Object.entries(pending).filter(([pid]) => !rows.some((r) => r.projectId === pid && r.status === 'generating'))
   const generatingHere = !!projectId && (!!pending[projectId] || rows.some((r) => r.projectId === projectId && r.status === 'generating'))
   const rerunPending = (id: string) => Object.values(pending).some((p) => p.rerunOf === id)

@@ -1,7 +1,9 @@
 'use client'
 // Live progress for one generation (spec v1.1 §16.3): polls GET /api/aeo-outbound/progress every second while a target is
 // set. By project (a Generate or Rerun request in flight): a null before any row was seen means "not started yet", a row
-// created more than OTHER_RUN_MS before the click is another tab's run, and a null after a row means it finished. By id (a
+// created more than OTHER_RUN_MS before the click is another tab's run, and a null after a row means it finished. The click
+// is moved onto the server's clock per poll with the answer's `now` (offset 0 when it is missing or unreadable), so a
+// browser clock ahead of the server never hides this tab's run (v1.1 §18.9). By id (a
 // row already generating): the first null means it finished. A failed poll keeps the last state. Polling stops on finish,
 // when the target clears, or POLL_LIMIT_MS after it started (the generation deadline plus 30 seconds). One poll at a time:
 // a tick is skipped while one is in flight, and a poll that takes POLL_TIMEOUT_MS is aborted and counts as failed.
@@ -47,7 +49,7 @@ export function useGenerationProgress(target: ProgressTarget | null, initialStep
         if (res.status !== 200) return
         const body: unknown = await res.json()
         if (stopped || !body || typeof body !== 'object') return
-        const b = body as { step?: unknown; createdAt?: unknown }
+        const b = body as { step?: unknown; createdAt?: unknown; now?: unknown }
         if (b.step === null) {
           if (!seen) return
           stop()
@@ -56,7 +58,9 @@ export function useGenerationProgress(target: ProgressTarget | null, initialStep
           return
         }
         if (typeof b.step !== 'number' || typeof b.createdAt !== 'string') return
-        if (!byId && Date.parse(b.createdAt) < target.clickedAt - OTHER_RUN_MS) return
+        const serverNow = typeof b.now === 'string' ? Date.parse(b.now) : NaN
+        const offset = Number.isNaN(serverNow) ? 0 : serverNow - Date.now()
+        if (!byId && Date.parse(b.createdAt) < target.clickedAt + offset - OTHER_RUN_MS) return
         seen = true
         setState({ step: b.step, createdAt: b.createdAt, finished: false })
       } catch { /* a failed or aborted poll keeps the last state; the next tick tries again */ } finally {

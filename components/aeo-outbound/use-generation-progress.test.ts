@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import { useGenerationProgress } from './use-generation-progress'
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -117,4 +117,40 @@ test('clearing the target resets to the initial step, so the next run never show
   expect(result.current.step).toBe(2)
   rerender({ t: { projectId: 'p1', clickedAt: CLICK + 1 } })
   expect(result.current.step).toBe(2)
+})
+
+// Spec v1.1 §18.9: the run is matched on the server's clock. Each answer carries Postgres's now, read when it answered.
+const SKEW = 60_000
+const ABSENT = Symbol('no now')
+const serverRow = (step: number, createdAtMs: number, now: unknown = 'server'): Answer => async () =>
+  json(200, { id: 'r1', step, createdAt: new Date(createdAtMs).toISOString(), ...(now === ABSENT ? {} : { now: now === 'server' ? new Date(Date.now() - SKEW).toISOString() : now }) })
+
+test("§18.9: a browser clock 60 seconds ahead still shows this tab's run, and another tab's run stays hidden", async () => {
+  // The server's clock reads CLICK - 60s at the click; its row is created a second later on that clock.
+  answers = [serverRow(3, CLICK - SKEW + 1000)]
+  const { result } = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }))
+  await tick()
+  expect(result.current.step).toBe(3)
+  cleanup()
+  // A row created 10 seconds before the click on the server's clock is another tab's run.
+  answers = [serverRow(6, CLICK - SKEW - 10_000)]
+  const other = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }))
+  await tick(3000)
+  expect(other.result.current.step).toBe(0)
+})
+
+test('§18.9: an answer with no now, or one that does not parse, uses offset 0, as before', async () => {
+  for (const now of [ABSENT, 'not a date', 12345]) {
+    answers = [serverRow(4, CLICK - 6000, now)]
+    const old = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }))
+    await tick(2000)
+    expect(old.result.current.step).toBe(0)
+    old.unmount()
+    answers = [serverRow(4, CLICK - 4000, now)]
+    const fresh = renderHook(() => useGenerationProgress({ projectId: 'p1', clickedAt: CLICK }))
+    await tick()
+    expect(fresh.result.current.step).toBe(4)
+    fresh.unmount()
+    vi.setSystemTime(CLICK)
+  }
 })

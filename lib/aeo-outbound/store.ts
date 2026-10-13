@@ -125,9 +125,17 @@ export async function findGeneratingFor(projectId: string): Promise<string | und
  * never reported as running.
  */
 export function generationProgressQuery(by: { id: string } | { projectId: string }, now: Date) {
-  return db.select({ id: t.id, step: t.progressStep, createdAt: t.createdAt }).from(t)
+  // `now` is Postgres's clock, the one that set created_at, so the hook can match its run on the server's clock (spec v1.1 §18.9).
+  return db.select({ id: t.id, step: t.progressStep, createdAt: t.createdAt, now: sql<Date>`now()`.mapWith(t.createdAt) }).from(t)
     .where(and('id' in by ? eq(t.id, by.id) : eq(t.peecProjectId, by.projectId), eq(t.status, 'generating'), isNull(t.deletedAt), gt(t.createdAt, staleBefore(now))))
     .limit(1)
+}
+
+/** Postgres's clock, for the progress route's "no row" answer (spec v1.1 §18.9). The driver returns timestamptz as its
+ *  text with an offset (drizzle's neon-http parser), which Date reads as created_at's column mapping does. */
+export async function databaseNow(): Promise<Date> {
+  const v = ((await db.execute(sql`select now() as "now"`)).rows[0] as { now?: unknown } | undefined)?.now
+  return v instanceof Date ? v : new Date(String(v))
 }
 
 export function liveByTokenQuery(token: string) {

@@ -1,11 +1,12 @@
 // GET /api/aeo-outbound/progress?id=… or ?projectId=… (spec v1.1 §16.3): the live step of one generation, polled every
 // second while a Generate request is in flight or a row is generating. Outside the proxy matcher, so it checks the
-// session itself, before it reads the query. Read-only: one select of one row.
+// session itself, before it reads the query. Read-only: one select of one row, or a `select now()` when there is none.
+// Both 200 bodies carry `now`, Postgres's clock, so the hook can match its run on the clock that set createdAt (v1.1 §18.9).
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
-import { generationProgressQuery, isReportId } from '@/lib/aeo-outbound/store'
+import { databaseNow, generationProgressQuery, isReportId } from '@/lib/aeo-outbound/store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,10 @@ export async function GET(req: Request) {
   if (!by) return NextResponse.json({ error: 'bad-request' }, { status: 400, headers: NO_STORE })
   try {
     const r = (await generationProgressQuery(by, new Date()))[0]
-    return NextResponse.json(r ? { id: r.id, step: r.step, createdAt: r.createdAt.toISOString() } : { step: null }, { headers: NO_STORE })
+    const body = r
+      ? { id: r.id, step: r.step, createdAt: r.createdAt.toISOString(), now: r.now.toISOString() }
+      : { step: null, now: (await databaseNow()).toISOString() }
+    return NextResponse.json(body, { headers: NO_STORE })
   } catch (e) {
     console.error(`[aeo-outbound] progress read failed reason=${errorLabel(e)}`)
     return NextResponse.json({ error: 'unavailable' }, { status: 503, headers: NO_STORE })

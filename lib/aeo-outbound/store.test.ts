@@ -356,9 +356,9 @@ test('failure code: the stored code, else stale for a generating row past the li
 
 test('the progress read follows one generating row by id or by project, never a stale or deleted one (spec v1.1 §16.3)', () => {
   const byId = generationProgressQuery({ id: ID }, NOW).toSQL()
-  expect(byId.sql).toBe(`select "id", "progress_step", "created_at" from ${T} where (${T}."id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
+  expect(byId.sql).toBe(`select "id", "progress_step", "created_at", now() from ${T} where (${T}."id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
   expect(byId.params).toEqual([ID, 'generating', STALE, 1])
   const byProject = generationProgressQuery({ projectId: 'or_a' }, NOW).toSQL()
-  expect(byProject.sql).toBe(`select "id", "progress_step", "created_at" from ${T} where (${T}."peec_project_id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
+  expect(byProject.sql).toBe(`select "id", "progress_step", "created_at", now() from ${T} where (${T}."peec_project_id" = $1 and ${T}."status" = $2 and ${T}."deleted_at" is null and ${T}."created_at" > $3) limit $4`)
   expect(byProject.params).toEqual(['or_a', 'generating', STALE, 1])
 })

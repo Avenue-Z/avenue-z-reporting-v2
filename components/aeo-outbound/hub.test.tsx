@@ -765,3 +765,123 @@ test('both date inputs use the dark calendar and open it on click; a refusing br
     delete (HTMLInputElement.prototype as unknown as { showPicker?: unknown }).showPicker
   }
 })
+
+// Spec v1.1 §18.8: typing during this tab's own search push, and Show older after a refresh.
+const searchBox = () => screen.getByRole('searchbox', { name: 'Search' })
+const typeSearch = (value: string) => fireEvent.change(searchBox(), { target: { value } })
+
+test('§18.8: text typed while the push renders is kept and pushed; Back still re-syncs the box', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: '' })
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(push).toHaveBeenLastCalledWith('/tools/new-business?q=acme')
+  typeSearch('acme co')
+  rerender(<OutboundHub {...props({ q: 'acme' })} />)
+  expect(searchBox()).toHaveValue('acme co')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(push).toHaveBeenCalledTimes(2)
+  expect(push).toHaveBeenLastCalledWith('/tools/new-business?q=acme%20co')
+  rerender(<OutboundHub {...props({ q: 'acme co' })} />)
+  expect(searchBox()).toHaveValue('acme co')
+  // Back to the empty search: not a value this tab is waiting for, so the box follows it and nothing is pushed.
+  rerender(<OutboundHub {...props({ q: '' })} />)
+  expect(searchBox()).toHaveValue('')
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(push).toHaveBeenCalledTimes(2)
+})
+
+test('§18.8: two pushes with the first rendering first keep the box, and the second arriving is kept too', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: '' })
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  typeSearch('acme co')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(push.mock.calls.map((c) => c[0])).toEqual(['/tools/new-business?q=acme', '/tools/new-business?q=acme%20co'])
+  rerender(<OutboundHub {...props({ q: 'acme' })} />)
+  expect(searchBox()).toHaveValue('acme co')
+  rerender(<OutboundHub {...props({ q: 'acme co' })} />)
+  expect(searchBox()).toHaveValue('acme co')
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(push).toHaveBeenCalledTimes(2)
+})
+
+test('§18.8: clearing the box while a push renders pushes the empty search after the pause', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: '' })
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  typeSearch('')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(push.mock.calls.map((c) => c[0])).toEqual(['/tools/new-business?q=acme', '/tools/new-business'])
+  rerender(<OutboundHub {...props({ q: 'acme' })} />)
+  expect(searchBox()).toHaveValue('')
+  rerender(<OutboundHub {...props({ q: '' })} />)
+  expect(searchBox()).toHaveValue('')
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(push).toHaveBeenCalledTimes(2)
+})
+
+test('§18.8: Clear filters while a typed search is still rendering pushes the empty search', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: '', rows: [row({ status: 'draft' })], counts: { ...COUNTS, all: 1, draft: 1 } })
+  fireEvent.click(screen.getByRole('tab', { name: 'Failed (0)' }))
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(push).toHaveBeenLastCalledWith('/tools/new-business?q=acme')
+  fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+  expect(push).toHaveBeenLastCalledWith('/tools/new-business')
+  expect(searchBox()).toHaveValue('')
+  rerender(<OutboundHub {...props({ q: 'acme', rows: [row({ status: 'draft' })], counts: { ...COUNTS, all: 1, draft: 1 } })} />)
+  expect(searchBox()).toHaveValue('')
+})
+
+test('§18.8: Show older twice, then a refresh that adds a row clears the older rows and resumes from the new cursor', async () => {
+  const A = { before: '2026-09-10T00:00:00.000Z', beforeId: ID(50) }
+  const B = { before: '2026-09-05T00:00:00.000Z', beforeId: ID(100) }
+  const C = { before: '2026-09-01T00:00:00.000Z', beforeId: ID(150) }
+  const A2 = { before: '2026-09-10T01:00:00.000Z', beforeId: ID(49) }
+  const asked: Record<string, string>[] = []
+  const pages = [
+    { rows: [row({ id: ID(60), brand: 'Page Two Co' })], cursor: B },
+    { rows: [row({ id: ID(110), brand: 'Page Three Co' })], cursor: C },
+    { rows: [row({ id: ID(50), brand: 'Pushed Off Co' })], cursor: null },
+  ]
+  older = async (url) => {
+    asked.push(Object.fromEntries(new URLSearchParams(url.split('?')[1])))
+    return json(200, pages.shift())
+  }
+  const first = [row({ id: ID(1), brand: 'First Co' })]
+  const { rerender } = render(<OutboundHub {...props({ rows: first, cursor: A, counts: { ...COUNTS, all: 3 } })} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Show older' }))
+  await screen.findByText('Page Two Co')
+  fireEvent.click(screen.getByRole('button', { name: 'Show older' }))
+  await screen.findByText('Page Three Co')
+  expect(asked.map((a) => a.beforeId)).toEqual([ID(50), ID(100)])
+  // router.refresh() makes a new cursor object with the same values: the older rows stay.
+  rerender(<OutboundHub {...props({ rows: first, cursor: { ...A }, counts: { ...COUNTS, all: 3 } })} />)
+  expect(screen.getByText('Page Two Co')).toBeInTheDocument()
+  expect(screen.getByText('Page Three Co')).toBeInTheDocument()
+  // Generate adds a row: the first page's last row moves past the old cursor, so the older rows clear and Show older restarts.
+  rerender(<OutboundHub {...props({ rows: [row({ id: ID(200), brand: 'New Co' }), ...first], cursor: A2, counts: { ...COUNTS, all: 4 } })} />)
+  expect(screen.queryByText('Page Two Co')).not.toBeInTheDocument()
+  expect(screen.queryByText('Page Three Co')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Show older' }))
+  await screen.findByText('Pushed Off Co')
+  expect(asked[2]).toEqual({ before: A2.before, beforeId: ID(49) })
+  await loaded()
+})
+
+test('§18.8: with no first-page cursor after a refresh, no older rows show and Show older is gone', async () => {
+  const A = { before: '2026-09-10T00:00:00.000Z', beforeId: ID(50) }
+  older = async () => json(200, { rows: [row({ id: ID(60), brand: 'Page Two Co' })], cursor: { before: '2026-09-05T00:00:00.000Z', beforeId: ID(100) } })
+  const first = [row({ id: ID(1), brand: 'First Co' })]
+  const { rerender } = render(<OutboundHub {...props({ rows: first, cursor: A, counts: { ...COUNTS, all: 2 } })} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Show older' }))
+  await screen.findByText('Page Two Co')
+  rerender(<OutboundHub {...props({ rows: first, cursor: null, counts: { ...COUNTS, all: 1 } })} />)
+  expect(screen.queryByText('Page Two Co')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Show older' })).not.toBeInTheDocument()
+  await loaded()
+})
