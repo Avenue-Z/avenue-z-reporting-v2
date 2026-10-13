@@ -373,3 +373,16 @@ test('step 1: a row approved or unreadable between attempts is 409 not-draft bef
   expect(res.status).toBe(409)
   expect(m.save).toHaveBeenCalledTimes(1)
 })
+
+test('an uppercase writer matches its own row: the route compares and stores the lowercase form', async () => {
+  m.getReport.mockResolvedValue(ours({ lastSeq: 2 }))
+  const res = await patch(edit({ writer: W.toUpperCase() }))
+  expect(res.status).toBe(200)
+  expect((await res.json()).revision).toBe(4)
+  expect(m.save).not.toHaveBeenCalled()
+  m.getReport.mockResolvedValue(ours({ lastSeq: 1 }))
+  m.save.mockResolvedValue([{ revision: 5 }])
+  expect((await patch(edit({ writer: W.toUpperCase() }))).status).toBe(200)
+  expect(m.save.mock.calls[0][1]).toBe(4)
+  expect(m.save.mock.calls[0][5]).toEqual({ writer: W, seq: 2 })
+})

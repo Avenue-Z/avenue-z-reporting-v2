@@ -31,7 +31,8 @@ async function read(id: string): Promise<{ ok: true; row: Row } | { ok: false }>
 function saveBy(b: { writer?: unknown; seq?: unknown }): SaveBy | null | undefined {
   if (b.writer === undefined && b.seq === undefined) return null
   if (!SAVE_WRITER.safeParse(b.writer).success || !SAVE_SEQ.safeParse(b.seq).success) return undefined
-  return { writer: b.writer as string, seq: b.seq as number }
+  // Postgres returns a uuid in lowercase, and zod's uuid accepts either case, so compare and store the lowercase form.
+  return { writer: (b.writer as string).toLowerCase(), seq: b.seq as number }
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

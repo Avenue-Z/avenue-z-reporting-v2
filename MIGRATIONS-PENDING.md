@@ -409,8 +409,10 @@ apply `0029` to the dev database before it runs this branch.
 
 Mixed builds: builds from before `0029` that share a database (dev's older previews) can still save, and their update
 leaves both columns as they were. So a save of ours that landed, then a save from such a build, then a retry of ours, is
-answered as already landed while the row holds that build's text. Only dev runs mixed builds; staging and production run
-one build at a time: accepted.
+answered as already landed while the row holds that build's text. And after an acknowledged save of ours, such a build's
+save leaves the columns at our writer and seq, so our next item (a higher seq) is applied on top of that build's revision
+in step 4 instead of getting 409 `stale`; a structure remove there can delete a different bullet than the one Ryan
+clicked. Only dev runs mixed builds; staging and production run one build at a time: accepted.
 
 Rollback (spec v1.1 section 18.12, which ships in the same PR): a build without 18.12 reads a stored row with 1 or 4 to 6
 bullets in a list as unreadable (`lib/aeo-outbound/contracts.ts` stored slots, `lib/aeo-outbound/store.ts` `typed`),
