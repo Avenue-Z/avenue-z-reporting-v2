@@ -18,7 +18,7 @@ import type { KeywordsData, KeywordsView } from '@/lib/paid-search/keywords'
 const inExport = (ui: React.ReactElement) => render(<ExportModeProvider>{ui}</ExportModeProvider>)
 
 // PDF export (spec 2026-10-08 §7; PR 3 plan deviation 2): the default metric, named, on a dark panel so its colours read.
-test('the hero prints Cost as a label on a dark panel, one block, no buttons', () => {
+test('the hero prints Cost as a label, one block, no buttons, no export-only panel', () => {
   const points: HeroPoint[] = [{ week: '2026-09-01', cost: 10, clicks: 2, impressions: 50, leads: 1 }]
   const { container } = inExport(<Hero points={points} />)
   expect(screen.queryAllByRole('button')).toHaveLength(0)
@@ -26,17 +26,20 @@ test('the hero prints Cost as a label on a dark panel, one block, no buttons', (
   // Thomas, #352 hero.tsx:29: the dashed Leads line has no legend and is named on hover only, so the label names both.
   expect(screen.getByText('Cost (bars) · Leads (dashed line, right axis)', { selector: '[data-export-toggle-label]' })).toBeTruthy()
   const section = container.querySelector('section')!
-  expect(section.hasAttribute('data-export-block') && section.hasAttribute('data-export-chart')).toBe(true)
-  expect(section.className).toContain('bg-bg-surface')
+  expect(section.hasAttribute('data-export-block')).toBe(true)
+  // Spec 2026-10-13: no export-only dark panel; the PDF prints dark like the live page, where the hero has none.
+  expect(section.hasAttribute('data-export-chart')).toBe(false)
+  expect(section.className).toBe('space-y-3')
 })
 
-test('leads: the chart card is a dark block; each category stays whole; the action list title stays with it', () => {
+test('leads: the chart card is a block; each category stays whole; the action list title stays with it', () => {
   const data: LeadBreakdown = {
     byAction: [{ name: 'Employer Form', category: 'employer', count: 9 }, { name: 'Broker Form', category: 'broker', count: 3 }],
     categoryTotals: { employer: 9, broker: 3, contact: 0 }, totalLeads: 12, trend: [],
   }
   const { container } = inExport(<LeadsSection data={data} />)
-  expect(container.querySelector('[data-export-block][data-export-chart] [data-testid="combo"]')).not.toBeNull()
+  expect(container.querySelector('[data-export-block] [data-testid="combo"]')).not.toBeNull()
+  expect(container.querySelector('[data-export-chart]')).toBeNull()
   expect(screen.getByText('Leads by Action').hasAttribute('data-export-keep-with-next')).toBe(true)
   expect(screen.getByText('Total Leads').parentElement!.hasAttribute('data-export-keep-with-next')).toBe(true)
   expect(container.querySelectorAll('[data-export-block]').length).toBe(1 + 3)

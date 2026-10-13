@@ -58,12 +58,12 @@ function SectionCard({
 }: {
   title: string
   description: string
-  /** A card holding a chart: one unbreakable block on its dark panel in the PDF export (app/export/export-theme.css). */
+  /** A card holding a chart: one unbreakable block in the PDF export. */
   chart?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6" {...(chart ? { 'data-export-block': '', 'data-export-chart': '' } : {})}>
+    <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6" {...(chart ? { 'data-export-block': '' } : {})}>
       {/* In the PDF export the title stays on the page of what follows it. */}
       <div data-export-keep-with-next="">
         <h3 className="text-sm font-bold text-white">{title}</h3>

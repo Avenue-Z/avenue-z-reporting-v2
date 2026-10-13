@@ -309,7 +309,7 @@ export function PromptClusterOpportunityMatrix({
         : Math.ceil(maxValue / 10) * 10
 
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6" data-export-block="" data-export-chart="">
+    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-6" data-export-block="">
       <SectionHeading
         title="Which prompt clusters offer the biggest PR opportunity?"
         tooltip={PEEC.citations.text}

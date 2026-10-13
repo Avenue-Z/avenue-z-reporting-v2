@@ -100,7 +100,7 @@ export function NewReturning({ rows, compareRows, failed }: NewReturningProps) {
   const compareMap = new Map((compareRows ?? []).map((r) => [r.type, r]))
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5" data-export-block="" data-export-chart="">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5" data-export-block="">
       <div className="mb-0.5 flex items-center gap-2">
         <h3 className="text-lg font-bold text-white">New vs. Returning</h3>
         <div className="group relative flex-shrink-0" data-export-hide="">
