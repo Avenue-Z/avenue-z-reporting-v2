@@ -2,8 +2,9 @@
 // 200 carried into the next request. A field is dirty from its first keystroke until an edit sent after its last
 // keystroke is saved, so Approve (disabled while dirty or saving) can never approve text Ryan is still typing.
 // A 400 belongs to its own field: it is recorded, the field stays dirty, and every other pending field still sends.
-// A structural item (a bullet add or remove) goes out after every pending edit, with the current revision; its 200's
-// revision is taken like any save's, so the next keystroke carries the right one.
+// A structural item (a bullet add or remove) goes out after every pending edit, unless its last attempt came back
+// `retry`, when it goes first; it carries the current revision, and its 200's revision is taken like any save's, so
+// the next keystroke carries the right one.
 // Spec v1.1 section 18.4: every save carries this queue's `writer` and the item's `seq` (assigned the first time the
 // item is sent, kept on every retry, so seq order is send order), an item whose attempt came back `retry` (a field, or
 // a structural item even with edits pending) is sent again before any other, and an attempt that has not answered

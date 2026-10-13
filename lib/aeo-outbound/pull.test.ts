@@ -282,3 +282,16 @@ for (const c of OPTIONAL) {
     expect(isPeecDeadline(err)).toBe(true)
   })
 }
+
+// A per-call timeout on a later /actions/list page drops the pending actions already read and gives the warning.
+// Page 1 is a full page with 3 pending rows: with 10 or more pending the paging stops after page 1 and never asks
+// for page 2.
+test('/actions/list: a per-call timeout on page 2 with budget left gives no actions and the warning', async () => {
+  const page1 = Array.from({ length: 50 }, (_, i) => act(i, i < 3))
+  const f = fakePeec({ ...base, '/actions/list': (u, b) => { if (Number(b?.offset ?? 0) > 0) throw { abort: true }; return actionPages(page1)(u, b) } }, ROOMY)
+  const pull = await pullSnapshot(f.client, 'or_a', NOW)
+  expect(f.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50])
+  expect(pull.actions).toEqual([])
+  expect(pull.warnings).toEqual(['Peec actions could not be loaded, so opportunities come from the data only.'])
+  expect(f.seen.some((s) => s.path === '/prompts')).toBe(true)
+})
