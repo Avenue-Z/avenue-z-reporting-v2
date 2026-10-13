@@ -1111,7 +1111,7 @@ hook takes `offset = Date.parse(now) - Date.now()` (0 when `now` is missing or u
 | `/prompts` timeout with 30s left (timer capped by the deadline) | rethrown, "Timed out at step 8" |
 | Lost 200 on edit A, Ryan keeps typing A | the newer value goes next with a higher `seq`; `last_seq` is A's, so step 5 applies it on top, no stop |
 | Lost 200 on edit A, A resent unchanged | step 3: 200, nothing written twice |
-| Lost 200 on a bullet add (list now 3), an edit queued meanwhile | the add is resent first; step 2 answers 200 with the row's slots before the patch (which would refuse it); then the edit |
+| Lost 200 on a bullet add (list now 3), an edit queued meanwhile | the add is resent first; step 2 answers 200 with the row's slots before the patch, writing nothing; then the edit |
 | Lost 200 on a bullet remove (list now 2), then retry | step 2: 200 with the row's slots, no second remove |
 | A step-4 apply hangs, is aborted, then lands; the retry arrives | step 2 on the re-read (at most 3 reads) |
 | Three reads all miss | 503, the queue retries |
@@ -1140,7 +1140,8 @@ One per edge-case row above, at the unit that owns it: `metrics.test.ts` (rows 1
 (one `writer` per queue; `seq` on first send, kept on retry, increasing in send order; a retried item goes first, a
 structure item ahead of pending edits; the timeout result and abort; the newer value after a retry gets a new `seq`),
 the slots `route.test.ts` (steps 1 to 5 each; a retried landed add on a list of 3 and a retried landed remove on a list
-of 2 both answer 200 with the slots; three misses answer 503; the guard rows; no `writer`), `store.test.ts`
+of 2 both answer 200 with the stored slots unchanged (3 bullets, 2 bullets) and make no update call, so a second apply,
+which 18.12's limits would allow, fails the test; three misses answer 503; the guard rows; no `writer`), `store.test.ts`
 (`last_writer` and `last_seq` set in the update, NULL when absent; Edit a copy leaves them out), the migration journal
 test (0029 after 0028), `snapshot/[token]/route.test.ts` (`after` mocked: the response is returned before the open work
 runs; failure and slow lines), the view `route.test.ts` (draft and preview use today's Eastern day, approved unchanged),
@@ -1174,7 +1175,15 @@ Glean still writes 2 or 3 bullets per box (`prompt.ts:85-86`, `GLEAN_SLOTS` `con
   by the limit, which made a double click harmless. With room to grow, two clicks that both reach the editor before its
   `mode edit:false` reaches the frame would add two bullets, or remove a second, different bullet (the next one shifts into
   the same index). The editor drops a `structure` message while `q.state.structuring` is true (the queue holds an
-  unfinished structure item).
+  unfinished structure item). `structuring` is `structural.length > 0`, recomputed on every state change
+  (`save-queue.ts:38`): it clears on the item's 200 or 400 and stays set through retry backoff, when the frame is read-only
+  anyway (`render.ts:60`). So the only clicks dropped are ones that reach the editor before the frame turns read-only,
+  including a click on the other box's control; that one is dropped with no message and Ryan clicks again: accepted.
+- **No stale index after a structure save (editor):** on a structure 200 the editor reloads the page (`setReloadKey`,
+  `editor.tsx:167-170`), but the `wasStructuring` effect (`:310-315`) hands edit mode back to the old frame first, so a
+  click in that gap posts an index from the old list (the 2 and 3 limits used to refuse it; now a stale Remove could
+  delete a different bullet). Fix: a ref marks a reload pending on a structure 200; while it is set the effect does not
+  hand edit mode back, and the new frame's `ready` (`editor.tsx:201`) clears it and sets the mode as today.
 - **Layout** (trial `aeo-outbound-audit-notes/findings/2026-10-13-bullets-1-to-6-trial/`, re-run with exactly these
   strings in this position): `PAGE_CSS`'s second chart-spacing rule (`render.ts:94`,
   `#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}`) is replaced, in
@@ -1186,17 +1195,20 @@ Glean still writes 2 or 3 bullets per box (`prompt.ts:85-86`, `GLEAN_SLOTS` `con
   ```
   Both columns become flex columns, so the bullet box (`flex:1`, `render.ts:95`) and the chart card fill the row's height,
   and the figure below the chart title sits centred in the card. Measured with these rules, preview and draft (edit
-  class on), 1, 2, 5 and 6 bullets: at 1440 and 1280 the box and the card are equal at every count (484 and 484 up to 3
-  bullets, 625 at 5, 733 at 6); at 390 the columns stack (AIVx's phone layout) and the card stays 484; the figure is 420px
+  class on), 1, 2, 3, 5 and 6 bullets (all 30 rows in the trial's `r2-rows.json`): at 1440 (box 520 wide) and 1280 (440
+  wide) the box and the card are equal at every count (484 at 1 to 3 bullets, 625 at 5, 733 at 6, the same at both widths
+  because the trial's bullets wrap to the same lines at both); at 390 the columns stack (AIVx's phone layout) and the card stays 484; the figure is 420px
   tall everywhere and its width is unchanged (502 at 1440, 422 at 1280, 324 at 390); no sideways scroll in any case. The
   draft measurement used today's controls; the build's browser check measures draft with the new Add and Remove controls
   at 1, 2, 5 and 6. This supersedes §17.8's "the chart card's size ... untouched" and "its own height, top-aligned": past
   3 bullets the card grows to the box. My rule still holds: the figures, their layout margins and the legends
   (`charts.ts`) and the chart goldens are untouched; only the card around them grows. With 1 bullet the box is the card's
   height with one centred finding (`desktop-1-fixed-competitive-visibility.png`): I looked at it and accepted it.
-  `render.test.ts` `CHART_SPACING_RULES` (`:355-365`) and the outside-media-query list (`:389-395`) change to match.
-- **With 18.4:** a lost add on a list of 2 to 5, or a lost remove on a list of 2 or more, would now succeed if retried, so
-  a bullet would be added or removed twice. Step 2 answers that retry before the patch is applied. (18.4's step 2 note
+  `render.test.ts` `CHART_SPACING_RULES` (`:355-365`), the outside-media-query list (`:389-395`), the slice of the row
+  rules (`:466-467`) and the "`.chart-wrap` rule's whole body is `margin-bottom:0`" check (`:437-441`, now one of two
+  `.chart-wrap` rules) change to match.
+- **With 18.4:** a lost add on an original list of 1 to 4, or a lost remove on an original list of 3 or more, would now
+  succeed if retried, so a bullet would be added or removed twice. Step 2 answers that retry before the patch is applied. (18.4's step 2 note
   about `applyStructure` refusing the retry applies only to the old 2 and 3 limits.)
 - **Deploy order:** a build without 18.12 reads a stored row with 1 or 4 to 6 bullets as unreadable (`contracts.ts:152`,
   `store.ts:22`), drafts and approved rows alike. Rolling back past this build after anyone has saved such a row breaks
@@ -1210,7 +1222,8 @@ the read contract (unreadable, as any broken row today).
 Tests (first): every edge case in `slots.test.ts`; `contracts.test.ts` for 1, 6, 0 and 7; `render.test.ts` for the Add and
 Remove controls at 1, 2, 5 and 6 in draft and none in preview and final, and the three rules verbatim in their place;
 `labels.test.ts` for bullet 6; the slots `route.test.ts` for an add at 3, a remove at 2, and remove index 5 of 3;
-`editor.test.tsx` for a second structure message dropped while one is unfinished; the frame test that a Remove at index 4
+`editor.test.tsx` for a second structure message dropped while one is unfinished, the next one accepted after a 400 and
+after a retry then 200, and no edit mode sent to the frame between a structure 200 and the new frame's `ready`; the frame test that a Remove at index 4
 posts `competitive_bullets.4` and `remove`. Expectations that change on purpose: `route.test.ts:170-178` (remove from 2 is
 now a 200), `slots.test.ts:138-151` (the 2 and 3 limits and the error texts), `render.test.ts:283-289` and `:470-478`
 (control counts), `render.test.ts:355-365` and `:389-395` (the rules list).
