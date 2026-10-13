@@ -1041,7 +1041,10 @@ and a bullet add or remove can't be compared at all, so each write says who wrot
   measurement: a save is four Neon queries, normally well under a second; 15s leaves room for a cold start.
 - **Deploy order:** once `schema.ts` has the two columns, Drizzle names them in every select, so `getReport` fails with
   42703 on a database without 0029. `MIGRATIONS-PENDING.md` says 0029 is applied in each environment before the build that
-  carries it, like 0028's entry. On dev that also means before my local QA server runs this branch.
+  carries it, like 0028's entry. On dev that also means before my local QA server runs this branch. Builds from before
+  0029 that share a database (dev's older previews) can still save, and their update leaves both columns as they were; a
+  save of ours that landed, followed by such a save, then a retry of ours, would be answered by step 2 as already landed
+  with that build's text in the row. Only dev runs mixed builds; staging and production run one build at a time: accepted.
 
 Why this is safe: every write is a compare-and-set on `revision`, so a write lands only on the row it read. A foreign
 write (another tab, an old tab) sets `last_writer` to something else, after which step 4 sends every stale attempt of ours
