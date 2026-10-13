@@ -9465,3 +9465,86 @@ creator line, the first and last opened lines), and their tests.
 Tests (first): the rule sits inside the phone block and nowhere else, once per mode; the brand name element has
 `whitespace-nowrap`; the creator line has `max-w-[160px]`; both opened lines have `whitespace-nowrap`; existing tests
 pass. Commit subject: `Fix the phone headline padding and keep hub brand names on one line`.
+
+## Amendment 7 (spec v1.1 §18): Paul's second review, and 1 to 6 findings per box
+
+Branches: Task 30 on `feat/aeo-outbound-data` (#361, worktree `~/code/worktrees/reporting-aeo-outbound-ryan-data`); Task 31
+on `feat/aeo-outbound-foundations` (#366, worktree `~/code/worktrees/reporting-aeo-outbound-ryan-foundations`); Tasks 32
+to 36 on `feat/aeo-outbound-parts` (#368, detached worktree `~/code/worktrees/reporting-aeo-outbound-ryan-parts`, pushed
+with `git push origin HEAD:feat/aeo-outbound-parts`, because the main checkout holds that branch and runs my dev server).
+Every task: tests first, `make check` green in its worktree before the commit, commit only named files, push after each
+commit. AIVx files (`lib/aeo-outbound/aivx/*`) and chart goldens are never edited. No migration is applied by any task.
+
+### Task 30: Rank card and leader gaps agree; own-site rows; optional-call timeouts (spec v1.1 §18.1, §18.2, §18.3) (#361)
+
+**Files:** `lib/aeo-outbound/metrics.ts`, `metrics.test.ts`, `peec.ts`, `peec.test.ts`, `pull.ts`, `pull.test.ts`.
+
+- `metrics.ts:126-135`: keep the `hasRow && pct > own.visibilityPct` filter; `visibilityPoints: Math.max(0.1, pyRound((rival.visibility - ownEntry.visibility) * 100, 1))`; drop `.filter((g) => g.visibilityPoints > 0)`; update the comment at `:123-124` to say a rival that shows higher is always listed, at least 0.1 points.
+- `metrics.ts:137-138`: `ownRows` keeps a row when `r.classification === 'OWN'`, or its bare domain equals a non-empty own domain or ends with `.` plus one (`ownDomains` filtered with `.filter(Boolean)` for the match only; `ownDomains` itself unchanged).
+- `peec.ts`: `export class PeecDeadlineError extends PeecError { constructor(message: string) { super(message, true); this.name = 'PeecError' } }`; `export const isPeecDeadline = (e: unknown): boolean => e instanceof PeecDeadlineError`. In `call()`: the deadline throw at `:77` becomes `PeecDeadlineError`; record `const capped = left <= CALL_TIMEOUT_MS` when the attempt starts, and `timeoutErr` returns `PeecDeadlineError` when `capped`, else today's `PeecError(…, true)`. Messages unchanged.
+- `pull.ts:94,103,118,126`: `if (isPeecDeadline(e)) throw e` instead of `isPeecTimeout`.
+
+Tests (first): §18.10 rows 1 to 3 in `metrics.test.ts` (the 0.12351/0.12349 pair gives `#2` and a 0.1 gap; a 12.3% tie lists nobody; `blog.brand.com`, an `OWN` row and `notbrand.com`); `peec.test.ts`: the deadline throw and a timer capped by the deadline are `PeecDeadlineError` (and `isPeecTimeout` still true), a 45s timer with budget left is a plain timed-out `PeecError`; `pull.test.ts`: for each of the four optional calls, a per-call timeout with budget left becomes that call's warning and the pull completes, and a deadline error is rethrown. Commit subjects: `Keep the rank card and leader gaps in step, and count own subdomains` and `Treat a per-call timeout on an optional Peec call as a warning`.
+
+### Task 31: The save queue: writer, sequence, retry first, timeout (spec v1.1 §18.4) (#366)
+
+**Files:** `components/aeo-outbound/save-queue.ts`, `save-queue.test.ts`.
+
+- `SendResult` unchanged. `send` becomes `(path: string, value: string, revision: number, meta: { writer: string; seq: number; signal: AbortSignal }) => Promise<SendResult>`.
+- Constructor `(send, revision, onState, sleep = default, newId: () => string = () => crypto.randomUUID(), timeoutMs = SAVE_TIMEOUT_MS)`; `export const SAVE_TIMEOUT_MS = 15_000`; `writer = newId()` once.
+- Items carry `seq?: number`; a `nextSeq` counter starting at 1 assigns `item.seq` the first time that item is sent; a retry of the same item reuses it.
+- Retry first: after a `retry` result for path P, the next attempt sends whatever is pending for P (the same item, or the value that replaced it), before any other path; afterwards normal order resumes.
+- Each attempt makes an `AbortController`; `send` races a timer of `timeoutMs`; on expiry abort and treat the result as `retry`. Clear the timer when `send` settles.
+
+Tests (first): one `writer` per queue across sends; `seq` 1, 2, 3 in send order and kept on retry; after a `retry` on P with another path Q pending, the next send is P; an edit to P during P's backoff is sent next with a new `seq`; the timeout result aborts the signal and retries; every existing queue test passes with the new `send` signature (update their fakes to accept the fourth argument). Commit subject: `Give every save a writer and a sequence, retry the same field first, and time out a hung save`.
+
+### Task 32: Bring #361 and #366 into #368 (spec v1.1 §18 preamble)
+
+**Files:** merges only, plus conflict resolution in `lib/aeo-outbound/metrics.ts`, `peec.ts`, `pull.ts`, `components/aeo-outbound/save-queue.ts` and their tests, and the editor's `send` closure (`editor.tsx:156-182`) for the new fourth argument (pass `signal` to `fetch`; `writer` and `seq` go into the body in Task 33, so here the closure only accepts and forwards `signal`).
+
+- `git merge --no-ff origin/feat/aeo-outbound-data` then `origin/feat/aeo-outbound-foundations` in the parts worktree. Where #368 rewrote a file, keep #368's version and carry the §18.1 to §18.3 change into it: `metrics.ts:170-179` and `:182-183`, the comment at `:167-168`; `peec.ts` keeps #368's constructor `(message, timeout, rowCap, code)` and adds `PeecDeadlineError` calling `super(message, true)`; `pull.ts` `mustRethrow` (`:51`) becomes `isPeecDeadline(e) || isPeecContractViolation(e)`.
+- Save queue (#368 has structure items): `structural` becomes `{ path: string; seq?: number }[]`; a structure item gets its `seq` on first send and keeps it; after a `retry` on a structure item, the structure item stays first even when edits are pending.
+
+Tests (first, in #368): #361's and #366's new tests pass in #368's copies; a structure item retried after `retry` goes before a pending edit and keeps its `seq`; the whole suite passes. Commit: the two merge commits, then `Carry the review fixes into the parts branch's own copies` if any non-merge change is needed.
+
+### Task 33: Saves that land but lose their answer (spec v1.1 §18.4 storage, request, route, deploy order) (#368)
+
+**Files:** `lib/db/schema.ts`, `drizzle/0029_*.sql` and `drizzle/meta` (generated with `npm run db:generate`, then the SQL checked by hand), `lib/aeo-outbound/store.ts`, `store.test.ts`, `lib/aeo-outbound/contracts.ts`, `contracts.test.ts`, `app/api/aeo-outbound/reports/[id]/slots/route.ts`, `route.test.ts`, `components/aeo-outbound/editor.tsx`, `editor.test.tsx`, `MIGRATIONS-PENDING.md`, the migration journal test.
+
+- Schema: `lastWriter: uuid('last_writer')`, `lastSeq: integer('last_seq')`, both nullable. Migration 0029 is exactly two `ALTER TABLE "aeo_outbound_reports" ADD COLUMN` statements.
+- `saveSlotsQuery(id, shownRevision, slots, notes, brandName?, by?: { writer: string; seq: number } | null)` sets `lastWriter: by?.writer ?? null, lastSeq: by?.seq ?? null` on every call.
+- `SLOTS_BODY` gains optional `writer: z.uuid()` and `seq: z.number().int().min(1).max(2147483647)`; the route's structural guard (`route.ts:27-29`) refuses a body where exactly one is present, `writer` is not a UUID string, or `seq` is not an integer in range, with 400 `bad-request`, before `getReport`.
+- Route: the five steps of spec §18.4, as a loop of at most 3 reads (the first is today's `getReport`), step 2 before the patch, 503 `unavailable` after the third miss. The 200 shapes are today's (`revision`, `notes`, `needsValidation`, and `slots` for a structure path).
+- Editor `send`: body adds `writer` and `seq` from the fourth argument.
+- `MIGRATIONS-PENDING.md`: a new section for 0029 in the 0028 entry's form, including the deploy order and the mixed-build note from §18.4, and §18.12's rollback note.
+
+Tests (first): every 18.4 and 18.10 save row (steps 1 to 5; landed add on 3 and landed remove on 2 answer 200 with the stored slots unchanged and no update call; prior-item landed then applied once; a miss then step 2 on re-read; three misses 503; foreign and NULL writer 409; late attempt 409; approved between attempts 409; the guard rows; no `writer` behaves as today and passes NULLs to the store); `store.test.ts`: the update sets both columns, NULL when absent, Edit a copy's SQL names neither, the 0029 file is exactly the two additive statements; the journal test lists 0029 after 0028. Commit subject: `Make a save whose answer was lost safe to retry`.
+
+### Task 34: Open counting after the response, today's Prepared date, the better Glean attempt (spec v1.1 §18.5, §18.6, §18.7) (#368)
+
+**Files:** `app/snapshot/[token]/route.ts`, `route.test.ts`; `app/api/aeo-outbound/reports/[id]/view/route.ts`, `route.test.ts`; `lib/aeo-outbound/generate.ts`, `generate.test.ts`.
+
+- Snapshot route: `GET` responds at once and calls `after(() => countOpen(req, found))` (`after` from `next/server`). `countOpen` awaits the session read and the write with no race; logs `reason=session` or `reason=error` on failure; a timer of `OPEN_SLOW_MS = 10_000` logs `[aeo-outbound] open slow id=${id}` once if the work has not settled, and is cleared when it settles. Remove `OPEN_BUDGET_MS`, `expired` and `reason=timeout`. HEAD unchanged. Update the file's header comment.
+- View route `:56`: `fmtEasternDay(new Date())` for draft and preview.
+- `generate.ts:91`: `if (!groundedFallback || flags.length <= groundedFallback.flags.length) groundedFallback = { slots: full, flags }`; update the comment at `:53`.
+
+Tests (first): `after` mocked to capture its callback: the response is returned before the callback runs, the open is recorded when it runs, a failed write logs `reason=error`, a slow write logs `open slow` once and still records; view: draft and preview carry today's Eastern day (fake timers), approved unchanged; generate: attempt 1 with 1 fixable flag then attempt 2 with 4 keeps attempt 1's copy and its one flag, a tie keeps attempt 2. Commit subject: `Count opens after the page is sent, show today's Prepared date, and keep the better copy`.
+
+### Task 35: Hub search while typing, Show older after a refresh, the progress clock (spec v1.1 §18.8, §18.9) (#368)
+
+**Files:** `components/aeo-outbound/hub.tsx`, `hub.test.tsx`, `app/api/aeo-outbound/progress/route.ts`, `route.test.ts`, `lib/aeo-outbound/store.ts` (`generationProgressQuery`), `components/aeo-outbound/use-generation-progress.ts`, its test.
+
+- Search (spec §18.8): a ref list of pushed, not yet arrived values and a `target` ref; the `q` effect consumes a matching pending value (dropping it and every earlier one) without touching the box or timer, else re-syncs, empties the list and sets `target = q`; the timer pushes when the cleaned box text differs from `target`, and records the value as pending and as `target`.
+- Show older: `older` gains `base: string` (`${cursor.before}|${cursor.beforeId}` of the first page when the first Show older ran, kept on later clicks); `olderRows` and `nextCursor` use `older` only when `older.q === q` and `older.base` equals the current first-page cursor's key (no cursor means no match).
+- Progress: `generationProgressQuery` also selects `now: sql<Date>\`now()\``; the "no row" path runs `select now()`; both 200 bodies add `now` (ISO). The hook computes `offset` per poll (0 when `now` is missing or unparsable) and compares with `clickedAt + offset - OTHER_RUN_MS`.
+
+Tests (first): §18.10's hub and progress rows (typing during the push's render keeps the text; Back re-syncs; two pushes with the first rendering first; clearing the box while a push renders pushes the empty search; Show older twice then a new row clears older rows and resumes from the new cursor; a browser clock 60s ahead shows the run's steps; a missing `now` behaves as today). Commit subject: `Keep typing in the hub search, keep Show older complete, and read the progress clock from the server`.
+
+### Task 36: 1 to 6 findings per box (spec v1.1 §18.12) (#368)
+
+**Files:** `lib/aeo-outbound/slots.ts`, `slots.test.ts`, `contracts.ts`, `contracts.test.ts`, `render.ts`, `render.test.ts`, `render.frame.test.ts`, `labels.test.ts`, `app/api/aeo-outbound/reports/[id]/slots/route.test.ts`, `components/aeo-outbound/editor.tsx`, `editor.test.tsx`.
+
+- Everything in spec §18.12: the constants, `STRUCTURE`, `applyStructure`'s order of checks and messages, the stored contract `.min(1).max(6)`, the draft controls, the three CSS rules replacing `render.ts:94` in place, the editor dropping a structure message while `structuring`, and the reload-pending ref so edit mode is handed back only on the new frame's `ready`.
+- Browser check after the commit: on the dev server from this worktree is not possible while the main checkout runs it, so render the draft page for 1, 2, 5 and 6 bullets with the edit class on through the trial's `shoot2.mjs` approach and record box, card and figure heights at 1440, 1280 and 390 in the ledger.
+
+Tests (first): spec §18.12's test list, including every expectation it names as changing on purpose. Commit subject: `Let Ryan keep 1 to 6 findings per box, with the chart card matching`.
