@@ -16,6 +16,7 @@ export const EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'ytd-review@1': 'own',           // title kept with the first card, each card a block (ytd-review*.tsx)
   'ytd-review@2': 'own',
   'ytd-review@3': 'own',
+  'ytd-review@4': 'own',
   'engagement-breakdown@1': 'block', // one row of tiles
   'influencer-posts@1': 'own',     // heading and totals with the first row, rows of two cards (influencer-grid.tsx)
   'kpi-check-in@1': 'own',         // each platform card a block, the heading in the first (kpi-check-in.tsx)

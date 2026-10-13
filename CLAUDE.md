@@ -966,7 +966,12 @@ From the review of the lock every number build. None blocks the October set.
   (`lock store read failed ...`), which is the signal until this is fixed. It needs a lock-specific
   error the getters rethrow, and those getters are on Renaissance's path: its own PR, with a
   Renaissance proof. The three October clients hide Overview, so they are not exposed today.
-- [ ] **`settledThrough` ignores `firstMonth`**, so a custom range that ends before a client's first
+- [x] **RESOLVED (feat/os-renaissance-locked-months, spec 4.2c):** a request whose period ends before the 1st of
+  `firstMonth` now reads live and is never stored (`lockedFrom`, `lib/organic-social/lock-day.ts`; the bound is checked
+  in `lib/organic-social/locking-client.ts`), and the unreachable final return is `null`, pinned by a test over every
+  lock day, opening day, weekend rule and day of a year. Clamping `settledThrough` alone would not have done it: a
+  client's last locked day is later than every month before its `firstMonth`. Original entry:
+  **`settledThrough` ignores `firstMonth`**, so a custom range that ends before a client's first
   reporting month is lockable and writes a row nothing will ever read
   (`lib/organic-social/lock-day.ts:31`). Stray rows only: no number is wrong, and the lock sweep
   already filters by `firstMonth`. Clamp it, and change its unreachable final `return lastOf(key)`
