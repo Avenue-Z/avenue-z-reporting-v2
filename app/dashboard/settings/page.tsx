@@ -170,7 +170,7 @@ export default async function SettingsPage() {
               <tbody>
                 {clients.map((client) => {
                   const platformReports = client.enabledReports.filter(
-                    (r) => !['meeting-prep', 'conversational-summary', 'ffci', 'pr-placements', 'exec-summary', 'blended-performance', 'executive-overview'].includes(r)
+                    (r) => !['conversational-summary', 'ffci', 'pr-placements', 'exec-summary', 'blended-performance', 'executive-overview'].includes(r)
                   )
                   return (
                     <tr

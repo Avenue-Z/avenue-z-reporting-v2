@@ -63,7 +63,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
           Reports
         </p>
         <ul className="flex flex-col gap-0.5">
-          {ALL_REPORT_SLUGS.filter((slug) => slug !== 'meeting-prep' && !client.hiddenReports?.includes(slug as any)).map((slug) => {
+          {ALL_REPORT_SLUGS.filter((slug) => !client.hiddenReports?.includes(slug as any)).map((slug) => {
             const isEnabled = client.enabledReports.includes(slug as any)
             const isActive =
               isEnabled &&

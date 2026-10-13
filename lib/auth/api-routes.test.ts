@@ -1,7 +1,7 @@
 // @vitest-environment node
 // Every API route in the app, listed by hand. Adding a route means adding it here on purpose, and removing one means
 // taking it off. This reads the source tree, so a route is covered the day it lands, wherever it is under app/.
-import { readdirSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join, posix, sep } from 'node:path'
 import { expect, test } from 'vitest'
 
@@ -33,4 +33,14 @@ const ROUTES = [
 
 test('every API route is listed here, so adding one is deliberate', () => {
   expect(routesUnderApp()).toEqual([...ROUTES].sort())
+})
+
+// A scheduled job calls its route every hour or so. Removing that route while the job stays in vercel.json would leave
+// the job failing on every run, so each cron path has to be on the list above.
+test('every cron in vercel.json calls a route on this list', () => {
+  const crons = (JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8')).crons ?? []) as { path: string }[]
+  // vercel.json has crons today; if they are ever all removed, delete this line.
+  expect(crons.length).toBeGreaterThan(0)
+  const paths = crons.map((c) => c.path.replace(/^\//, '').split('?')[0])
+  expect(paths.filter((p) => !ROUTES.includes(p))).toEqual([])
 })
