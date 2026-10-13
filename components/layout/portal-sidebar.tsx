@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
 import { REPORT_NAMES, ALL_REPORT_SLUGS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, SOON_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, SHOW_LOCKED_REPORT_TEASERS, visibleSubsections, organicSocialSubsections, resolveOrganicSubsection } from '@/lib/constants'
 import type { PortalSidebarClient } from '@/lib/portal/sidebar-client'
+import { carriesRange, isOrganicSocialView } from '@/lib/organic-social/section-range'
 import { LogOut, Lock, Users } from 'lucide-react'
 
 interface PortalSidebarProps {
@@ -30,6 +31,9 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
   const activeSubsection = searchParams.get('subsection')
   const dateRange        = searchParams.get('dateRange')
   const isOnReports      = pathname.includes('/reports')
+  // Spec 4.2b: for a client on locked months the range stops at the Organic Social boundary.
+  const inOrganic = isOrganicSocialView(pathname, activeSection)
+  const carry = (p: URLSearchParams, target: string) => { if (dateRange && carriesRange(client.lockedMonths, inOrganic, target)) p.set('dateRange', dateRange) }
 
   const INBOUND_FUNNEL_SUBSECTIONS: { id: string | null; label: string }[] = [
     { id: null,     label: 'Overview' },
@@ -63,7 +67,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
           Reports
         </p>
         <ul className="flex flex-col gap-0.5">
-          {ALL_REPORT_SLUGS.filter((slug) => slug !== 'meeting-prep' && !client.hiddenReports?.includes(slug as any)).map((slug) => {
+          {ALL_REPORT_SLUGS.filter((slug) => !client.hiddenReports?.includes(slug as any)).map((slug) => {
             const isEnabled = client.enabledReports.includes(slug as any)
             const isActive =
               isEnabled &&
@@ -72,7 +76,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
                 (!activeSection && slug === client.enabledReports[0]))
             const linkParams = new URLSearchParams()
             linkParams.set('section', slug)
-            if (dateRange) linkParams.set('dateRange', dateRange)
+            carry(linkParams, slug)
 
             // "Soon" items — shown grayed out with badge, not locked
             if (SOON_REPORT_SLUGS.has(slug)) {
@@ -111,7 +115,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
             if (slug === 'inbound-funnel') {
               const ifBaseParams = new URLSearchParams()
               ifBaseParams.set('section', 'inbound-funnel')
-              if (dateRange) ifBaseParams.set('dateRange', dateRange)
+              carry(ifBaseParams, 'inbound-funnel')
               return (
                 <li key={slug}>
                   <Link
@@ -131,7 +135,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
                         const subParams = new URLSearchParams()
                         subParams.set('section', 'inbound-funnel')
                         if (sub.id) subParams.set('subsection', sub.id)
-                        if (dateRange) subParams.set('dateRange', dateRange)
+                        carry(subParams, 'inbound-funnel')
                         const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
                         return (
                           <li key={sub.id ?? 'overview'}>
@@ -159,7 +163,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
             if (slug === 'peec-ai') {
               const aeoBaseParams = new URLSearchParams()
               aeoBaseParams.set('section', 'peec-ai')
-              if (dateRange) aeoBaseParams.set('dateRange', dateRange)
+              carry(aeoBaseParams, 'peec-ai')
               return (
                 <li key={slug}>
                   <Link
@@ -193,7 +197,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
                         const subParams = new URLSearchParams()
                         subParams.set('section', 'peec-ai')
                         if (sub.id) subParams.set('subsection', sub.id)
-                        if (dateRange) subParams.set('dateRange', dateRange)
+                        carry(subParams, 'peec-ai')
                         const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
                         return (
                           <li key={sub.id ?? 'peec'}>
@@ -221,7 +225,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
             if (slug === 'paid-media') {
               const pmBaseParams = new URLSearchParams()
               pmBaseParams.set('section', 'paid-media')
-              if (dateRange) pmBaseParams.set('dateRange', dateRange)
+              carry(pmBaseParams, 'paid-media')
               return (
                 <li key={slug}>
                   <Link
@@ -241,7 +245,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
                         const subParams = new URLSearchParams()
                         subParams.set('section', 'paid-media')
                         if (sub.id) subParams.set('subsection', sub.id)
-                        if (dateRange) subParams.set('dateRange', dateRange)
+                        carry(subParams, 'paid-media')
                         const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
                         return (
                           <li key={sub.id ?? 'overview'}>
@@ -272,7 +276,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
             if (slug === 'organic-social') {
               const osBaseParams = new URLSearchParams()
               osBaseParams.set('section', 'organic-social')
-              if (dateRange) osBaseParams.set('dateRange', dateRange)
+              carry(osBaseParams, 'organic-social')
               const resolvedOrganicId = resolveOrganicSubsection(client, activeSubsection).id
               return (
                 <li key={slug}>
@@ -293,7 +297,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
                         const subParams = new URLSearchParams()
                         subParams.set('section', 'organic-social')
                         if (sub.id) subParams.set('subsection', sub.id)
-                        if (dateRange) subParams.set('dateRange', dateRange)
+                        carry(subParams, 'organic-social')
                         const subIsActive = sub.id === resolvedOrganicId
                         return (
                           <li key={sub.id ?? 'overview'}>
@@ -321,7 +325,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
             if (slug === 'ga4') {
               const ga4BaseParams = new URLSearchParams()
               ga4BaseParams.set('section', 'ga4')
-              if (dateRange) ga4BaseParams.set('dateRange', dateRange)
+              carry(ga4BaseParams, 'ga4')
               return (
                 <li key={slug}>
                   <Link
@@ -356,7 +360,7 @@ export function PortalSidebar({ client, userRole }: PortalSidebarProps) {
                         const subParams = new URLSearchParams()
                         subParams.set('section', 'ga4')
                         if (sub.id) subParams.set('subsection', sub.id)
-                        if (dateRange) subParams.set('dateRange', dateRange)
+                        carry(subParams, 'ga4')
                         const subIsActive = sub.id === null ? !activeSubsection : activeSubsection === sub.id
                         return (
                           <li key={sub.id ?? 'overview'}>

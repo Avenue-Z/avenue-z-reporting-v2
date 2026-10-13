@@ -8,7 +8,9 @@ import { priorParams, requestKey, requestPeriodEnd } from './lock-day'
 import { readLock, writeLock } from './response-lock-store'
 
 export type DashReader = Pick<DashSocialClient, 'getReportsData' | 'getContent' | 'getMedia'>
-type Opts = { clientId: string; slug: string; settled: string | null; late: (periodEnd: string) => boolean }
+/** `from` is the first day a request can lock (the 1st of firstMonth, lockedFrom). A request ending before it is read
+ *  live and never stored (spec 4.2c). Null means no lower bound. */
+type Opts = { clientId: string; slug: string; settled: string | null; from: string | null; late: (periodEnd: string) => boolean }
 /** `capture` is the reader the FIRST read of a locked month goes through: a second client whose
  *  fetches cannot be served from Next's data cache. It has no default on purpose. Dash calls carry
  *  `next: { revalidate: 3600 }`, and on a dynamic request Next serves an expired entry stale while
@@ -74,7 +76,7 @@ export function lockingClient(inner: DashReader, opts: Opts, deps: Deps): DashRe
   async function locked<T>(method: string, params: object, complete: (res: unknown) => boolean, live: () => Promise<T>, capture: () => Promise<T>): Promise<T> {
     const p = params as Record<string, unknown>
     const end = requestPeriodEnd(p)
-    if (!end || !opts.settled || end > opts.settled) return live()
+    if (!end || !opts.settled || end > opts.settled || (opts.from !== null && end < opts.from)) return live()
     const key = requestKey(method, p)
     let answer: unknown
     // Fail closed, and say so: a lock store outage must never quietly serve live numbers, and on

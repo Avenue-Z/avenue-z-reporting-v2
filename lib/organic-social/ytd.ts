@@ -5,14 +5,14 @@
 import type { OutlineKpis } from './outline-headlines'
 import type { DashChannel } from './metrics'
 import type { YtdCell, YtdTab } from './ytd-sheet'
-import type { Clock } from './reporting-months'
+import { monthOf, type Clock } from './reporting-months'
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 const CUSTOM_RE = /^custom:(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})$/
 const SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export type YtdConfig = { firstMonth: string; comparison: 'previous-month' | 'previous-year' }
-/** compareRange is null only for ytd-review@3's months (a live client's), which ask Dash with no comparison. */
+/** compareRange is null for ytd-review@3's and @4's months, which ask Dash with no comparison. */
 export type YtdMonth = { key: string; dateRange: string; compareRange: string | null; partial: boolean }
 export type YtdPoint = { key: string; label: string; followers: number; views: number }
 
@@ -106,6 +106,18 @@ export function ytdSheetMonths(dateRange: string, compareRange: string, cfg: Ytd
     out.push({ key: k, dateRange: `custom:${k}-01,${lastOf(k)}`, compareRange: `custom:${ref}-01,${lastOf(ref)}`, partial: false })
   }
   return [...out, ...base]
+}
+
+/** ytd-review@4's months (spec 2026-10-12-os-renaissance-locked-months-design.md 4.2): ytd-review@2's months (January of
+ *  the year on screen through the month on screen), without a month in progress (the 10/5 decision ytdLiveMonths
+ *  keeps: a partial month reads as a drop) and with no comparison, as ytd-review@3 asks. Locking keys on the period end
+ *  alone, so a comparison would only add a baseline read. `today` is the New York date (requestClock): a month that has
+ *  not ended there is left off even when its range reads 1st to last (00:00 to 04:00 UTC on the 1st, when the live range
+ *  ends on the last day but its Dash window is still open). null where version 2 draws nothing; [] on the team's live
+ *  January, when no month of that year has finished. */
+export function ytdLockedMonths(dateRange: string, compareRange: string, cfg: YtdConfig, today: string): YtdMonth[] | null {
+  const months = ytdSheetMonths(dateRange, compareRange, cfg)
+  return months && months.filter((m) => !m.partial && m.key < monthOf(today)).map((m) => ({ ...m, compareRange: null }))
 }
 
 /** ytd-review@3's months for a live client (PR #306): January through the last finished month, whatever the date picker

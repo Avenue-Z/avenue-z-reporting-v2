@@ -56,6 +56,7 @@ export default defineConfig({
       'lib/auth/page-access.test.ts',
       'lib/auth/log-id.test.ts',
       'lib/auth/protected-pages.test.ts',
+      'lib/auth/api-routes.test.ts',
       'proxy.test.ts',
       'lib/dash-social/content.test.ts',
       'lib/dash-social/uncached.test.ts',
