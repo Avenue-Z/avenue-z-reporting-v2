@@ -1159,31 +1159,58 @@ Glean still writes 2 or 3 bullets per box (`prompt.ts:85-86`, `GLEAN_SLOTS` `con
 
 - `slots.ts`: `MIN_BULLETS = 1`, `MAX_BULLETS = 6` exported. `STRUCTURE` becomes
   `/^(competitive_bullets|sources_bullets)\.(?:add|([0-5])\.remove)$/`. `applyStructure`: an add needs
-  `length < MAX_BULLETS` (else `STRUCTURE_ERRORS.full`, "A list can have at most six bullets."); a remove needs
-  `length > MIN_BULLETS` and an index below `length` (else `STRUCTURE_ERRORS.min`, "A list needs at least one bullet.", or
-  `unknown field` for an index past the end). An added bullet is "Needs validation" in both parts, as today, so Approve stays
-  blocked until Ryan fills it in or removes it (`needsValidationBlocksApprove`, `config.ts:24`). `PATH`'s `(\d)` already
-  allows indexes 0 to 9; a patch to a bullet past the end stays `unknown field` (`slots.ts:93`).
+  `length < MAX_BULLETS`, else `STRUCTURE_ERRORS.full` ("A list can have at most six bullets."). A remove checks the
+  index first: an index at or past `length` is `unknown field`; then it needs `length > MIN_BULLETS`, else
+  `STRUCTURE_ERRORS.min` ("A list needs at least one bullet."). An added bullet is "Needs validation" in both parts, as
+  today, so Approve stays blocked until Ryan fills it in or removes it (`needsValidationBlocksApprove`, `config.ts:24`).
+  `PATH`'s `(\d)` already allows indexes 0 to 9; a patch to a bullet past the end stays `unknown field` (`slots.ts:93`).
 - `contracts.ts:152` (the stored row): each list `.min(1).max(6)`, so a stored row of 1 to 6 bullets reads back and every
   older row of 2 or 3 still does.
 - `render.ts:183-187` (draft only): each bullet gets Remove when `list.length > MIN_BULLETS`, and the list gets Add bullet
   when `list.length < MAX_BULLETS`. Preview and final pages carry neither (unchanged).
 - `labels.ts:27` already reads one digit, so "bullet 1" to "bullet 6" label correctly. The editor posts
-  `${path}.${op}` and checks `isStructuralPath` (`editor.tsx:211-215`), so it follows the new pattern with no change.
-- **Layout** (trial `aeo-outbound-audit-notes/findings/2026-10-13-bullets-1-to-6-trial/`): past about 4 bullets the box
-  outgrows the chart card (box 707px, card 484px at 1440 wide) and the card stops short. `PAGE_CSS` adds, scoped to
-  `#category-data` and `#competitive-visibility`: `.two-col>div:last-child{display:flex}`,
-  `.chart-wrap{flex:1;display:flex;flex-direction:column}` and `.chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}`.
-  The card then matches the box and the chart keeps its size (420px) and sits centred. Measured: 1 to 3 bullets unchanged
-  (484 and 484); 6 bullets 707 and 707 at 1440, 752 and 752 at 1280; at 390 the columns stack and the box grows; no
-  sideways scroll anywhere. The figures (`charts.ts`) and the chart goldens are untouched.
-- With 18.4: a lost add whose retry would now succeed (a list of 3 can take a 4th) is exactly the case step 2 answers
-  before the patch, so a bullet is never added twice.
+  `${path}.${op}` and checks `isStructuralPath` (`editor.tsx:211-215`).
+- **One structure click at a time (editor):** today a second Add on a full list or a second Remove on a list of 2 is refused
+  by the limit, which made a double click harmless. With room to grow, two clicks that both reach the editor before its
+  `mode edit:false` reaches the frame would add two bullets, or remove a second, different bullet (the next one shifts into
+  the same index). The editor drops a `structure` message while `q.state.structuring` is true (the queue holds an
+  unfinished structure item).
+- **Layout** (trial `aeo-outbound-audit-notes/findings/2026-10-13-bullets-1-to-6-trial/`, re-run with exactly these
+  strings in this position): `PAGE_CSS`'s second chart-spacing rule (`render.ts:94`,
+  `#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}`) is replaced, in
+  the same place, by three rules:
+  ```
+  #category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}
+  #category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}
+  #category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}
+  ```
+  Both columns become flex columns, so the bullet box (`flex:1`, `render.ts:95`) and the chart card fill the row's height,
+  and the figure below the chart title sits centred in the card. Measured with these rules, preview and draft (edit
+  class on), 1, 2, 5 and 6 bullets: at 1440 and 1280 the box and the card are equal at every count (484 and 484 up to 3
+  bullets, 625 at 5, 733 at 6); at 390 the columns stack (AIVx's phone layout) and the card stays 484; the figure is 420px
+  tall everywhere and its width is unchanged (502 at 1440, 422 at 1280, 324 at 390); no sideways scroll in any case. The
+  draft measurement used today's controls; the build's browser check measures draft with the new Add and Remove controls
+  at 1, 2, 5 and 6. This supersedes §17.8's "the chart card's size ... untouched" and "its own height, top-aligned": past
+  3 bullets the card grows to the box. My rule still holds: the figures, their layout margins and the legends
+  (`charts.ts`) and the chart goldens are untouched; only the card around them grows. With 1 bullet the box is the card's
+  height with one centred finding (`desktop-1-fixed-competitive-visibility.png`): I looked at it and accepted it.
+  `render.test.ts` `CHART_SPACING_RULES` (`:355-365`) and the outside-media-query list (`:389-395`) change to match.
+- **With 18.4:** a lost add on a list of 2 to 5, or a lost remove on a list of 2 or more, would now succeed if retried, so
+  a bullet would be added or removed twice. Step 2 answers that retry before the patch is applied. (18.4's step 2 note
+  about `applyStructure` refusing the retry applies only to the old 2 and 3 limits.)
+- **Deploy order:** a build without 18.12 reads a stored row with 1 or 4 to 6 bullets as unreadable (`contracts.ts:152`,
+  `store.ts:22`), drafts and approved rows alike. Rolling back past this build after anyone has saved such a row breaks
+  those rows until it is rolled forward. `MIGRATIONS-PENDING.md`'s 0029 note and the #368 description say so.
 
 Edge cases: add at 5 gives 6 and hides Add; add at 6 is 400 "at most six"; remove at 2 gives 1 and hides Remove; remove at
-1 is 400 "at least one"; remove index 5 of a list of 3 is 400 `unknown field`; a row stored with 2 bullets renders and
-edits as before; a stored row with 0 or 7 bullets fails the read contract (unreadable, as any broken row today).
+1 is 400 "at least one"; remove index 5 of a list of 3, or index 5 of a list of 1, is 400 `unknown field`; a double click
+on Add adds one bullet; a row stored with 2 bullets renders and edits as before; a stored row with 0 or 7 bullets fails
+the read contract (unreadable, as any broken row today).
+
 Tests (first): every edge case in `slots.test.ts`; `contracts.test.ts` for 1, 6, 0 and 7; `render.test.ts` for the Add and
-Remove controls at 1, 2, 5 and 6 in draft and none in preview and final; the three CSS rules appear once per mode inside
-the scoped selectors; `labels.test.ts` for bullet 6; the slots `route.test.ts` for an add at 3 and a remove at 2; the
-frame test that a Remove at index 4 posts `competitive_bullets.4` and `remove`.
+Remove controls at 1, 2, 5 and 6 in draft and none in preview and final, and the three rules verbatim in their place;
+`labels.test.ts` for bullet 6; the slots `route.test.ts` for an add at 3, a remove at 2, and remove index 5 of 3;
+`editor.test.tsx` for a second structure message dropped while one is unfinished; the frame test that a Remove at index 4
+posts `competitive_bullets.4` and `remove`. Expectations that change on purpose: `route.test.ts:170-178` (remove from 2 is
+now a 200), `slots.test.ts:138-151` (the 2 and 3 limits and the error texts), `render.test.ts:283-289` and `:470-478`
+(control counts), `render.test.ts:355-365` and `:389-395` (the rules list).
