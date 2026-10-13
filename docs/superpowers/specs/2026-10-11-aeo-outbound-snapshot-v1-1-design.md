@@ -1150,3 +1150,12 @@ Every existing test keeps passing unless a part names the expectation it changes
 
 No scratch trial: every behaviour here is deterministic and runs in these tests. The one part they cannot run is Postgres
 accepting `0029`, which the dev apply's read-back checks (on my written go).
+
+### 18.12 Ryan can add up to 6 findings per box, and remove down to 1 (my decision, 2026-10-13; to be specced in full)
+
+Today each of the two finding boxes holds 2 or 3 bullets, enforced in `slots.ts:47-49` (paths and `STRUCTURE`, index
+`[0-2]`), `applyStructure` (`slots.ts:119,122`), and the stored and generated contracts (`contracts.ts:101,152`,
+`.min(2).max(3)`). My decision: Ryan can add bullets up to **6** per box and remove down to **1**; Glean still writes 2 or
+3. The layout must stay clean at every count on desktop and phone. Before this is specced in full: a mock at 1, 3 and 6
+bullets in each box, desktop (1280, 1440) and phone (390), for me to look at. Built together with 18.4, which edits the
+same structure path.
