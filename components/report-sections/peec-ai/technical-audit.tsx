@@ -38,7 +38,8 @@ const AEO_STATUS_CONFIG: Record<AEOStatus, {
 function SectionCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
-      <div>
+      {/* In the PDF export the title stays on the page of what follows it (app/export/export-theme.css). */}
+      <div data-export-keep-with-next="">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         <p className="mt-1 text-xs text-text-muted">{description}</p>
       </div>
@@ -152,7 +153,7 @@ function TrendSection({ sfData }: { sfData: SFData }) {
   ]
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-3 gap-3" data-export-block="">
       {trendGroups.map(({ label, current: cur, prev: prv, color }) => {
         const delta = prv !== null ? cur - prv : null
         const maxVal = prv !== null ? Math.max(cur, prv, 1) : Math.max(cur, 1)
@@ -256,10 +257,10 @@ function AEOChecklistSection({ checklist }: { checklist: AEOChecklist }) {
 
   return (
     <div>
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Is the site meeting the AEO technical checklist?</h3>
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">Is the site meeting the AEO technical checklist?</h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((cat) => (
-          <div key={cat.title} className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-bg-surface p-5">
+          <div key={cat.title} className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-bg-surface p-5" data-export-block="">
             <div>
               <h4 className="text-xs font-bold text-white">{cat.title}</h4>
               <p className="mt-0.5 text-[11px] text-text-muted">{cat.description}</p>
@@ -371,15 +372,16 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
 
       {/* ── Section A: Snapshot KPIs ── */}
       <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">What&apos;s the audit at a glance?</h3>
+        <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">What&apos;s the audit at a glance?</h3>
         {kpis ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7" data-export-block="">
             {kpis.map(({ label, value, hint, trend }) => (
               <KpiCard key={label} label={label} value={value} hint={hint} trend={trend} />
             ))}
           </div>
         ) : (
-          <DataUnavailable label="Screaming Frog CSV not configured for client" />
+          // Setup (staff): the client's Screaming Frog crawl CSV isn't configured.
+          <DataUnavailable label="Site crawl data isn't available yet." />
         )}
       </div>
 
@@ -391,7 +393,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="What changed since the last crawl?"
           description="Issue delta between the most recent crawl and the prior crawl. New issues need immediate attention; resolved issues confirm fixes deployed."
         >
-          <DataUnavailable label="Screaming Frog CSV data unavailable" />
+          <DataUnavailable label="Site crawl data isn't available yet." />
         </SectionCard>
       )}
 
@@ -404,13 +406,14 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           <>
             <TrendSection sfData={sfData} />
             {!sfData.prev && (
+              // Setup (staff): set the client's sfPrevCsvFileId (the prior crawl CSV) to trend between crawls.
               <p className="text-[11px] text-text-muted">
-                Only one crawl snapshot available — configure sfPrevCsvFileId in database for delta trending.
+                Only one crawl so far, so there's no earlier crawl to compare.
               </p>
             )}
           </>
         ) : (
-          <DataUnavailable label="Screaming Frog CSV data unavailable" />
+          <DataUnavailable label="Site crawl data isn't available yet." />
         )}
       </SectionCard>
 
@@ -439,7 +442,8 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="Which AI platforms and bots are visiting the site?"
           description="Which AI crawlers are actively visiting the site, at what frequency, and whether they are successfully accessing content or hitting blocks."
         >
-          <DataUnavailable label="Peec agent analytics unavailable — check PEEC_AI_CUSTOMER_TOKEN and PEEC_AI_CUSTOMER_PROJECT_ID_AVENUE_Z" />
+          {/* Setup (staff): Peec agent analytics needs PEEC_AI_CUSTOMER_TOKEN and the client's Peec project id. */}
+          <DataUnavailable label="AI bot activity isn't available for this site yet." />
         </SectionCard>
       )}
 
@@ -451,7 +455,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="Where do AI activity and technical issues overlap?"
           description="Pages where AI bots are actively crawling AND where technical issues exist. Issues on AI-targeted pages have the highest priority — they directly impede LLM retrieval."
         >
-          <DataUnavailable label="Requires both Screaming Frog CSV and Peec agent analytics to cross-reference" />
+          <DataUnavailable label="Needs both site crawl data and AI bot activity." />
         </SectionCard>
       )}
 
@@ -463,7 +467,7 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           title="Where are AI crawlers wasting requests?"
           description="Unusual AI bot behavior: hits on error pages, redirect chains, and crawl budget distribution between high-value and low-value pages."
         >
-          <DataUnavailable label="Peec agent analytics unavailable" />
+          <DataUnavailable label="AI bot activity isn't available for this site yet." />
         </SectionCard>
       )}
 
@@ -473,7 +477,8 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
       ) : (
         <div>
           <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-text-muted">Is the site meeting the AEO technical checklist?</h3>
-          <DataUnavailable label="Sitebulb Historical Hint Data unavailable for client" />
+          {/* Setup (staff): the client's Sitebulb Historical Hint Data sheet isn't configured. */}
+          <DataUnavailable label="The AEO checklist isn't available for this site yet." />
         </div>
       )}
 
@@ -485,11 +490,11 @@ export async function TechnicalAuditReport({ clientSlug, dateRange }: { clientSl
           errorPageHits={agentData?.errorPageHits ?? null}
         />
       ) : (
-        <DataUnavailable label="Fix list requires Screaming Frog crawl data" />
+        <DataUnavailable label="The fix list needs site crawl data, which isn't available yet." />
       )}
 
       {/* Scoring methodology */}
-      <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6">
+      <div className="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6" data-export-block="">
         <h3 className="text-xs font-bold uppercase tracking-widest text-text-muted">How is priority scored?</h3>
         <p className="text-sm leading-relaxed text-white/60">
           Each issue is scored using a weighted formula that combines technical severity with AI activity signals.

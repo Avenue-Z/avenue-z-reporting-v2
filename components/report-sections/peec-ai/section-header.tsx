@@ -15,7 +15,8 @@ type Props = {
 
 export function SectionHeader({ icon: Icon, title, subtitle, badge }: Props) {
   return (
-    <div className="flex items-start gap-4">
+    // In the PDF export the tab's header stays on the page of what follows it (app/export/export-theme.css).
+    <div className="flex items-start gap-4" data-export-keep-with-next="">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#60FF80]/10">
         <Icon className="h-5 w-5 text-[#60FF80]" />
       </span>
