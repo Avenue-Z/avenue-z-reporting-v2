@@ -9451,3 +9451,17 @@ block by its opening string); the block once per mode. Commit subject: `Lay out 
   the not-allowed rule to `html.aeo-edit [data-mirror]:not([data-mirror-edit]),html.aeo-edit [data-locked]`.
 
 Tests (first): every case in spec §17.16. Commit subject: `Let Ryan edit every menu item, in sync with its section`.
+
+### Task 29: Phone headline padding and hub one-line brand names (spec v1.1 §17.17)
+
+**Files:** `lib/aeo-outbound/render.ts` (`PAGE_CSS` phone block), `components/aeo-outbound/hub.tsx` (the brand cell, the
+creator line, the first and last opened lines), and their tests.
+
+- `PAGE_CSS`: inside the `@media (max-width: 900px){` block, add `'.exec-summary{padding:40px 24px}'` as its own entry
+  (after the existing first entry is fine).
+- `hub.tsx`: the brand name `div` adds `whitespace-nowrap`; the creator line's `max-w-[180px]` becomes `max-w-[160px]`;
+  the two opened-time `div`s add `whitespace-nowrap`. No text changes.
+
+Tests (first): the rule sits inside the phone block and nowhere else, once per mode; the brand name element has
+`whitespace-nowrap`; the creator line has `max-w-[160px]`; both opened lines have `whitespace-nowrap`; existing tests
+pass. Commit subject: `Fix the phone headline padding and keep hub brand names on one line`.

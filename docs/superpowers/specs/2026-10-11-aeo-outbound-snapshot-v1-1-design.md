@@ -944,3 +944,16 @@ for `page.section_1_title` after the debounce; typing in the section title updat
 never rewritten while typing; a click on a menu copy in Edit mode posts no `locked`; a click on a section-label copy still
 does; Enter, paste and drop behave as for slots; preview and final pages carry no `data-mirror-edit`; the "one editable
 element per path" render test becomes "one slot per path, and the only other editable elements are the four menu copies".
+
+### 17.17 Two layout fixes found while taking screenshots (added 2026-10-13, my decision)
+
+- **Phone, headline signal:** AIVx's phone block (`aivx/css.ts`, `@media (max-width: 900px)`) sets `.section`, `.hero` and
+  `.footer` to 24px side padding but not `.exec-summary`, which keeps its desktop `56px 64px`, so at 390 wide its text
+  starts at 64px while every other section starts at 24px (measured). `PAGE_CSS`'s phone block adds
+  `.exec-summary{padding:40px 24px}` (the same as AIVx's phone `.section`).
+- **Hub, brand names wrapping:** at 1440 wide the Brand column gets 133px and "A Place for Mom" wraps, while the Opens
+  column's dates wrap too (rows up to 141px tall). The brand name gets `whitespace-nowrap`, the "First opened" and "Last
+  opened" lines get `whitespace-nowrap`, and the creator line's cap goes from 180px to 160px. Measured in a mock: the table
+  is exactly its card's width at 1440 (1,103px both), rows 63 to 109px. Below about 1,400px the table scrolls sideways
+  inside its card (as `overflow-x-auto` already allows) instead of squeezing rows to 269px tall, which is what 1280 wide
+  does today. The opens breakdown line still wraps.
