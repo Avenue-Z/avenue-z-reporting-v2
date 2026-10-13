@@ -85,15 +85,19 @@ test('the first lockable day is the 1st of firstMonth; nothing when the config i
 test('settledThrough is always last month or the month before last, for every lock day, opening day, weekend rule and day of a year', () => {
   const iso = (d: Date) => d.toISOString().slice(0, 10)
   const endOfMonthBefore = (day: string, back: number) => iso(new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - back, 0)))
+  // About 59,000 cases: mismatches are collected and asserted once, so the run stays well inside the test timeout on CI.
+  const wrong: string[] = []
   for (const weekendRule of ['next-monday', 'previous-friday'] as const) {
     for (const opensOnDay of [4, 12, 28]) {
       for (let lockDay = 4; lockDay <= 28; lockDay++) {
         const cfg = { firstMonth: '2025-01', opensOnDay, weekendRule, lockDay }
         for (let t = Date.UTC(2026, 0, 1); t <= Date.UTC(2027, 0, 31); t += 86_400_000) {
           const today = iso(new Date(t))
-          expect([endOfMonthBefore(today, 1), endOfMonthBefore(today, 2)]).toContain(settledThrough(cfg, today))
+          const got = settledThrough(cfg, today)
+          if (got !== endOfMonthBefore(today, 1) && got !== endOfMonthBefore(today, 2)) wrong.push(`${weekendRule} open=${opensOnDay} lock=${lockDay} ${today} -> ${got}`)
         }
       }
     }
   }
-})
+  expect(wrong).toEqual([])
+}, 30_000)
