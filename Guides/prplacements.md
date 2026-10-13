@@ -10,7 +10,7 @@ Add a **PR Placements** module to the existing Next.js reporting dashboard. The 
 
 1. `lib/newsapi.ts` — API client and types
 2. `config/clients.ts` — per-client query definitions (extends existing mock data pattern)
-3. `app/api/pr-placements/route.ts` — server-side API route (keeps API key off client)
+3. Server-side fetch in the report section (`components/report-sections/pr-placements/index.tsx`), so the API key stays off the client
 4. `components/pr/` — all UI components
 5. `app/(dashboard)/clients/[clientId]/pr/page.tsx` — PR tab page
 
@@ -204,126 +204,16 @@ export function calcSummary(placements: Placement[]): PRSummary {
 
 ---
 
-## 4. API Route — `app/api/pr-placements/route.ts`
+## 4. Data fetching
 
-**Why server-side:** The NewsAPI.ai key must never be exposed in client bundles.
+The report fetches articles on the server, in `components/report-sections/pr-placements/index.tsx`: a POST to Event
+Registry's `article/getArticles` with `next: { revalidate: 3600 }`, using `NEWSAPI_AI_KEY` read on the server. It
+normalizes the answer with `normalizeArticle` and `calcSummary` from `lib/newsapi.ts`. There is no API route and no
+client-side hook for this module.
 
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { clients } from '@/config/clients';
-import { normalizeArticle } from '@/lib/newsapi';
+## 5. (Removed)
 
-const NEWSAPI_BASE = 'https://eventregistry.org/api/v1';
-
-export async function GET(req: NextRequest) {
-  const clientId = req.nextUrl.searchParams.get('clientId');
-  if (!clientId) return NextResponse.json({ error: 'clientId required' }, { status: 400 });
-
-  const client = clients.find(c => c.id === clientId);
-  if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-
-  const apiKey = process.env.NEWSAPI_AI_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
-
-  const { prConfig } = client;
-  const dataTypes = prConfig.dataTypes ?? ['news', 'pr'];
-
-  const body = {
-    action: 'getArticles',
-    keyword: prConfig.keywords,
-    keywordOper: 'or',
-    ...(prConfig.excludeKeywords?.length && { ignoreKeyword: prConfig.excludeKeywords }),
-    ...(prConfig.sourceLocationUri?.length && { sourceLocationUri: prConfig.sourceLocationUri }),
-    ...(prConfig.language && { lang: prConfig.language }),
-    articlesPage: 1,
-    articlesCount: 100,
-    articlesSortBy: 'date',
-    articlesSortByAsc: false,
-    articleBodyLen: 0,
-    dataType: dataTypes,
-    forceMaxDataTimeWindow: prConfig.lookbackDays === 7 ? 7 : 31,
-    resultType: 'articles',
-    // Request all fields needed for the dashboard
-    includeArticleTitle: true,
-    includeArticleUrl: true,
-    includeArticleSource: true,
-    includeArticleDate: true,
-    includeArticleSocialScore: true,
-    includeArticleSentiment: true,
-    includeSourceTitle: true,
-    includeSourceImportanceRank: true,
-    includeSourceAlexaGlobalRank: true,
-    ignoreSourceGroupUri: 'paywall/paywalled_sources', // skip paywalled sources
-    apiKey,
-  };
-
-  try {
-    const res = await fetch(`${NEWSAPI_BASE}/article/getArticles`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      next: { revalidate: 3600 }, // cache for 1 hour — avoids burning tokens on every page load
-    });
-
-    if (!res.ok) throw new Error(`NewsAPI returned ${res.status}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-
-    const rawArticles = data.articles?.results ?? [];
-    const placements = rawArticles.map((a: any) =>
-      normalizeArticle(a, dataTypes.includes('pr') && a.isDuplicate ? 'pr' : 'news')
-    );
-
-    return NextResponse.json({
-      placements,
-      totalResults: data.articles?.totalResults ?? placements.length,
-      clientId,
-      fetchedAt: new Date().toISOString(),
-    });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-```
-
-**Caching note:** `next: { revalidate: 3600 }` caches the fetch for 1 hour per client. This prevents re-fetching (and burning tokens) on every navigation. Adjust to `revalidate: 0` to disable during development.
-
----
-
-## 5. React Hook — `hooks/usePRPlacements.ts`
-
-```typescript
-import useSWR from 'swr';
-import { Placement, PRSummary, calcSummary } from '@/lib/newsapi';
-
-const fetcher = (url: string) => fetch(url).then(r => {
-  if (!r.ok) throw new Error('Failed to fetch placements');
-  return r.json();
-});
-
-export function usePRPlacements(clientId: string) {
-  const { data, error, isLoading, mutate } = useSWR(
-    clientId ? `/api/pr-placements?clientId=${clientId}` : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  );
-
-  const placements: Placement[] = data?.placements ?? [];
-  const summary: PRSummary = calcSummary(placements);
-
-  return {
-    placements,
-    summary,
-    totalResults: data?.totalResults ?? 0,
-    fetchedAt: data?.fetchedAt ?? null,
-    isLoading,
-    error,
-    refresh: () => mutate(),
-  };
-}
-```
-
-Install SWR if not already present: `npm install swr`
+Section 5 described a client-side data hook. The report fetches on the server instead (section 4).
 
 ---
 
@@ -550,7 +440,7 @@ Add a **PR** tab/link to the existing client detail navigation. Exact implementa
 The free NewsAPI.ai plan includes **2,000 tokens/month**.
 
 - Each `getArticles` call on recent data (last 31 days) = **1 token**
-- The API route uses `next: { revalidate: 3600 }` — 1 fetch per client per hour max
+- The report's server-side fetch uses `next: { revalidate: 3600 }`: at most 1 fetch per client per hour
 - With 10 clients, worst case = 10 tokens/hour = 7,200/month — **exceeds free tier**
 - **Recommendation for Claude Code:** add a note in `config/clients.ts` about token consumption, and consider increasing `revalidate` to `86400` (24h) for production to stay within budget
 
@@ -562,7 +452,6 @@ For paid plans: 5K tokens = $90/month, 10K = $150/month (see https://newsapi.ai/
 
 | Package | Purpose | Install |
 |---------|---------|---------|
-| `swr` | data fetching + caching hook | `npm install swr` |
 | `recharts` | charts (may already exist) | `npm install recharts` |
 | `@react-pdf/renderer` | PDF export | `npm install @react-pdf/renderer` |
 
@@ -570,7 +459,7 @@ For paid plans: 5K tokens = $90/month, 10K = $150/month (see https://newsapi.ai/
 
 ## 11. Key Constraints for Claude Code
 
-- **Never expose `NEWSAPI_AI_KEY` in client-side code** — all API calls must go through the Next.js API route
+- **Never expose `NEWSAPI_AI_KEY` in client-side code**: fetch only on the server, in the report section
 - **Do not add a keyword search input** — queries are hardcoded per client in `config/clients.ts`
 - **Match existing patterns** — before creating new components, check if the project already has a table component, stat card, chart wrapper, or loading skeleton to reuse
 - **Sentiment is English-only** — the API only returns sentiment scores for English articles; always handle `null` sentiment gracefully
