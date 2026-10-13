@@ -115,3 +115,13 @@ test('the Executive Overview stamps the export time and no reporting period, wha
   // The CRM fetches get a deadline under the ready budget (Thomas, #354): a slow CRM prints "Couldn't load", not a 504.
   expect(report.props).toEqual({ clientSlug: 'renaissance', crmDeadlineMs: 25_000 })
 })
+
+// Spec 2026-10-13 §3: every page is black to its edges with a 0.4 in margin. The @page rule is inline on this page only, so
+// it can't reach another route's stylesheet (browser printing of GA4 and others).
+test('the page sets a black Letter-landscape page with a 0.4 in margin, and a black body', async () => {
+  const r = await open({})
+  if ('redirect' in r) throw new Error('unexpected redirect')
+  const css = findElements(r.element, (e) => e.type === 'style').map((e) => String((e.props as { children: unknown }).children)).join('\n')
+  expect(css).toMatch(/@page\s*\{\s*size:\s*11in 8\.5in;\s*margin:\s*0\.4in;\s*background:\s*#000;?\s*\}/)
+  expect(css).toMatch(/html,\s*body\s*\{\s*background:\s*#000 !important;\s*margin:\s*0;\s*\}/)
+})

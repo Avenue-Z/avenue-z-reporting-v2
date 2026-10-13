@@ -28,7 +28,9 @@ test('renders the export page at the content width, once ready, with screen medi
   expect(page.setViewport).toHaveBeenCalledWith({ width: 979, height: 739 })
   expect(page.waitForFunction).toHaveBeenCalledWith('window.__exportReady === true', expect.objectContaining({ timeout: expect.any(Number) }))
   expect(page.emulateMediaType).toHaveBeenCalledWith('screen')
-  expect(page.pdf).toHaveBeenCalledWith({ width: '11in', height: '8.5in', margin: { top: '0.4in', right: '0.4in', bottom: '0.4in', left: '0.4in' }, printBackground: true, timeout: expect.any(Number) })
+  // Spec 2026-10-13 §3: size and margins come from the export page's @page rule, which also paints the page black to its
+  // edges; a page.pdf() margin would print as a white frame.
+  expect(page.pdf).toHaveBeenCalledWith({ preferCSSPageSize: true, printBackground: true, timeout: expect.any(Number) })
   expect(browser.close).toHaveBeenCalled()
 })
 

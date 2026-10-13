@@ -3,10 +3,10 @@
 // fully loaded, and prints it at US Letter landscape. Never returns a partial PDF: a page that is not
 // ready in time is an ExportNotReadyError, and nothing is printed.
 
-/** Content box of the page: 11 × 8.5 in less 0.4 in margins, at 96 px/in. */
+/** Content box of the page: 11 × 8.5 in less 0.4 in margins, at 96 px/in. The size and margins come from the export
+ *  page's CSS @page rule (app/export/[clientSlug]/[section]/page.tsx), which also paints each page black to its edges. */
 export const CONTENT_WIDTH = 979
 export const CONTENT_HEIGHT = 739
-const MARGIN = '0.4in'
 /** One budget for launch + navigation + the ready wait. The route's maxDuration is 60 s; 40 s here leaves room
  *  for auth before and page.pdf() after, so a slow but successful render is never cut off by the platform. */
 const READY_TIMEOUT_MS = 40_000
@@ -43,7 +43,7 @@ export interface PageLike {
   url(): string
   waitForFunction(fn: string, o: { timeout: number; polling: number }): Promise<unknown>
   emulateMediaType(type: 'screen'): Promise<void>
-  pdf(o: { width: string; height: string; margin: Record<'top' | 'right' | 'bottom' | 'left', string>; printBackground: boolean; timeout: number }): Promise<Uint8Array>
+  pdf(o: { preferCSSPageSize: boolean; printBackground: boolean; timeout: number }): Promise<Uint8Array>
 }
 export interface BrowserLike {
   setCookie(...c: { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure: boolean }[]): Promise<void>
@@ -135,10 +135,8 @@ export async function renderPdf(
     // and the app's global @media print rules (made for printing the live page) must not apply.
     try {
       await within(page.emulateMediaType('screen'), pdfLeft())
-      return await page.pdf({
-        width: '11in', height: '8.5in', margin: { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN }, printBackground: true,
-        timeout: pdfLeft(),
-      })
+      // Size and margins from the page's @page rule: a page.pdf() margin would print as a white frame around the black page.
+      return await page.pdf({ preferCSSPageSize: true, printBackground: true, timeout: pdfLeft() })
     } catch (e) {
       throw new ExportRenderError('pdf', e)
     }
