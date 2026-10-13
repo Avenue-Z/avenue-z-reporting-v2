@@ -288,7 +288,7 @@ with its 16 columns, both indexes (the partial one's `WHERE` intact), the foreig
 check; the ledger up by one with nothing pending; the table list changed by `chart_notes` only;
 no rows; Renaissance's row unchanged. Production: not applied.
 
-## Add aeo_outbound_reports (delivered, awaiting apply)
+## Add aeo_outbound_reports (applied on dev, awaiting staging and production)
 
 `drizzle/0026_aeo_outbound_reports.sql` creates the `aeo_outbound_status` enum and the standalone
 `aeo_outbound_reports` table (AEO Outbound Snapshot). Additive: no existing table, column or row
@@ -318,7 +318,7 @@ than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0026_aeo_outb
 `share_token` unique constraint; both indexes, with `aeo_outbound_one_generating`'s `WHERE status = 'generating'` intact; no
 rows; the ledger at 32 with nothing pending; `aeo_outbound_reports` the only table added. Staging and production: not applied.
 
-## Add the AEO Outbound v1.1 tables and columns (delivered, awaiting apply)
+## Add the AEO Outbound v1.1 tables and columns (applied on dev, awaiting staging and production)
 
 `drizzle/0027_aeo_outbound_v1_1.sql` creates `aeo_outbound_opens` (one row per counted open of a live link: `report_id`
 with a foreign key to `aeo_outbound_reports`, `opened_at`, `ua_family`, `likely_automated`, `reason`; no IP address and no
