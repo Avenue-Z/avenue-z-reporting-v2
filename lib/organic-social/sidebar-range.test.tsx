@@ -49,6 +49,10 @@ const PAGES = (area: 'portal' | 'dashboard') => [
 for (const [name, draw] of [['portal', portal], ['dashboard', dashboard]] as const) {
   test(`${name} sidebar: a locked client's links drop the range exactly when they cross the Organic Social boundary; every other link is as for a client without locked months`, () => {
     const sectionsSeen = new Set<string>()
+    // Which links copy the range at all, for a client without locked months: every portal link; on the dashboard only
+    // AEO, Paid Media and Organic Social (its generic, GA4 and Inbound Funnel links carry none).
+    const copiesRange = (target: string) => name === 'portal' || ['peec-ai', 'paid-media', 'organic-social'].includes(target)
+    let droppedFromCarrier = 0
     for (const [pageSection, url] of PAGES(name)) {
       at(url)
       const control = draw(BASE)
@@ -60,6 +64,12 @@ for (const [name, draw] of [['portal', portal], ['dashboard', dashboard]] as con
         sectionsSeen.add(target)
         const crosses = (pageSection === 'organic-social') !== (target === 'organic-social')
         if (crosses) {
+          // Not vacuous: where the control copies the range, it really had one, and the locked link dropped it.
+          if (copiesRange(target)) {
+            expect(q(control[i]).get('dateRange'), `control ${control[i]}`).not.toBeNull()
+            if (name === 'dashboard') expect(q(control[i]).get('compareRange'), `control ${control[i]}`).not.toBeNull()
+            droppedFromCarrier++
+          }
           expect(q(href).get('dateRange'), `${url} -> ${href}`).toBeNull()
           expect(q(href).get('compareRange'), `${url} -> ${href}`).toBeNull()
           // Only the range goes: the rest of the link is the control's.
@@ -71,6 +81,7 @@ for (const [name, draw] of [['portal', portal], ['dashboard', dashboard]] as con
         }
       })
     }
+    expect(droppedFromCarrier).toBeGreaterThan(0)
     // Every section rendered, so every range-copying branch of both sidebars was exercised.
     expect([...sectionsSeen].sort()).toEqual(['executive-overview', 'ga4', 'inbound-funnel', 'organic-social', 'paid-media', 'peec-ai', 'request-a-report'])
   })

@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import { completeContent, completeReportsData, lockingClient, withLockedBaseline, type DashReader } from './locking-client'
-import { requestKey } from './lock-day'
+import { lockedFrom, requestKey } from './lock-day'
+import { ytdConfig, ytdLockedMonths } from './ytd'
 import { buildPlatformHeadline } from './headline-build'
 import { normalizePost } from './top-content'
 import { CHANNELS, PLATFORM_KPIS } from './metrics'
@@ -395,4 +396,27 @@ test('4.2c: a request ending before the first lockable day reads live and is nev
     requestKey('getReportsData', SEPT as unknown as Record<string, unknown>),
     requestKey('getReportsData', prior as unknown as Record<string, unknown>),
   ])
+})
+
+test('spec §7 lock requests: with firstMonth 2026-07 and the floor at January, @4\'s January to June requests read live and write nothing; July onward locks', async () => {
+  const RM = { firstMonth: '2026-07', clientMonths: 1 }
+  const opts = { ...OPTS, settled: '2026-09-30', from: lockedFrom(RM) }
+  // ytd-review@4's months on the September view, sent as Dash windows the way isoRangeTz does (base.ts: T04:00:00Z),
+  // whole months with no comparison.
+  const months = ytdLockedMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', ytdConfig(RM)!, '2026-10-13')!
+  const request = (dateRange: string): ReportsDataParams => {
+    const [start, end] = dateRange.slice('custom:'.length).split(',')
+    return { brandId: BRAND, channels: ['INSTAGRAM'], metrics: ['TOTAL_FOLLOWERS', 'TOTAL_ENGAGEMENTS'], startDate: `${start}T04:00:00Z`, endDate: `${end}T04:00:00Z`, reportType: 'TOTAL_GROUPED_METRIC', aggregateBy: 'BRAND', requirePosts: true }
+  }
+  const inner = innerFake(); const deps = depsFake()
+  inner.getReportsData.mockResolvedValue(total(1, null))
+  deps.capture.getReportsData.mockResolvedValue(total(2, null))
+  const c = lockingClient(inner, opts, deps)
+  for (const m of months) await c.getReportsData(request(m.dateRange))
+  const startOf = (call: unknown[]) => String((call[0] as ReportsDataParams).startDate).slice(0, 7)
+  expect(months.map((m) => m.key)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'])
+  expect(inner.getReportsData.mock.calls.map(startOf)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'])
+  expect(deps.capture.getReportsData.mock.calls.map(startOf)).toEqual(['2026-07', '2026-08', '2026-09'])
+  expect(deps.write.mock.calls.map((w) => w[2])).toEqual(['2026-07-31', '2026-08-31', '2026-09-30'])
+  expect(deps.read).toHaveBeenCalledTimes(3)
 })
