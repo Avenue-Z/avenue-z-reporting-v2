@@ -957,3 +957,152 @@ element per path" render test becomes "one slot per path, and the only other edi
   is exactly its card's width at 1440 (1,103px both), rows 63 to 109px. Below about 1,400px the table scrolls sideways
   inside its card (as `overflow-x-auto` already allows) instead of squeezing rows to 269px tall, which is what 1280 wide
   does today. The opens breakdown line still wraps.
+
+## 18. Amendment 7 (2026-10-13): Paul's second review (PRs 361, 366, 368)
+
+Paul reviewed 2026-10-13 15:36 UTC: #361 at `3790a912` (3 comments), #366 at `6e516337` (2), #368 at `0a2b22e3` (6), plus
+one question (any allowlisted user can approve, revoke, discard or copy any report: **intended**, my answer, a shared team
+tool; no code change). Every mechanism below was read at those heads. Each fix lands on the PR that owns the file; #368
+then merges the updated #361 and #366 branches (as `1ff4310b` merged #366) and carries the same change in its own copy of
+any file it rewrote (`metrics.ts`, `pull.ts`, `peec.ts`, `save-queue.ts`), so #368 still contains both PRs.
+
+### 18.1 The rank card and the leader gaps always agree (#361 `metrics.ts:126-135`, #368 `metrics.ts:170-179`)
+
+Rank counts brands with a higher **displayed** visibility (`metrics.ts:99`), but `leaderGaps` keeps a rival only when its
+exact gap, rounded to 0.1 (`pyRound((rival - own) * 100, 1)`), is above 0. Own 0.12349 (12.3%) and a rival at 0.12351
+(12.4%) give `#2 of 3 brands` and no gap, so the copy can say the brand trails nobody. Fix: keep the existing filter
+(`hasRow && pct > own.visibilityPct`, so every brand that outranks the own brand is listed and nobody else), compute the
+gap as today, then `visibilityPoints = Math.max(0.1, gap)`, and drop the `> 0` filter. Since `pct1` never decreases as
+visibility rises, a higher displayed value means a positive exact gap, so only a gap that rounds to 0.0 changes, to 0.1.
+`sovPoints` is unchanged. Spec §5a row 17 ("competitor minus own, exact values") still holds except at that boundary.
+
+### 18.2 Own-site retrievals count subdomains and Peec's OWN rows (#361 `metrics.ts:137-143`, #368 `metrics.ts:182-190`)
+
+`ownRows` matches an own domain exactly (`ownDomains.includes(bare(r.domain))`), but the gap filter treats a subdomain of
+any roster domain as that brand's site (`isRosterSite`, `d === rd || d.endsWith('.' + rd)`, `metrics.ts:161`) and also
+drops rows Peec classifies `OWN` (`:164`). So a `blog.brand.com` row is neither a gap nor own, and the notes can say "No
+retrievals of the brand's own site." Fix: a row is own when its bare domain equals an own domain or ends with `.` plus
+one, **or** its `classification` is `OWN`. Everything downstream (`ownRetrievedChats`, `ownRetrievedPct`, #368's `ownSites`
+and the notes) reads `ownRows` and is unchanged. `ownDomains` (the brand's configured list, used by grounding's allowed
+domains, `grounding.ts:103`) is unchanged. An empty own-domain entry is skipped, as the roster list already does
+(`metrics.ts:160`, `.filter(Boolean)`), so it can never match by suffix.
+
+### 18.3 A per-call timeout on an optional Peec call is a warning (#361 `pull.ts:94,103,118,126`, `peec.ts`)
+
+`PeecError.timeout` is true for the overall deadline (`peec.ts:77`) and for the per-call timer (`timeoutErr`, `:80`, which
+fires after `min(CALL_TIMEOUT_MS = 45s, left)`). The four optional calls (model breakdown, `/model-channels`,
+`/actions/list`, `/prompts`) rethrow any timeout, so one 45s stall with 150s of budget left fails the generation. Fix:
+`PeecError` gains `deadline: boolean`, true when the deadline is reached at the top of `call()` and when the per-call timer
+was capped by the deadline (`left <= CALL_TIMEOUT_MS` when the attempt started). `timeout` keeps its meaning, so
+`generate.ts:104` still reports any timeout on a required call as "Timed out at step N". New `isPeecDeadline(e)`. The
+optional calls rethrow only `isPeecDeadline` (and, in #368, a contract violation, `pull.ts:51`); a per-call timeout becomes
+that call's existing warning.
+
+### 18.4 A save whose answer is lost no longer locks the editor (#366 `save-queue.ts:66,82`; #368 the slots route, `editor.tsx:156-182`)
+
+Today a retry resends the revision the lost attempt already used. `saveSlotsQuery` updates only `WHERE revision = shown`
+(`store.ts:62-70`), so if the lost PATCH committed, the retry gets 409 `stale` and the queue stops ("This snapshot changed.
+Reload."), dropping everything queued and typed after it. Comparing values can't tell our landed write from another tab's,
+and a bullet add or remove can't be compared at all, so each write carries an id:
+
+- **Storage (#368):** migration `0029` adds `aeo_outbound_reports.last_save_id uuid NULL`. `saveSlotsQuery` sets it in the
+  same UPDATE that bumps `revision` (the only statement that bumps it; generation and Edit a copy write revision 0 and
+  leave it NULL, `copyAsDraftQuery` lists its columns).
+- **Request (#368):** the PATCH body adds optional `saveId` (a UUID) and `prior` (at most 20 UUIDs). `SLOTS_BODY` accepts
+  both; a body without them behaves exactly as today.
+- **Queue (#366, #368):** every queued item (an edit, and in #368 a structure item) gets a `saveId` when it is queued
+  (`crypto.randomUUID()`, injectable for tests) and keeps it across retries. An attempt whose result is `retry` (network
+  failure, 5xx, a 200 the editor could not read, or the timeout below) has an unknown outcome: its `saveId` joins `prior`
+  (newest 20 kept). `prior` empties whenever the queue learns a revision (a 200). `send` receives `{ saveId, prior, signal }`.
+- **Route (#368), when the conditional update matches nothing:** read the row again. If it is still a readable draft and
+  `last_save_id = saveId`, this exact item already landed: answer 200 with the row's revision, stored notes, its
+  `needsValidation` and, for a structure path, its slots, writing nothing. Else if `last_save_id` is in `prior`, an earlier
+  attempt of ours landed and nothing else wrote since (any later save would have replaced the id): apply this patch to the
+  row as read, with that row's revision, once; a second miss is a 409 `stale`. Otherwise 409 `stale` as today.
+- **Hung saves (#366 queue, #368 editor):** each attempt races `send` against `SAVE_TIMEOUT_MS = 15000`; on expiry the
+  attempt's `AbortController` aborts and the result is `retry` (so Approve, disabled while `saving`, comes back once a
+  retry lands, and "Couldn't save, retrying" shows). The editor passes the signal to `fetch`. 15s is a decision, not a
+  measurement: a save is four Neon queries, normally well under a second; 15s leaves room for a cold start.
+
+Why this is safe: all of a run's unknown attempts were sent with the same revision, so at most one can have landed, and
+`last_save_id` names the last write to the row. A late attempt that arrives after a newer write finds a different id and
+gets a 409 nobody reads (its fetch was aborted).
+
+### 18.5 Counting an open never delays the page (#368 `app/snapshot/[token]/route.ts:41-66`)
+
+`GET` awaits `countOpen` (up to `OPEN_BUDGET_MS = 1500`) before responding, and when the budget wins the record keeps
+running with nothing holding the function alive. Fix: `GET` responds at once and schedules `countOpen` with `after()` from
+`next/server` (Next 16.3.8 docs, `node_modules/next/dist/docs/01-app/03-api-reference/04-functions/after.md`: it runs for
+the route's max duration, and a Route Handler may read cookies and headers inside it, which `auth()` needs). `countOpen`
+awaits the session read and the write with no race and logs `reason=session` or `reason=error` only for a real failure;
+`OPEN_BUDGET_MS` and `reason=timeout` go. HEAD is unchanged (never records). The PR text that says the budget never delays
+the page is corrected.
+
+### 18.6 The editor's Prepared date is the one the prospect will see (#368 view route `:56`)
+
+Draft and preview render `fmtEasternDay(row.data.generatedAt)`, approve freezes `fmtEasternDay(now)`
+(`app/actions/aeo-outbound.ts:62`). Fix: the view route renders a draft and its preview with `fmtEasternDay(new Date())`,
+the date approving now would print. Spec v1.0 §5 row 10 changes from "the generation date in a draft" to "today's date in a
+draft or preview, the date approving now would freeze". The frozen page is unchanged.
+
+### 18.7 A worse second Glean attempt never replaces a better first one (#368 `generate.ts:89-91`)
+
+`groundedFallback` is overwritten by attempt 2 whatever its flag count. Fix: attempt 2 replaces the fallback only when it
+has no more flags than the fallback (`flags.length <= groundedFallback.flags.length`); a tie takes attempt 2. With no
+fallback yet (attempt 1 failed shape, searched, or could not be read) attempt 2 is kept as today.
+
+### 18.8 Hub: typing during a search, and Show older after a refresh (#368 `hub.tsx:149-164`, `:231-232`)
+
+- **Search:** the `q` effect (`:154`) resets the box and cancels the timer on every `q` change, including the one this tab's
+  own `router.push` causes, so " co" typed while `?q=acme` renders is lost. Fix: a ref holds the cleaned value this tab
+  last pushed; when `q` arrives equal to it, the effect updates `qRef` only and clears the ref (consumed once), leaving the
+  box and timer alone. Any other `q` (Back, Forward) re-syncs as today. Both sides use `cleanSearch`
+  (`app/tools/new-business/page.tsx:19`, `hub.tsx:161`), so equal text compares equal.
+- **Show older:** `older` is pinned to `q` only. A refresh that adds a row pushes the first page's last row past the old
+  cursor, and it is in neither list. Fix: `older` also records the first page's cursor it continued from, as the string
+  `before|beforeId` (by value: `router.refresh()` makes a new object every time). When the current first-page cursor
+  differs, `olderRows` is empty and `nextCursor` is the current cursor, so Show older starts again from the right place.
+
+### 18.9 A fast browser clock no longer hides this tab's run (#368 `use-generation-progress.ts:59`, the progress route)
+
+The hook compares the server's `createdAt` with the browser's `clickedAt` minus `OTHER_RUN_MS` (5s); a browser clock more
+than 5s ahead hides every poll. Fix: the progress route adds `now` (the server's ISO time) to both 200 bodies; per poll the
+hook takes `offset = Date.parse(now) - Date.now()` (0 when `now` is missing or unreadable) and compares `createdAt` with
+`clickedAt + offset - OTHER_RUN_MS`. Network delay only makes the check more lenient.
+
+### 18.10 Edge cases
+
+| Case | Expected |
+|---|---|
+| Rival 12.4% (0.12351), own 12.3% (0.12349) | `#2 of 3`, `leaderGaps` lists the rival at 0.1 points |
+| Rival and own both show 12.3% | rival not in `leaderGaps`, rank unchanged (tie) |
+| Rows `brand.com`, `blog.brand.com`, `other.com` (OWN), `notbrand.com` | own rows are the first three; `notbrand.com` is not |
+| `/prompts` per-call timeout with 150s left | warning, generation continues |
+| `/prompts` timeout with 30s left (timer capped by the deadline) | rethrown, "Timed out at step 8" |
+| Lost 200 on edit A, Ryan keeps typing A | retry sends the new value with `prior=[A's id]`, the route applies it on top, no stop |
+| Lost 200 on a bullet add, then retry | `last_save_id` matches, 200 with the row's slots, no second bullet |
+| Another tab saved between our lost attempt and retry | 409 `stale`, stop (today's behaviour) |
+| PATCH hangs | after 15s the fetch aborts, retry with backoff, then lands |
+| Old editor tab sends no `saveId` | behaves exactly as today |
+| Open counting fails or is slow | page already sent; one log line per real failure |
+| Draft generated Oct 1, opened Oct 13 | editor and preview say Oct 13 |
+| Attempt 1 one flag, attempt 2 four flags | attempt 1's copy and its one flag are saved |
+| Type during the push's render; then Back | text kept; Back re-syncs the box |
+| Show older, then Generate adds a row | older rows clear, Show older resumes after the new last row |
+| Browser clock 60s ahead | this tab's run shows its steps |
+
+### 18.11 Tests (written before the code)
+
+One per edge-case row above, at the unit that owns it: `metrics.test.ts` (rows 1 to 3, in #361 and #368's copy),
+`peec.test.ts` (`deadline` set only when the deadline caps or is reached), `pull.test.ts` (rows 4 and 5 for each of the
+four optional calls), `save-queue.test.ts` (same id across retries, `prior` filled by `retry` and emptied by a 200, the 20
+cap, the timeout result and abort, structure items in #368), the slots `route.test.ts` (already-landed, prior-landed then
+applied once, prior-landed then stale, no ids), `store.test.ts` (`last_save_id` set in the update; Edit a copy leaves it
+out), the migration journal test (0029 after 0028), `snapshot/[token]/route.test.ts` (`after` mocked: the response is
+returned before the open work runs; failures log), the view `route.test.ts` (draft and preview use today's Eastern day,
+approved unchanged), `generate.test.ts` (row 13 and the tie), `hub.test.tsx` (rows 14 and 15), the progress `route.test.ts`
+(`now` present) and `use-generation-progress.test.ts` (row 16, missing `now`). Every existing test keeps passing unless a
+part names the expectation it changes.
+
+No scratch trial: every behaviour here is deterministic and runs in these tests. The one part they cannot run is Postgres
+accepting `0029`, which the dev apply's read-back checks (on my written go).
