@@ -14,7 +14,7 @@ import { safeTimeZone } from '@/lib/export/request'
 import { isServerExportSection } from '@/lib/export/sections'
 import { resolveExportView } from '@/lib/export/report-view'
 import { parseModelsParam } from '@/lib/peec/models'
-import { CONTENT_WIDTH } from '@/lib/export/render-pdf'
+import { CONTENT_WIDTH, EXPORT_PAGE_CSS } from '@/lib/export/render-pdf'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ExportModeProvider, ExportReadyReporter } from '@/components/export/export-mode'
 import { exportReportElement } from '@/components/export/report-element'
@@ -54,10 +54,8 @@ export default async function ReportExportPage({
 
   return (
     <div className="export-theme" style={{ width: CONTENT_WIDTH }}>
-      {/* The PDF page: Letter landscape, 0.4 in margins, black to its edges like the live page (spec 2026-10-13 §3). A
-          page.pdf() margin would print white; @page's own background fills it. Inline here, never in a shared stylesheet,
-          so it can't reach browser printing of the reports that still print from the page. */}
-      <style>{'@page { size: 11in 8.5in; margin: 0.4in; background: #000; } html, body { background: #000 !important; margin: 0; }'}</style>
+      {/* The PDF page: Letter landscape, 0.4 in margins, black to its edges (EXPORT_PAGE_CSS). Inline, never shared. */}
+      <style>{EXPORT_PAGE_CSS}</style>
       {/* The fallback fonts in export-theme.css's --font-sans. React hoists this into <head>. */}
       <link rel="stylesheet" href={EXPORT_FONTS_URL} precedence="default" />
       <header data-export-block="" className="mb-8 flex items-end gap-4 border-b border-white/[0.08] pb-4">

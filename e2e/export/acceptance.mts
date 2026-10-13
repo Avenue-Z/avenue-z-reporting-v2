@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
-import { ExportNotReadyError, renderPdf, CONTENT_WIDTH } from '../../lib/export/render-pdf'
+import { ExportNotReadyError, renderPdf, CONTENT_WIDTH, EXPORT_PAGE_CSS } from '../../lib/export/render-pdf'
 import { countLinks, fontsOf, lightCorners, outsideBox, pagesOf, printedDifference, readPdf } from './pdf-check'
 import { exportPair } from './pair'
 
@@ -43,13 +43,13 @@ const body = SECTIONS.map((s, si) => s.heights.map((h, bi) => {
   return block(id, h, bi === 0 ? s.title : undefined)
 }).join('')).join('')
 const page = (ready: boolean) => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
-<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<style>${EXPORT_PAGE_CSS} body{font-family:sans-serif;color:#fff}</style></head>
 <body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><p class="no-print">NOPRINTMARKER</p>${body}</div>${ready ? '<script>window.__exportReady = true</script>' : ''}</body></html>`
 
 // A section taller than a page (YTD Review): its title is not inside a block but is kept with the next one. The spacer
 // leaves room for the title and not the card, so without keep-with-next the title ends page 1 alone (the control proves it).
 const keepPage = (keep: boolean) => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
-<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<style>${EXPORT_PAGE_CSS} body{font-family:sans-serif;color:#fff}</style></head>
 <body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:660px"></div>
 <section><h2 ${keep ? 'data-export-keep-with-next ' : ''}style="font-size:14px;font-weight:800;margin:0 0 16px">KEEPTITLE</h2>
 <div><div data-export-block><p style="font-size:11px">KEEPSTART</p><div style="height:341px;background:#f4f4f5"></div></div></div></section>
@@ -57,7 +57,7 @@ const keepPage = (keep: boolean) => `<!doctype html><html><head><meta charset="u
 // A table longer than a page (AEO's PR placements prints up to 100 rows), starting low on the first page: it may split only
 // between rows, its header row repeats on each page it continues on, and its title stays with its first rows.
 const tablePage = () => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
-<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<style>${EXPORT_PAGE_CSS} body{font-family:sans-serif;color:#fff}</style></head>
 <body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:600px"></div>
 <div><h3 data-export-keep-with-next style="font-size:14px;margin:0 0 8px">TABLETITLE</h3>
 <div data-export-table><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;height:24px">TABLEHEAD</th></tr></thead><tbody>
@@ -66,7 +66,7 @@ ${Array.from({ length: 60 }, (_, i) => `<tr data-export-row><td style="height:30
 </div><script>window.__exportReady = true</script></body></html>`
 // The same title-then-block case inside a flex column card (AEO's SectionCard and SectionWrapper are \`flex flex-col gap-4\`).
 const keepFlexPage = () => `<!doctype html><html><head><meta charset="utf-8"><style>${theme}</style>
-<style>html,body{margin:0;background:#fff;font-family:sans-serif}</style></head>
+<style>${EXPORT_PAGE_CSS} body{font-family:sans-serif;color:#fff}</style></head>
 <body><div class="export-theme" style="width:${CONTENT_WIDTH}px"><div data-export-block style="height:670px"></div>
 <div class="flex flex-col gap-4" style="display:flex;flex-direction:column;gap:16px"><div data-export-keep-with-next><h3 style="font-size:14px;margin:0">FLEXTITLE</h3>
 <p style="font-size:11px;margin:4px 0 0">FLEXDESC a description long enough to wrap onto several lines under the title, as AEO's card descriptions do. It explains what the card measures and where the data comes from, so a reader can trust the numbers below it. ${'More words to make it wrap. '.repeat(6)}</p></div>

@@ -7,6 +7,10 @@
  *  page's CSS @page rule (app/export/[clientSlug]/[section]/page.tsx), which also paints each page black to its edges. */
 export const CONTENT_WIDTH = 979
 export const CONTENT_HEIGHT = 739
+/** The PDF page, set by the export page (and the acceptance run's fixture pages): Letter landscape, 0.4 in margins, black
+ *  to its edges like the live page (spec 2026-10-13 §3). A page.pdf() margin would print white; @page's own background
+ *  fills it. Set inline on the page, never in a shared stylesheet, so it can't reach browser printing elsewhere. */
+export const EXPORT_PAGE_CSS = '@page { size: 11in 8.5in; margin: 0.4in; background: #000; } html, body { background: #000 !important; margin: 0; }'
 /** One budget for launch + navigation + the ready wait. The route's maxDuration is 60 s; 40 s here leaves room
  *  for auth before and page.pdf() after, so a slow but successful render is never cut off by the platform. */
 const READY_TIMEOUT_MS = 40_000
@@ -43,7 +47,7 @@ export interface PageLike {
   url(): string
   waitForFunction(fn: string, o: { timeout: number; polling: number }): Promise<unknown>
   emulateMediaType(type: 'screen'): Promise<void>
-  pdf(o: { preferCSSPageSize: boolean; printBackground: boolean; timeout: number }): Promise<Uint8Array>
+  pdf(o: { width: string; height: string; preferCSSPageSize: boolean; printBackground: boolean; timeout: number }): Promise<Uint8Array>
 }
 export interface BrowserLike {
   setCookie(...c: { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure: boolean }[]): Promise<void>
@@ -135,8 +139,9 @@ export async function renderPdf(
     // and the app's global @media print rules (made for printing the live page) must not apply.
     try {
       await within(page.emulateMediaType('screen'), pdfLeft())
-      // Size and margins from the page's @page rule: a page.pdf() margin would print as a white frame around the black page.
-      return await page.pdf({ preferCSSPageSize: true, printBackground: true, timeout: pdfLeft() })
+      // Size and margins from the page's @page rule (EXPORT_PAGE_CSS): a page.pdf() margin would print as a white frame
+      // around the black page. 11 × 8.5 in stays as the fallback for a page without the rule.
+      return await page.pdf({ width: '11in', height: '8.5in', preferCSSPageSize: true, printBackground: true, timeout: pdfLeft() })
     } catch (e) {
       throw new ExportRenderError('pdf', e)
     }
