@@ -106,8 +106,14 @@ export const GLEAN_SLOTS = z.looseObject({
 })
 /** POST /api/aeo-outbound/generate. start and end are checked by checkRange (range.ts), which owns their messages. */
 export const GENERATE_BODY = z.looseObject({ projectId: z.string().min(1), rerunOf: z.string().regex(REPORT_ID_RE).nullish() })
-/** PATCH /api/aeo-outbound/reports/{id}/slots. path and value are checked by slots.ts, which owns their messages. */
-export const SLOTS_BODY = z.looseObject({ path: z.string(), value: z.unknown(), revision: z.number().int() })
+/** A save's writer (the editor queue's UUID) and seq (the item's send order), spec v1.1 18.4. The slots route's structural
+ *  guard checks the same two schemas, so the rules hold even when CONTRACT_DISABLED turns the contract off. */
+export const SAVE_WRITER = z.uuid()
+export const SAVE_SEQ = z.number().int().min(1).max(2147483647)
+/** PATCH /api/aeo-outbound/reports/{id}/slots. path and value are checked by slots.ts, which owns their messages.
+ *  writer and seq are optional, both or neither. */
+export const SLOTS_BODY = z.looseObject({ path: z.string(), value: z.unknown(), revision: z.number().int(), writer: SAVE_WRITER.optional(), seq: SAVE_SEQ.optional() })
+  .refine((b) => (b.writer === undefined) === (b.seq === undefined), { path: ['seq'], message: 'writer and seq go together' })
 
 /** A free-text name setting: 1 to 60 characters, not blank, no U+2013 or U+2014. A refine, not .trim(), so a read returns the stored text unchanged. */
 const settingsName = z.string().min(1).max(60).refine((v) => v.trim().length > 0 && !/[\u2013\u2014]/.test(v))

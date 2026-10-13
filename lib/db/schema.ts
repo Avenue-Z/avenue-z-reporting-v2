@@ -525,6 +525,10 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
   // v1.1 (spec 2026-10-11 §7): the generating row's last step written, and a failed row's error code.
   progressStep: integer('progress_step').notNull().default(0),
   errorCode: text('error_code'),
+  // v1.1 (spec 2026-10-11 section 18.4): the editor queue and item behind the last save, so a retried save whose answer
+  // was lost is recognized. Set (or cleared to NULL) by every saveSlotsQuery; nothing else writes them.
+  lastWriter: uuid('last_writer'),
+  lastSeq: integer('last_seq'),
 }, (table) => ({
   createdIdx: index('aeo_outbound_created_idx').on(table.createdAt),
   oneGenerating: uniqueIndex('aeo_outbound_one_generating').on(table.peecProjectId).where(sql`status = 'generating'`),

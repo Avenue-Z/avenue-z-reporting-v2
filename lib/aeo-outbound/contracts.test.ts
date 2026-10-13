@@ -119,6 +119,17 @@ test('the slots body contract: a string path, any value, an integer revision', (
   expect(ok({ path: 'headline', value: 'x', revision: 3 })).toBe(true)
   for (const b of [null, {}, { path: 5, revision: 3 }, { path: 'headline', value: 'x' }, { path: 'headline', value: 'x', revision: 1.5 }, { path: 'headline', value: 'x', revision: '3' }]) expect(ok(b)).toBe(false)
 })
+test('the slots body contract: writer and seq are optional, both or neither, a UUID and an integer from 1 to 2^31 - 1 (spec v1.1 18.4)', () => {
+  const ok = (b: unknown) => checkContract('request.slots', SLOTS_BODY, b, 'enforce', {}).ok
+  const base = { path: 'headline', value: 'x', revision: 3 }
+  const W = '0b6f8f9e-3c1a-4d2b-9e8f-1a2b3c4d5e6f'
+  expect(ok({ ...base, writer: W, seq: 1 })).toBe(true)
+  expect(ok({ ...base, writer: W, seq: 2147483647 })).toBe(true)
+  for (const extra of [
+    { writer: W }, { seq: 1 }, { writer: 'not-a-uuid', seq: 1 }, { writer: W, seq: 0 }, { writer: W, seq: '1' },
+    { writer: W, seq: 1.5 }, { writer: W, seq: 2147483648 }, { writer: null, seq: 1 }, { writer: W, seq: null },
+  ]) expect(ok({ ...base, ...extra })).toBe(false)
+})
 test('the Glean reply contract: every copy key a non-empty string, 2 or 3 bullets, exactly 3 opportunities, next_step optional', () => {
   const reply = { headline: 'H', summary: 'S', context: 'C', competitive_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], sources_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'M' }
   expect(checkContract('glean.slots', GLEAN_SLOTS, reply, 'enforce', {}).ok).toBe(true)

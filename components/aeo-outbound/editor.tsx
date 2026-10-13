@@ -153,12 +153,13 @@ export function OutboundEditor(props: OutboundEditorProps) {
   useEffect(() => {
     if (status !== 'draft') return
     const dropTicksFor = (list: string) => setTicks((t) => new Set([...t].filter((k) => !(k.split('|')[1] ?? '').startsWith(`${list}.`))))
-    // The queue aborts the signal when an attempt hangs past SAVE_TIMEOUT_MS or the queue stops (spec v1.1 18.4).
-    const send = async (path: string, value: string, revision: number, { signal }: SendMeta): Promise<SendResult> => {
+    // The queue aborts the signal when an attempt hangs past SAVE_TIMEOUT_MS or the queue stops (spec v1.1 18.4). writer
+    // and seq let the route recognize a retry of a save that landed but whose answer was lost.
+    const send = async (path: string, value: string, revision: number, { writer, seq, signal }: SendMeta): Promise<SendResult> => {
       const res = await fetch(`/api/aeo-outbound/reports/${id}/slots`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, value, revision }),
+        body: JSON.stringify({ path, value, revision, writer, seq }),
         signal,
       })
       if (res.status === 200) {

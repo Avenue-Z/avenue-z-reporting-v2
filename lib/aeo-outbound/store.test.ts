@@ -16,14 +16,29 @@ const SAVED_AT = '2026-10-09T12:00:00.000Z'
 const STALE = '2026-10-08T14:54:00.000Z'
 const NOW_ISO = NOW.toISOString()
 
-test('save matches a live draft at the shown revision and bumps it', () => {
+test('save matches a live draft at the shown revision and bumps it; with no writer it clears last_writer and last_seq', () => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date(SAVED_AT))
   try {
-    const q = saveSlotsQuery(ID, 4, SLOTS, ['n']).toSQL()
+    for (const q of [saveSlotsQuery(ID, 4, SLOTS, ['n']).toSQL(), saveSlotsQuery(ID, 4, SLOTS, ['n'], undefined, null).toSQL()]) {
+      expect(q.sql).toBe(
+        `update ${T} set "slots" = $1, "notes" = $2, "revision" = ${T}."revision" + 1, "updated_at" = $3, "last_writer" = $4, "last_seq" = $5 where (${T}."id" = $6 and ${T}."status" = $7 and ${T}."revision" = $8 and ${T}."deleted_at" is null) returning "revision"`)
+      expect(q.params).toEqual(['{}', '["n"]', SAVED_AT, null, null, ID, 'draft', 4])
+    }
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('a save with a writer records it and the sequence in the same update (spec v1.1 18.4)', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date(SAVED_AT))
+  try {
+    const W = '0b6f8f9e-3c1a-4d2b-9e8f-1a2b3c4d5e6f'
+    const q = saveSlotsQuery(ID, 4, SLOTS, ['n'], undefined, { writer: W, seq: 7 }).toSQL()
     expect(q.sql).toBe(
-      `update ${T} set "slots" = $1, "notes" = $2, "revision" = ${T}."revision" + 1, "updated_at" = $3 where (${T}."id" = $4 and ${T}."status" = $5 and ${T}."revision" = $6 and ${T}."deleted_at" is null) returning "revision"`)
-    expect(q.params).toEqual(['{}', '["n"]', SAVED_AT, ID, 'draft', 4])
+      `update ${T} set "slots" = $1, "notes" = $2, "revision" = ${T}."revision" + 1, "updated_at" = $3, "last_writer" = $4, "last_seq" = $5 where (${T}."id" = $6 and ${T}."status" = $7 and ${T}."revision" = $8 and ${T}."deleted_at" is null) returning "revision"`)
+    expect(q.params).toEqual(['{}', '["n"]', SAVED_AT, W, 7, ID, 'draft', 4])
   } finally {
     vi.useRealTimers()
   }
@@ -69,6 +84,8 @@ test('Edit a copy is one insert-select from an approved (live or revoked) row', 
   expect(q.sql).toBe(
     'insert into "aeo_outbound_reports" ("peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "rerun_of", "requested_start", "requested_end", "created_by", "created_at", "updated_at") select "peec_project_id", "peec_project_name", "brand_name", \'draft\', "data", "slots", "notes", "id", "requested_start", "requested_end", $1, $2::timestamptz, $3::timestamptz from "aeo_outbound_reports" where "id" = $4 and "status" = \'approved\' and "deleted_at" is null returning "id"')
   expect(q.params).toEqual(['ryan@avenuez.com', NOW_ISO, NOW_ISO, ID])
+  // The copy starts with no writer: it never carries the source's last_writer or last_seq (spec v1.1 18.4).
+  expect(q.sql).not.toMatch(/last_writer|last_seq/)
 })
 
 const OPENS = '(select count(*) from "aeo_outbound_opens" o where o."report_id" = "aeo_outbound_reports"."id" and not o."likely_automated"), (select count(*) from "aeo_outbound_opens" o where o."report_id" = "aeo_outbound_reports"."id" and o."likely_automated")'
@@ -216,7 +233,7 @@ test('the insert stores the requested range, or both columns null', () => {
   const base = { projectId: 'or_a', projectName: 'Acme', createdBy: 'ryan@avenuez.com', rerunOf: null }
   const withRange = insertGeneratingQuery({ ...base, range: { start: '2026-09-01', end: '2026-09-30' } }).toSQL()
   expect(withRange.sql).toBe(
-    'insert into "aeo_outbound_reports" ("id", "peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "revision", "error", "html", "share_token", "rerun_of", "requested_start", "requested_end", "share_recipient", "open_count", "first_opened_at", "last_opened_at", "created_by", "approved_by", "revoked_by", "deleted_by", "created_at", "updated_at", "approved_at", "share_revoked_at", "deleted_at", "progress_step", "error_code") values (default, $1, $2, default, default, default, default, default, default, default, default, default, $3, $4, $5, default, default, default, default, $6, default, default, default, default, default, default, default, default, default, default) returning "id"')
+    'insert into "aeo_outbound_reports" ("id", "peec_project_id", "peec_project_name", "brand_name", "status", "data", "slots", "notes", "revision", "error", "html", "share_token", "rerun_of", "requested_start", "requested_end", "share_recipient", "open_count", "first_opened_at", "last_opened_at", "created_by", "approved_by", "revoked_by", "deleted_by", "created_at", "updated_at", "approved_at", "share_revoked_at", "deleted_at", "progress_step", "error_code", "last_writer", "last_seq") values (default, $1, $2, default, default, default, default, default, default, default, default, default, $3, $4, $5, default, default, default, default, $6, default, default, default, default, default, default, default, default, default, default, default, default) returning "id"')
   expect(withRange.params).toEqual(['or_a', 'Acme', null, '2026-09-01', '2026-09-30', 'ryan@avenuez.com'])
   const none = insertGeneratingQuery({ ...base, range: null }).toSQL()
   expect(none.params).toEqual(['or_a', 'Acme', null, null, null, 'ryan@avenuez.com'])
@@ -261,9 +278,11 @@ test('a brand save also writes brand_name; any other save leaves it alone', () =
   try {
     const q = saveSlotsQuery(ID, 4, SLOTS, [], 'New Co').toSQL()
     expect(q.sql).toBe(
-      `update ${T} set "brand_name" = $1, "slots" = $2, "notes" = $3, "revision" = ${T}."revision" + 1, "updated_at" = $4 where (${T}."id" = $5 and ${T}."status" = $6 and ${T}."revision" = $7 and ${T}."deleted_at" is null) returning "revision"`)
+      `update ${T} set "brand_name" = $1, "slots" = $2, "notes" = $3, "revision" = ${T}."revision" + 1, "updated_at" = $4, "last_writer" = $5, "last_seq" = $6 where (${T}."id" = $7 and ${T}."status" = $8 and ${T}."revision" = $9 and ${T}."deleted_at" is null) returning "revision"`)
     expect(q.params[0]).toBe('New Co')
     expect(saveSlotsQuery(ID, 4, SLOTS, []).toSQL().sql).not.toContain('"brand_name"')
+    const W = '0b6f8f9e-3c1a-4d2b-9e8f-1a2b3c4d5e6f'
+    expect(saveSlotsQuery(ID, 4, SLOTS, [], 'New Co', { writer: W, seq: 2 }).toSQL().params.slice(0, 7)).toEqual(['New Co', '{}', '[]', SAVED_AT, W, 2, ID])
   } finally {
     vi.useRealTimers()
   }
@@ -290,6 +309,20 @@ test('the 0028 migration is exactly one additive statement that adds the series 
   const sqlText = readFileSync('drizzle/0028_aeo_outbound_settings_series.sql', 'utf8')
   const statements = sqlText.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)
   expect(statements).toEqual(['ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series" text DEFAULT \'AI Visibility Snapshot\' NOT NULL;'])
+})
+
+test('the 0029 migration is exactly the two additive, nullable save-writer columns, and follows 0028 in the journal', () => {
+  const sqlText = readFileSync('drizzle/0029_aeo_outbound_save_writer.sql', 'utf8')
+  const statements = sqlText.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)
+  expect(statements).toEqual([
+    'ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_writer" uuid;',
+    'ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_seq" integer;',
+  ])
+  const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as { entries: { idx: number; tag: string }[] }
+  expect(journal.entries.slice(-2).map((e) => [e.idx, e.tag])).toEqual([[28, '0028_aeo_outbound_settings_series'], [29, '0029_aeo_outbound_save_writer']])
+  const prev = JSON.parse(readFileSync('drizzle/meta/0028_snapshot.json', 'utf8')) as { id: string }
+  const next = JSON.parse(readFileSync('drizzle/meta/0029_snapshot.json', 'utf8')) as { prevId: string }
+  expect(next.prevId).toBe(prev.id)
 })
 
 test('a stored row that breaks its contract is read as unreadable, with one log line naming the field; a sound row is not', async () => {

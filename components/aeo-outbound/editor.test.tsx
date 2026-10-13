@@ -20,6 +20,7 @@ vi.mock('@/app/actions/aeo-outbound', () => actions)
 const ID = '00000000-0000-4000-8000-000000000001'
 const NEW_ID = '00000000-0000-4000-8000-000000000009'
 const LEAD = 'competitive_bullets.0.lead'
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 let patch: () => Promise<Response>
@@ -81,8 +82,23 @@ test('a message whose source is not the iframe is ignored', async () => {
   expect(patches()).toHaveLength(0)
   await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'Hi' })
   await waitFor(() => expect(patches()).toHaveLength(1))
-  expect(JSON.parse(String(patches()[0][1]?.body))).toEqual({ path: 'headline', value: 'Hi', revision: 4 })
+  expect(JSON.parse(String(patches()[0][1]?.body))).toEqual({ path: 'headline', value: 'Hi', revision: 4, writer: expect.stringMatching(UUID), seq: 1 })
   expect(patches()[0][1]?.method).toBe('PATCH')
+})
+
+test('every PATCH body carries the queue\'s one writer and each item\'s seq, in send order (spec v1.1 18.4)', async () => {
+  let rev = 4
+  patch = async () => json(200, { revision: ++rev, notes: [], needsValidation: [] })
+  const { iframe } = await setup()
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'A' })
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  await waitFor(() => expect(screen.queryByText('Saving…')).toBeNull())
+  await fromFrame(iframe, { type: 'edit', path: 'summary', value: 'B' })
+  await waitFor(() => expect(patches()).toHaveLength(2))
+  const bodies = patches().map(([, init]) => JSON.parse(String(init?.body)) as { writer: string; seq: number })
+  expect(bodies.map((b) => b.seq)).toEqual([1, 2])
+  expect(bodies[0].writer).toMatch(UUID)
+  expect(bodies[1].writer).toBe(bodies[0].writer)
 })
 
 test('each PATCH carries the save queue\'s abort signal, so leaving the draft aborts a hung save (spec v1.1 18.4)', async () => {
@@ -556,8 +572,8 @@ test("a structure message waits for pending edits, makes the frame read-only, th
   expect(post).toHaveBeenCalledWith({ type: 'mode', edit: false }, '*')
   await waitFor(() => expect(patches()).toHaveLength(2))
   expect(patches().map(([, init]) => JSON.parse(String(init?.body)))).toEqual([
-    { path: 'headline', value: 'H', revision: 4 },
-    { path: 'competitive_bullets.add', value: 'structure', revision: 5 },
+    { path: 'headline', value: 'H', revision: 4, writer: expect.stringMatching(UUID), seq: 1 },
+    { path: 'competitive_bullets.add', value: 'structure', revision: 5, writer: expect.stringMatching(UUID), seq: 2 },
   ])
   await waitFor(() => expect(views()).toHaveLength(2))
   // The competitive_bullets tick is dropped (its bullets moved); the why tick stays.

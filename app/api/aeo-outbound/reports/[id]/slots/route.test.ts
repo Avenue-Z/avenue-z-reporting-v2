@@ -10,7 +10,7 @@ import { auth } from '@/auth'
 import { groundingFlags } from '@/lib/aeo-outbound/grounding'
 import { dataBlock } from '@/lib/aeo-outbound/prompt'
 import type { SnapshotData } from '@/lib/aeo-outbound/metrics'
-import { withDefaults, type Slots } from '@/lib/aeo-outbound/slots'
+import { needsValidationPaths, withDefaults, type Slots } from '@/lib/aeo-outbound/slots'
 import { V1_DATA, V1_SLOTS } from '@/lib/aeo-outbound/__fixtures__/v1-row'
 
 const ID = 'c7d8e0a1-1111-4111-8111-111111111111'
@@ -157,7 +157,8 @@ test('200 with the new revision, the notes plus fresh grounding flags, and needs
   expect(body.notes).toEqual([...DATA.notes, ...groundingFlags(patched, DATA, dataBlock(DATA))])
   expect(body.needsValidation).toEqual(['headline'])
   expect(body).not.toHaveProperty('slots')
-  expect(m.save).toHaveBeenCalledWith(ID, 3, patched, body.notes, undefined)
+  // A body with no writer passes null, so the update clears last_writer and last_seq (spec v1.1 18.4).
+  expect(m.save).toHaveBeenCalledWith(ID, 3, patched, body.notes, undefined, null)
 })
 
 test('the brand_name write: a brand save also writes brand_name; no other path does', async () => {
@@ -212,4 +213,163 @@ test('with the contract kill switch on, a null body and a string revision still 
     expect(await res.json()).toEqual({ error: 'bad-request' })
   }
   expect(m.save).not.toHaveBeenCalled()
+})
+
+// Spec v1.1 18.4: a save whose answer was lost is safe to retry. W is this tab's queue, OTHER another tab's.
+const W = '0b6f8f9e-3c1a-4d2b-9e8f-1a2b3c4d5e6f'
+const OTHER = '7d1e2f3a-4b5c-4d6e-8f70-8192a3b4c5d6'
+const THIRD = { lead: 'G3:', text: 'G3.' }
+const STORED_NOTES = ['a stored note']
+const ours = (over: Record<string, unknown> = {}) => row({ revision: 4, lastWriter: W, lastSeq: 1, notes: STORED_NOTES, ...over })
+const edit = (over: Record<string, unknown> = {}) => ({ path: 'headline', value: 'New headline.', revision: 3, writer: W, seq: 2, ...over })
+
+test('the guard: only one of writer and seq, a writer that is not a UUID, or a seq out of range is 400 before the report is read, even with the contract off', async () => {
+  const bad = [
+    { writer: W }, { seq: 2 }, { writer: 'not-a-uuid', seq: 2 }, { writer: 5, seq: 2 }, { writer: null, seq: 2 },
+    { writer: W, seq: 0 }, { writer: W, seq: -1 }, { writer: W, seq: '2' }, { writer: W, seq: 1.5 }, { writer: W, seq: 2147483648 }, { writer: W, seq: null },
+  ]
+  for (const killSwitch of [false, true]) {
+    if (killSwitch) vi.stubEnv('CONTRACT_DISABLED', '1')
+    for (const extra of bad) {
+      const res = await patch({ path: 'headline', value: 'x', revision: 3, ...extra })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'bad-request' })
+    }
+  }
+  expect(m.getReport).not.toHaveBeenCalled()
+  expect(m.save).not.toHaveBeenCalled()
+  expect((await patch({ path: 'headline', value: 'x', revision: 3, writer: W, seq: 2147483647 })).status).toBe(200)
+})
+
+test('no writer behaves as today: last_writer is ignored, the request revision must match, and the store gets null', async () => {
+  m.getReport.mockResolvedValue(row({ lastWriter: W, lastSeq: 9 }))
+  const res = await patch({ path: 'headline', value: 'New headline.', revision: 3 })
+  expect(res.status).toBe(200)
+  expect(m.save.mock.calls[0][1]).toBe(3)
+  expect(m.save.mock.calls[0][5]).toBeNull()
+  m.save.mockClear()
+  m.getReport.mockResolvedValue(ours())
+  const stale = await patch({ path: 'headline', value: 'New headline.', revision: 3 })
+  expect(stale.status).toBe(409)
+  expect(await stale.json()).toEqual({ error: 'stale', revision: 4 })
+  expect(m.save).not.toHaveBeenCalled()
+})
+
+test('step 2: an edit that already landed answers 200 with the row\'s revision and stored notes, writing nothing', async () => {
+  m.getReport.mockResolvedValue(ours({ lastSeq: 2, slots: { ...SLOTS, headline: 'New headline.' } }))
+  const res = await patch(edit())
+  expect(res.status).toBe(200)
+  expect(await res.json()).toEqual({ revision: 4, notes: STORED_NOTES, needsValidation: needsValidationPaths(withDefaults({ ...SLOTS, headline: 'New headline.' }, DATA)) })
+  expect(m.save).not.toHaveBeenCalled()
+  expect(m.getReport).toHaveBeenCalledTimes(1)
+})
+
+test('step 2: a retried add that landed on a list of 3 answers 200 with the stored 3 bullets and makes no update call', async () => {
+  const stored = { ...SLOTS, sources_bullets: [...SLOTS.sources_bullets, THIRD] }
+  for (const revision of [3, 4]) {
+    m.getReport.mockResolvedValue(ours({ lastSeq: 2, slots: stored }))
+    const res = await patch(edit({ path: 'sources_bullets.add', value: 'structure', revision }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.slots.sources_bullets).toEqual(stored.sources_bullets)
+    expect(body).toEqual({ revision: 4, notes: STORED_NOTES, needsValidation: needsValidationPaths(withDefaults(stored, DATA)), slots: withDefaults(stored, DATA) })
+  }
+  expect(m.save).not.toHaveBeenCalled()
+})
+
+test('step 2: a retried remove that landed on a list of 2 answers 200 with the stored 2 bullets and makes no update call', async () => {
+  m.getReport.mockResolvedValue(ours({ lastSeq: 2 }))
+  const res = await patch(edit({ path: 'sources_bullets.0.remove', value: 'structure' }))
+  expect(res.status).toBe(200)
+  const body = await res.json()
+  expect(body.slots.sources_bullets).toEqual(SLOTS.sources_bullets)
+  expect(body.revision).toBe(4)
+  expect(m.save).not.toHaveBeenCalled()
+})
+
+test('step 2: a late attempt (a later item of ours already landed) is 409 stale and writes nothing, even at the row\'s revision', async () => {
+  for (const revision of [3, 5]) {
+    m.getReport.mockResolvedValue(ours({ revision: 5, lastSeq: 3 }))
+    const res = await patch(edit({ revision }))
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'stale', revision: 5 })
+  }
+  expect(m.save).not.toHaveBeenCalled()
+})
+
+test('step 4: when an earlier item of ours is the last write, the save goes on top of the row\'s revision, once', async () => {
+  m.save.mockResolvedValue([{ revision: 5 }])
+  for (const lastSeq of [1, null]) {
+    m.save.mockClear()
+    m.getReport.mockResolvedValue(ours({ lastSeq }))
+    const res = await patch(edit())
+    expect(res.status).toBe(200)
+    expect((await res.json()).revision).toBe(5)
+    expect(m.save).toHaveBeenCalledTimes(1)
+    const patched = withDefaults({ ...SLOTS, headline: 'New headline.' }, DATA)
+    expect(m.save).toHaveBeenCalledWith(ID, 4, patched, [...DATA.notes, ...groundingFlags(patched, DATA, dataBlock(DATA))], undefined, { writer: W, seq: 2 })
+  }
+})
+
+test('step 4: the request\'s revision is used when it matches, and the writer and seq reach the store', async () => {
+  m.getReport.mockResolvedValue(row({ lastWriter: OTHER, lastSeq: 40 }))
+  const res = await patch(edit())
+  expect(res.status).toBe(200)
+  expect(m.save.mock.calls[0][1]).toBe(3)
+  expect(m.save.mock.calls[0][5]).toEqual({ writer: W, seq: 2 })
+})
+
+test('step 4: another tab\'s write, or an old tab\'s with no writer, after our lost attempt is 409 stale, nothing written', async () => {
+  for (const over of [{ lastWriter: OTHER, lastSeq: 9 }, { lastWriter: null, lastSeq: null }]) {
+    m.getReport.mockResolvedValue(ours(over))
+    const res = await patch(edit())
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'stale', revision: 4 })
+  }
+  expect(m.save).not.toHaveBeenCalled()
+  expect(logged()).toEqual([`[aeo-outbound] slots refused id=${ID} reason=stale`, `[aeo-outbound] slots refused id=${ID} reason=stale`])
+})
+
+test('step 5: a miss reads the row again, and an attempt of ours that landed meanwhile is answered by step 2', async () => {
+  m.save.mockResolvedValue([])
+  m.getReport.mockResolvedValueOnce(row({ lastWriter: W, lastSeq: 1 })).mockResolvedValueOnce(ours({ lastSeq: 2 }))
+  const res = await patch(edit())
+  expect(res.status).toBe(200)
+  expect(await res.json()).toMatchObject({ revision: 4, notes: STORED_NOTES })
+  expect(m.save).toHaveBeenCalledTimes(1)
+  expect(m.getReport).toHaveBeenCalledTimes(2)
+  expect(logged()).toEqual([])
+})
+
+test('step 5: three reads that all miss answer 503 unavailable, with one log line that names no writer or text', async () => {
+  m.save.mockResolvedValue([])
+  m.getReport.mockResolvedValueOnce(ours({ revision: 4 })).mockResolvedValueOnce(ours({ revision: 5 })).mockResolvedValueOnce(ours({ revision: 6 }))
+  const res = await patch(edit({ value: 'secret-slot-value@example.com' }))
+  expect(res.status).toBe(503)
+  expect(await res.json()).toEqual({ error: 'unavailable' })
+  expect(m.getReport).toHaveBeenCalledTimes(3)
+  expect(m.save.mock.calls.map((c) => c[1])).toEqual([4, 5, 6])
+  const lines = logged()
+  expect(lines).toHaveLength(1)
+  expect(lines[0]).toMatch(new RegExp(`^\\[aeo-outbound\\] slots .* id=${ID}`))
+  for (const line of lines) { expect(line).not.toContain(W); expect(line).not.toContain('secret'); expect(line).not.toContain('@') }
+})
+
+test('step 1: a row approved or unreadable between attempts is 409 not-draft before step 2, on the first read or a re-read', async () => {
+  m.getReport.mockResolvedValue(ours({ status: 'approved', lastSeq: 2 }))
+  let res = await patch(edit())
+  expect(res.status).toBe(409)
+  expect(await res.json()).toEqual({ error: 'not-draft', revision: 4 })
+  expect(m.save).not.toHaveBeenCalled()
+  m.save.mockResolvedValue([])
+  m.getReport.mockResolvedValueOnce(row({ lastWriter: W, lastSeq: 1 })).mockResolvedValueOnce(ours({ status: 'approved', revision: 4 }))
+  res = await patch(edit())
+  expect(res.status).toBe(409)
+  expect(await res.json()).toEqual({ error: 'not-draft', revision: 4 })
+  expect(m.save).toHaveBeenCalledTimes(1)
+  m.save.mockClear()
+  m.getReport.mockResolvedValueOnce(row()).mockResolvedValueOnce({ ...ours({ lastSeq: 2 }), unreadable: true })
+  res = await patch(edit())
+  expect(res.status).toBe(409)
+  expect(m.save).toHaveBeenCalledTimes(1)
 })

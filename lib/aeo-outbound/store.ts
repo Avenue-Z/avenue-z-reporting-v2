@@ -58,11 +58,16 @@ export function progressStepQuery(id: string, step: number) {
   return db.update(t).set({ progressStep: step }).where(and(eq(t.id, id), eq(t.status, 'generating'), lt(t.progressStep, step)))
 }
 
-/** brandName is passed only for a save of the brand slot (spec v1.1 §3), so the hub and search use the edited name. */
-export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, notes: StoredNote[], brandName?: string) {
+/** The editor queue and item behind a save (spec v1.1 18.4), or null for a request that names none (an old tab). */
+export type SaveBy = { writer: string; seq: number }
+
+/** brandName is passed only for a save of the brand slot (spec v1.1 §3), so the hub and search use the edited name.
+ *  Every save sets last_writer and last_seq, to `by` or to NULL, so a save from an old tab clears them (spec v1.1 18.4). */
+export function saveSlotsQuery(id: string, shownRevision: number, slots: Slots, notes: StoredNote[], brandName?: string, by?: SaveBy | null) {
   return db.update(t)
     .set({
       slots: slots as unknown as Record<string, unknown>, notes, revision: sql`${t.revision} + 1`, updatedAt: new Date(),
+      lastWriter: by?.writer ?? null, lastSeq: by?.seq ?? null,
       ...(brandName !== undefined ? { brandName } : {}),
     })
     .where(and(eq(t.id, id), eq(t.status, 'draft'), eq(t.revision, shownRevision), isNull(t.deletedAt)))

@@ -378,3 +378,41 @@ applied.
 Until this change merges to `dev`, keep the top-left name on dev to `AIVx` or `Avenue Z`. Older deployments that share the
 dev database still check it against the old two-value list, and a row outside it fails their settings contract, which
 drops Settings-only users and admins there.
+
+## Add `last_writer` and `last_seq` to aeo_outbound_reports (not applied anywhere)
+
+`drizzle/0029_aeo_outbound_save_writer.sql` is two statements: `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_writer"
+uuid;` and `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_seq" integer;`. They record which editor queue (`writer`, a
+UUID per editor tab) and which of its saves (`seq`, rising in send order) made the last slots save, so a save whose answer
+was lost can be retried safely (spec v1.1 section 18.4): the slots route answers a retry of a save that already landed
+without applying it twice, and puts a newer save of ours on top of an earlier one of ours, while any other tab's write
+still gets 409 `stale`. Additive: both columns are nullable with no default, so no existing column, constraint or row
+changes, and every existing row reads NULL in both (treated as "not written by this queue"). Only
+`lib/aeo-outbound/store.ts` writes them (`saveSlotsQuery`, which sets both on every save, to the request's values or to
+NULL) and only the slots route (`app/api/aeo-outbound/reports/[id]/slots/route.ts`) reads them. Edit a copy
+(`copyAsDraftQuery`) lists its columns and leaves both NULL on the new draft. Apply with the hash-checked
+`scripts/migrate-http.ts`, each environment only on my written go, dev first, with a host guard that refuses any host but
+the one named for that run (dev: `ep-still-tree-aqs8ui6d`).
+
+Dry runs (read-only) before applying: dev must list exactly `0029_aeo_outbound_save_writer` (dev already has `0028`);
+staging lists `0026_aeo_outbound_reports` through `0029_aeo_outbound_save_writer`; production lists `0025_chart_notes`
+through `0029_aeo_outbound_save_writer`, and needs `0025` applied first, on my go.
+
+Read-back after applying: `aeo_outbound_reports.last_writer` is `uuid` nullable and `last_seq` is `integer` nullable, both
+with no default, and every existing row reads NULL in both; the ledger up by one with nothing pending.
+
+Deploy order: any build whose `lib/db/schema.ts` has these two columns must not reach an environment before `0029` is
+applied there. Drizzle names every column, so `getReport` throws (42703) on a database without them (the report page,
+its view route, the report actions, the generate route and every save read through it), and so does the generating insert
+(`insertGeneratingQuery`), whose column list names both. On dev that includes my local QA server:
+apply `0029` to the dev database before it runs this branch.
+
+Mixed builds: builds from before `0029` that share a database (dev's older previews) can still save, and their update
+leaves both columns as they were. So a save of ours that landed, then a save from such a build, then a retry of ours, is
+answered as already landed while the row holds that build's text. Only dev runs mixed builds; staging and production run
+one build at a time: accepted.
+
+Rollback (spec v1.1 section 18.12, which ships in the same PR): a build without 18.12 reads a stored row with 1 or 4 to 6
+bullets in a list as unreadable (`lib/aeo-outbound/contracts.ts` stored slots, `lib/aeo-outbound/store.ts` `typed`),
+drafts and approved rows alike. Rolling back past this build after anyone has saved such a row breaks those rows until it
+is rolled forward. The columns `0029` adds are harmless to an older build once applied (it never names them).
