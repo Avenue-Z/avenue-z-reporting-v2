@@ -1022,16 +1022,19 @@ and a bullet add or remove can't be compared at all, so each write says who wrot
   has none, so a save from an old tab clears them.
 - **Request (#368):** the PATCH body adds optional `writer` (a UUID string) and `seq` (an integer, 1 or more, at most
   2^31 - 1), both or neither. `SLOTS_BODY` accepts them, and the route's structural guard (`route.ts:27-29`, which runs even
-  under `CONTRACT_DISABLED`) checks the same rules; any violation is 400 `bad-request`, before any database call.
-- **Route (#368), when the conditional update matches nothing:** read the row again, at most 3 times in all:
+  under `CONTRACT_DISABLED`) checks the same rules; any violation is 400 `bad-request`, before the report is read.
+- **Route (#368):** a loop of at most 3 row reads, the route's existing `getReport` (`route.ts:33`) being the first:
   1. Not a readable draft: 409 `not-draft` as today (approved, discarded or unreadable between attempts).
-  2. No `writer` in the request, or `last_writer` differs: 409 `stale` as today.
-  3. `last_seq = seq`: this item already landed. Answer 200 with the row's revision, stored notes, `needsValidation` and,
-     for a structure path, its slots; write nothing.
-  4. `last_seq > seq`: a later item of ours already landed, so this is a late attempt. 409 `stale` (its fetch was aborted;
-     nobody reads it).
-  5. `last_seq < seq` (or NULL): an earlier item of ours is the last write. Apply this patch to the row as read, with that
-     row's revision, and go back to step 1 on a miss.
+  2. The request has `writer` and `last_writer` equals it: if `last_seq = seq` this item already landed, so answer 200
+     with the row's revision, stored notes, `needsValidation` and, for a structure path, its slots, writing nothing; if
+     `last_seq > seq` a later item of ours landed and this is a late attempt, so 409 `stale` (its fetch was aborted;
+     nobody reads it). This runs **before** the patch is applied, because a landed bullet add or remove would make
+     `applyStructure` refuse its own retry (`slots.ts:119,122`, 400 before any update, `route.ts:45-46`).
+  3. Apply the patch to the row as read; a refusal is 400 as today.
+  4. The revision to update from: the request's when it equals the row's (today's case); else the row's when step 2 found
+     `last_writer` ours with `last_seq < seq` (an earlier item of ours is the last write); else 409 `stale` as today.
+  5. Conditional update. A match answers 200 as today. A miss reads the row again and goes back to step 1; after the
+     third read, 503 `unavailable` (the queue's `retry`).
 - **Hung saves (#366 queue, #368 editor):** each attempt races `send` against `SAVE_TIMEOUT_MS = 15000`; on expiry the
   attempt's `AbortController` aborts and the result is `retry` (so Approve, disabled while `saving`, comes back once a retry
   lands, and "Couldn't save, retrying" shows). The editor passes the signal to `fetch`. 15s is a decision, not a
@@ -1040,10 +1043,12 @@ and a bullet add or remove can't be compared at all, so each write says who wrot
   42703 on a database without 0029. `MIGRATIONS-PENDING.md` says 0029 is applied in each environment before the build that
   carries it, like 0028's entry. On dev that also means before my local QA server runs this branch.
 
-Why this is safe: our writes are serial and in `seq` order, and a foreign write (another tab, an old tab) sets
-`last_writer` to something else, after which none of our stale attempts can write. So when `last_writer` is ours, every
-write since our last known revision was ours, and `last_seq` says which. A structure item is never applied twice: it is
-retried before anything else, and step 3 answers its retry. An older value never lands over a newer one: step 4.
+Why this is safe: every write is a compare-and-set on `revision`, so a write lands only on the row it read. A foreign
+write (another tab, an old tab) sets `last_writer` to something else, after which step 4 sends every stale attempt of ours
+to 409. When `last_writer` is ours, the last write was ours and `last_seq` names it; `seq` rises in send order, and a
+retried item is sent before any later one, so an aborted attempt that lands late either misses the compare-and-set or meets
+step 2's `last_seq > seq`. So a structure item is answered by step 2 on its retry and never applied twice, and an older
+value never lands over a newer one.
 
 ### 18.5 Counting an open never delays the page (#368 `app/snapshot/[token]/route.ts:41-66`)
 
@@ -1075,8 +1080,11 @@ fallback yet (attempt 1 failed shape, searched, or could not be read) attempt 2 
 
 - **Search:** the `q` effect (`:154`) resets the box and cancels the timer on every `q` change, including the one this tab's
   own `router.push` causes, so " co" typed while `?q=acme` renders is lost. Fix: a ref holds, in order, the cleaned values this tab
-  pushed that have not arrived yet. When `q` arrives equal to one of them, the effect updates `qRef` only and drops that
-  value and every one pushed before it, leaving the box and timer alone. Any other `q` (Back, Forward) re-syncs as today. Both sides use `cleanSearch`
+  pushed that have not arrived yet, and `target` is the last value pushed (or the last `q` re-synced). When `q` arrives
+  equal to a pending value, the effect drops that value and every one pushed before it and leaves the box and timer alone.
+  Any other `q` (Back, Forward) re-syncs as today, empties the list and sets `target = q`. The timer pushes when the box's
+  cleaned text differs from `target` (today it compares with `qRef`, `hub.tsx:162`), so clearing the box while "acme"
+  renders still pushes the empty search. Both sides use `cleanSearch`
   (`app/tools/new-business/page.tsx:19`, `hub.tsx:161`), so equal text compares equal.
 - **Show older:** `older` is pinned to `q` only. A refresh that adds a row pushes the first page's last row past the old
   cursor, and it is in neither list. Fix: `older` also records the first page's cursor it continued from, as the string
@@ -1103,12 +1111,14 @@ hook takes `offset = Date.parse(now) - Date.now()` (0 when `now` is missing or u
 | `/prompts` timeout with 30s left (timer capped by the deadline) | rethrown, "Timed out at step 8" |
 | Lost 200 on edit A, Ryan keeps typing A | the newer value goes next with a higher `seq`; `last_seq` is A's, so step 5 applies it on top, no stop |
 | Lost 200 on edit A, A resent unchanged | step 3: 200, nothing written twice |
-| Lost 200 on a bullet add, an edit queued meanwhile | the add is resent first, step 3 answers it, no second bullet; then the edit |
-| That step-5 apply hangs, is aborted, then lands; the retry arrives | step 3 on the re-read (at most 3 reads) |
-| An aborted attempt arrives after a newer item of ours landed | step 4: 409 nobody reads, nothing written |
-| Another tab, or an old tab with no `writer`, saved after our lost attempt | step 2: 409 `stale`, stop (today's behaviour) |
+| Lost 200 on a bullet add (list now 3), an edit queued meanwhile | the add is resent first; step 2 answers 200 with the row's slots before the patch (which would refuse it); then the edit |
+| Lost 200 on a bullet remove (list now 2), then retry | step 2: 200 with the row's slots, no second remove |
+| A step-4 apply hangs, is aborted, then lands; the retry arrives | step 2 on the re-read (at most 3 reads) |
+| Three reads all miss | 503, the queue retries |
+| An aborted attempt arrives after a newer item of ours landed | step 2: 409 nobody reads, nothing written |
+| Another tab, or an old tab with no `writer`, saved after our lost attempt | step 4: 409 `stale`, stop (today's behaviour) |
 | Row approved or discarded between our attempts | step 1: 409, stop |
-| `writer` not a UUID, `seq` 0 or a string, or only one of them | 400 `bad-request`, no database call |
+| `writer` not a UUID, `seq` 0 or a string, or only one of them | 400 `bad-request`, the report is never read |
 | PATCH hangs | after 15s the fetch aborts, retry with backoff, then lands |
 | Old editor tab sends no `writer` | behaves exactly as today, and clears `last_writer` |
 | Open counting fails | page already sent; one `reason=session` or `reason=error` line |
@@ -1117,6 +1127,7 @@ hook takes `offset = Date.parse(now) - Date.now()` (0 when `now` is missing or u
 | Attempt 1 one flag, attempt 2 four flags | attempt 1's copy and its one flag are saved |
 | Type during the push's render; then Back | text kept; Back re-syncs the box |
 | Two pushes ("acme", "acme co"), "acme" renders first | box kept; "acme co" arriving later is also kept |
+| Box cleared while "acme" renders | the empty search is pushed after the pause |
 | Show older twice, then Generate adds a row | older rows clear, Show older resumes after the new last row |
 | Browser clock 60s ahead | this tab's run shows its steps |
 | Progress answer with no `now` | offset 0, as today |
@@ -1128,7 +1139,8 @@ One per edge-case row above, at the unit that owns it: `metrics.test.ts` (rows 1
 `PeecError` with `timeout`), `pull.test.ts` (rows 4 and 5 for each of the four optional calls), `save-queue.test.ts`
 (one `writer` per queue; `seq` on first send, kept on retry, increasing in send order; a retried item goes first, a
 structure item ahead of pending edits; the timeout result and abort; the newer value after a retry gets a new `seq`),
-the slots `route.test.ts` (steps 1 to 5 each, the 3-read bound, the guard rows, no `writer`), `store.test.ts`
+the slots `route.test.ts` (steps 1 to 5 each; a retried landed add on a list of 3 and a retried landed remove on a list
+of 2 both answer 200 with the slots; three misses answer 503; the guard rows; no `writer`), `store.test.ts`
 (`last_writer` and `last_seq` set in the update, NULL when absent; Edit a copy leaves them out), the migration journal
 test (0029 after 0028), `snapshot/[token]/route.test.ts` (`after` mocked: the response is returned before the open work
 runs; failure and slow lines), the view `route.test.ts` (draft and preview use today's Eastern day, approved unchanged),
