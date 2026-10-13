@@ -3,7 +3,8 @@
 Status: for Paul's review and approval before any code. Two review rounds done; the one round-2 major (how the sidebars
 know a client is locked) was decided 2026-10-12 (4.2b). Revised the same day for Paul's review. Written against
 `origin/dev` `e39e393b` (tree `5dac44b3`, the tree production runs); every citation re-checked against `origin/dev`
-`fd1da06b`, where only the two report pages moved (2 lines). Approved in principle on 2026-10-12: Renaissance may use
+`fd1da06b`, where the two report pages moved (2 lines) and the export route was renamed from `organic-social` to
+`[section]` (the citations use the new path). Approved in principle on 2026-10-12: Renaissance may use
 locked months like the outline clients. Scope is the **Organic Social section only**.
 
 ## 1. Why
@@ -101,7 +102,10 @@ Social, so the section opens on its default month instead of a range that would 
 range, logged as a hidden-month attempt, `reporting-months.ts:216-221`). This applies at all 17 places, including
 Inbound Funnel and GA4, which Renaissance doesn't have, so the rule holds for any locked client. Organic Social's own tab
 links keep `dateRange`. In both sidebars, "current section is Organic Social" means `?section=organic-social` on the
-reports page, or the path ending `/reports/organic-social` (the deep-link route, `[reportSlug]/page.tsx:97, 125-126`).
+reports page, or the path ending `/reports/organic-social` (the deep-link route: dashboard
+`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:97, 125-126`; portal
+`app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:115, 169-170`; the report resolves its own month there). The
+dashboard sidebar's `isOnReports` is an exact-path check (`sidebar.tsx:348`), so the deep-link check can't reuse it.
 Everything else in the sidebars is unchanged.
 How the sidebars know (decided 2026-10-12): the condition is `hasReportingMonths(client)` (pure, client-safe,
 `lib/organic-social/reporting-months.ts:75-79`), the page's own predicate (`app/dashboard/[clientSlug]/reports/page.tsx:185`).
@@ -121,8 +125,11 @@ live through the cached client and is never stored. Clamping `settledThrough` al
 locked day is later than every month from January to June. The comparison baseline of a `firstMonth` request is
 unchanged (it reads the store directly, `locking-client.ts:107-111`). For the five locked clients: the parts that build
 months already stop at `firstMonth` (`ytd.ts:59, 65, 97-99, 129-130`; `lock-sweep.ts:19`; `reporting-months.ts:177`), so
-the only effect is to stop the stray rows the CLAUDE.md follow-up describes; the lock-key pin is unchanged. That
-CLAUDE.md entry is updated in the same PR.
+the only effect is to stop the stray rows the CLAUDE.md follow-up describes; the lock-key pin is unchanged. The same
+PR also does the entry's other ask: `settledThrough`'s final `return lastOf(key)` (`lock-day.ts:39`) becomes `null`,
+with a test. It is unreachable: a lock day is day 4 to 28 of the next month, moved only earlier (`lock-day.ts:20-26`),
+so the month before last has always locked within last month and the loop returns by its second pass. That CLAUDE.md
+entry is then closed in the same PR.
 
 ### 4.3 What Renaissance's users will see change (Organic Social only)
 | Before | After |
@@ -183,7 +190,7 @@ before `firstMonth` read live and are never stored (4.2c).
 | Team edits an approved Insights entry for a past month | New draft; clients keep the approved one (existing) |
 | Renaissance's client admin invites a viewer | Unchanged (Team page) |
 | The PDF export | Resolves the month with the exporter's own role (`app/export/[clientSlug]/[section]/page.tsx:52`), so a team export of the live month prints live numbers; Insights and Recommendations print the client's entry (`commentary/monthly.tsx:41-44`); the YTD block never has a partial month (4.2) |
-| Settings just switched (or rolled back) | The client row is cached for 300 seconds in two separate entries, `getClientBySlug` (the page) and `getAllClients` (the dashboard sidebar and both sweeps) (`lib/db/queries.ts:32-35, 97-98, 127-129`); a raw SQL UPDATE does not expire their `db` tag, which only the app's own saves do (`updateTag('db')`, e.g. `app/actions/commentary.ts:111`). For up to about 5 minutes the page and the sidebar or sweep can disagree. Rollout steps 2b, 4 and 5 wait it out |
+| Settings just switched (or rolled back) | The client row is cached for 300 seconds in two separate entries, `getClientBySlug` (the page) and `getAllClients` (the dashboard sidebar and both sweeps) (`lib/db/queries.ts:32-35, 97-98, 127-129`); a raw SQL UPDATE does not expire their `db` tag, which only the app's own saves do (`updateTag('db')`, e.g. `app/actions/commentary.ts:111`). Each entry is served from cache until it has been read once after its 300 seconds: `unstable_cache` serves the expired entry and refreshes it in the background (`lib/cache.ts:127-131`; the same behaviour `locking-client.ts:13-16` describes for Dash). Until then the page and the sidebar or sweep can disagree. Rollout steps 2b, 4 and 5 reload until both show the new state |
 | The fixed 04:00 UTC window offset is fixed later (CLAUDE.md follow-up) | Not built. Any request-shape change already fails `lock-key-pin.test.ts`, and CLAUDE.md says to map old keys forward first. This change lands first; when the offset fix is built, it maps keys for every locked client, Renaissance included |
 | Notes before `firstMonth` | Refused with the existing message (`chart-notes.ts:59-61`) |
 
@@ -205,6 +212,8 @@ before `firstMonth` read live and are never stored (4.2c).
   nothing; requests from July lock.
 - 4.2c, locking client: a request ending the day before `firstMonth` reads live and writes nothing; one ending in
   `firstMonth` locks as today, and its comparison baseline is read as today; `lock-key-pin.test.ts` unchanged.
+- `settledThrough`: for every `lockDay` 4 to 28, both weekend rules and every day of a year, it returns last month's or
+  the month before last's final day, never anything older; the final `return` is `null`; existing cases unchanged.
 - 4.2b, both sidebars: for a locked client, links out of and into Organic Social carry no `dateRange`/`compareRange`, at
   every one of the 17 places (each portal branch: generic, Inbound Funnel and its tabs, AEO and its tabs, Paid Media and
   its tabs, Organic Social and its tabs, GA4 and its tabs; the dashboard's AEO, Paid Media and Organic Social links and
@@ -227,8 +236,9 @@ before `firstMonth` read live and are never stored (4.2c).
       behaviour (section 6) and recorded; an empty graph or content answer would lock: stop and report before b.
    b. Guarded settings write (host guard, dry run, written go), one UPDATE setting `reportingMonths` and the YTD pin
       together (two writes would blank the YTD block in between: `@3` renders nothing with `reportingMonths`, `@4`
-      nothing without). After the UPDATE, wait past the 300-second client cache (section 6), load the page once, and
-      confirm both the page (month picker) and the sidebar links show the new state before any after snapshot. Before
+      nothing without). After the UPDATE, wait 300 seconds, then reload until both the page (month picker) and the
+      dashboard sidebar (link shape) show the new state (section 6: one load after the wait usually still shows the old
+      one); only then take any after snapshot. Before
       and after snapshots of every Organic Social tab
       (tiles, graphs, Top Content, YTD) for July to September, and of Paid Media, AEO and Executive Overview, including
       navigating to them from Organic Social. Lock rows appear for Renaissance after the sweep, triggered on staging by a bounded GET of `/api/lock-sweep` with
@@ -240,12 +250,17 @@ before `firstMonth` read live and are never stored (4.2c).
       the next render re-captures it.
 3. Before production: September's entries are written and approved by the team (already on the go-live checklist):
    Insights on Overview, each platform tab and the Influencer tab, and Recommendations on Overview and each platform tab.
-   Production waits until a read-only probe shows them approved.
+   Production waits until a read-only probe shows them approved. Give the Organic Social team a heads-up that
+   Renaissance's Organic Social becomes whole months from `firstMonth` on, with no custom or multi-month ranges (they
+   used an August to September range on 2026-10-12).
 4. Production: the same single-UPDATE write with written consent, after `main` carries the code. Pre-image saved. The
-   same cache wait as 2b, then verify as staging.
+   same cache wait as 2b (wait, then reload until the page and the dashboard sidebar both show it), then verify as
+   staging.
 5. Rollback: one UPDATE removing `reportingMonths` and swapping the pin back to `@3`, then the same cache wait. Lock rows
    left behind are inert while the setting is off (`base.ts:51`); **delete them before ever re-enabling**, or they come
-   back with their old capture date. With 4.2c there are none before July to clean up.
+   back with their old capture date. Delete them only after a lock sweep has run on the rolled-back row: until each cache
+   entry refreshes, a sweep can still read the old row (`app/api/lock-sweep/route.ts:32`, `lock-sweep.ts:13`) and a
+   render can still lock (`base.ts:51`). With 4.2c there are none before July to clean up.
 
 ## 9. Out of scope
 Any change to how locking works other than 4.2c (including the empty-answer rule, an existing follow-up); other clients;
