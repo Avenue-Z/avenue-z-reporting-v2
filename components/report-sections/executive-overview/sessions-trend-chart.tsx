@@ -229,7 +229,7 @@ export function SessionsTrendChart({ data, compareLabel, failed }: SessionsTrend
   }
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6" data-export-block="" data-export-chart="">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6" data-export-block="">
       {/* Header */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">

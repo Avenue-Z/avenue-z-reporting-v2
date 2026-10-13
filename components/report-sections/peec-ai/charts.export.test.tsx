@@ -35,10 +35,11 @@ const SLOPE = {
 const SCATTER = { points: [{ path: '/a', bots: 5, humans: 9, quadrant: 'high-bot-high-human' as const }, { path: '/b', bots: 1, humans: 2, quadrant: 'low-bot-low-human' as const }], medianBot: 3, medianHuman: 5 }
 const CLUSTERS = [{ cluster: 'Pricing', count: 4, editorialCitationDensity: 12.5, brandCitationRate: 0, brandMentionRate: 0, competitorPresence: 0, opportunityScore: 1 }]
 
-test('the visibility chart is one dark block at its default granularity, with its toggle buttons hidden', () => {
+test('the visibility chart is one block at its default granularity, with its toggle buttons hidden', () => {
   const { container } = inExport(<VisibilityChart data={DAYS} competitorData={[]} brandName="Brand" />)
   const card = container.firstElementChild!
-  expect(card.hasAttribute('data-export-block') && card.hasAttribute('data-export-chart')).toBe(true)
+  expect(card.hasAttribute('data-export-block')).toBe(true)
+  expect(card.hasAttribute('data-export-chart')).toBe(false) // spec 2026-10-13: dark like the live page
   expect(container.querySelector('[data-export-hide]')?.querySelectorAll('button')).toHaveLength(4)
   expect(container.textContent).toContain('Brand · weekly')
 })
@@ -63,14 +64,15 @@ test("the slope chart's legend names print in full: every truncated name sits in
   expect(names.every((n) => n.closest('[data-export-wrap]') && n.classList.contains('wrap-anywhere'))).toBe(true)
 })
 
-test('the scatter and the prompt-cluster bars draw complete; the cluster card is one dark block', () => {
+test('the scatter and the prompt-cluster bars draw complete; the cluster card is one block', () => {
   seen.length = 0
   inExport(<BotVsHumanScatter data={SCATTER} clientDomain="example.com" />)
   const { container } = inExport(<PromptClusterOpportunityMatrix rows={CLUSTERS} />)
   expect(seen.some((s) => s.kind === 'Scatter') && seen.some((s) => s.kind === 'Bar')).toBe(true)
   expect(seen.filter((s) => s.kind === 'Scatter' || s.kind === 'Bar').every((s) => s.props.isAnimationActive === false)).toBe(true)
   const card = container.firstElementChild!
-  expect(card.hasAttribute('data-export-block') && card.hasAttribute('data-export-chart')).toBe(true)
+  expect(card.hasAttribute('data-export-block')).toBe(true)
+  expect(card.hasAttribute('data-export-chart')).toBe(false) // spec 2026-10-13: dark like the live page
 })
 
 test('outside the export the slope chart keeps its toggle buttons and animates', () => {

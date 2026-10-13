@@ -32,10 +32,12 @@ test('rows print their default layout only: no hover layer, no Prior period, no 
   expect(container.querySelector(':not([data-export-hide] *)[class*="cursor"]')).toBeNull()
 })
 
-test('the chart is one dark-panel block and channel names wrap', () => {
+test('the chart is one block and channel names wrap', () => {
   const container = inExport()
   const root = container.firstElementChild as HTMLElement
-  expect(root.hasAttribute('data-export-block') && root.hasAttribute('data-export-chart') && root.hasAttribute('data-export-wrap')).toBe(true)
+  // Spec 2026-10-13: the PDF prints dark like the live page, so no chart is marked for a separate dark panel.
+  expect(root.hasAttribute('data-export-block') && root.hasAttribute('data-export-wrap')).toBe(true)
+  expect(root.hasAttribute('data-export-chart')).toBe(false)
 })
 
 test('the live chart keeps its tabs and sort buttons', () => {

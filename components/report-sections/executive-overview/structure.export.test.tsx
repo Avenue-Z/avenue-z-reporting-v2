@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
@@ -74,6 +71,12 @@ test("contact pacing's bar tooltips are hidden in the export", () => {
   expect(tips.every((t) => t.hasAttribute('data-export-hide'))).toBe(true)
 })
 
+// Spec 2026-10-13: the bars print in their live brand green on the dark page; nothing marks or re-colours them.
+test('the CRM bars carry no export colour marker', () => {
+  expect(render(<ContactPacing data={CONTACTS} />).container.querySelector('[data-export-bars]')).toBeNull()
+  expect(render(<PipelinePerformance data={PIPELINE} />).container.querySelector('[data-export-bars]')).toBeNull()
+})
+
 // Thomas, #354 index.tsx:229: the placeholders were not blocks, so for a client with no CRM "CRM not connected" could print
 // at a page foot and "Connect your CRM…" at the next page's head.
 test('the NeedsConnection, LoadFailed and NoData cards each print whole', async () => {
@@ -84,25 +87,4 @@ test('the NeedsConnection, LoadFailed and NoData cards each print whole', async 
     expect((container.firstElementChild as HTMLElement).hasAttribute('data-export-block')).toBe(true)
     unmount()
   }
-})
-
-// Thomas, #354 contact-pacing.tsx:187: the CRM bars are brand green (#60FF80) drawn off any chart panel, about 1.4:1 on
-// white paper, and the in-progress week at 20% alpha nearly vanishes. Under the export theme, inside the blocks marked
-// data-export-bars, they print darkened. Checked on the server's own markup (the style strings the export page receives),
-// with the stylesheet's own selectors.
-const css = readFileSync(join(process.cwd(), 'app/export/export-theme.css'), 'utf8')
-const barRules = [...css.matchAll(/^\.export-theme ([^{]*\[data-export-bars\][^{]*)\{([^}]*)\}/gm)]
-  .map(([, sel, body]) => ({ selectors: sel.split(',').map((s) => s.trim().replace(/^\.export-theme\s+/, '')), body }))
-const printedAs = (el: Element) => barRules.filter((r) => r.selectors.some((s) => el.matches(`.export-theme ${s}`))).map((r) => r.body.trim())
-const mount = (html: string) => { document.body.innerHTML = `<div class="export-theme">${html}</div>`; return document.body }
-
-test('the contact bars and the owner bars print darkened on paper, the in-progress week still visible', () => {
-  const pacing = mount(renderToStaticMarkup(<ContactPacing data={CONTACTS} />))
-  const full = pacing.querySelector('[data-week]:not([data-partial])')!
-  const partial = pacing.querySelector('[data-partial]')!
-  expect(printedAs(full).join(' ')).toMatch(/background-color: #15803d !important/)
-  expect(printedAs(partial).join(' ')).toMatch(/background-color: rgb\(21 128 61 \/ 0\.25\) !important/)
-  expect(printedAs(partial).join(' ')).toMatch(/border-top-color: #15803d !important/)
-  const owners = mount(renderToStaticMarkup(<PipelinePerformance data={PIPELINE} />))
-  expect(printedAs(owners.querySelector('[data-testid="owner-row"] .bg-brand-green')!).join(' ')).toMatch(/background-color: #15803d !important/)
 })

@@ -14,7 +14,7 @@ import { safeTimeZone } from '@/lib/export/request'
 import { isServerExportSection } from '@/lib/export/sections'
 import { resolveExportView } from '@/lib/export/report-view'
 import { parseModelsParam } from '@/lib/peec/models'
-import { CONTENT_WIDTH } from '@/lib/export/render-pdf'
+import { CONTENT_WIDTH, EXPORT_PAGE_CSS } from '@/lib/export/render-pdf'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ExportModeProvider, ExportReadyReporter } from '@/components/export/export-mode'
 import { exportReportElement } from '@/components/export/report-element'
@@ -54,8 +54,8 @@ export default async function ReportExportPage({
 
   return (
     <div className="export-theme" style={{ width: CONTENT_WIDTH }}>
-      {/* The root layout paints the dark app background; the PDF is white paper. */}
-      <style>{'html, body { background: #fff !important; margin: 0; }'}</style>
+      {/* The PDF page: Letter landscape, 0.4 in margins, black to its edges (EXPORT_PAGE_CSS). Inline, never shared. */}
+      <style>{EXPORT_PAGE_CSS}</style>
       {/* The fallback fonts in export-theme.css's --font-sans. React hoists this into <head>. */}
       <link rel="stylesheet" href={EXPORT_FONTS_URL} precedence="default" />
       <header data-export-block="" className="mb-8 flex items-end gap-4 border-b border-white/[0.08] pb-4">

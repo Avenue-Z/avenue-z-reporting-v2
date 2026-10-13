@@ -1,6 +1,9 @@
 // Reads a PDF's words with their page and position (poppler's `pdftotext -bbox-layout`), for the export
 // acceptance checks in ./acceptance.ts. Local only: needs poppler (`brew install poppler`).
 import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 export interface Word { text: string; page: number; xMin: number; yMin: number; xMax: number; yMax: number }
 export interface PdfText { pages: { width: number; height: number }[]; words: Word[] }
@@ -99,4 +102,51 @@ export function printedDifference(a: PdfText, b: PdfText): string | null {
     }
   }
   return null
+}
+
+/** The grey levels of a binary PGM's four corners: top left, top right, bottom left, bottom right. Throws on anything it
+ *  can't read, so a broken image never passes as dark. */
+export function cornerLevels(pgm: Buffer): number[] {
+  // P5 header: magic, width, height, max value, separated by whitespace; one whitespace byte, then the pixels.
+  let i = 0
+  const space = () => i < pgm.length && /\s/.test(String.fromCharCode(pgm[i]))
+  const field = () => {
+    while (space()) i++
+    const start = i
+    while (i < pgm.length && !space()) i++
+    if (i >= pgm.length) throw new Error('truncated PGM header')
+    return pgm.subarray(start, i).toString('ascii')
+  }
+  const magic = field()
+  if (magic !== 'P5') throw new Error(`not a binary PGM (${magic})`)
+  const [w, h] = [Number(field()), Number(field())]
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1) throw new Error(`bad PGM size (${w} × ${h})`)
+  field() // max value
+  const data = pgm.subarray(i + 1)
+  if (data.length < w * h) throw new Error(`truncated PGM (${data.length} of ${w * h} pixels)`)
+  return [data[0], data[w - 1], data[(h - 1) * w], data[h * w - 1]]
+}
+
+/** The 1-based pages whose corners aren't near-black (any level above `limit`, of 255). Every page must have been imaged:
+ *  no images would otherwise pass. The margins of a dark export measure 0, and a #272727 card (≈39) in a corner, a page
+ *  that lost its margin, must not pass, hence 16. */
+export function judgeCorners(levelsByPage: number[][], pageCount: number, limit = 16): number[] {
+  if (levelsByPage.length !== pageCount) throw new Error(`${pageCount} pages, ${levelsByPage.length} page images`)
+  return levelsByPage.flatMap((levels, i) => (Math.max(...levels) > limit ? [i + 1] : []))
+}
+
+/** The 1-based pages of a PDF that aren't dark to their edges (spec 2026-10-13: a page.pdf margin prints as a white
+ *  frame). Rasterised by poppler at 10 dpi, which is enough for corners. */
+export function lightCorners(file: string): number[] {
+  const dir = mkdtempSync(join(tmpdir(), 'export-corners-'))
+  try {
+    execFileSync('pdftoppm', ['-gray', '-r', '10', file, join(dir, 'p')])
+    const pages = readdirSync(dir).filter((f) => f.endsWith('.pgm'))
+      .map((f) => ({ page: Number(/-(\d+)\.pgm$/.exec(f)?.[1]), levels: cornerLevels(readFileSync(join(dir, f))) }))
+      .sort((a, b) => a.page - b.page)
+    const pageCount = Number(/Pages:\s+(\d+)/.exec(execFileSync('pdfinfo', [file], { encoding: 'utf8' }))?.[1])
+    return judgeCorners(pages.map((p) => p.levels), pageCount)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }

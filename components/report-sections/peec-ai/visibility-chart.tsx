@@ -46,9 +46,9 @@ export function VisibilityChart({
   const labelEvery = Math.max(1, Math.ceil(n / 16))
 
   return (
-    // In the PDF export the chart is one unbreakable block on its dark panel (app/export/export-theme.css), printed at its
-    // default granularity: the subtitle names it, so the toggle is hidden there.
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5" data-export-block="" data-export-chart="">
+    // In the PDF export the chart is one unbreakable block, printed at its default granularity: the subtitle names it, so
+    // the toggle is hidden there.
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5" data-export-block="">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-1.5">

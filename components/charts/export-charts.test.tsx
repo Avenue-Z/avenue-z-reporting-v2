@@ -29,13 +29,13 @@ const charts = () => (
 )
 
 // A PDF taken mid-animation prints half-drawn bars (spec 2026-10-08-pdf-export-all-reports-design §4).
-test('in the export, bars and lines draw complete on first paint, and the bar chart keeps its dark panel', () => {
+test('in the export, bars and lines draw complete on first paint, with no dark-panel mark (spec 2026-10-13)', () => {
   barProps.length = 0; lineProps.length = 0
   const { container } = render(<ExportModeProvider>{charts()}</ExportModeProvider>)
   expect(barProps.length).toBe(2)
   expect(lineProps.length).toBe(1)
   expect([...barProps, ...lineProps].every((p) => p.isAnimationActive === false)).toBe(true)
-  expect(container.querySelectorAll('[data-export-chart]')).toHaveLength(1) // BarChart owns its panel; ComboChart's is its parent's
+  expect(container.querySelector('[data-export-chart]')).toBeNull()
 })
 
 test('outside the export, the charts are unchanged: animated, no export marker', () => {
