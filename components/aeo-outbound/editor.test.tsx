@@ -649,14 +649,14 @@ test('a generating row that becomes a draft opens the Before you send panel', as
 })
 
 test('a structure the server refuses hands edit mode back to the frame and shows the error', async () => {
-  patch = async () => json(400, { error: 'Keep at least two bullets.' })
+  patch = async () => json(400, { error: 'A list needs at least one bullet.' })
   const { iframe } = await setup()
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   const post = vi.spyOn(iframe.contentWindow!, 'postMessage')
   await fromFrame(iframe, { type: 'structure', op: 'remove', path: 'competitive_bullets.0' })
   expect(post).toHaveBeenCalledWith({ type: 'mode', edit: false }, '*')
   await waitFor(() => expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: true }, '*'))
-  expect(await screen.findByText(/Keep at least two bullets\./)).toBeInTheDocument()
+  expect(await screen.findByText(/A list needs at least one bullet\./)).toBeInTheDocument()
 })
 
 // Spec v1.1 18.12: one structure click at a time, and no stale index after a structure save.

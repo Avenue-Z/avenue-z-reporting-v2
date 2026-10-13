@@ -319,7 +319,10 @@ test('the 0029 migration is exactly the two additive, nullable save-writer colum
     'ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_seq" integer;',
   ])
   const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as { entries: { idx: number; tag: string }[] }
-  expect(journal.entries.slice(-2).map((e) => [e.idx, e.tag])).toEqual([[28, '0028_aeo_outbound_settings_series'], [29, '0029_aeo_outbound_save_writer']])
+  // Found by tag, not by position, so a later migration on dev does not break this.
+  const at = (tag: string) => journal.entries.find((e) => e.tag === tag)?.idx
+  expect(at('0028_aeo_outbound_settings_series')).toBe(28)
+  expect(at('0029_aeo_outbound_save_writer')).toBe(29)
   const prev = JSON.parse(readFileSync('drizzle/meta/0028_snapshot.json', 'utf8')) as { id: string }
   const next = JSON.parse(readFileSync('drizzle/meta/0029_snapshot.json', 'utf8')) as { prevId: string }
   expect(next.prevId).toBe(prev.id)

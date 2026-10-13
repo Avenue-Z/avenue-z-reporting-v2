@@ -195,10 +195,10 @@ test('a structural item waits for every pending edit, then goes out with the rev
 })
 
 test('a refused structural item is dropped with its error; a stop stops it', async () => {
-  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'bad', error: 'A list needs at least two bullets.' })), 0, () => {})
+  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'bad', error: 'A list needs at least one bullet.' })), 0, () => {})
   q.structure('sources_bullets.0.remove')
   await flush()
-  expect(q.state).toMatchObject({ structuring: false, error: 'A list needs at least two bullets.' })
+  expect(q.state).toMatchObject({ structuring: false, error: 'A list needs at least one bullet.' })
   const stopped = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'stop' })), 0, () => {})
   stopped.structure('sources_bullets.add')
   await flush()
