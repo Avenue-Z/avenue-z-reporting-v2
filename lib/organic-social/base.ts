@@ -8,7 +8,7 @@ import { hasReportingMonths } from './reporting-months'
 import { requestClock } from './locked-range'
 import { lockingClient, type DashReader } from './locking-client'
 import { readLock, writeLock } from './response-lock-store'
-import { isLateLock, parseLockDay, settledThrough } from './lock-day'
+import { isLateLock, lockedFrom, parseLockDay, settledThrough } from './lock-day'
 
 export { num, pct } from '@/lib/supermetrics/format'
 
@@ -28,7 +28,7 @@ function lockedClientFor(c: { id: string; dashSocialConfig: unknown }, slug: str
   const rm = (c.dashSocialConfig as { reportingMonths?: unknown }).reportingMonths
   const today = requestClock().today
   if (parseLockDay(rm).bad) console.error(`[organic-social] reportingMonths.lockDay is invalid slug=${slug}`)
-  return lockingClient(inner, { clientId: c.id, slug, settled: settledThrough(rm, today), late: (end) => isLateLock(end, rm, today) }, {
+  return lockingClient(inner, { clientId: c.id, slug, settled: settledThrough(rm, today), from: lockedFrom(rm), late: (end) => isLateLock(end, rm, today) }, {
     read: readLock,
     write: writeLock,
     // A second client for the capture alone, so the answer we store permanently is what Dash says

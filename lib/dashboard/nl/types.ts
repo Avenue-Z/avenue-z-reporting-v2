@@ -19,10 +19,10 @@ export type ResolutionResult =
   | { kind: 'clarify'; question: string }
   | { kind: 'error'; error: string }
 
-/** One Glean chat message (mirrors the shape used in app/api/glean/meeting-brief/route.ts). */
+/** One Glean chat message. Read by realGleanChat (glean-chat.ts), extractJson (extract.ts) and resolveWithRepair (run.ts). */
 export interface GleanMessage {
   author: string
-  fragments: Array<{ text?: string; citation?: { sourceDocument?: { title?: string; url?: string } } }>
+  fragments: Array<{ text?: string }>
 }
 
 /** Injectable Glean transport — real impl in glean-chat.ts; tests pass a fake. */

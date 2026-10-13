@@ -69,3 +69,18 @@ describe('PaidMediaOverviewReport', () => {
     expect(screen.getAllByText(/^— vs prior period$/i).length).toBeGreaterThanOrEqual(1)
   })
 })
+
+// PDF export (spec 2026-10-08 §7): the top KPI row and each channel's row stay whole; "By Channel" stays with the first.
+test('the KPI grid and each channel row are page-break blocks; "By Channel" stays with the first row', async () => {
+  mock.mockResolvedValue({
+    channels: [
+      { key: 'paid-search', label: 'Paid Search', configured: true, spend: 1000, clicks: 200, leads: 12, ok: true, spendDelta: 25, clicksDelta: 10, leadsDelta: 5 },
+      { key: 'meta', label: 'Meta Advertising', configured: true, spend: 500, clicks: 80, leads: null, ok: true, spendDelta: -8, clicksDelta: 4 },
+    ],
+    blendedSpend: 1500, blendedClicks: 280, blendedSpendDelta: 12, blendedClicksDelta: 8,
+  })
+  const { container } = render(await PaidMediaOverviewReport({ clientSlug: 'c' }))
+  expect(container.querySelector('.grid.grid-cols-2[data-export-block]')).not.toBeNull()
+  expect(container.querySelectorAll('section[data-export-block]').length).toBeGreaterThanOrEqual(2)
+  expect(screen.getByText('By Channel').hasAttribute('data-export-keep-with-next')).toBe(true)
+})

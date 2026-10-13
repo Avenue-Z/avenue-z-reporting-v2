@@ -4,7 +4,7 @@ import type { Kpi } from '@/lib/paid-search/types'
 
 export function KpiGrid({ kpis }: { kpis: Kpi[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-export-block="">
       {kpis.map((k) => {
         // Money KPIs render cents; a null money value is an undefined ratio → dash.
         const isMoney = k.format === 'money'

@@ -2,13 +2,19 @@
 ## Feature: "Prepare for Meeting" — Glean Knowledge Integration
 ### Avenue Z Internal Dashboard · Claude Code Context Document
 
-> ⚠️ **Partial staleness note.** The **Glean SDK usage** in this guide (Chat API,
-> `gleanChat()` in `lib/glean.ts`, the `GLEAN_INSTANCE` / `GLEAN_API_TOKEN` env
-> vars) is still accurate. The **"Existing Platform Context"** below is not: the
+> ⚠️ **Partial staleness note.** Still accurate here: the Glean Chat endpoint
+> (`/rest/api/v1/chat`), the `GLEAN_INSTANCE` / `GLEAN_API_TOKEN` env vars (section 4.1)
+> and the token setup (section 6). The live client is `gleanChat()` and
+> `getGleanHeaders(actAsEmail?)` in `lib/glean.ts`; sections marked "Removed" describe
+> code that no longer exists. The **"Existing Platform Context"** below is not current either: the
 > framework is **Next.js 16** (not 15), and the client registry is **Neon Postgres
 > + Drizzle** (`lib/db/`), **not** a `clients.config.ts` flat file (that file was
 > deleted). For current platform architecture see [`/README.md`](../README.md) and
 > [`/CLAUDE.md`](../CLAUDE.md).
+
+> **Removed in October 2026.** The meeting-prep widget (`components/meeting-prep/`) and its route
+> (`app/api/glean/meeting-brief`) were removed. `lib/glean.ts` now backs the configurable dashboard's
+> natural-language proposer (`lib/dashboard/nl/glean-chat.ts`) and the Peec AI synopses (`lib/peec/*synopsis.ts`).
 
 ---
 
@@ -44,6 +50,8 @@ The result should feel like a smart briefing assistant, not a raw search dump.
 ---
 
 ## 3. Architecture Decision
+
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
 
 ### Recommended Approach: Server-Side API Route + Client Component
 
@@ -85,6 +93,8 @@ GLEAN_INSTANCE=avenuez          # Your Glean instance name (e.g., "avenuez" → 
 ---
 
 ### 4.2 Glean API Utility  
+
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
 **File:** `lib/glean.ts`
 
 Create a typed utility module for Glean API calls.
@@ -176,6 +186,8 @@ Be concise and specific. If you cannot find information about this client, say s
 ---
 
 ### 4.3 API Route — Meeting Brief  
+
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
 **File:** `app/api/glean/meeting-brief/route.ts`
 
 This is the secure server-side proxy. It calls Glean and streams the response back.
@@ -284,6 +296,8 @@ export async function POST(request: NextRequest) {
 ---
 
 ### 4.4 Meeting Brief UI Component  
+
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
 **File:** `components/internal/MeetingPrepBrief.tsx`
 
 Client component that handles the trigger button, loading state, and rendered output.
@@ -494,6 +508,8 @@ export function MeetingPrepBrief({ clientName, clientSlug }: MeetingPrepBriefPro
 
 ### 4.5 Integration into the Client Internal Page
 
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
+
 **Where to add it:** Find the existing internal client page component — likely at a path such as:
 - `app/(internal)/clients/[slug]/page.tsx`
 - `app/internal/[slug]/page.tsx`
@@ -522,6 +538,8 @@ const client = getClientConfig(slug); // however you currently look up client co
 ---
 
 ## 5. Dependencies to Install
+
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
 
 Run this in the project root:
 
@@ -574,36 +592,18 @@ The instance name is `avenuez`. The API base URL is then: `https://avenuez-be.gl
 ### Important Note on Token Type
 
 - **User-scoped token:** The brief will search Glean as the token owner (you). Results will reflect only what that user has access to in Glean. Good for a personal dev/staging setup.
-- **Global token with `X-Glean-ActAs` header:** The brief searches as the logged-in user. Best for production — each Avenue Z team member gets results based on their own Glean access. Requires Glean admin to generate a global token.
+- **Global token with the `X-Scio-Actas` header** (the header `lib/glean.ts` sends): searches as the given user. Best for production: each Avenue Z team member gets results based on their own Glean access. Requires Glean admin to generate a global token.
 
-For production, if you want per-user search context, update `getGleanHeaders()` in `lib/glean.ts` to:
-
-```typescript
-export function getGleanHeaders(actAsEmail?: string): HeadersInit {
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${process.env.GLEAN_API_TOKEN!}`,
-    'Content-Type': 'application/json',
-  };
-  if (actAsEmail) {
-    headers['X-Glean-Auth-Type'] = 'GLOBAL';
-    headers['X-Glean-ActAs'] = actAsEmail;
-  }
-  return headers;
-}
-```
-
-And in the API route, pass the session user's email:
-
-```typescript
-const session = await auth();
-const actAsEmail = session?.user?.email ?? undefined;
-// ...
-headers: getGleanHeaders(actAsEmail),
-```
+> **Done, and different from what this guide first proposed.** `getGleanHeaders(actAsEmail?)` in `lib/glean.ts:8`
+> already takes an optional email and, when given one, sends `X-Scio-Actas`. Do not replace it: `realGleanChat`
+> (`lib/dashboard/nl/glean-chat.ts`) and the Peec AI synopses depend on it. The API-route snippet that was here belonged
+> to the removed meeting-prep route.
 
 ---
 
 ## 7. Future Enhancements (Phase 2 Ideas)
+
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
 
 Once the core brief is working, consider these extensions:
 
@@ -644,6 +644,8 @@ For faster perceived performance, convert the API route to use a `ReadableStream
 
 ## 8. Testing Checklist
 
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
+
 Before deploying:
 
 - [ ] `GLEAN_API_TOKEN` and `GLEAN_INSTANCE` are set in `.env.local`
@@ -659,6 +661,8 @@ Before deploying:
 ---
 
 ## 9. Security Notes
+
+> **Removed in October 2026.** Describes the deleted meeting-prep widget and route; not current code. The live Glean client is `lib/glean.ts` (`getGleanHeaders(actAsEmail?)`, `gleanChat`).
 
 - `GLEAN_API_TOKEN` is **server-only** — it must never appear in any `'use client'` component or be passed to the browser
 - The API route at `/api/glean/meeting-brief` is protected by `auth()` — only authenticated Avenue Z staff can trigger it

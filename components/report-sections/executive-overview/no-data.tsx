@@ -10,7 +10,7 @@
  */
 export function NoData({ message = 'No data for this period.' }: { message?: string }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-sm text-text-muted">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-sm text-text-muted" data-export-block="">
       {message}
     </div>
   )
@@ -25,7 +25,7 @@ export function NoData({ message = 'No data for this period.' }: { message?: str
  */
 export function LoadFailed({ message = "Couldn't load this data." }: { message?: string }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-sm text-text-muted">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6 text-sm text-text-muted" data-export-block="">
       {message}
     </div>
   )

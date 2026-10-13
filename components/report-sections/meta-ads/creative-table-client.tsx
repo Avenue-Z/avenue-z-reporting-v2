@@ -1,5 +1,6 @@
 'use client'
 import { useState, type ReactNode } from 'react'
+import { useExportMode } from '@/components/export/export-mode'
 import { num, pct } from '@/lib/supermetrics/format'
 import { money } from '@/lib/paid-media/format'
 import type { CampaignNode, AdSetNode, CreativeRow, CreativeMetrics } from '@/lib/meta/types'
@@ -17,6 +18,9 @@ interface Col {
 
 const freq = (n: number) => n.toFixed(1) + 'x'
 
+const FREQUENCY_CAVEAT =
+  'At campaign and ad set level, frequency sums reach across ad sets and may double-count users reached in more than one ad set.'
+
 const COLS: Col[] = [
   { key: 'spend', label: 'Spend', fmt: money },
   { key: 'impressions', label: 'Impressions', fmt: num },
@@ -25,8 +29,7 @@ const COLS: Col[] = [
     key: 'frequency',
     label: 'Frequency',
     fmt: freq,
-    tooltip:
-      'At campaign and ad set level, frequency sums reach across ad sets and may double-count users reached in more than one ad set.',
+    tooltip: FREQUENCY_CAVEAT,
   },
   { key: 'linkClicks', label: 'Link Clicks', fmt: num },
   { key: 'ctr', label: 'CTR', fmt: pct },
@@ -66,6 +69,9 @@ export function CreativeTableClient({
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'spend', dir: 'desc' })
   const [openCampaigns, setOpenCampaigns] = useState<Set<string>>(new Set())
   const [openAdSets, setOpenAdSets] = useState<Set<string>>(new Set())
+  // The PDF export prints the top level as on first load, collapsed, with no sort, expand or hint controls (spec 2026-10-08
+  // §7; PR 3 plan deviation 3). Rows split between pages only between rows (app/export/export-theme.css).
+  const exportMode = useExportMode()
 
   const toggle = (set: Set<string>, key: string) => {
     const next = new Set(set)
@@ -88,25 +94,29 @@ export function CreativeTableClient({
     ))
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface">
+    <div className="overflow-x-auto rounded-lg border border-white/[0.06] bg-bg-surface" data-export-table="" {...(exportMode && sortedCampaigns.length + 1 <= 15 ? { 'data-export-block': '' } : {})}>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-white/[0.06]">
             <th
-              onClick={() => onSort('name')}
-              className="cursor-pointer select-none px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white"
+              onClick={exportMode ? undefined : () => onSort('name')}
+              className={exportMode
+                ? 'px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted'
+                : 'cursor-pointer select-none px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white'}
             >
-              Name{sort.key === 'name' ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+              Name{!exportMode && sort.key === 'name' ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
             </th>
             {COLS.map((c) => (
               <th
                 key={c.key}
-                onClick={() => onSort(c.key)}
-                className="cursor-pointer select-none px-5 py-3 text-right text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white"
+                onClick={exportMode ? undefined : () => onSort(c.key)}
+                className={exportMode
+                  ? 'px-5 py-3 text-right text-[11px] font-extrabold uppercase tracking-widest text-text-muted'
+                  : 'cursor-pointer select-none px-5 py-3 text-right text-[11px] font-extrabold uppercase tracking-widest text-text-muted hover:text-white'}
               >
                 <span className="inline-flex items-center gap-1">
                   {c.label}
-                  {c.tooltip && (
+                  {!exportMode && c.tooltip && (
                     <span className="group relative inline-flex flex-shrink-0">
                       <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted">
                         ?
@@ -116,13 +126,16 @@ export function CreativeTableClient({
                       </span>
                     </span>
                   )}
-                  {sort.key === c.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                  {!exportMode && sort.key === c.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
                 </span>
               </th>
             ))}
-            <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
-              Status
-            </th>
+            {/* Not in the PDF export: Status is an ad-level field, and only top-level rows print. */}
+            {!exportMode && (
+              <th className="px-5 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
+                Status
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -131,6 +144,7 @@ export function CreativeTableClient({
             const adSets = sortItems(camp.adSets, sort.key, sort.dir)
             return (
               <CampaignRows
+                exportMode={exportMode}
                 key={camp.name}
                 camp={camp}
                 campOpen={campOpen}
@@ -144,24 +158,34 @@ export function CreativeTableClient({
               />
             )
           })}
-          <tr className="border-t border-white/[0.12] font-semibold">
-            <td className="px-5 py-3 text-left text-white" style={indent(0)}>
+          <tr className="border-t border-white/[0.12] font-semibold" data-export-row="">
+            <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
               {`Total (${campaigns.length} ${campaigns.length === 1 ? 'Campaign' : 'Campaigns'})`}
             </td>
             {metricCells(totals)}
-            <td className="px-5 py-3 text-left text-white" />
+            {!exportMode && <td className="px-5 py-3 text-left text-white" />}
           </tr>
         </tbody>
       </table>
+      {/* The Frequency hint is hover-only and hidden on paper, yet every Frequency the export prints is campaign level,
+          where the caveat applies, so it prints as a footnote. */}
+      {exportMode && (
+        <p className="border-t border-white/[0.06] px-5 py-3 text-[11px] text-text-muted">
+          Frequency: {FREQUENCY_CAVEAT.charAt(0).toLowerCase() + FREQUENCY_CAVEAT.slice(1)}
+        </p>
+      )}
     </div>
   )
 }
 
-function Chevron({ open }: { open: boolean }) {
+function Chevron({ open, exportMode = false }: { open: boolean; exportMode?: boolean }) {
+  // No expand arrow on paper: rows can't open in the PDF export.
+  if (exportMode) return null
   return <span className="inline-block w-4 text-text-muted">{open ? '▾' : '▸'}</span>
 }
 
 function CampaignRows({
+  exportMode = false,
   camp,
   campOpen,
   adSets,
@@ -172,6 +196,7 @@ function CampaignRows({
   onToggleCampaign,
   onToggleAdSet,
 }: {
+  exportMode?: boolean
   camp: CampaignNode
   campOpen: boolean
   adSets: AdSetNode[]
@@ -185,14 +210,15 @@ function CampaignRows({
   return (
     <>
       <tr
-        onClick={onToggleCampaign}
-        className="cursor-pointer border-b border-white/[0.04] transition-colors hover:bg-bg-subtle/50"
+        onClick={exportMode ? undefined : onToggleCampaign}
+        data-export-row=""
+        className={exportMode ? 'border-b border-white/[0.04]' : 'cursor-pointer border-b border-white/[0.04] transition-colors hover:bg-bg-subtle/50'}
       >
-        <td className="px-5 py-3 text-left text-white" style={indent(0)}>
-          <Chevron open={campOpen} /> {camp.name}
+        <td className="px-5 py-3 text-left text-white" style={exportMode ? undefined : indent(0)}>
+          <Chevron open={campOpen} exportMode={exportMode} /> {camp.name}
         </td>
         {metricCells(camp)}
-        <td className="px-5 py-3 text-left text-white" />
+        {!exportMode && <td className="px-5 py-3 text-left text-white" />}
       </tr>
       {campOpen &&
         adSets.map((set) => {

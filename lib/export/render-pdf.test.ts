@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { ExportNotReadyError, ExportRenderError, renderPdf, type BrowserLike, type PageLike } from './render-pdf'
+import { EXPORT_PAGE_CSS, ExportNotReadyError, ExportRenderError, renderPdf, type BrowserLike, type PageLike } from './render-pdf'
 
 const PDF = new Uint8Array([37, 80, 68, 70])
 const timeout = () => Object.assign(new Error('Waiting failed: 45000ms exceeded'), { name: 'TimeoutError' })
@@ -28,7 +28,11 @@ test('renders the export page at the content width, once ready, with screen medi
   expect(page.setViewport).toHaveBeenCalledWith({ width: 979, height: 739 })
   expect(page.waitForFunction).toHaveBeenCalledWith('window.__exportReady === true', expect.objectContaining({ timeout: expect.any(Number) }))
   expect(page.emulateMediaType).toHaveBeenCalledWith('screen')
-  expect(page.pdf).toHaveBeenCalledWith({ width: '11in', height: '8.5in', margin: { top: '0.4in', right: '0.4in', bottom: '0.4in', left: '0.4in' }, printBackground: true, timeout: expect.any(Number) })
+  // Spec 2026-10-13 §3: size and margins come from the export page's @page rule, which also paints the page black to its
+  // edges; a page.pdf() margin would print as a white frame.
+  // No width/height: combined with preferCSSPageSize they made Chromium shrink pages with a wide chart to ~70% (seen on the
+  // A Place for Mom export: the stamp ended at 532 pt, not 762). The page's @page rule (EXPORT_PAGE_CSS) sets the size.
+  expect(page.pdf).toHaveBeenCalledWith({ preferCSSPageSize: true, printBackground: true, timeout: expect.any(Number) })
   expect(browser.close).toHaveBeenCalled()
 })
 
@@ -170,4 +174,11 @@ test('a media switch that never answers fails as pdf by the print deadline, with
   expect([err instanceof ExportRenderError, err.step]).toEqual([true, 'pdf'])
   expect(page.pdf).not.toHaveBeenCalled()
   expect(browser.close).toHaveBeenCalled()
+})
+
+// One definition of the PDF page (Letter landscape, 0.4 in margins, black to the edges), used by the export page and the
+// acceptance run's fixture pages, so they can't drift: a fixture without it printed portrait with no margins.
+test('the export page CSS is Letter landscape with 0.4 in margins, black to its edges', () => {
+  expect(EXPORT_PAGE_CSS).toMatch(/@page\s*\{\s*size:\s*11in 8\.5in;\s*margin:\s*0\.4in;\s*background:\s*#000;?\s*\}/)
+  expect(EXPORT_PAGE_CSS).toMatch(/html,\s*body\s*\{\s*background:\s*#000 !important;\s*margin:\s*0;\s*\}/)
 })

@@ -26,8 +26,9 @@ export function lockOn(key: string, lockDay: number, opensOnDate: string): strin
 }
 
 /** The last day whose numbers are locked on `today` (New York date), or null when the
- *  reportingMonths config is malformed (then nothing locks). At most two months are checked: the
- *  month before last always locked, since a lock day is at most the 28th. */
+ *  reportingMonths config is malformed (then nothing locks). At most two months are checked: a lock day is day 4 to 28
+ *  of the next month and only ever moves earlier (lockOn), so the month before last has always locked within last
+ *  month and the loop returns by its second pass. The final null is unreachable. */
 export function settledThrough(cfgValue: unknown, today: string): string | null {
   const parsed = parseReportingMonths(cfgValue)
   if (!parsed.ok) return null
@@ -36,7 +37,15 @@ export function settledThrough(cfgValue: unknown, today: string): string | null 
   for (let i = 0; i < 2; i++, key = prevMonth(key)) {
     if (today >= lockOn(key, lockDay, opensOn(key, parsed.cfg.opensOnDay, parsed.cfg.weekendRule))) return lastOf(key)
   }
-  return lastOf(key)
+  return null
+}
+
+/** The first day a client's numbers can lock: the 1st of firstMonth, or null when the reportingMonths config is
+ *  malformed (then nothing locks anyway). A request whose period ends before it is read live and never stored (spec
+ *  2026-10-12-os-renaissance-locked-months-design.md 4.2c). */
+export function lockedFrom(cfgValue: unknown): string | null {
+  const parsed = parseReportingMonths(cfgValue)
+  return parsed.ok ? firstOf(parsed.cfg.firstMonth) : null
 }
 
 const DATE_KEYS = ['startDate', 'endDate', 'contextStartDate', 'contextEndDate'] as const
