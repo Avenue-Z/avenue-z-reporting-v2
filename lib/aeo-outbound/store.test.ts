@@ -329,7 +329,8 @@ test('a stored row that breaks its contract is read as unreadable, with one log 
   vi.resetModules()
   const error = vi.spyOn(console, 'error').mockImplementation(() => {})
   const good = { id: ID, status: 'draft', data: null, slots: { category: 'c', market: 'm', headline: 'h', summary: 's', context: 'c', competitive_bullets: [{ lead: 'a', text: 'b' }, { lead: 'a', text: 'b' }], sources_bullets: [{ lead: 'a', text: 'b' }, { lead: 'a', text: 'b' }], why: 'w', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'm', next_step: 'n' }, notes: ['old note'] }
-  const bad = { ...good, slots: { ...good.slots, competitive_bullets: [{ lead: 'a', text: 'b' }] } }
+  // Spec v1.1 18.12: a box holds 1 to 6 bullets, so the broken row is an empty list (a single bullet now reads).
+  const bad = { ...good, slots: { ...good.slots, competitive_bullets: [] } }
   const select = vi.fn()
     .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([good]) }) }) })
     .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([bad]) }) }) })

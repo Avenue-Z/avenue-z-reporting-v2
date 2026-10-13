@@ -9,7 +9,7 @@ import { AIVX_FAVICON_TAG } from './aivx/favicon'
 import { embedFigure, sourceDonutFigure, visibilityBarFigure } from './charts'
 import { esc } from './html'
 import type { SnapshotData } from './metrics'
-import { withDefaults, type Slots } from './slots'
+import { MAX_BULLETS, MIN_BULLETS, withDefaults, type Slots } from './slots'
 
 export type RenderMode = 'draft' | 'preview' | 'final'
 const UL = '<ul style="margin-top:10px;padding-left:20px;display:flex;flex-direction:column;gap:4px">' // renderer.py:2313
@@ -91,7 +91,11 @@ export const PAGE_CSS = [
   '.kpi-value.aeo-long{font-size:24px;line-height:1.15}',
   'html{color-scheme:dark}',
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
-  '#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}',
+  // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box and the figure
+  // below its title sits centred in it. The figures themselves are untouched.
+  '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
+  '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
+  '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
   '#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}',
@@ -182,8 +186,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   const fixed = (text: string) => (draft ? `<span class="aeo-w" data-locked="fixed">${esc(text)}</span>` : esc(text))
   const bullets = (key: 'competitive_bullets' | 'sources_bullets') => {
     const list = s[key]
-    const items = list.map((b, i) => `<li><strong>${slot('span', `${key}.${i}.lead`, b.lead)}</strong> ${slot('span', `${key}.${i}.text`, b.text)}${draft && list.length === 3 ? `<button type="button" class="aeo-ctl" data-structure="remove" data-path="${key}.${i}">Remove</button>` : ''}</li>`).join('')
-    return UL + items + '</ul>' + (draft && list.length === 2 ? `<button type="button" class="aeo-ctl" data-structure="add" data-path="${key}">Add bullet</button>` : '')
+    const items = list.map((b, i) => `<li><strong>${slot('span', `${key}.${i}.lead`, b.lead)}</strong> ${slot('span', `${key}.${i}.text`, b.text)}${draft && list.length > MIN_BULLETS ? `<button type="button" class="aeo-ctl" data-structure="remove" data-path="${key}.${i}">Remove</button>` : ''}</li>`).join('')
+    return UL + items + '</ul>' + (draft && list.length < MAX_BULLETS ? `<button type="button" class="aeo-ctl" data-structure="add" data-path="${key}">Add bullet</button>` : '')
   }
 
   // The brand slot is used everywhere the brand shows (v1.1 §3). Peec's own name is replaced only when Ryan changed it,

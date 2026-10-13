@@ -119,6 +119,14 @@ test('a Remove click names the bullet', () => {
   expect(sent().at(-1)).toEqual({ type: 'structure', op: 'remove', path: 'sources_bullets.1' })
 })
 
+test('a Remove click on bullet 5 of 6 posts competitive_bullets.4 and remove (spec v1.1 18.12)', () => {
+  boot({ ...V1_SLOTS, competitive_bullets: Array.from({ length: 6 }, (_, i) => ({ lead: `L${i}:`, text: `T${i}.` })) })
+  fromParent({ type: 'mode', edit: true })
+  click(doc.querySelector('[data-structure="remove"][data-path="competitive_bullets.4"]')!)
+  expect(sent().at(-1)).toEqual({ type: 'structure', op: 'remove', path: 'competitive_bullets.4' })
+  expect(doc.querySelector('[data-structure="add"][data-path="competitive_bullets"]')).toBeNull()
+})
+
 test('flush from the parent sends every pending edit; the same message from anyone else is ignored', () => {
   boot()
   fromParent({ type: 'mode', edit: true })

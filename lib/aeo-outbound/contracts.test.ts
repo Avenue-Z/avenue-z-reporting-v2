@@ -186,3 +186,14 @@ test('a stored row from before method_title still passes the stored slots contra
   expect(checkContract('stored.slots', STORED_SLOTS, { ...before, page: { ...before.page, method_title: 'How we measured' } }, 'enforce', {})).toEqual({ ok: true })
   expect(checkContract('stored.slots', STORED_SLOTS, { ...before, page: { method_title: 5 } }, 'enforce', {}).ok).toBe(false)
 })
+
+test('the stored slots contract reads a box of 1 to 6 bullets, and refuses 0 or 7, in either list (spec v1.1 18.12)', () => {
+  const list = (n: number) => Array.from({ length: n }, (_, i) => ({ lead: `L${i}`, text: `T${i}` }))
+  for (const key of ['competitive_bullets', 'sources_bullets'] as const) {
+    for (const n of [1, 2, 3, 6]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, [key]: list(n) }, 'enforce', {}), `${key} ${n}`).toEqual({ ok: true })
+    for (const n of [0, 7]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, [key]: list(n) }, 'enforce', {}).ok, `${key} ${n}`).toBe(false)
+  }
+  // The Glean reply still asks for 2 or 3 (unchanged).
+  const reply = { headline: 'H', summary: 'S', context: 'C', competitive_bullets: list(2), sources_bullets: list(2), why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'M' }
+  for (const n of [1, 4]) expect(GLEAN_SLOTS.safeParse({ ...reply, competitive_bullets: list(n) }).success, `glean ${n}`).toBe(false)
+})

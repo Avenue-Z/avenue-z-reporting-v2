@@ -155,7 +155,8 @@ const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })
 /** Stored slots: the copy keys always, the v1.1 keys when the row has them. */
 export const STORED_SLOTS = z.looseObject({
   category: z.string(), market: z.string(), headline: z.string(), summary: z.string(), context: z.string(),
-  competitive_bullets: z.array(storedBullet).min(2).max(3), sources_bullets: z.array(storedBullet).min(2).max(3),
+  // Spec v1.1 18.12: Ryan keeps 1 to 6 per box, so every older row of 2 or 3 still reads.
+  competitive_bullets: z.array(storedBullet).min(1).max(6), sources_bullets: z.array(storedBullet).min(1).max(6),
   why: z.string(), opportunities: z.array(z.looseObject({ signal: z.string(), opportunity: z.string(), workstream: z.string() })).length(3),
   methodology: z.string(), next_step: z.string(),
   brand: z.string().optional(), window_label: z.string().optional(), kpis: z.array(storedKpi).optional(),

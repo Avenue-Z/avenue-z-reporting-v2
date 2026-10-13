@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, needsValidationPaths, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
+import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, MAX_BULLETS, MIN_BULLETS, needsValidationPaths, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
 import { PAGE_WORDS_V1 } from './config'
 
 const S0: Slots = {
@@ -135,20 +135,50 @@ test('every new path saves within its limit: 120 for page words, KPIs, brand and
   expect(applySlotPatch(S, 'page.series', '   ')).toEqual({ ok: false, error: "This field can't be empty." })
 })
 
-test('add and remove keep every list at two or three bullets; a new bullet says Needs validation', () => {
+test('add and remove keep every list at one to six bullets; a new bullet says Needs validation (spec v1.1 18.12)', () => {
+  expect([MIN_BULLETS, MAX_BULLETS]).toEqual([1, 6])
   expect(isStructuralPath('competitive_bullets.add')).toBe(true)
-  expect(isStructuralPath('sources_bullets.2.remove')).toBe(true)
-  for (const p of ['competitive_bullets.3.remove', 'opportunities.add', 'headline', 'competitive_bullets.remove']) expect(isStructuralPath(p)).toBe(false)
+  for (const i of [0, 1, 2, 3, 4, 5]) expect(isStructuralPath(`sources_bullets.${i}.remove`)).toBe(true)
+  for (const p of ['competitive_bullets.6.remove', 'competitive_bullets.9.remove', 'opportunities.add', 'headline', 'competitive_bullets.remove']) expect(isStructuralPath(p)).toBe(false)
   const added = applyStructure(S, 'competitive_bullets.add', 'structure')
   expect(added.ok && added.slots.competitive_bullets).toEqual([...S.competitive_bullets, { lead: 'Needs validation', text: 'Needs validation' }])
   expect(added.ok && needsValidationPaths(added.slots)).toEqual(['competitive_bullets.2.lead', 'competitive_bullets.2.text'])
-  if (!added.ok) throw new Error('add failed')
-  expect(applyStructure(added.slots, 'competitive_bullets.add', 'structure')).toEqual({ ok: false, error: STRUCTURE_ERRORS.full })
-  const removed = applyStructure(added.slots, 'competitive_bullets.0.remove', 'structure')
-  expect(removed.ok && removed.slots.competitive_bullets).toEqual([S.competitive_bullets[1], { lead: 'Needs validation', text: 'Needs validation' }])
-  expect(applyStructure(S, 'competitive_bullets.0.remove', 'structure')).toEqual({ ok: false, error: STRUCTURE_ERRORS.min })
+  const removed = added.ok ? applyStructure(added.slots, 'competitive_bullets.0.remove', 'structure') : null
+  expect(removed?.ok && removed.slots.competitive_bullets).toEqual([S.competitive_bullets[1], { lead: 'Needs validation', text: 'Needs validation' }])
   expect(applyStructure(S, 'competitive_bullets.add', '')).toEqual({ ok: false, error: "This field can't be empty." })
-  expect(STRUCTURE_ERRORS).toEqual({ full: 'A list can have at most three bullets.', min: 'A list needs at least two bullets.' })
+  expect(STRUCTURE_ERRORS).toEqual({ full: 'A list can have at most six bullets.', min: 'A list needs at least one bullet.' })
+})
+
+const withList = (n: number) => ({ ...S, sources_bullets: Array.from({ length: n }, (_, i) => ({ lead: `G${i}`, text: `U${i}` })) })
+
+test('add at 5 gives 6; add at 6 is refused as at most six (spec v1.1 18.12)', () => {
+  const six = applyStructure(withList(5), 'sources_bullets.add', 'structure')
+  expect(six.ok && six.slots.sources_bullets).toEqual([...withList(5).sources_bullets, { lead: 'Needs validation', text: 'Needs validation' }])
+  expect(six.ok && needsValidationPaths(six.slots)).toEqual(['sources_bullets.5.lead', 'sources_bullets.5.text'])
+  expect(applyStructure(withList(6), 'sources_bullets.add', 'structure')).toEqual({ ok: false, error: 'A list can have at most six bullets.' })
+  // Each box is counted on its own: a full sources list never blocks an add to the other list.
+  expect(applyStructure(withList(6), 'competitive_bullets.add', 'structure').ok).toBe(true)
+})
+
+test('remove at 2 gives 1; remove at 1 is refused as at least one; the index is checked first (spec v1.1 18.12)', () => {
+  const one = applyStructure(withList(2), 'sources_bullets.1.remove', 'structure')
+  expect(one.ok && one.slots.sources_bullets).toEqual([{ lead: 'G0', text: 'U0' }])
+  expect(applyStructure(withList(1), 'sources_bullets.0.remove', 'structure')).toEqual({ ok: false, error: 'A list needs at least one bullet.' })
+  // An index at or past the end is unknown field, before the minimum is checked.
+  expect(applyStructure(withList(3), 'sources_bullets.5.remove', 'structure')).toEqual({ ok: false, error: 'unknown field' })
+  expect(applyStructure(withList(1), 'sources_bullets.5.remove', 'structure')).toEqual({ ok: false, error: 'unknown field' })
+  expect(applyStructure(withList(1), 'sources_bullets.1.remove', 'structure')).toEqual({ ok: false, error: 'unknown field' })
+  // Remove index 4 of 6 takes exactly that bullet, and the input is never mutated.
+  const six = withList(6)
+  const five = applyStructure(six, 'sources_bullets.4.remove', 'structure')
+  expect(five.ok && five.slots.sources_bullets.map((b) => b.lead)).toEqual(['G0', 'G1', 'G2', 'G3', 'G5'])
+  expect(six.sources_bullets).toHaveLength(6)
+})
+
+test('a bullet past the end of the list is still unknown field for an edit, and bullet 6 edits (spec v1.1 18.12)', () => {
+  const r = applySlotPatch(withList(6), 'sources_bullets.5.text', 'Sixth.')
+  expect(r.ok && r.slots.sources_bullets[5]).toEqual({ lead: 'G5', text: 'Sixth.' })
+  expect(applySlotPatch(withList(3), 'sources_bullets.3.text', 'x')).toEqual({ ok: false, error: 'unknown field' })
 })
 
 test('slotEntries lists the page words, the KPIs, the brand and the window label after the copy, and Needs validation anywhere blocks', () => {

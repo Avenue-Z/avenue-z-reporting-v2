@@ -38,3 +38,11 @@ test('the two settings-backed page words use the settings page labels', () => {
 test('the Methodology title has its own label (v1.1 §17.14)', () => {
   expect(fieldLabel('page.method_title', T)).toBe('Methodology title')
 })
+
+test('bullet 6 is labelled, for its lead, text and Remove, in both boxes (spec v1.1 18.12)', () => {
+  expect(fieldLabel('competitive_bullets.5.lead', T)).toBe('Strengths, bullet 6, bold lead-in')
+  expect(fieldLabel('sources_bullets.5.text', T)).toBe('Gaps, bullet 6, text')
+  expect(fieldLabel('sources_bullets.5.remove', T)).toBe('Gaps, bullet 6, remove')
+  const six = withDefaults({ ...S0, sources_bullets: Array.from({ length: 6 }, () => ({ lead: 'a', text: 'b' })) }, { brand: 'B', windowLabel: 'W', kpis: [] })
+  for (const [p] of slotEntries(six)) expect(fieldLabel(p, T), p).not.toBe(p)
+})

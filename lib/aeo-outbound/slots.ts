@@ -44,9 +44,12 @@ export const MAX_LABEL = 120
 const SCALARS = ['category', 'market', 'headline', 'summary', 'context', 'why', 'methodology', 'next_step'] as const
 // The closed path grammar (spec §9a, v1.1 §3). Page keys are spelled out, so no prototype key can ever match.
 const PATH = new RegExp(`^(?:(category|market|headline|summary|context|why|methodology|next_step|brand|window_label)|(competitive_bullets|sources_bullets)\\.(\\d)\\.(lead|text)|opportunities\\.(\\d)\\.(signal|opportunity|workstream)|kpis\\.(\\d)\\.(label|value)|page\\.(${PAGE_KEYS.join('|')}))$`)
-const STRUCTURE = /^(competitive_bullets|sources_bullets)\.(?:add|([0-2])\.remove)$/
+// Spec v1.1 18.12: in a draft each findings box holds 1 to 6 bullets (Glean still writes 2 or 3).
+export const MIN_BULLETS = 1
+export const MAX_BULLETS = 6
+const STRUCTURE = /^(competitive_bullets|sources_bullets)\.(?:add|([0-5])\.remove)$/
 export const isStructuralPath = (path: string): boolean => STRUCTURE.test(path)
-export const STRUCTURE_ERRORS = { full: 'A list can have at most three bullets.', min: 'A list needs at least two bullets.' } as const
+export const STRUCTURE_ERRORS = { full: 'A list can have at most six bullets.', min: 'A list needs at least one bullet.' } as const
 
 export function cleanValue(v: string): string {
   return v.replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim()
@@ -106,8 +109,9 @@ export function applySlotPatch(slots: FullSlots, path: string, raw: unknown): { 
   return { ok: true, slots: next }
 }
 
-/** Add a bullet to a list of 2, or remove one from a list of 3 (v1.1 §3). value is the literal "structure": ignored, but
- *  it must be non-empty text, so the §9a rule holds for every PATCH. */
+/** Add a bullet to a list shorter than MAX_BULLETS, or remove one from a list longer than MIN_BULLETS (v1.1 §3, 18.12).
+ *  A remove checks its index first: one at or past the end is unknown field. value is the literal "structure": ignored,
+ *  but it must be non-empty text, so the §9a rule holds for every PATCH. */
 export function applyStructure(slots: FullSlots, path: string, raw: unknown): { ok: true; slots: FullSlots } | { ok: false; error: string } {
   const m = STRUCTURE.exec(path)
   if (!m) return { ok: false, error: 'unknown field' }
@@ -116,11 +120,13 @@ export function applyStructure(slots: FullSlots, path: string, raw: unknown): { 
   const next: FullSlots = structuredClone(slots)
   const list = next[m[1] as 'competitive_bullets' | 'sources_bullets']
   if (m[2] === undefined) {
-    if (list.length !== 2) return { ok: false, error: STRUCTURE_ERRORS.full }
+    if (list.length >= MAX_BULLETS) return { ok: false, error: STRUCTURE_ERRORS.full }
     list.push({ lead: NEEDS_VALIDATION, text: NEEDS_VALIDATION })
   } else {
-    if (list.length !== 3) return { ok: false, error: STRUCTURE_ERRORS.min }
-    list.splice(Number(m[2]), 1)
+    const index = Number(m[2])
+    if (index >= list.length) return { ok: false, error: 'unknown field' }
+    if (list.length <= MIN_BULLETS) return { ok: false, error: STRUCTURE_ERRORS.min }
+    list.splice(index, 1)
   }
   return { ok: true, slots: next }
 }

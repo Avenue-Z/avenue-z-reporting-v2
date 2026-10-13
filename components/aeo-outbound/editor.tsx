@@ -80,6 +80,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const queueRef = useRef<SaveQueue | null>(null)
   const modeRef = useRef<Mode>('preview')
+  // Spec v1.1 18.12: set on a structure 200, which reloads the page; until the new frame says ready, the old frame (whose
+  // bullet indexes are stale) never gets edit mode back. Cleared by the new frame's ready.
+  const reloadPendingRef = useRef(false)
 
   // Local status and token follow the server's on each refresh, and move ahead of it after an approve or revoke.
   const [status, setStatus] = useState(props.status)
@@ -127,8 +130,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
 
   const showsReport = !props.unreadable && (status === 'draft' || status === 'live' || status === 'revoked')
   const toFrame = (m: unknown) => iframeRef.current?.contentWindow?.postMessage(m, '*')
-  /** Edit mode, unless a structural change is queued or in flight: the frame is read-only then (v1.1 §3). */
-  const frameEditable = () => modeRef.current === 'edit' && !queueRef.current?.state.structuring
+  /** Edit mode, unless a structural change is queued or in flight, or its reload has not arrived yet: the frame is
+   *  read-only then (v1.1 §3, 18.12). */
+  const frameEditable = () => modeRef.current === 'edit' && !queueRef.current?.state.structuring && !reloadPendingRef.current
 
   // The report HTML: the draft page (editing hooks, Preview until Edit) for a draft, the frozen preview otherwise.
   useEffect(() => {
@@ -170,6 +174,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
         if (isStructuralPath(path)) {
           // The list's indices changed: its Looks right ticks no longer point at the same bullets (v1.1 §3).
           dropTicksFor(path.split('.')[0])
+          reloadPendingRef.current = true
           setReloadKey((k) => k + 1)
         } else if (path === 'brand') { setBrand(cleanValue(value)); setLinkBrand(cleanValue(value)) }
         else if (path === 'page.section_1_title') setTitles(([, two]): [string, string] => [cleanValue(value), two])
@@ -201,7 +206,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
       if (!frame || e.source !== frame) return
       const d = e.data as { type?: unknown; path?: unknown; value?: unknown; what?: unknown; op?: unknown } | null
       if (!d || typeof d !== 'object') return
-      if (d.type === 'ready') { frame.postMessage({ type: 'mode', edit: frameEditable() }, '*'); return }
+      if (d.type === 'ready') { reloadPendingRef.current = false; frame.postMessage({ type: 'mode', edit: frameEditable() }, '*'); return }
       if (d.type === 'locked') {
         const text = d.what === 'chart' ? LOCKED_CHART : typeof d.path === 'string' ? LOCKED_MIRROR : LOCKED_FIXED
         setLocked((l) => ({ text, n: (l?.n ?? 0) + 1 }))
@@ -214,6 +219,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
       else if (d.type === 'structure' && (d.op === 'add' || d.op === 'remove')) {
         const patchPath = `${d.path}.${d.op}`
         if (!isStructuralPath(patchPath)) return
+        // One structure click at a time (spec v1.1 18.12): a second click that reached us before the frame turned
+        // read-only would add a second bullet, or remove the bullet that shifted into the same index. It is dropped.
+        if (q.state.structuring) return
         frame.postMessage({ type: 'mode', edit: false }, '*')
         q.structure(patchPath)
       }
@@ -309,10 +317,11 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const unsaved = status === 'draft' && !!save && (save.dirty || save.saving || save.structuring)
   useLeaveGuard(unsaved, (go) => setDialog({ kind: 'leave', then: go }))
   // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
+  // After a 200 the page is reloading, and the new frame's ready sets the mode instead (spec v1.1 18.12).
   const wasStructuring = useRef(false)
   useEffect(() => {
     const now = !!save?.structuring
-    if (wasStructuring.current && !now) toFrame({ type: 'mode', edit: frameEditable() })
+    if (wasStructuring.current && !now && !reloadPendingRef.current) toFrame({ type: 'mode', edit: frameEditable() })
     wasStructuring.current = now
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save?.structuring])

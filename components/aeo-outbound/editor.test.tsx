@@ -659,6 +659,67 @@ test('a structure the server refuses hands edit mode back to the frame and shows
   expect(await screen.findByText(/Keep at least two bullets\./)).toBeInTheDocument()
 })
 
+// Spec v1.1 18.12: one structure click at a time, and no stale index after a structure save.
+const structurePatches = () => patches().map(([, init]) => JSON.parse(String(init?.body)) as { path: string }).filter((b) => b.path.endsWith('.add') || b.path.endsWith('.remove'))
+
+test('a second structure message is dropped while the first is unfinished, so a double click on Add adds one bullet (spec v1.1 18.12)', async () => {
+  let answer: (r: Response) => void = () => {}
+  patch = () => new Promise<Response>((r) => { answer = r })
+  const { iframe } = await setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'competitive_bullets' })
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'competitive_bullets' })
+  await fromFrame(iframe, { type: 'structure', op: 'remove', path: 'sources_bullets.0' })
+  await waitFor(() => expect(structurePatches()).toHaveLength(1))
+  await act(async () => { answer(json(200, { revision: 5, notes: [], needsValidation: [], slots: {} })) })
+  await waitFor(() => expect(views()).toHaveLength(2))
+  await new Promise((r) => setTimeout(r, 20))
+  expect(structurePatches().map((b) => b.path)).toEqual(['competitive_bullets.add'])
+})
+
+test('after a refused structure (400) the next structure message is accepted (spec v1.1 18.12)', async () => {
+  patch = async () => json(400, { error: 'A list can have at most six bullets.' })
+  const { iframe } = await setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'competitive_bullets' })
+  expect(await screen.findByText(/at most six bullets/)).toBeInTheDocument()
+  await fromFrame(iframe, { type: 'structure', op: 'remove', path: 'competitive_bullets.0' })
+  await waitFor(() => expect(structurePatches().map((b) => b.path)).toEqual(['competitive_bullets.add', 'competitive_bullets.0.remove']))
+})
+
+test('a structure message during a retry backoff is dropped; after the retry lands with 200 the next is accepted (spec v1.1 18.12)', async () => {
+  const answers = [json(503, { error: 'unavailable' }), json(200, { revision: 5, notes: [], needsValidation: [], slots: {} }), json(200, { revision: 6, notes: [], needsValidation: [], slots: {} })]
+  patch = async () => answers.shift()!
+  const { iframe } = await setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'competitive_bullets' })
+  await waitFor(() => expect(screen.getByText(/Couldn't save, retrying/)).toBeInTheDocument())
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'sources_bullets' })
+  await waitFor(() => expect(views()).toHaveLength(2), { timeout: 3000 })
+  expect(structurePatches().map((b) => b.path)).toEqual(['competitive_bullets.add', 'competitive_bullets.add'])
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'sources_bullets' })
+  await waitFor(() => expect(structurePatches().map((b) => b.path)).toEqual(['competitive_bullets.add', 'competitive_bullets.add', 'sources_bullets.add']))
+})
+
+test('between a structure 200 and the new frame\'s ready, no edit mode reaches the frame; ready then hands it back (spec v1.1 18.12)', async () => {
+  patch = async () => json(200, { revision: 5, notes: [], needsValidation: [], slots: {} })
+  const { iframe } = await setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  const post = vi.spyOn(iframe.contentWindow!, 'postMessage')
+  await fromFrame(iframe, { type: 'structure', op: 'remove', path: 'competitive_bullets.4' })
+  expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: false }, '*')
+  await waitFor(() => expect(views()).toHaveLength(2))
+  await waitFor(() => expect(screen.queryByText('Saving…')).toBeNull())
+  await new Promise((r) => setTimeout(r, 20))
+  expect(post.mock.calls.filter(([m]) => (m as { type?: string; edit?: boolean }).type === 'mode' && (m as { edit?: boolean }).edit === true)).toEqual([])
+  // Switching modes in the gap does not hand edit mode to the old frame either.
+  fireEvent.click(screen.getByRole('button', { name: 'Done editing' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  expect(post.mock.calls.filter(([m]) => (m as { type?: string; edit?: boolean }).type === 'mode' && (m as { edit?: boolean }).edit === true)).toEqual([])
+  await fromFrame(iframe, { type: 'ready' })
+  expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: true }, '*')
+})
+
 test('Approve is not offered on an unreadable draft', () => {
   render(<OutboundEditor {...base} unreadable />)
   expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()

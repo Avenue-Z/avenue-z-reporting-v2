@@ -168,15 +168,38 @@ test('the brand_name write: a brand save also writes brand_name; no other path d
   expect(m.save.mock.calls[1][4]).toBeUndefined()
 })
 
-test('a structural add returns the new slots and the new bullet as Needs validation; a remove from 2 is a 400', async () => {
+test('a structural add returns the new slots and the new bullet as Needs validation; a remove from 2 is now a 200 with 1 (spec v1.1 18.12)', async () => {
   const res = await patch({ path: 'sources_bullets.add', value: 'structure', revision: 3 })
   expect(res.status).toBe(200)
   const body = await res.json()
   expect(body.slots.sources_bullets).toHaveLength(3)
   expect(body.needsValidation).toEqual(['sources_bullets.2.lead', 'sources_bullets.2.text'])
-  const bad = await patch({ path: 'sources_bullets.0.remove', value: 'structure', revision: 3 })
-  expect(bad.status).toBe(400)
-  expect(await bad.json()).toEqual({ error: 'A list needs at least two bullets.' })
+  const one = await patch({ path: 'sources_bullets.0.remove', value: 'structure', revision: 3 })
+  expect(one.status).toBe(200)
+  expect((await one.json()).slots.sources_bullets).toEqual([SLOTS.sources_bullets[1]])
+  expect(m.save).toHaveBeenCalledTimes(2)
+})
+
+test('an add at 3 is a 200 with 4; remove index 5 of 3 is 400 unknown field; remove at 1 and add at 6 are 400 with their limits (spec v1.1 18.12)', async () => {
+  const list = (n: number) => Array.from({ length: n }, (_, i) => ({ lead: `G${i}:`, text: `U${i}.` }))
+  m.getReport.mockResolvedValue(row({ slots: { ...SLOTS, sources_bullets: list(3) } }))
+  const four = await patch({ path: 'sources_bullets.add', value: 'structure', revision: 3 })
+  expect(four.status).toBe(200)
+  const body = await four.json()
+  expect(body.slots.sources_bullets).toEqual([...list(3), { lead: 'Needs validation', text: 'Needs validation' }])
+  expect(body.needsValidation).toEqual(['sources_bullets.3.lead', 'sources_bullets.3.text'])
+  const past = await patch({ path: 'sources_bullets.5.remove', value: 'structure', revision: 3 })
+  expect(past.status).toBe(400)
+  expect(await past.json()).toEqual({ error: 'unknown field' })
+  m.getReport.mockResolvedValue(row({ slots: { ...SLOTS, sources_bullets: list(1) } }))
+  const min = await patch({ path: 'sources_bullets.0.remove', value: 'structure', revision: 3 })
+  expect(min.status).toBe(400)
+  expect(await min.json()).toEqual({ error: 'A list needs at least one bullet.' })
+  m.getReport.mockResolvedValue(row({ slots: { ...SLOTS, sources_bullets: list(6) } }))
+  const full = await patch({ path: 'sources_bullets.add', value: 'structure', revision: 3 })
+  expect(full.status).toBe(400)
+  expect(await full.json()).toEqual({ error: 'A list can have at most six bullets.' })
+  expect(m.save).toHaveBeenCalledTimes(1)
 })
 
 test('an unreadable stored row is refused like a non-draft, with its own log reason', async () => {
