@@ -34,7 +34,8 @@ test('marked scroll boxes print in full and truncated text wraps in tables and m
 
 // Spec 2026-10-13 §3: the PDF prints dark like the live page, so nothing re-colours for white paper; the layout rules stay.
 test('the theme re-colours nothing: no text, surface, border, inline-colour or chart-panel overrides', () => {
-  expect(css).not.toMatch(/--color-white|background:\s*#fff|\.bg-bg-surface|\.text-text-muted|\.border-white|\[style[\^*$]=|data-export-chart|data-export-bars|color:\s*#(111|15803d|b91c1c)/i)
+  // @page lives only inline on the export page (EXPORT_PAGE_CSS): in a stylesheet it could reach browser printing elsewhere.
+  expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/@page|--color-white|background:\s*#fff|\.bg-bg-surface|\.text-text-muted|\.border-white|\[style[\^*$]=|data-export-chart|data-export-bars|color:\s*#(111|15803d|b91c1c)/i)
 })
 
 test('the layout rules, fonts and hiding stay', () => {

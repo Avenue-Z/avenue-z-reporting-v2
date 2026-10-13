@@ -71,14 +71,14 @@ test("contact pacing's bar tooltips are hidden in the export", () => {
   expect(tips.every((t) => t.hasAttribute('data-export-hide'))).toBe(true)
 })
 
-// Thomas, #354 index.tsx:229: the placeholders were not blocks, so for a client with no CRM "CRM not connected" could print
-// at a page foot and "Connect your CRM…" at the next page's head.
 // Spec 2026-10-13: the bars print in their live brand green on the dark page; nothing marks or re-colours them.
 test('the CRM bars carry no export colour marker', () => {
   expect(render(<ContactPacing data={CONTACTS} />).container.querySelector('[data-export-bars]')).toBeNull()
   expect(render(<PipelinePerformance data={PIPELINE} />).container.querySelector('[data-export-bars]')).toBeNull()
 })
 
+// Thomas, #354 index.tsx:229: the placeholders were not blocks, so for a client with no CRM "CRM not connected" could print
+// at a page foot and "Connect your CRM…" at the next page's head.
 test('the NeedsConnection, LoadFailed and NoData cards each print whole', async () => {
   const { NeedsConnection } = await import('./needs-connection')
   const { LoadFailed, NoData } = await import('./no-data')

@@ -97,6 +97,11 @@ const flx = readPdf(flexFile)
 check(new Set([pagesOf(flx, 'FLEXTITLE')[0], pagesOf(flx, 'FLEXDESC')[0], pagesOf(flx, 'FLEXSTART')[0]]).size === 1, `a kept title block (title + description) never splits and moves with its first block (${pagesOf(flx, 'FLEXTITLE')} / ${pagesOf(flx, 'FLEXDESC')} / ${pagesOf(flx, 'FLEXSTART')})`)
 const tableFile = join(out, 'table.pdf'); writeFileSync(tableFile, await renderPdf({ url: `${origin}/table`, cookies: [] }))
 const tbl = readPdf(tableFile)
+// Spec 2026-10-13: every page dark to its edges, continuation pages included, on fixed pages that need no live data.
+for (const [name, file] of [['fixture', fixturePdf], ['table', tableFile]] as const) {
+  const light = lightCorners(file)
+  check(light.length === 0, `${name}: every page dark to its edges, continuation pages included (light: ${light.join(', ') || 'none'})`)
+}
 const rowPages = Array.from({ length: 60 }, (_, i) => pagesOf(tbl, `ROW${i + 1}`))
 check(rowPages.every((p) => p.length === 1), 'every table row prints whole, on one page')
 check(pagesOf(tbl, 'TABLETITLE')[0] === rowPages[0][0], `a table's title stays with its first rows (${pagesOf(tbl, 'TABLETITLE')} / ${rowPages[0]})`)

@@ -17,7 +17,7 @@ import type { KeywordsData, KeywordsView } from '@/lib/paid-search/keywords'
 
 const inExport = (ui: React.ReactElement) => render(<ExportModeProvider>{ui}</ExportModeProvider>)
 
-// PDF export (spec 2026-10-08 §7; PR 3 plan deviation 2): the default metric, named, on a dark panel so its colours read.
+// PDF export (spec 2026-10-08 §7): the default metric, named. Spec 2026-10-13: no export-only panel; the PDF is dark like live.
 test('the hero prints Cost as a label, one block, no buttons, no export-only panel', () => {
   const points: HeroPoint[] = [{ week: '2026-09-01', cost: 10, clicks: 2, impressions: 50, leads: 1 }]
   const { container } = inExport(<Hero points={points} />)

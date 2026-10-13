@@ -281,7 +281,7 @@ export function PromptClusterOpportunityMatrix({
 }: {
   rows: PromptClusterOpportunityRow[]
 }) {
-  // In the PDF export the card is one dark block (app/export/export-theme.css) and its bars draw complete.
+  // In the PDF export the card is one unbreakable block and its bars draw complete.
   const exportMode = useExportMode()
   // FB-012 — simple horizontal bar chart: Topic × % citation share from editorial sources.
   // Sorted descending so the top opportunity is at the top.
