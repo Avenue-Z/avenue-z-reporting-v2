@@ -1024,7 +1024,9 @@ and a bullet add or remove can't be compared at all, so each write says who wrot
   2^31 - 1), both or neither. `SLOTS_BODY` accepts them, and the route's structural guard (`route.ts:27-29`, which runs even
   under `CONTRACT_DISABLED`) checks the same rules; any violation is 400 `bad-request`, before the report is read.
 - **Route (#368):** a loop of at most 3 row reads, the route's existing `getReport` (`route.ts:33`) being the first:
-  1. Not a readable draft: 409 `not-draft` as today (approved, discarded or unreadable between attempts).
+  1. Not a readable draft: 409 `not-draft` as today (approved or unreadable between attempts). A discarded row is hidden
+     by `getReport` (`store.ts`, `deleted_at is null`), so it answers as today: 404 on the first read, 409 `stale` on a
+     re-read. The editor stops on all three.
   2. The request has `writer` and `last_writer` equals it: if `last_seq = seq` this item already landed, so answer 200
      with the row's revision, stored notes, `needsValidation` and, for a structure path, its slots, writing nothing; if
      `last_seq > seq` a later item of ours landed and this is a late attempt, so 409 `stale` (its fetch was aborted;
@@ -1044,7 +1046,10 @@ and a bullet add or remove can't be compared at all, so each write says who wrot
   carries it, like 0028's entry. On dev that also means before my local QA server runs this branch. Builds from before
   0029 that share a database (dev's older previews) can still save, and their update leaves both columns as they were; a
   save of ours that landed, followed by such a save, then a retry of ours, would be answered by step 2 as already landed
-  with that build's text in the row. Only dev runs mixed builds; staging and production run one build at a time: accepted.
+  with that build's text in the row. Likewise, after an acknowledged save of ours such a build's save leaves the columns at
+  our (writer, seq), so our next item (a higher `seq`) is applied on top of that build's revision by step 4 instead of
+  a 409; a structure remove there can delete a different bullet. Only dev runs mixed builds; staging and production run
+  one build at a time: accepted.
 
 Why this is safe: every write is a compare-and-set on `revision`, so a write lands only on the row it read. A foreign
 write (another tab, an old tab) sets `last_writer` to something else, after which step 4 sends every stale attempt of ours
