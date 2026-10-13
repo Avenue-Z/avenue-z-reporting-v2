@@ -78,10 +78,15 @@ Clients and users live in a **Neon Postgres database**, accessed via Drizzle ORM
 
   api/
     auth/[...nextauth]/route.ts              # Auth.js handler
-    auth/supermetrics-callback/route.ts      # Post-OAuth redirect from Supermetrics
-    cache-warm/route.ts                      # Pre-warm vendor caches
-    health/route.ts                          # Health-check / alerting endpoint
-    perf/route.ts                            # Report-loading perf telemetry
+    auth/supermetrics-callback/route.ts      # Vestigial: returns 410 (Branded Authentication removed)
+    cache-warm/route.ts                      # Cron (:30 hourly): pre-warm report caches
+    discovery/sm-dimension-values/route.ts   # Supermetrics dimension values for the configurable dashboard
+    export/pdf/route.ts                      # Server-rendered PDF export
+    health/sweep/route.ts                    # Cron (:15 and :45): health sweep of report pages
+    lock-sweep/route.ts                      # Cron (:00 hourly): Organic Social locked-months sweep
+    perf/boundary/route.ts                   # Perf telemetry marker (404 unless PERF_LOG=1)
+    shopify/install/route.ts                 # Shopify OAuth bootstrap, step 1 (one-time setup)
+    shopify/callback/route.ts                # Shopify OAuth bootstrap, step 2
 
 /components
   layout/
