@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import type { PartImpl } from '@/lib/report-sections/types'
 import { getClientBySlug } from '@/lib/db/queries'
 import { getOutlineKpis } from '@/lib/organic-social/outline-headlines'
+import { requestClock } from '@/lib/organic-social/locked-range'
 import { monthsNeedingDash, ytdConfig, ytdLockedMonths, ytdSheetSeries } from '@/lib/organic-social/ytd'
 import { parseYtdGrid, readYtdTab, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError, type YtdTab } from '@/lib/organic-social/ytd-sheet'
 import { mapWithConcurrency } from '@/lib/concurrency'
@@ -36,7 +37,7 @@ export async function YtdLockedReviewSection({ ctx }: { ctx: OrganicSocialCtx })
     console.warn(`[organic-social] ytd-review@4 skipped (no reportingMonths) slug=${clientSlug}`)
     return null
   }
-  const months = ytdLockedMonths(dateRange, compareRange, cfg)
+  const months = ytdLockedMonths(dateRange, compareRange, cfg, requestClock().today)
   if (!months || months.length === 0) return null
   const year = months[0].key.slice(0, 4)
   const floor = `${year}-01`

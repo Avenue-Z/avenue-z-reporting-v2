@@ -236,16 +236,26 @@ test('ytdLiveMonths: every hour of 2026 and of 2028 shows January through the la
 
 test('ytdLockedMonths: January of the year on screen through the month on screen, whole months, no comparison, never a partial month', () => {
   const cfg = { firstMonth: '2026-07', comparison: 'previous-month' as const }
-  const sept = ytdLockedMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', cfg)!
+  const sept = ytdLockedMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', cfg, '2026-10-13')!
   expect(sept.map((m) => m.key)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'])
   expect(sept.every((m) => m.compareRange === null && !m.partial)).toBe(true)
   expect(sept[8].dateRange).toBe('custom:2026-09-01,2026-09-30')
   // The team's live month: the month in progress is left off.
-  const live = ytdLockedMonths('custom:2026-10-01,2026-10-12', 'custom:2026-09-01,2026-09-12', cfg)!
+  const live = ytdLockedMonths('custom:2026-10-01,2026-10-12', 'custom:2026-09-01,2026-09-12', cfg, '2026-10-13')!
   expect(live.map((m) => m.key).at(-1)).toBe('2026-09')
   expect(live.some((m) => m.key === '2026-10')).toBe(false)
   // The team's live January: nothing of that year has finished.
-  expect(ytdLockedMonths('custom:2027-01-01,2027-01-12', 'custom:2026-12-01,2026-12-12', cfg)).toEqual([])
+  expect(ytdLockedMonths('custom:2027-01-01,2027-01-12', 'custom:2026-12-01,2026-12-12', cfg, '2027-01-13')).toEqual([])
   // Not a month starting on the 1st: null, as ytd-review@2.
-  expect(ytdLockedMonths('last_30_days', 'previous_period', cfg)).toBeNull()
+  expect(ytdLockedMonths('last_30_days', 'previous_period', cfg, '2026-10-13')).toBeNull()
+})
+
+test('ytdLockedMonths leaves off a month that has not ended in New York, even when its range looks whole (00:00 to 04:00 UTC on the 1st)', () => {
+  const cfg = { firstMonth: '2026-07', comparison: 'previous-month' as const }
+  // At 01:00 UTC on Oct 1 the New York date is Sep 30 and the live September range reads 1st to 30th.
+  const keys = ytdLockedMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', cfg, '2026-09-30')!.map((m) => m.key)
+  expect(keys.at(-1)).toBe('2026-08')
+  expect(keys).not.toContain('2026-09')
+  // Once New York reaches Oct 1, September is finished and shown.
+  expect(ytdLockedMonths('custom:2026-09-01,2026-09-30', 'custom:2026-08-01,2026-08-31', cfg, '2026-10-01')!.at(-1)!.key).toBe('2026-09')
 })

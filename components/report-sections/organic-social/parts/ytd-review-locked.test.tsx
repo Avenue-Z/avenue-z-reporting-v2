@@ -159,3 +159,12 @@ test('a missing client row logs one line, shows the error card, and asks Dash an
   expect(logs()).toEqual(['[organic-social] ytd-review@4 client row missing slug=locked-co'])
   expect(getOutlineKpis).not.toHaveBeenCalled()
 })
+
+test('between 00:00 and 04:00 UTC on the 1st the live month is still left off, though its range looks whole', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-01T01:00:00Z'))
+  readYtdTab.mockResolvedValue(sheet('Instagram', () => '', () => ''))
+  const el = await YtdLockedReviewSection({ ctx: { ...CTX, dateRange: 'custom:2026-09-01,2026-09-30', compareRange: 'custom:2026-08-01,2026-08-31' } })
+  expect(charts(el)[0].data.map((d) => d.month).at(-1)).toBe('Aug')
+  expect(getOutlineKpis.mock.calls.some((c) => String(c[1]).startsWith('custom:2026-09'))).toBe(false)
+})
