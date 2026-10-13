@@ -151,12 +151,16 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
   // cleaned text differs from `target`, the last value pushed or re-synced. `pushed` holds, in order, the cleaned values
   // this tab pushed that have not arrived as q yet. When one arrives, it and every earlier one are dropped and the box and
   // timer are left alone, so typing during the push's render is kept. Any other q (Back, Forward) re-syncs the box
-  // (spec v1.1 §18.8). The page cleans q with the same cleanSearch, so equal text compares equal.
+  // (spec v1.1 §18.8). The page cleans q with the same cleanSearch, so equal text compares equal. A push of the q the page
+  // already has never changes q, and Next discards a navigation still pending when a newer push starts
+  // (next/dist/client/components/app-router-instance.js:147-150), so that push clears the pending list instead of joining it.
   const pushed = useRef<string[]>([])
   const target = useRef(q)
+  const seenQ = useRef(q)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stopSearchTimer = () => { if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null } }
   useEffect(() => {
+    seenQ.current = q
     const i = pushed.current.indexOf(q)
     if (i >= 0) { pushed.current = pushed.current.slice(i + 1); return }
     pushed.current = []
@@ -166,7 +170,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
   }, [q])
   useEffect(() => stopSearchTimer, [])
   function pushSearch(next: string) {
-    pushed.current.push(next)
+    pushed.current = next === seenQ.current ? [] : [...pushed.current, next]
     target.current = next
     router.push(next ? `/tools/new-business?q=${encodeURIComponent(next)}` : '/tools/new-business')
   }

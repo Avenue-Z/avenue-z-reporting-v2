@@ -815,8 +815,7 @@ test('§18.8: clearing the box while a push renders pushes the empty search afte
   typeSearch('')
   await act(() => vi.advanceTimersByTimeAsync(300))
   expect(push.mock.calls.map((c) => c[0])).toEqual(['/tools/new-business?q=acme', '/tools/new-business'])
-  rerender(<OutboundHub {...props({ q: 'acme' })} />)
-  expect(searchBox()).toHaveValue('')
+  // Next discards the "acme" navigation when the empty one starts, so q never moves off '' and the page re-renders as is.
   rerender(<OutboundHub {...props({ q: '' })} />)
   expect(searchBox()).toHaveValue('')
   await act(() => vi.advanceTimersByTimeAsync(1000))
@@ -833,7 +832,76 @@ test('§18.8: Clear filters while a typed search is still rendering pushes the e
   fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
   expect(push).toHaveBeenLastCalledWith('/tools/new-business')
   expect(searchBox()).toHaveValue('')
+  // Next discards the "acme" navigation when the empty one starts; a re-render at q '' keeps the box empty and pushes nothing.
+  rerender(<OutboundHub {...props({ q: '', rows: [row({ status: 'draft' })], counts: { ...COUNTS, all: 1, draft: 1 } })} />)
+  expect(searchBox()).toHaveValue('')
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(push).toHaveBeenCalledTimes(2)
+})
+
+// Fix round 1: Next discards a navigation still pending when a newer push starts
+// (node_modules/next/dist/client/components/app-router-instance.js:147-150), and a push of the q the page already has never
+// changes q. Either way a pushed value can never arrive, so it must not stay pending.
+test('fix 1 (a): only the last of two pushes arrives, then Back re-syncs the box', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: '' })
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  typeSearch('acme co')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  rerender(<OutboundHub {...props({ q: 'acme co' })} />)
+  expect(searchBox()).toHaveValue('acme co')
+  rerender(<OutboundHub {...props({ q: '' })} />)
+  expect(searchBox()).toHaveValue('')
+  await act(() => vi.advanceTimersByTimeAsync(1000))
+  expect(push).toHaveBeenCalledTimes(2)
+})
+
+test('fix 1 (b): a push equal to the current q clears what was pending, so Back to that q re-syncs the box', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: 'acme' })
+  typeSearch('acme co')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  // Back to the current search before "acme co" renders: Next discards that push, and this one leaves q as it is.
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(push.mock.calls.map((c) => c[0])).toEqual(['/tools/new-business?q=acme%20co', '/tools/new-business?q=acme'])
+  typeSearch('acme co')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  rerender(<OutboundHub {...props({ q: 'acme co' })} />)
+  expect(searchBox()).toHaveValue('acme co')
+  rerender(<OutboundHub {...props({ q: 'acme' })} />)
+  expect(searchBox()).toHaveValue('acme')
+})
+
+test('fix 1 (c): type, clear before it renders, type again, then Back: the box re-syncs to the empty search', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: '' })
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  typeSearch('')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  expect(push.mock.calls.map((c) => c[0])).toEqual(['/tools/new-business?q=acme', '/tools/new-business', '/tools/new-business?q=acme'])
+  rerender(<OutboundHub {...props({ q: 'acme' })} />)
+  expect(searchBox()).toHaveValue('acme')
+  rerender(<OutboundHub {...props({ q: '' })} />)
+  expect(searchBox()).toHaveValue('')
+})
+
+test('fix 1: Clear filters during a pending push, then a new search and Back, re-syncs the box', async () => {
+  vi.useFakeTimers()
+  const { rerender } = hub({ q: '', rows: [row({ status: 'draft' })], counts: { ...COUNTS, all: 1, draft: 1 } })
+  fireEvent.click(screen.getByRole('tab', { name: 'Failed (0)' }))
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
+  fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+  typeSearch('acme')
+  await act(() => vi.advanceTimersByTimeAsync(300))
   rerender(<OutboundHub {...props({ q: 'acme', rows: [row({ status: 'draft' })], counts: { ...COUNTS, all: 1, draft: 1 } })} />)
+  expect(searchBox()).toHaveValue('acme')
+  rerender(<OutboundHub {...props({ q: '', rows: [row({ status: 'draft' })], counts: { ...COUNTS, all: 1, draft: 1 } })} />)
   expect(searchBox()).toHaveValue('')
 })
 
