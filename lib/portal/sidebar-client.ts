@@ -1,5 +1,6 @@
 import type { Client } from '@/lib/db/schema'
 import { parseInfluencerSection } from '@/lib/organic-social/influencer-section'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 
 /** The only client fields the portal sidebar reads. The sidebar is a client component, so its
  *  props are sent to the browser of whoever is logged in, client users included. Nothing
@@ -10,6 +11,9 @@ export type PortalSidebarClient = Pick<Client, 'slug' | 'name' | 'logoUrl' | 'en
    *  flag or label ever leaves the server, never whatever else the hand-typed jsonb holds), which together decide the
    *  Organic Social tabs. The brand id stays on the server. */
   dashSocialConfig: { channels?: string[]; influencerSection?: unknown } | null
+  /** Whether the client is on locked months (hasReportingMonths), for the sidebar's date-range rule (spec 4.2b). Only
+   *  the boolean leaves the server, never the setting. */
+  lockedMonths: boolean
 }
 
 /** The one place that decides what of a client record reaches the portal's browser. */
@@ -23,6 +27,7 @@ export function toPortalSidebarClient(client: Client): PortalSidebarClient {
     dashSocialConfig: client.dashSocialConfig
       ? { channels: client.dashSocialConfig.channels, ...trimmedInfluencerSection(client.dashSocialConfig.influencerSection) }
       : null,
+    lockedMonths: hasReportingMonths(client),
   }
 }
 

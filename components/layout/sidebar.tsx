@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils'
 import { signOutAction } from '@/app/actions/auth'
 import { REPORT_NAMES, NAV_GROUPS, AEO_SUBSECTIONS, GA4_SUBSECTIONS, PAID_MEDIA_SUBSECTIONS, TEAMS, visibleSubsections, organicSocialSubsections, resolveOrganicSubsection } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
+import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
+import { carriesRange, isOrganicSocialView } from '@/lib/organic-social/section-range'
 import {
   LayoutGrid,
   ChevronLeft,
@@ -346,6 +348,14 @@ function ClientSidebar({
   const client = clients.find((c) => c.slug === clientSlug)
   const clientName = client?.name ?? clientSlug
   const isOnReports = pathname === `/dashboard/${clientSlug}/reports`
+  // Spec 4.2b: for a client on locked months the range stops at the Organic Social boundary.
+  const lockedMonths = hasReportingMonths(client)
+  const inOrganic = isOrganicSocialView(pathname, activeSection)
+  const carry = (p: URLSearchParams, target: string) => {
+    if (!carriesRange(lockedMonths, inOrganic, target)) return
+    if (dateRange) p.set('dateRange', dateRange)
+    if (compareRange) p.set('compareRange', compareRange)
+  }
 
   return (
     <aside
@@ -491,8 +501,7 @@ function ClientSidebar({
                         if (slug === 'peec-ai') {
                           const aeoBaseParams = new URLSearchParams()
                           aeoBaseParams.set('section', 'peec-ai')
-                          if (dateRange) aeoBaseParams.set('dateRange', dateRange)
-                          if (compareRange) aeoBaseParams.set('compareRange', compareRange)
+                          carry(aeoBaseParams, 'peec-ai')
                           if (models) aeoBaseParams.set('models', models)
                           return (
                             <li key={slug}>
@@ -528,8 +537,7 @@ function ClientSidebar({
                                     const subParams = new URLSearchParams()
                                     subParams.set('section', 'peec-ai')
                                     if (sub.id) subParams.set('subsection', sub.id)
-                                    if (dateRange) subParams.set('dateRange', dateRange)
-                                    if (compareRange) subParams.set('compareRange', compareRange)
+                                    carry(subParams, 'peec-ai')
                                     if (models) subParams.set('models', models)
                                     const subIsActive = sub.id === null
                                       ? !activeSubsection
@@ -561,8 +569,7 @@ function ClientSidebar({
                         if (slug === 'paid-media') {
                           const pmBaseParams = new URLSearchParams()
                           pmBaseParams.set('section', 'paid-media')
-                          if (dateRange) pmBaseParams.set('dateRange', dateRange)
-                          if (compareRange) pmBaseParams.set('compareRange', compareRange)
+                          carry(pmBaseParams, 'paid-media')
                           return (
                             <li key={slug}>
                               <Link
@@ -583,8 +590,7 @@ function ClientSidebar({
                                     const subParams = new URLSearchParams()
                                     subParams.set('section', 'paid-media')
                                     if (sub.id) subParams.set('subsection', sub.id)
-                                    if (dateRange) subParams.set('dateRange', dateRange)
-                                    if (compareRange) subParams.set('compareRange', compareRange)
+                                    carry(subParams, 'paid-media')
                                     const subIsActive = sub.id === null
                                       ? !activeSubsection
                                       : activeSubsection === sub.id
@@ -615,8 +621,7 @@ function ClientSidebar({
                         if (slug === 'organic-social') {
                           const osBaseParams = new URLSearchParams()
                           osBaseParams.set('section', 'organic-social')
-                          if (dateRange) osBaseParams.set('dateRange', dateRange)
-                          if (compareRange) osBaseParams.set('compareRange', compareRange)
+                          carry(osBaseParams, 'organic-social')
                           // Highlight the RESOLVED tab, not the raw param — a stale/hand-typed
                           // ?subsection= for a platform this client can't see degrades to
                           // Overview server-side (resolveOrganicSubsection), and the sidebar
@@ -644,8 +649,7 @@ function ClientSidebar({
                                     const subParams = new URLSearchParams()
                                     subParams.set('section', 'organic-social')
                                     if (sub.id) subParams.set('subsection', sub.id)
-                                    if (dateRange) subParams.set('dateRange', dateRange)
-                                    if (compareRange) subParams.set('compareRange', compareRange)
+                                    carry(subParams, 'organic-social')
                                     const subIsActive = sub.id === resolvedOrganicId
                                     return (
                                       <li key={sub.id ?? 'overview'}>
