@@ -393,3 +393,40 @@ test('without crypto.randomUUID (plain http), the writer is a version 4 UUID bui
     vi.unstubAllGlobals()
   }
 })
+
+// Spec v1.1 section 18.4, structure items (#368 only): a structure item gets its seq on first send and keeps it on
+// every retry, and after a retry it stays first even when edits are pending.
+test('a structure item gets its seq on first send and keeps it on every retry', async () => {
+  const sleep = vi.fn(async (_ms: number) => {})
+  const log: Sent[] = []
+  const q = new SaveQueue(record(log, (n) => (n === 2 || n === 3 ? { kind: 'retry' } : { kind: 'ok', revision: n })), 0, () => {}, sleep, () => 'w')
+  q.edit('headline', 'a'); await flush()
+  q.structure('competitive_bullets.add'); await flush()
+  expect(log.map((s) => [s.path, s.value, s.seq, s.revision])).toEqual([
+    ['headline', 'a', 1, 0],
+    ['competitive_bullets.add', 'structure', 2, 1],
+    ['competitive_bullets.add', 'structure', 2, 1],
+    ['competitive_bullets.add', 'structure', 2, 1],
+  ])
+  expect(q.state).toMatchObject({ structuring: false, saving: false, error: null, revision: 4 })
+})
+test('a structure item retried goes before a pending edit and keeps its seq; then normal order resumes', async () => {
+  let release: () => void = () => {}
+  const sleep = vi.fn(() => new Promise<void>((r) => { release = r }))
+  const log: Sent[] = []
+  const q = new SaveQueue(record(log, (n) => (n === 1 ? { kind: 'retry' } : { kind: 'ok', revision: n })), 0, () => {}, sleep, () => 'w')
+  q.structure('competitive_bullets.add'); await flush()
+  expect(log.map((s) => [s.path, s.seq])).toEqual([['competitive_bullets.add', 1]])
+  // During the backoff an edit and a second structure item queue up. Without retry first the edit would go next.
+  q.markDirty('headline'); q.edit('headline', 'h')
+  q.structure('sources_bullets.0.remove')
+  release(); await flush()
+  // The retried add goes first with its seq; then edits before structure items again, each new item a new seq.
+  expect(log.map((s) => [s.path, s.value, s.seq])).toEqual([
+    ['competitive_bullets.add', 'structure', 1],
+    ['competitive_bullets.add', 'structure', 1],
+    ['headline', 'h', 2],
+    ['sources_bullets.0.remove', 'structure', 3],
+  ])
+  expect(q.state).toMatchObject({ structuring: false, dirty: false, saving: false, error: null, revision: 4 })
+})

@@ -28,7 +28,7 @@ import {
   rerunTitle, revokeTitle,
 } from './messages'
 import { ProgressChecklist } from './progress-checklist'
-import { RETRY_MESSAGE, SaveQueue, type SaveState, type SendResult } from './save-queue'
+import { RETRY_MESSAGE, SaveQueue, type SaveState, type SendMeta, type SendResult } from './save-queue'
 import { TEST_LINK_NOTE, shareUrl } from '@/lib/aeo-outbound/share-link'
 import { btnCls, cardCls, inputCls, primaryBtnCls } from './ui'
 import { useGenerationProgress } from './use-generation-progress'
@@ -153,11 +153,13 @@ export function OutboundEditor(props: OutboundEditorProps) {
   useEffect(() => {
     if (status !== 'draft') return
     const dropTicksFor = (list: string) => setTicks((t) => new Set([...t].filter((k) => !(k.split('|')[1] ?? '').startsWith(`${list}.`))))
-    const send = async (path: string, value: string, revision: number): Promise<SendResult> => {
+    // The queue aborts the signal when an attempt hangs past SAVE_TIMEOUT_MS or the queue stops (spec v1.1 18.4).
+    const send = async (path: string, value: string, revision: number, { signal }: SendMeta): Promise<SendResult> => {
       const res = await fetch(`/api/aeo-outbound/reports/${id}/slots`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path, value, revision }),
+        signal,
       })
       if (res.status === 200) {
         const b = (await res.json()) as { revision?: unknown; notes?: unknown; needsValidation?: unknown }

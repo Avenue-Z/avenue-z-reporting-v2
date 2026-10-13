@@ -365,6 +365,13 @@ test('a 45s timer with budget left is a plain timed-out PeecError, not a deadlin
   expect(isPeecTimeout(noDeadline)).toBe(true)
 })
 
+test("#368's PeecError arguments keep their positions: a PeecDeadlineError is no row cap, has no code and is no contract violation", () => {
+  const e = new PeecDeadlineError('[PEEC API] /x: deadline reached')
+  expect([e.timeout, e.rowCap, e.code, e.name]).toEqual([true, false, null, 'PeecError'])
+  expect(isPeecRowCap(e)).toBe(false)
+  expect(isPeecContractViolation(e)).toBe(false)
+})
+
 test('isPeecDeadline is false for an HTTP error, a plain PeecError and a non-Peec error', async () => {
   const http = await new PeecClient(KEY, { fetch: vi.fn(async () => new Response('bad', { status: 400 })) }).call('GET', '/x').catch((e: unknown) => e)
   expect(isPeecDeadline(http)).toBe(false)

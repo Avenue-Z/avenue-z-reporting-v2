@@ -5,8 +5,9 @@
 // A structural item (a bullet add or remove) goes out after every pending edit, with the current revision; its 200's
 // revision is taken like any save's, so the next keystroke carries the right one.
 // Spec v1.1 section 18.4: every save carries this queue's `writer` and the item's `seq` (assigned the first time the
-// item is sent, kept on every retry, so seq order is send order), a field whose attempt came back `retry` is sent
-// again before any other field, and an attempt that has not answered within SAVE_TIMEOUT_MS is aborted and retried.
+// item is sent, kept on every retry, so seq order is send order), an item whose attempt came back `retry` (a field, or
+// a structural item even with edits pending) is sent again before any other, and an attempt that has not answered
+// within SAVE_TIMEOUT_MS is aborted and retried.
 export type SendResult = { kind: 'ok'; revision: number } | { kind: 'bad'; error: string } | { kind: 'stop' } | { kind: 'retry' }
 // badPaths: the fields with an outstanding 400, oldest first, so the newest is the one `error` describes.
 export interface SaveState { dirty: boolean; saving: boolean; structuring: boolean; revision: number; error: string | null; stopped: boolean; badPaths: string[] }
@@ -16,6 +17,7 @@ const BACKOFF = [1000, 2000, 4000]
 export const SAVE_TIMEOUT_MS = 15_000
 export interface SendMeta { writer: string; seq: number; signal: AbortSignal }
 type Item = { value: string; stamp: number; seq?: number }
+type StructureItem = { path: string; seq?: number }
 
 // crypto.randomUUID exists only in secure contexts, so the dev server opened by its LAN IP over plain http has none.
 // getRandomValues has no such limit: build an RFC 4122 version 4 UUID from 16 random bytes.
@@ -33,13 +35,15 @@ export class SaveQueue {
   private typed = new Map<string, number>()
   private dirtyPaths = new Set<string>()
   private bad = new Map<string, string>()
-  private structural: string[] = []
+  private structural: StructureItem[] = []
   private running = false
   private waiting = false
   private attempt = 0
   private nextSeq = 1
   // The path whose last attempt came back `retry`: its pending value is the next one sent.
   private retryPath: string | null = null
+  // True when the first structural item's last attempt came back `retry`: it goes next, ahead of pending edits.
+  private retryStructure = false
   // The attempt in flight, so stop() can abort it.
   private inFlight: AbortController | null = null
   readonly writer: string
@@ -92,7 +96,7 @@ export class SaveQueue {
 
   structure(path: string) {
     if (this.state.stopped) return
-    this.structural.push(path)
+    this.structural.push({ path })
     this.set({})
     void this.run()
   }
@@ -134,14 +138,16 @@ export class SaveQueue {
     this.running = true
     try {
       while ((this.pending.size || this.structural.length) && !this.state.stopped) {
-        const isStructure = this.pending.size === 0
-        const [path, item]: [string, Item] = isStructure
-          ? [this.structural[0], { value: 'structure', stamp: 0 }]
-          : this.next()
+        const head = this.structural.length > 0 && (this.retryStructure || this.pending.size === 0) ? this.structural[0] : null
+        const isStructure = head !== null
+        const [path, item]: [string, Item] = head ? [head.path, { value: 'structure', stamp: 0 }] : this.next()
         this.retryPath = null
-        item.seq ??= this.nextSeq++
+        this.retryStructure = false
+        // A structural item keeps its seq on the list entry, so a retry resends the same seq.
+        const owner: { seq?: number } = head ?? item
+        const seq = (owner.seq ??= this.nextSeq++)
         this.set({ saving: true })
-        const r = await this.attemptSend(path, item.value, this.state.revision, item.seq)
+        const r = await this.attemptSend(path, item.value, this.state.revision, seq)
         if (this.state.stopped) return
         if (r.kind === 'ok') {
           if (isStructure) {
@@ -176,7 +182,8 @@ export class SaveQueue {
           this.stop('This snapshot changed. Reload.')
           return
         } else {
-          this.retryPath = path
+          if (isStructure) this.retryStructure = true
+          else this.retryPath = path
           this.set({ saving: false, error: RETRY_MESSAGE })
           this.waiting = true
           try { await this.sleep(BACKOFF[this.attempt] ?? 10_000) } finally { this.waiting = false }

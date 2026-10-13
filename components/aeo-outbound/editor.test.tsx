@@ -85,6 +85,18 @@ test('a message whose source is not the iframe is ignored', async () => {
   expect(patches()[0][1]?.method).toBe('PATCH')
 })
 
+test('each PATCH carries the save queue\'s abort signal, so leaving the draft aborts a hung save (spec v1.1 18.4)', async () => {
+  patch = () => new Promise<Response>(() => {})
+  const { iframe, unmount } = await setup()
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'Hi' })
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  const signal = patches()[0][1]?.signal
+  expect(signal).toBeDefined()
+  expect(signal?.aborted).toBe(false)
+  unmount()
+  expect(signal?.aborted).toBe(true)
+})
+
 test('a dirty message from the iframe disables Approve and shows Saving…, and the save shows Saved', async () => {
   const { iframe } = await setup()
   expect(approveBtn()).toBeEnabled()
