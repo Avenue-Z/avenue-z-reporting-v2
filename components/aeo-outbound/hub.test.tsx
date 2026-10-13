@@ -281,6 +281,22 @@ test('the columns: brand over project and window, created with who, sent date ov
   await loaded()
 })
 
+test('brand names and opened times stay on one line, and the creator line is capped at 160px (v1.1 §17.17)', async () => {
+  hub({ rows: [
+    row({ id: ID(2), status: 'live', token: 't', recipient: 'Jane Doe, Acme', approvedAt: '2026-10-02T15:00:00.000Z', openCount: 3, opensPerson: 1, opensAutomated: 2, firstOpenedAt: '2026-10-03T15:00:00.000Z', lastOpenedAt: '2026-10-05T15:00:00.000Z' }),
+  ], counts: { ...COUNTS, all: 1 } })
+  const cells = rowEl(ID(2)).getAllByRole('cell')
+  const brand = cells[0].querySelector('div')!
+  expect(brand).toHaveClass('font-semibold')
+  expect(brand).toHaveClass('whitespace-nowrap')
+  const by = within(cells[2]).getByText('by ryan@avenuez.com')
+  expect(by).toHaveClass('max-w-[160px]')
+  expect(by).not.toHaveClass('max-w-[180px]')
+  expect(within(cells[4]).getByText('First opened Oct 3, 2026, 11:00 AM')).toHaveClass('whitespace-nowrap')
+  expect(within(cells[4]).getByText('Last opened Oct 5, 2026, 11:00 AM')).toHaveClass('whitespace-nowrap')
+  await loaded()
+})
+
 test('the table has six column headers, and the Peec project and Sent to headers are gone', async () => {
   hub()
   expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Brand', 'Status', 'Created', 'Sent', 'Opens', 'Actions'])

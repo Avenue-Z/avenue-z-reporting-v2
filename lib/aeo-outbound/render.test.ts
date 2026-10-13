@@ -541,9 +541,9 @@ test('Opportunities table rules (v1.1 §17.15): verbatim, after the phone block,
   expect(PAGE_CSS.endsWith('\n}')).toBe(true)
   expect(PAGE_CSS.slice(at).split('\n')).toEqual([DESKTOP_OPEN, ...DESKTOP_RULES, '}'])
   const phone = PAGE_CSS.slice(phoneAt + phoneOpen.length, at - 2).split('\n').filter(Boolean)
-  expect(phone).toHaveLength(8)
+  expect(phone).toHaveLength(9)
   expect(phone[0]).toBe('.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}')
-  expect(phone[7]).toBe('.leaderboard td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px}')
+  expect(phone[8]).toBe('.leaderboard td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:4px}')
   expect(PAGE_CSS.slice(0, phoneAt).split('\n').filter(Boolean).some((r) => r.includes('#opportunities'))).toBe(false)
   expect(phone.some((r) => r.includes('#opportunities'))).toBe(false)
 })
@@ -554,4 +554,17 @@ test('Opportunities table rules (v1.1 §17.15): each is in the draft, preview an
     expect(h.split(DESKTOP_OPEN).length - 1, `${mode} open`).toBe(1)
     for (const r of DESKTOP_RULES) expect(h.split(r).length - 1, `${mode} ${r.slice(0, 40)}`).toBe(1)
   }
+})
+
+test('the headline signal gets the phone side padding, once per mode, inside the phone block only (v1.1 §17.17)', () => {
+  const rule = '.exec-summary{padding:40px 24px}'
+  const phoneOpen = '@media (max-width: 900px){'
+  const phoneAt = PAGE_CSS.indexOf(phoneOpen)
+  const desktopAt = PAGE_CSS.indexOf(DESKTOP_OPEN)
+  const phone = PAGE_CSS.slice(phoneAt + phoneOpen.length, desktopAt - 2).split('\n').filter(Boolean)
+  expect(phone[1]).toBe(rule)
+  expect(PAGE_CSS.split(rule)).toHaveLength(2)
+  expect(PAGE_CSS.indexOf(rule)).toBeGreaterThan(phoneAt)
+  expect(PAGE_CSS.indexOf(rule)).toBeLessThan(desktopAt)
+  for (const mode of ['draft', 'preview', 'final'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'x').split(rule).length - 1, mode).toBe(1)
 })

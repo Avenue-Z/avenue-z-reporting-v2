@@ -383,7 +383,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
               return (
                 <tr key={r.id} data-testid={`row-${r.id}`} className="border-t border-white/[0.06] align-top">
                   <td className="px-4 py-3">
-                    <div className="font-semibold">{r.brand}</div>
+                    <div className="whitespace-nowrap font-semibold">{r.brand}</div>
                     <div className="mt-0.5 text-xs text-text-muted">{r.projectName}</div>
                     {r.requestedStart && r.requestedEnd && <div className="text-xs text-text-muted">{`${fmtDay(r.requestedStart)} to ${fmtDay(r.requestedEnd)}`}</div>}
                   </td>
@@ -397,7 +397,7 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
                   </td>
                   <td className="px-4 py-3 text-text-muted">
                     <div className="whitespace-nowrap">{fmtEasternDateTime(new Date(r.createdAt))}</div>
-                    <span className="block max-w-[180px] truncate text-xs" title={r.createdBy}>{createdByLine(r.createdBy)}</span>
+                    <span className="block max-w-[160px] truncate text-xs" title={r.createdBy}>{createdByLine(r.createdBy)}</span>
                   </td>
                   <td className="px-4 py-3 text-text-muted">
                     {sentRow && r.approvedAt && <div className="whitespace-nowrap">{fmtEasternDateTime(new Date(r.approvedAt))}</div>}
@@ -410,8 +410,8 @@ export function OutboundHub({ rows, counts, cursor, q, projectStats, isAdmin, sh
                         <div>
                           <div className="font-medium">{o.head}</div>
                           {o.detail && <div className="text-xs text-text-muted">{o.detail}</div>}
-                          {r.firstOpenedAt && <div className="text-xs text-text-muted">{firstOpened(fmtEasternDateTime(new Date(r.firstOpenedAt)))}</div>}
-                          {r.lastOpenedAt && <div className="text-xs text-text-muted">{lastOpened(fmtEasternDateTime(new Date(r.lastOpenedAt)))}</div>}
+                          {r.firstOpenedAt && <div className="whitespace-nowrap text-xs text-text-muted">{firstOpened(fmtEasternDateTime(new Date(r.firstOpenedAt)))}</div>}
+                          {r.lastOpenedAt && <div className="whitespace-nowrap text-xs text-text-muted">{lastOpened(fmtEasternDateTime(new Date(r.lastOpenedAt)))}</div>}
                         </div>
                       )
                     })()}

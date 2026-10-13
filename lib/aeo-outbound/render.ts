@@ -104,6 +104,7 @@ export const PAGE_CSS = [
   '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
   '@media (max-width: 900px){',
   '.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}',
+  '.exec-summary{padding:40px 24px}',
   '.kpi-strip[data-kpis="3"]{grid-template-columns:repeat(2,1fr)!important}',
   '.leaderboard-wrap{overflow-x:visible;border:none;border-radius:0}',
   '.leaderboard thead{display:none}',
