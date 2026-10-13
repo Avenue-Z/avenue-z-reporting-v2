@@ -592,32 +592,12 @@ The instance name is `avenuez`. The API base URL is then: `https://avenuez-be.gl
 ### Important Note on Token Type
 
 - **User-scoped token:** The brief will search Glean as the token owner (you). Results will reflect only what that user has access to in Glean. Good for a personal dev/staging setup.
-- **Global token with `X-Glean-ActAs` header:** The brief searches as the logged-in user. Best for production — each Avenue Z team member gets results based on their own Glean access. Requires Glean admin to generate a global token.
+- **Global token with the `X-Scio-Actas` header** (the header `lib/glean.ts` sends): searches as the given user. Best for production: each Avenue Z team member gets results based on their own Glean access. Requires Glean admin to generate a global token.
 
-For production, if you want per-user search context, update `getGleanHeaders()` in `lib/glean.ts` to:
-
-```typescript
-export function getGleanHeaders(actAsEmail?: string): HeadersInit {
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${process.env.GLEAN_API_TOKEN!}`,
-    'Content-Type': 'application/json',
-  };
-  if (actAsEmail) {
-    headers['X-Glean-Auth-Type'] = 'GLOBAL';
-    headers['X-Glean-ActAs'] = actAsEmail;
-  }
-  return headers;
-}
-```
-
-And in the API route, pass the session user's email:
-
-```typescript
-const session = await auth();
-const actAsEmail = session?.user?.email ?? undefined;
-// ...
-headers: getGleanHeaders(actAsEmail),
-```
+> **Done, and different from what this guide first proposed.** `getGleanHeaders(actAsEmail?)` in `lib/glean.ts:8`
+> already takes an optional email and, when given one, sends `X-Scio-Actas`. Do not replace it: `realGleanChat`
+> (`lib/dashboard/nl/glean-chat.ts`) and the Peec AI synopses depend on it. The API-route snippet that was here belonged
+> to the removed meeting-prep route.
 
 ---
 
