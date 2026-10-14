@@ -166,6 +166,10 @@ test('source mix: Editorial or UGC in the top two, one type only, empty, the own
   expect(mixOf([['CORPORATE', 9996], ['OWN', 4]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is almost entirely Corporate sources.' })
   expect(mixOf([['CORPORATE', 0]])).toEqual({ lead: 'Source mix:', text: 'Peec reported no source types for this window.' })
   expect(mixOf([['OWN', 60], ['Vendors & Platforms', 40]])).toEqual({ lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by own-site sources at 60% and Vendors & Platforms sources at 40%; Editorial represents 0.0% and UGC 0.0%.' })
+  // Paul's review of #388 (C4): "Limited" only when Editorial and UGC are each under 10%, as in Ryan's example (6% and 3%).
+  expect(mixOf([['CORPORATE', 45], ['INSTITUTIONAL', 22], ['REFERENCE', 24], ['EDITORIAL', 6], ['UGC', 3]])).toEqual({ lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by Corporate sources at 45% and Reference sources at 24%; Editorial represents 6.0% and UGC 3.0%.' })
+  expect(mixOf([['INSTITUTIONAL', 34], ['CORPORATE', 33], ['EDITORIAL', 31], ['UGC', 2]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is led by Institutional sources at 34% and Corporate sources at 33%; Editorial represents 31% and UGC 2.0%.' })
+  expect(mixOf([['CORPORATE', 60], ['INSTITUTIONAL', 25], ['UGC', 10], ['EDITORIAL', 5]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is led by Corporate sources at 60% and Institutional sources at 25%; Editorial represents 5.0% and UGC 10%.' })
 })
 
 test('methodology: only the prompt count, only the models, neither', () => {
@@ -192,7 +196,8 @@ test('every box has 1 to 3 bullets in every edge case above', () => {
 test('whole percents that would collide in one sentence keep one decimal', () => {
   expect(sent(brandPull([['a', 'A', 0.154, 0.2], ['own', 'Own', 0.146, 0.19], ['b', 'B', 0.05, 0.05]])).context).toBe('Competitive context: A leads at 15.4% visibility / 20% share of voice, followed by Own at 14.6% / 19%. Own ranks ahead of B.')
   const mix = sent({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: [['CORPORATE', 454], ['INSTITUTIONAL', 446], ['EDITORIAL', 100]].map(([classification, w], i) => ({ domain: `d${i}.example`, classification: String(classification), retrieved_chat_count: 1, retrieval_count: Number(w), mentioned_brands: [] })) }).sources_bullets.at(-1)
-  expect(mix).toEqual({ lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by Corporate sources at 45.4% and Institutional sources at 44.6%; Editorial represents 10% and UGC 0.0%.' })
+  // Editorial at 10% is not limited (Paul's review of #388, C4), so the heading is the plain one.
+  expect(mix).toEqual({ lead: 'Source mix:', text: 'The domain mix is led by Corporate sources at 45.4% and Institutional sources at 44.6%; Editorial represents 10% and UGC 0.0%.' })
 })
 
 test('a tie at second names every brand there; the brand leading names its runner-up once', () => {

@@ -46,6 +46,8 @@ export function listText(items: string[]): string {
 const capital = (s: string): string => { const d = s.replace(/^www\./i, ''); return d.charAt(0).toUpperCase() + d.slice(1) }
 const points = (x: number): string => Math.abs(x).toFixed(1)
 const MAX_NAMED = 5
+/** Editorial and UGC each under this share (percent, as displayed) read as "limited" (Ryan's example: 6% and 3%). */
+const LIMITED_SHARE_PCT = 10
 
 /** At most five names, then "and k more" (k as a count word). */
 const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${countWord(names.length - MAX_NAMED)} more`] : names)
@@ -199,8 +201,11 @@ export function dataSentences(d: SnapshotData): DataSentences {
       const tail = extras.length === 2
         ? `; ${extras[0][0]} represents ${pe[0]} and ${extras[1][0]} ${pe[1]}`
         : extras.length === 1 ? `; ${extras[0][0]} represents ${pe[0]}` : ''
+      // "Limited" only when Editorial and UGC are both outside the top two and each under 10%, as in Ryan's example (6% and
+      // 3%); otherwise the heading would state something the numbers don't (Paul, #388 review).
+      const limited = extras.length === 2 && extras.every(([, v]) => v < LIMITED_SHARE_PCT)
       out.push({
-        lead: extras.length === 2 ? 'Limited editorial and UGC presence:' : 'Source mix:',
+        lead: limited ? 'Limited editorial and UGC presence:' : 'Source mix:',
         text: `The domain mix is led by ${label(t1.label)} sources at ${p1} and ${label(t2.label)} sources at ${p2}${tail}.`,
       })
     }
