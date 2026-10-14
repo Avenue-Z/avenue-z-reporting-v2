@@ -204,7 +204,15 @@ test('the stored slots contract reads a box of 1 to 6 bullets, and refuses 0 or 
     for (const n of [1, 2, 3, 6]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, [key]: list(n) }, 'enforce', {}), `${key} ${n}`).toEqual({ ok: true })
     for (const n of [0, 7]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, [key]: list(n) }, 'enforce', {}).ok, `${key} ${n}`).toBe(false)
   }
-  // The Glean reply still asks for 2 or 3 (unchanged).
-  const reply = { headline: 'H', summary: 'S', context: 'C', competitive_bullets: list(2), sources_bullets: list(2), why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'M' }
-  for (const n of [1, 4]) expect(GLEAN_SLOTS.safeParse({ ...reply, competitive_bullets: list(n) }).success, `glean ${n}`).toBe(false)
+})
+
+test('spec v1.1 §19.2: the Glean reply needs only headline, summary, why and opportunities; code writes the rest', () => {
+  const reply = { headline: 'H', summary: 'S', why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })) }
+  expect(checkContract('glean.slots', GLEAN_SLOTS, reply, 'enforce', {}).ok).toBe(true)
+  // Old keys Glean may still send are ignored, whatever their shape.
+  expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, context: 5, competitive_bullets: [], sources_bullets: 'x', methodology: null }, 'enforce', {}).ok).toBe(true)
+  for (const key of ['headline', 'summary', 'why', 'opportunities'] as const) {
+    const { [key]: _gone, ...missing } = reply
+    expect(checkContract('glean.slots', GLEAN_SLOTS, missing, 'enforce', {}).ok, key).toBe(false)
+  }
 })

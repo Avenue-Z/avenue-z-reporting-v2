@@ -87,6 +87,27 @@ test('a fixed value is cleaned like a generated one, and Needs validation passes
   expect(r.ok && [r.slots.category, r.slots.market]).toEqual(['Fin tech', 'Needs validation'])
 })
 
+test('spec v1.1 §19.2: context, both boxes and the methodology come from fixed, cleaned and length-checked, with no 2-or-3 count', () => {
+  const opinion = { headline: 'H', summary: 'S', why: 'W', opportunities: MODEL.opportunities }
+  const code = {
+    context: 'Competitive context:  A leads.', methodology: 'Snapshot based on Peec AI data.',
+    competitive_bullets: [{ lead: 'Category position:', text: 'Own ranks second.' }],
+    sources_bullets: [{ lead: 'Leadership gap:', text: 'Own trails A.' }, { lead: 'Competitor domain gaps:', text: 'x.' }, { lead: 'Source mix:', text: 'y.' }],
+  }
+  const r = validateGeneratedSlots(opinion, { category: 'C', market: 'M', next_step: 'N.', ...code })
+  expect(r.ok).toBe(true)
+  expect(r.ok && [r.slots.context, r.slots.methodology]).toEqual(['Competitive context: A leads.', 'Snapshot based on Peec AI data.'])
+  expect(r.ok && r.slots.competitive_bullets).toEqual(code.competitive_bullets)
+  expect(r.ok && r.slots.sources_bullets).toEqual(code.sources_bullets)
+  // Glean's own versions of these keys are ignored when code supplies them.
+  const ignored = validateGeneratedSlots({ ...opinion, context: 'Glean context', competitive_bullets: [] }, { category: 'C', market: 'M', next_step: 'N.', ...code })
+  expect(ignored.ok && ignored.slots.context).toBe('Competitive context: A leads.')
+  const longLead = validateGeneratedSlots(opinion, { category: 'C', market: 'M', next_step: 'N.', ...code, competitive_bullets: [{ lead: 'x'.repeat(81), text: 't' }] })
+  expect(!longLead.ok && longLead.errors.join(' ')).toContain('competitive_bullets.0.lead')
+  const none = validateGeneratedSlots(opinion, { category: 'C', market: 'M', next_step: 'N.', ...code, sources_bullets: [] })
+  expect(!none.ok && none.errors.join(' ')).toContain('sources_bullets')
+})
+
 test('an extra key in the reply is ignored: the fixed category wins', () => {
   const r = validateGeneratedSlots({ ...MODEL, category: 'Z' }, { category: 'Fintech', market: 'Y' })
   expect(r.ok).toBe(true)

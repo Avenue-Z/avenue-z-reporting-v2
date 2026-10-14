@@ -49,13 +49,21 @@ test('a newline in Peec text cannot forge a Data line', () => {
 test('the prompt carries the rules, the sections, the source rule and no em or en dashes', () => {
   const p = buildPrompt(D, [])
   expect(p).toContain('Use ONLY the Data section')
-  expect(p).toContain('competitive_bullets')
-  expect(p).toContain('strengths')
   expect(p).toContain('Peec recommends')
   expect(p).toContain('Do not say "no" or "none" when a count is positive. Do not state a positive number when the count is zero.')
   expect(p).not.toMatch(new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`))
   expect(buildPrompt(D, ['why: 12% is not in the data'])).toContain('12% is not in the data')
 })
+test('spec v1.1 §19.2: Glean is asked only for the opinion fields, with no numbers in them', () => {
+  const p = buildPrompt(D, [])
+  for (const f of ['- headline:', '- summary:', '- why:', '- opportunities:']) expect(p).toContain(f)
+  for (const f of ['- context:', '- competitive_bullets:', '- sources_bullets:', '- methodology:']) expect(p).not.toContain(f)
+  expect(p).toContain('Do not write any numbers, percentages, counts or ranks, in digits or in words.')
+  expect(p).not.toContain('Every number you write must appear exactly in the Data section')
+  // Glean still reads every number, so its words can follow them.
+  expect(p).toContain(dataBlock(D))
+})
+
 test('parses direct, fenced and wrapped JSON', () => {
   expect(parseModelJson('{"a":1}')).toEqual({ a: 1 })
   expect(parseModelJson('```json\n{"a":2}\n```')).toEqual({ a: 2 })

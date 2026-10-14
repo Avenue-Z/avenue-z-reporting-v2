@@ -145,8 +145,21 @@ export function slotEntries(s: FullSlots): [string, string][] {
 /** Case-insensitive: a reviewer typing "needs validation" still blocks Approve (spec §9). */
 export const needsValidationPaths = (s: FullSlots): string[] => slotEntries(s).filter(([, v]) => v.toLowerCase().includes(NEEDS_VALIDATION.toLowerCase())).map(([p]) => p)
 
-/** Shape and limits for a model reply (spec §6). category, market and an optional fixed next_step come from code. */
-export function validateGeneratedSlots(raw: unknown, fixed: { category: string; market: string; next_step?: string }): { ok: true; slots: Slots } | { ok: false; errors: string[] } {
+/** The slots code writes at generation (spec §6; v1.1 §19.2): category, market, an optional fixed next_step, and the
+ *  data sentences (context, both boxes, methodology) when given. */
+export interface FixedSlots {
+  category: string
+  market: string
+  next_step?: string
+  context?: string
+  methodology?: string
+  competitive_bullets?: Bullet[]
+  sources_bullets?: Bullet[]
+}
+
+/** Shape and limits for a model reply (spec §6). A field in `fixed` comes from code and is checked for length only; a
+ *  code-written box needs at least one bullet but not Glean's 2 or 3 (v1.1 §19.2). */
+export function validateGeneratedSlots(raw: unknown, fixed: FixedSlots): { ok: true; slots: Slots } | { ok: false; errors: string[] } {
   const errors: string[] = []
   const o = (raw && typeof raw === 'object' ? raw : null) as Record<string, unknown> | null
   if (!o) return { ok: false, errors: ['reply is not a JSON object'] }
@@ -156,6 +169,11 @@ export function validateGeneratedSlots(raw: unknown, fixed: { category: string; 
     return c.value
   }
   const bullets = (key: 'competitive_bullets' | 'sources_bullets'): Bullet[] => {
+    const code = fixed[key]
+    if (code) {
+      if (!code.length) { errors.push(`${key}: needs at least 1 bullet`); return [] }
+      return code.map((b, i) => ({ lead: text(`${key}.${i}.lead`, b.lead, MAX_LEAD), text: text(`${key}.${i}.text`, b.text) }))
+    }
     const v = o[key]
     if (!Array.isArray(v) || v.length < 2 || v.length > 3) { errors.push(`${key}: needs 2 or 3 bullets`); return [] }
     return v.map((b, i) => ({ lead: text(`${key}.${i}.lead`, (b as Bullet)?.lead, MAX_LEAD), text: text(`${key}.${i}.text`, (b as Bullet)?.text) }))
@@ -172,12 +190,12 @@ export function validateGeneratedSlots(raw: unknown, fixed: { category: string; 
     market: text('market', fixed.market),
     headline: text('headline', o.headline),
     summary: text('summary', o.summary),
-    context: text('context', o.context),
+    context: text('context', fixed.context ?? o.context),
     competitive_bullets: bullets('competitive_bullets'),
     sources_bullets: bullets('sources_bullets'),
     why: text('why', o.why),
     opportunities: opps,
-    methodology: text('methodology', o.methodology),
+    methodology: text('methodology', fixed.methodology ?? o.methodology),
     next_step: text('next_step', fixed.next_step ?? o.next_step),
   }
   return errors.length ? { ok: false, errors } : { ok: true, slots }

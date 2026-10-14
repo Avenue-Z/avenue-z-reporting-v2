@@ -10,7 +10,8 @@ import { isPeecTimeout, PeecClient, PeecError } from './peec'
 import { pullSnapshot } from './pull'
 import { buildPrompt, dataBlock, parseModelJson } from './prompt'
 import { groundingFlags } from './grounding'
-import { cleanValue, MAX_LEAD, pageDefaults, validateGeneratedSlots, withDefaults, type FullSlots } from './slots'
+import { cleanValue, MAX_LEAD, pageDefaults, validateGeneratedSlots, withDefaults, type FixedSlots, type FullSlots } from './slots'
+import { dataSentences } from './sentences'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
 import { SETTINGS_DEFAULTS, type GenerationSettings } from './settings'
@@ -23,6 +24,15 @@ export type GenerationResult =
 export const WRITING_STEP = 9
 /** The step reported just before Glean's second attempt, only when it runs (spec v1.1 §16.3). */
 export const SECOND_ATTEMPT_STEP = 10
+
+const CODE_SET_PATHS = ['brand', 'window_label', 'market', 'context', 'methodology']
+/** True for a path code or settings write, whose flags Glean cannot fix: page words, KPIs, brand, window label, market,
+ *  the data sentences (spec v1.1 §19.2), and next_step while a fixed sentence is set. Such a flag is still stored as a
+ *  note; it never asks Glean for another attempt. */
+export function codeSetPath(path: string, fixedNextStep: string | null): boolean {
+  if (/^(page|kpis|competitive_bullets|sources_bullets)\./.test(path)) return true
+  return CODE_SET_PATHS.includes(path) || (fixedNextStep !== null && path === 'next_step')
+}
 
 export async function generateSnapshot(
   projectId: string,
@@ -42,10 +52,12 @@ export async function generateSnapshot(
       { rankAmong: settings.rankAmong, competitorSiteGaps: DECISIONS.competitorSiteGaps, sourceMixWeight: DECISIONS.sourceMixWeight },
       { peecOpportunityRows: settings.peecOpportunityRows, methodologyStatesPromptsAndModels: settings.methodologyStatesPromptsAndModels, fixedNextStep: settings.fixedNextStep },
     )
-    const fixed = {
+    // Spec v1.1 §19.1: code writes the context, both findings boxes and the methodology from Peec's numbers.
+    const fixed: FixedSlots = {
       category: data.category ?? NEEDS_VALIDATION,
       market: data.market ?? NEEDS_VALIDATION,
       ...(settings.fixedNextStep !== null ? { next_step: settings.fixedNextStep } : {}),
+      ...dataSentences(data),
     }
     const block = dataBlock(data)
     let problems: string[] = []
@@ -90,10 +102,8 @@ export async function generateSnapshot(
       const flags = groundingFlags(full, data, block)
       if (!flags.length) return { ok: true, brandName, data, slots: full, notes: data.notes }
       if (!groundedFallback || flags.length <= groundedFallback.flags.length) groundedFallback = { slots: full, flags }
-      // Only flags on words Glean writes are worth a retry: page words, KPIs, brand, window label and market are code- or settings-set,
-      // and so is next_step while a fixed sentence is set (every flag is still stored as a note).
-      const codeSet = ['brand', 'window_label', 'market', ...(settings.fixedNextStep !== null ? ['next_step'] : [])]
-      const fixable = flags.filter((f) => !/^(page\.|kpis\.)/.test(f.path ?? '') && !codeSet.includes(f.path ?? ''))
+      // Only flags on words Glean writes are worth a retry (every flag is still stored as a note).
+      const fixable = flags.filter((f) => !codeSetPath(f.path ?? '', settings.fixedNextStep))
       if (fixable.length && attempt === 1 && deps.deadline - deps.now() >= 60_000) { problems = fixable.map((f) => `${f.path ?? ''}: ${f.text}`); continue }
       break
     }

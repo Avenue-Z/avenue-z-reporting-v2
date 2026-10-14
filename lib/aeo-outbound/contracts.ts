@@ -94,13 +94,11 @@ export function peecContract<T>(boundary: PeecBoundary, value: T, env: Env = pro
 export const REPORT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const copyText = z.string().min(1)
-const bullet = z.looseObject({ lead: copyText, text: copyText })
-/** The Glean reply's shape (spec §6). validateGeneratedSlots still cleans and length-checks every value afterwards. */
+/** The Glean reply's shape (spec §6; v1.1 §19.2: code writes the context, both boxes and the methodology, so any of those
+ *  keys Glean still sends are ignored). validateGeneratedSlots still cleans and length-checks every value afterwards. */
 export const GLEAN_SLOTS = z.looseObject({
-  headline: copyText, summary: copyText, context: copyText,
-  competitive_bullets: z.array(bullet).min(2).max(3), sources_bullets: z.array(bullet).min(2).max(3),
+  headline: copyText, summary: copyText,
   why: copyText, opportunities: z.array(z.looseObject({ signal: copyText, opportunity: copyText, workstream: copyText })).length(3),
-  methodology: copyText,
   // validateGeneratedSlots owns next_step and enforces it only when no fixed sentence is set.
   next_step: z.unknown().optional(),
 })

@@ -72,21 +72,16 @@ Writing rules:
 - Concise, polished, neutral and client-facing. Plain English. No em dashes or en dashes; use periods and commas.
 - Keep findings, hypotheses and recommendations distinct. Use explore, investigate and test. Do not present a full roadmap.
 - Use Peec terms where possible: visibility, share of voice, position, retrievals.
-- Every number you write must appear exactly in the Data section. Do not calculate new numbers. Do not round.
+- Do not write any numbers, percentages, counts or ranks, in digits or in words. Describe position and direction in words (leads, trails, ahead of, behind). The page shows every number from Peec next to your words.
 - Do not say "no" or "none" when a count is positive. Do not state a positive number when the count is zero.
-- Do not infer prompt count, model coverage, timeframe, market, sentiment or causality beyond the Data section.
+- Do not infer model coverage, timeframe, market, sentiment or causality beyond the Data section.
 - Never mention a discovery call, an internal brief or how the data was gathered. No pricing, no agency comparisons, no criticism of prior partners.
-- Keep strengths and gaps distinct; never repeat a strength as a gap.
 
 Write these fields:
 - headline: one short headline about the brand's own most decision-relevant signal. The brand is the subject; never make a competitor the subject.
 - summary: one sentence stating that signal, with competitive context when the data supports it.
-- context: one sentence naming the leading competitors with their visibility and share of voice, then the brand's rank. If no competitors are tracked, write one sentence about the brand alone.
-- competitive_bullets: 2 or 3 bullets of validated strengths (category position, own-site presence, source use). Each has a short "lead" ending in a colon (at most 80 characters) and a "text".
-- sources_bullets: 2 or 3 bullets of gaps (visibility gaps to leaders, competitor domain gaps, source mix). Same lead and text shape.
 - why: one compact paragraph connecting the pattern to consideration and category discovery, without claiming causality.
 - opportunities: exactly 3 items, each { "signal", "opportunity", "workstream" }. Each connects a data signal to something to explore. Workstreams such as Content / AEO, PR / earned media, Technical AEO / SEO.${peecRows > 0 ? ` If the Peec recommended actions list is not "none", you may base at most ${peecRows} of the 3 on those actions, and only where an action fits the data. Never force one. An opportunity based on an action has a signal that starts with "Peec recommends".` : ''}
-- methodology: one sentence naming the data window, the comparison set${used.methodologyStatesPromptsAndModels ? ', the prompt count and the AI models covered' : ''}. Say results are directional.
 ${used.fixedNextStep === null ? '- next_step: one sentence on a next step, such as a full AEO audit.\n' : ''}${DECISIONS.writeSpecificCategory ? '- category: a short, specific category for the brand based on the data, at most 80 characters.\n' : ''}
 Output strictly valid JSON with exactly these keys and no markdown fences or commentary.${violations.length ? `\n\nIMPORTANT: A previous attempt had these problems: ${violations.join(' | ')}. Do not repeat them.` : ''}
 
