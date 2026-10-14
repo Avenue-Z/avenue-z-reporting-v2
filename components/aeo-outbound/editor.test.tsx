@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import type { StoredNote } from '@/lib/aeo-outbound/notes'
 import { RECIPIENT_ERROR } from '@/lib/aeo-outbound/recipient'
 import { OutboundEditor } from './editor'
+import { LOADING_REPORT } from './messages'
 
 const { refresh, push, actions } = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -935,4 +936,51 @@ test('the Fill in message follows the count and clears at zero', async () => {
   await fromFrame(iframe, { type: 'edit', path: 'market', value: 'Needs validation' })
   await waitFor(() => expect(screen.getByRole('button', { name: 'Before you send (1)' })).toBeInTheDocument())
   expect(screen.queryByText(/^Fill in \d/)).toBeNull()
+})
+
+// Spec 2026-10-14 editor space (#396): the editor uses the whole screen.
+const root = (c: HTMLElement) => c.querySelector('[data-aeo-editor]') as HTMLElement
+
+test('#396: the editor marks its root in every status, so the tools layout drops its width cap only here', async () => {
+  for (const over of [{}, { status: 'live' as const, token: 'tok' }, { status: 'revoked' as const }, { status: 'generating' as const }, { status: 'failed' as const }, { unreadable: true }]) {
+    const { container } = await setup(over)
+    expect(root(container)).not.toBeNull()
+    cleanup()
+  }
+})
+
+test('#396: the frame and the loading box fill the screen under the toolbar, floored at 320px', async () => {
+  const { container } = render(<OutboundEditor {...base} />)
+  const loading = screen.getByText(LOADING_REPORT)
+  expect(loading.style.height).toBe('calc(100vh - var(--aeo-toolbar-h, 108px) - 32px)')
+  expect(loading.style.minHeight).toBe('320px')
+  await waitFor(() => expect(frameIn(container)).not.toBeNull())
+  expect(frameIn(container).style.height).toBe('calc(100vh - var(--aeo-toolbar-h, 108px) - 32px)')
+  expect(frameIn(container).style.minHeight).toBe('320px')
+})
+
+test('#396: the toolbar height follows the toolbar, measured as its border box, and stops being watched on unmount', async () => {
+  let height = 51
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ height, width: 0, top: 0, left: 0, bottom: height, right: 0, x: 0, y: 0, toJSON: () => ({}) }))
+  const watchers: { cb: () => void; disconnect: ReturnType<typeof vi.fn> }[] = []
+  vi.stubGlobal('ResizeObserver', class {
+    cb: () => void; disconnect = vi.fn()
+    constructor(cb: () => void) { this.cb = cb; watchers.push(this) }
+    observe() {}
+    unobserve() {}
+  })
+  const { container, unmount } = await setup()
+  expect(root(container).style.getPropertyValue('--aeo-toolbar-h')).toBe('51px')
+  height = 75
+  act(() => { for (const w of watchers) w.cb() })
+  expect(root(container).style.getPropertyValue('--aeo-toolbar-h')).toBe('75px')
+  unmount()
+  expect(watchers.length).toBeGreaterThan(0)
+  expect(watchers.every((w) => w.disconnect.mock.calls.length === 1)).toBe(true)
+})
+
+test('#396: without ResizeObserver nothing is measured, so the frame keeps the old 140px height', async () => {
+  expect(typeof ResizeObserver).toBe('undefined')
+  const { container } = await setup()
+  expect(root(container).style.getPropertyValue('--aeo-toolbar-h')).toBe('')
 })
