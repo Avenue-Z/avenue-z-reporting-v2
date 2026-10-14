@@ -9548,3 +9548,102 @@ Tests (first): §18.10's hub and progress rows (typing during the push's render 
 - Browser check after the commit: on the dev server from this worktree is not possible while the main checkout runs it, so render the draft page for 1, 2, 5 and 6 bullets with the edit class on through the trial's `shoot2.mjs` approach and record box, card and figure heights at 1440, 1280 and 390 in the ledger.
 
 Tests (first): spec §18.12's test list, including every expectation it names as changing on purpose. Commit subject: `Let Ryan keep 1 to 6 findings per box, with the chart card matching`.
+
+## Amendment 8 tasks (spec v1.1 §19): one new PR off `dev` after #368, branch `feat/aeo-outbound-audit-fixes`
+
+Built in the main checkout on `feat/aeo-outbound-audit-fixes` (cut from `feat/aeo-outbound-parts` at `e27125b5`, so its
+diff against `dev` is only this work once #368 merges). Each task is test-first; a reviewer checks Tasks 37 to 40
+together, 41 to 43 together, and 44 to 45 together, then one whole-branch review on the most capable model.
+
+### Task 37: Data for the sentences, gaps from displayed values, the Prepared day (spec §19.4, §19.5, §19.8, §19.3 requested_range text)
+
+**Files:** `lib/aeo-outbound/metrics.ts`, `metrics.test.ts`, `contracts.ts` (`STORED_DATA` optional fields).
+
+- `leaderGaps` from displayed values in tenths, no 0.1 floor; `ownSiteRank`; `noDataBrands` (ranked roster brands with
+  no row, in rank order); `sentences: 1`; `preparedDay(now, windowEnd)`; the new `requested_range` text with `fmtDay`.
+
+Tests (first): gaps equal printed differences (26.0 and 15.1 give 10.9; a share-of-voice rival below gives a negative);
+`ownSiteRank` 1, 11, ties, null; `noDataBrands` order and absent from `brands`; `preparedDay` at 23:30 Eastern with a
+next-UTC-day window end, and on an ordinary day. Expectations changing on purpose: the exact-ratio gap tests (18.1).
+Commit: `Compute leader gaps from the printed values and record what the data sentences need`.
+
+### Task 38: The data sentences (spec §19.1)
+
+**Files:** new `lib/aeo-outbound/sentences.ts`, `sentences.test.ts`, new `lib/aeo-outbound/__fixtures__/sentences-live-shape.ts` (synthetic).
+
+- `dataSentences(d)` and its formatters (whole percent half up, points, counts K and M with integer rounding, ordinals,
+  count words, serial-comma lists, capitalised leading domain), every variant in the §19.1 table and the brand-set,
+  level, zero and top-half rules.
+
+Tests (first): every §19.1 variant and every §19.9 edge, each asserting the exact sentence; the synthetic live-shape
+fixture asserting all eight sentences end to end. Commit: `Write the context, findings and methodology in Ryan's format from Peec numbers`.
+
+### Task 39: Glean writes only the opinion (spec §19.2)
+
+**Files:** `lib/aeo-outbound/prompt.ts`, `prompt.test.ts`, `contracts.ts` (`GLEAN_SLOTS`), `contracts.test.ts`, `slots.ts` (`validateGeneratedSlots`), `slots.test.ts`, `generate.ts`, `generate.test.ts`.
+
+- The prompt lists only headline, summary, why, opportunities (and category, next_step as today) and the no-numbers
+  rule; `GLEAN_SLOTS` no longer requires the four code fields; `validateGeneratedSlots` takes them from `fixed` without the
+  2-or-3 count; `generate.ts` puts `dataSentences(data)` into `fixed` and extends `codeSet`.
+
+Tests (first): the prompt text; a reply without the four fields passes the contract and the slots carry the code
+sentences; a no-competitor project yields 1 to 3 bullets per box; only code-written flags never cause a second attempt.
+Commit: `Let Glean write only the headline, summary, why and opportunities`.
+
+### Task 40: Checks in Before you send (spec §19.3)
+
+**Files:** `lib/aeo-outbound/notes.ts`, `notes.test.ts`, `grounding.ts`, `grounding.test.ts`, `labels.ts` if needed.
+
+- `unchecked_number` and `peec_recommends` kinds; both gated on `d.sentences === 1`; allowed numbers from
+  `dataSentences(d)`; the code-written domain check with brand and no-data names removed; `requested_range` in Check these.
+
+Tests (first): each kind's positive and negative cases from §19.9; the category exemption; number words with names
+removed ("Seven Seas" unflagged); a row without `sentences` gets exactly today's flags (snapshot of a fixture's flags);
+the group move. Commit: `Flag numbers Glean writes and unverified Peec recommendations in Before you send`.
+
+### Task 41: The data contract with no off switch (spec §19.6)
+
+**Files:** `lib/aeo-outbound/contracts.ts`, `contracts.test.ts`, `config.ts`, `settings.ts` (comment), `access.test.ts`, `settings.test.ts`, `app/api/aeo-outbound/generate/route.ts` (comment), `route.test.ts`, slots `route.ts` (comment), `route.test.ts`, `.env.example`.
+
+- Remove `contractsDisabled` and every `CONTRACT_DISABLED` use; enforce `date`, `classification`, `mentioned_brands` and
+  the `peec.brands` fields; `CONTRACT_MODES['peec.brands']` to enforce.
+
+Tests (first): each new field fails the run with `contract_violation` naming it; the 2026-10-14 live shapes pass
+(custom classification, empty `mentioned_brands`); setting `CONTRACT_DISABLED` changes nothing. Commit:
+`Enforce every Peec field a number depends on, with no off switch`.
+
+### Task 42: Prepared day in the view and approve, 503 when settings can't be read (spec §19.7 A3, §19.8)
+
+**Files:** `app/api/aeo-outbound/reports/[id]/view/route.ts`, its test, `app/actions/aeo-outbound.ts`, its test, `lib/aeo-outbound/access.ts`, `access.test.ts`, slots `route.ts`, `route.test.ts`.
+
+Tests (first): the view and approve pass `preparedDay`'s value; `outboundAccess` returns `unavailable` only when the read
+failed and the caller is not on the env list; the slots and view routes answer 503 for it. Commit:
+`Keep the Prepared date on or after the data window, and retry when settings can't be read`.
+
+### Task 43: The editor never loses or stalls (spec §19.7 frame, A1, stop, structure, messages)
+
+**Files:** `components/aeo-outbound/editor.tsx`, `editor.test.tsx`, `save-queue.ts`, `save-queue.test.ts`, `lib/aeo-outbound/render.ts` (`FRAME_SCRIPT_JS`), `render.frame.test.ts`, view `route.ts` (header), its test.
+
+- Iframe mounted only with its report, keyed per load; `X-Report-Revision` and `adopt`; `router.refresh()` once on
+  mount; the report load retries a 503 twice; a stopped queue makes the frame read-only; a structure 200 drops pending
+  edits for that list; the frame's `dirty` carries text and `scroll` round-trips; the Approve tooltip reason; the
+  fill-first message follows the count.
+
+Tests (first): spec §19.10's editor, queue, frame and view-route items. Commit: `Stop the editor losing or stalling on Back, old revisions and bullet changes`.
+
+### Task 44: Browser Back asks first (spec §19.7 A2)
+
+**Files:** `components/aeo-outbound/use-leave-guard.ts`, new `use-leave-guard.test.ts`, `editor.test.tsx` if needed.
+
+- One history entry on mount; `popstate` back onto it: unsaved opens Leave / Stay (Stay re-adds, Leave goes back),
+  nothing unsaved goes back at once.
+
+Tests (first): §19.10's leave-guard items, with `history` and `popstate` simulated in jsdom. Commit: `Ask before the browser Back button drops unsaved edits`.
+
+### Task 45: Deploy notes, the full gate, and the live dev check
+
+**Files:** `MIGRATIONS-PENDING.md` (the new note kinds' rollback caveat, no migration).
+
+- `make check` (bounded); then the live dev test of 2026-10-14 repeated: generate, every number against a raw Peec
+  pull, the sentences against Ryan's format, edit, reload, bullets, Back with and without unsaved edits (Stay, Leave),
+  Forward, approve, link, revoke, Edit a copy. Results in the ledger and the audit notes.
