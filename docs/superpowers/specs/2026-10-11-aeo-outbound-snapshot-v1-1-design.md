@@ -1235,3 +1235,139 @@ after a retry then 200, and no edit mode sent to the frame between a structure 2
 posts `competitive_bullets.4` and `remove`. Expectations that change on purpose: `route.test.ts:170-178` (remove from 2 is
 now a 200), `slots.test.ts:138-151` (the 2 and 3 limits and the error texts), `render.test.ts:283-289` and `:470-478`
 (control counts), `render.test.ts:355-365` and `:389-395` (the rules list).
+
+## 19. Amendment 8 (2026-10-14): the fresh-eyes audit fixes, and Ryan's example format
+
+Sources: the six-reviewer audit and the live dev test of `feat/aeo-outbound-parts` at `e27125b5`
+(`aeo-outbound-audit-notes/findings/2026-10-14-fresh-eyes-audit/`), Ryan's example (`Peec - Z_OS One Page Audit Example`,
+mapped in `aeo-outbound-audit-notes/source/one-page-audit-example-map.md`) and my decisions of 2026-10-14: the data
+sentences follow Ryan's example exactly, with every number from Peec; checks are items in Before you send, never a block
+on Approve (Ryan is the lead QA); the data contract has no off switch. One new PR off `dev`, after #368 merges. No
+migration. Out of scope (filed or declined in the audit index): the email-scanner window, the Powered by line after a
+wordmark edit, KPI label swaps, the stored-row length limits.
+
+### 19.1 Code writes the data sentences in Ryan's format
+
+New `lib/aeo-outbound/sentences.ts`: `dataSentences(d: SnapshotData): { context; competitive_bullets; sources_bullets;
+methodology }`, a pure function of the row's data. Generation puts its output in the slots (it joins `fixed` in
+`generate.ts:45-49`); Glean no longer writes these four (§19.2). Ryan can still edit, add and remove every one.
+
+Formatting rules, used by every sentence:
+- **Percent in a sentence:** the 1-decimal value the page shows (`visibilityPct`, `sovPct`, `retrievedPct`,
+  `sourceMix[].pct`) rounded half up to a whole number, so "15.1%" on the card reads "15%" in the sentence (Ryan's example).
+  KPI cards and charts keep one decimal (unchanged).
+- **Points:** one decimal, from the displayed values (§19.4), e.g. "10.9 percentage points".
+- **Counts:** under 1,000 as digits ("142"); from 1,000 as thousands to one decimal with "approximately" before the first
+  ("approximately 2.0K").
+- **Rank:** an ordinal word ("third"; "21st" from 21). **Brand count:** a word up to ten ("seven"), digits above.
+- **Lists:** "A, B, and C" (Ryan's serial comma). Names and domains as Peec gives them.
+
+| Slot | Ryan's example | Sentence (variants) |
+|---|---|---|
+| `context` | "Competitive context: EarnIn leads at 26% visibility / 22% share of voice, followed by Dave at 19% / 17%. Ualett ranks ahead of Brigit, Giggle, MoneyLion, and Chime on the displayed leaderboard." | "Competitive context: {#1} leads at {v}% visibility / {s}% share of voice, followed by {#2} at {v}% / {s}%. {Brand} ranks ahead of {every brand ranked below it, at most five, then "and {k} more"}." The leader and runner-up are the top two of `brands`, the brand included ("{Brand} leads at ..."). A missing share of voice drops " / {s}% share of voice" for that brand. Nobody below: "{Brand} ranks last of the {N} brands tracked." Brands level with the brand: "{Brand} is level with {X}" before or instead of "ranks ahead of". No competitors: the box is hidden (`render.ts:258`); the slot holds "No competitors are tracked in this Peec project." |
+| `competitive_bullets` (first section) | 1 "Strong category position: Ualett ranks third among the seven brands shown, with 15% visibility and 16% share of voice." 2 "Present in the source ecosystem: Ualett.com appears among the top domains at approximately 2.0K retrievals." 3 "Positive source-use signal: Ualett is shown as used as a source in 23% of tracked answers, up 8.7 percentage points in the displayed period." | 1 lead "Strong category position:" when rank is 3 or better and in the top half, else "Category position:"; text "{Brand} ranks {ordinal} among the {N} brands tracked, with {v}% visibility and {s}% share of voice." ("compared" for "tracked" when `settingsUsed.rankAmong` cut the set; no share of voice: ", with {v}% visibility."). No competitors: lead "AI visibility:", text "{Brand} appears in {v}% of tracked answers." 2 the most retrieved own site: lead "Present in the source ecosystem:", text "{domain} appears among the top domains at {count} retrievals." when it is in the top ten domains by retrievals (§19.5), else lead "Own-site retrievals:", text "{domain} appears in {count} retrievals."; no own site retrieved: lead "Own-site retrievals:", text "{Brand}'s own site was not retrieved in this window." 3 only when the own site was retrieved: lead "Source-use signal:", text "{Brand} is used as a source in {p}% of tracked answers." (that site's percentage). Ryan's "up 8.7 points" needs an earlier window, which a pitch project does not have (spec 5a row 16): left out. |
+| `sources_bullets` (second section) | 1 "Leadership gap: Ualett trails EarnIn by 10.9 percentage points in visibility and 6.1 points in share of voice; it trails Dave by 3.9 and 1.1 points, respectively." 2 "Competitor domain gaps: The largest displayed gaps include MoneyLion at 9.4K, Finder at 9.0K, Giggle Finance at 8.7K, and EarnIn at 8.0K." 3 "Limited editorial and UGC presence: The displayed domain mix is led by Corporate sources at 45% and Institutional sources at 22%; Editorial represents 6% and UGC 3%." | 1 lead "Leadership gap:", text "{Brand} trails {L1} by {gv} percentage points in visibility and {gs} points in share of voice; it trails {L2} by {gv2} and {gs2} points, respectively." over the first two of `leaderGaps`. One leader: the first clause only. A share-of-voice gap of 0 or less reads "and leads it by {x} points in share of voice" / "and matches it in share of voice" (the second clause: "by {gv2} points in visibility and leads it by {x} in share of voice"); a missing one is left out. Brand ranked first: lead "Leadership position:", text "{Brand} leads {#2} by {g} percentage points in visibility and {s} points in share of voice." (level at the top: "{Brand} is level with {X} at the top of the {N} brands tracked."). No competitors: no bullet. 2 when `gapDomains` is not empty: lead "Competitor domain gaps:", text "The largest gaps include {d1} at {n1} retrievals, {d2} at {n2}, {d3} at {n3}, and {d4} at {n4}." (Ryan's numbers are not in Peec's feed, his Q4 answer: ranked by how often AI used each site, `metrics.ts:215-223`). 3 lead "Limited editorial and UGC presence:" when neither Editorial nor UGC is in the mix's top two, else "Source mix:"; text "The domain mix is led by {T1} sources at {p1}% and {T2} sources at {p2}%; Editorial represents {pe}% and UGC {pu}%." naming only the ones not already named (absent from the mix is 0%); the own-site slice (`You`) reads "own-site". One type only: "The domain mix is all {T1} sources." |
+| `methodology` | "Methodology: Snapshot based on ... last 30 days, the displayed seven-brand comparison set, ... Results are directional and intended to identify areas for deeper analysis." | "Snapshot based on Peec AI data for {windowLabel}: {N} brands compared, {P} prompts tracked, and answers from {models}. Results are directional and intended to identify areas for deeper analysis." The prompt and model parts appear only when `settingsUsed.methodologyStatesPromptsAndModels` (Q6) and the value is known; with neither: "Snapshot based on Peec AI data for {windowLabel}, comparing {N} brands. Results are ...". No competitors: "the brand alone" for "{N} brands compared". The label "Methodology:" is the page word, unchanged. |
+
+Every number in these sentences is in `SnapshotData` or computed from it by the rules above; nothing comes from Glean.
+Old rows are unchanged: their stored slots keep their Glean text.
+
+### 19.2 Glean writes only the opinion, with no numbers
+
+`prompt.ts`: Glean writes `headline`, `summary`, `why`, `opportunities` (and `category`, `next_step` as today). The prompt
+says: "Do not write any numbers, percentages, counts or ranks in digits or words; describe position and direction in words
+(leads, trails, ahead of, behind)." The Data block is unchanged (Glean still reads the numbers). `GLEAN_SLOTS`
+(`contracts.ts:99-106`) stops requiring `context`, the two bullet lists and `methodology`; `validateGeneratedSlots`
+(`slots.ts:149-184`) takes those four from `fixed`. Ryan's Q5 ("Peec recommends" only when relevant) stays a prompt rule
+plus the check in §19.3.
+
+### 19.3 Checks in Before you send (never block Approve)
+
+`grounding.ts`, two new note kinds in `NOTE_KINDS` (`notes.ts:3-8`), both in the Check these group with a Looks right tick:
+- `unchecked_number`: in a Glean-written field (`headline`, `summary`, `why`, `opportunities.*`, `category`, and
+  `next_step` when no fixed sentence is set), every digit run and every number word (two to twenty, hundred, thousand,
+  half, twice, double, doubled, triple, tripled, percent) gets "{token}: check this number against Peec's numbers on the
+  page." These fields skip `number_not_in_data` (one flag per number, not two). Ordinals ("third") are not flagged.
+- `peec_recommends`: an `opportunities.{i}.signal` containing "Peec recommend" (any case) is flagged "Peec has no
+  recommended actions for this project." when `d.actions` is empty, else "Check this against Peec's recommended actions:
+  {titles}." when no action title shares a word of four letters or more with the signal.
+- The code-written slots keep `number_not_in_data`, and grounding's allowed numbers also take every number token of
+  `dataSentences(d)` (so the whole-number percents, points and counts are allowed) when `d.schemaVersion === 2`.
+- `requested_range` moves from About this data to Check these (`notes.ts:15`), and a new row's text reads "You asked for
+  {fmtDay(start)} to {fmtDay(end)}. Peec has data for {window label}, so the report covers those days."
+
+Approve still blocks only on "Needs validation" (Q8, unchanged). Deploy order: a build without these two kinds reads a
+row carrying them as unreadable (`STORED_NOTES`, `contracts.ts:139`); the PR description says so, as 18.12 did.
+
+### 19.4 Leader gaps from the displayed values (issue #383)
+
+`metrics.ts:167-179`: `visibilityPoints` = the rival's `visibilityPct` minus the brand's, and `sovPoints` = the rival's
+`sovPct` minus the brand's, both already 1-decimal, subtracted in tenths (`Math.round((a - b) * 10) / 10`). The gap now
+always equals the difference of the two printed numbers, as in Ryan's example (26.0 - 15.1 = 10.9). Every displayed
+leader is at least 0.1 above, so the `Math.max(0.1, ...)` floor goes. Supersedes spec 5a row 17 and 18.1's exact-ratio rule.
+
+### 19.5 Data for the sentences
+
+`SnapshotData` gains `ownSiteRank: number | null`: the position of the most retrieved own site among all domains by
+`retrieved_chat_count` (1 = most), null when no own site was retrieved. Optional in the type and in `STORED_DATA` (old
+rows lack it; `dataSentences` runs only at generation and in grounding of version 2 rows, where a missing value reads as
+"not in the top ten").
+
+### 19.6 The data contract, with no exceptions
+
+- `contractsDisabled` and `CONTRACT_DISABLED` are removed (`contracts.ts:14-18,28`, `config.ts:41`, `.env.example:90`,
+  the comments at `generate/route.ts:48`, slots `route.ts:46`, `contracts.ts:110`, `settings.ts:65`). Every boundary
+  always runs in its mode.
+- Enforced, measured on 6,000 live domain rows and 206 roster rows across six pitch projects on 2026-10-14 (all
+  passed): `peec.domains_by_date` `date` matches `^\d{4}-\d{2}-\d{2}`; `peec.domains_report` `classification` a non-empty
+  string (Peec also sends custom names such as "Vendors & Platforms", so not a fixed list) and `mentioned_brands` an array
+  of `{ id: string }` (often empty); `peec.brands` `id`, `name` strings, `is_own` boolean, `domains` an array of strings or
+  null. A violation fails the run with `contract_violation` naming the field, as today (`contracts.ts:83-91`).
+
+### 19.7 Edits are never lost, and the editor never stalls
+
+- **Back steps into the frame (live):** the editor mounts the iframe only once the report HTML has arrived, as a new
+  element per load (`key` = the load count), with `srcDoc` set at creation. Trial 2026-10-14: today's empty-then-report
+  load adds 1 history entry and each reload adds 2; a new element created with its report adds 0.
+- **Back drops unsaved text (A2):** the frame's `dirty` message carries the field's current text. On unmount the editor
+  queues the latest text of every field typed since its last `edit`, then lets the queue finish (`drain`) instead of
+  aborting it: the queue keeps sending until it is empty, a `stop` or `bad` answer, or 30 seconds. A module-level map
+  holds each draining queue by report id; an editor opening the same report waits for it (at most 30 seconds) before
+  loading the report.
+- **Old revision after Back (A1, live):** the view route sends the revision it rendered in an `X-Report-Revision` header;
+  the editor hands it to the queue (`adopt`), which takes it only while it has sent nothing. The editor also calls
+  `router.refresh()` once on mount, so the panel, brand and titles are current.
+- **Settings read failure (A3):** `outboundAccess` returns `{ ok: false, unavailable: true }` when the settings read
+  failed and the caller is not on the env list; the slots and view routes answer 503 for it (the queue retries).
+- **Stopped queue (A minor 4):** a stopped queue makes the frame read-only (`frameEditable`).
+- **After a bullet add or remove (A minor 8, live):** a structure 200 drops pending edits for that list, and the new frame
+  scrolls to where Ryan was (the frame posts `scroll` with its position; the editor sends it back on the next `ready`).
+- **Messages (live):** Approve's tooltip names the real reason (the stop message, or the field label and 400 text, else
+  "Saving. Try again in a moment."); a "Fill in N items first" message updates to the current count and clears at zero.
+
+### 19.8 The Prepared date never falls before the data window
+
+`metrics.ts` gains `preparedDay(now: Date, windowEnd: string)`: the later of the US Eastern day of `now` and `windowEnd`,
+formatted by `fmtDay`. The view route (`:58`) and approve (`app/actions/aeo-outbound.ts:62`) use it. In the evening a
+pitch run's data can sit on the next UTC day (Ryan's prompts run instantly, comment C0), so "Data window: Oct 14" next to
+"Prepared Oct 13" can no longer happen; the window stays in Peec's UTC days. The default range still ends today (UTC), so
+a pitch run today is covered.
+
+### 19.9 Edge cases
+
+Brand first, last, alone, or level with another; one competitor; ten competitors (five named, "and {k} more"); no share of
+voice; no own site, several own sites (the most retrieved is named); own site eleventh; no gap domains; one source type;
+Editorial or UGC in the top two; a custom classification; a count of 999, 1,000 and 9,950 ("approximately 10.0K"); a
+displayed 14.5% (whole 15); a gap of exactly 0.1; Glean writing "3", "three", "doubled" or "third"; "Peec recommends" with
+no actions, with a matching action, with an unrelated one; a 1-day and a 90-day window; generation at 23:30 Eastern.
+
+### 19.10 Tests (written first)
+
+`sentences.test.ts` for every row of §19.1 and every edge in §19.9, plus the live A Place for Mom data (Peec values from
+the 2026-10-14 pull) giving the exact sentences; `metrics.test.ts` for displayed-value gaps, `ownSiteRank` and
+`preparedDay`; `prompt.test.ts` and `generate.test.ts` for the four slots from code and Glean writing the rest;
+`contracts.test.ts` for the new enforced fields and for no off switch; `grounding.test.ts` for both new kinds and the
+allowed sentence numbers; `notes.test.ts` for the group move; `access.test.ts` and the slots and view `route.test.ts` for
+503; `save-queue.test.ts` for `adopt`, `drain` and dropped list edits; `editor.test.tsx` for the iframe mounted once per
+load, the unmount drain, the header adoption, the scroll restore, the stop making the frame read-only and the tooltip;
+`render.test.ts` for the frame script's `dirty` value and `scroll`. Then the live dev check repeats the 2026-10-14 test.
