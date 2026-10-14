@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, renderHook } from '@testing-library/react'
 import { useLeaveGuard } from './use-leave-guard'
 
@@ -85,4 +85,81 @@ test('beforeunload is prevented while unsaved only, and both listeners go when i
   window.dispatchEvent(gone)
   expect(gone.defaultPrevented).toBe(false)
   expect(click(link('/y')).defaultPrevented).toBe(false)
+})
+
+// Spec v1.1 §19.7 (A2): the browser Back and Forward buttons ask first while there are unsaved edits, through the
+// browser's Navigation API (a stand-in here: jsdom has none).
+describe('browser Back and Forward', () => {
+  let nav: EventTarget & { traverseTo: ReturnType<typeof vi.fn> }
+  beforeEach(() => {
+    nav = Object.assign(new EventTarget(), { traverseTo: vi.fn(() => ({ finished: Promise.resolve() })) })
+    Object.defineProperty(window, 'navigation', { value: nav, configurable: true })
+  })
+  afterEach(() => { delete (window as unknown as { navigation?: unknown }).navigation })
+
+  /** A navigate event as the browser fires it; returns whether the page cancelled it. */
+  const traverse = (over: { navigationType?: string; cancelable?: boolean; key?: string } = {}) => {
+    const e = new Event('navigate', { cancelable: over.cancelable ?? true })
+    Object.assign(e, { navigationType: over.navigationType ?? 'traverse', destination: { key: over.key ?? 'k-hub' } })
+    nav.dispatchEvent(e)
+    return e.defaultPrevented
+  }
+
+  test('with unsaved edits, Back is cancelled and asks; Leave goes where Back was going, once', () => {
+    renderHook(() => useLeaveGuard(true, ask))
+    expect(traverse()).toBe(true)
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(nav.traverseTo).not.toHaveBeenCalled()
+    ask.mock.calls[0][0]()
+    expect(nav.traverseTo).toHaveBeenCalledWith('k-hub')
+    // The traversal Leave starts is not asked about again.
+    expect(traverse()).toBe(false)
+    expect(ask).toHaveBeenCalledTimes(1)
+  })
+
+  test('Stay is doing nothing: the page stays and the next Back asks again', () => {
+    renderHook(() => useLeaveGuard(true, ask))
+    traverse()
+    expect(traverse()).toBe(true)
+    expect(ask).toHaveBeenCalledTimes(2)
+  })
+
+  test('with nothing unsaved, Back and Forward pass straight through, adding no history entry', () => {
+    const pushState = vi.spyOn(window.history, 'pushState')
+    renderHook(() => useLeaveGuard(false, ask))
+    expect(traverse()).toBe(false)
+    expect(ask).not.toHaveBeenCalled()
+    expect(pushState).not.toHaveBeenCalled()
+  })
+
+  test('a push or replace navigation, or a traversal the browser does not let the page cancel, is left alone', () => {
+    renderHook(() => useLeaveGuard(true, ask))
+    expect(traverse({ navigationType: 'push' })).toBe(false)
+    expect(traverse({ navigationType: 'replace' })).toBe(false)
+    expect(traverse({ cancelable: false })).toBe(false)
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  test('the unsaved flag is read when Back is pressed, not when the page mounted', () => {
+    const h = renderHook(({ unsaved }) => useLeaveGuard(unsaved, ask), { initialProps: { unsaved: false } })
+    h.rerender({ unsaved: true })
+    expect(traverse()).toBe(true)
+  })
+
+  test('a Leave whose traversal fails hands the guard back', async () => {
+    nav.traverseTo.mockReturnValueOnce({ finished: Promise.reject(new Error('gone')) })
+    renderHook(() => useLeaveGuard(true, ask))
+    traverse()
+    ask.mock.calls[0][0]()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(traverse()).toBe(true)
+  })
+
+  test('unmounting removes the listener; without the Navigation API nothing is registered and nothing breaks', () => {
+    const h = renderHook(() => useLeaveGuard(true, ask))
+    h.unmount()
+    expect(traverse()).toBe(false)
+    delete (window as unknown as { navigation?: unknown }).navigation
+    expect(() => renderHook(() => useLeaveGuard(true, ask))).not.toThrow()
+  })
 })

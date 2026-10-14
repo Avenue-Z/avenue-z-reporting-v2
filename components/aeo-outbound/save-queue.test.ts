@@ -430,3 +430,50 @@ test('a structure item retried goes before a pending edit and keeps its seq; the
   ])
   expect(q.state).toMatchObject({ structuring: false, dirty: false, saving: false, error: null, revision: 4 })
 })
+
+// Spec v1.1 §19.7 (A1): the revision the report on screen was rendered at.
+test('adopt takes the revision the view rendered while nothing has been sent, and never after', async () => {
+  const calls: number[] = []
+  const send = vi.fn(async (_p: string, _v: string, r: number): Promise<SendResult> => { calls.push(r); return { kind: 'ok', revision: r + 1 } })
+  const q = new SaveQueue(send, 4, () => {})
+  q.adopt(9)
+  expect(q.state.revision).toBe(9)
+  q.edit('headline', 'a'); await flush()
+  expect(calls).toEqual([9])
+  q.adopt(2)
+  expect(q.state.revision).toBe(10)
+  q.edit('why', 'b'); await flush()
+  expect(calls).toEqual([9, 10])
+})
+
+test('adopt is ignored while an item is pending, in flight or the queue is stopped', async () => {
+  let answer: (r: SendResult) => void = () => {}
+  const q = new SaveQueue(vi.fn(() => new Promise<SendResult>((r) => { answer = r })), 4, () => {})
+  q.edit('headline', 'a')
+  q.adopt(9)
+  expect(q.state.revision).toBe(4)
+  answer({ kind: 'ok', revision: 5 }); await flush()
+  const stopped = new SaveQueue(vi.fn(), 4, () => {})
+  stopped.stop('x')
+  stopped.adopt(9)
+  expect(stopped.state.revision).toBe(4)
+})
+
+test('a structure 200 drops edits still pending for that list, whose indices no longer exist (spec v1.1 §19.7)', async () => {
+  const calls: string[] = []
+  let answerStructure: (r: SendResult) => void = () => {}
+  let rev = 3
+  const send = vi.fn((p: string): Promise<SendResult> => {
+    calls.push(p)
+    if (p.endsWith('.remove')) return new Promise<SendResult>((r) => { answerStructure = r })
+    return Promise.resolve({ kind: 'ok', revision: ++rev })
+  })
+  const q = new SaveQueue(send, 3, () => {})
+  q.structure('competitive_bullets.0.remove'); await flush()
+  // Arrived while the remove was in flight: written against the old list.
+  q.markDirty('competitive_bullets.1.text'); q.edit('competitive_bullets.1.text', 'meant for the old bullet 2')
+  q.markDirty('why'); q.edit('why', 'kept')
+  answerStructure({ kind: 'ok', revision: ++rev }); await flush()
+  expect(calls).toEqual(['competitive_bullets.0.remove', 'why'])
+  expect(q.state).toMatchObject({ dirty: false, structuring: false })
+})

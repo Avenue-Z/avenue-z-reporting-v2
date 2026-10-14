@@ -72,7 +72,7 @@ test('a row without a series, or with an empty or long one, breaks its contract;
   expect(resolveSettings({ ...ROW, sidebarWordmark: 'AEO Lens' })).toMatchObject({ invalid: false, settings: { sidebarWordmark: 'AEO Lens' } })
 })
 
-test('the access guard still refuses a bad people list under the kill switch', () => {
+test('the access guard refuses a bad people list, with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6)', () => {
   vi.stubEnv('CONTRACT_DISABLED', '1')
   expect(resolveSettings({ ...ROW, users: ['x@gmail.com'] }).invalid).toBe(true)
 })
@@ -99,7 +99,7 @@ test('the form starts from the settings, and validating that input gives the sam
   expect(validateSettingsInput(input)).toEqual({ ok: true, values: s })
 })
 
-test('under the contract kill switch a malformed users or admins list still makes the row invalid, because it decides access', () => {
+test('with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6), a malformed users or admins list makes the row invalid, because it decides access', () => {
   vi.stubEnv('CONTRACT_DISABLED', '1')
   const bad = (over: Record<string, unknown>) => resolveSettings({ ...ROW, ...over })
   const expected = { settings: SETTINGS_DEFAULTS, updatedAt: '2026-10-10T09:00:00.000Z', invalid: true }

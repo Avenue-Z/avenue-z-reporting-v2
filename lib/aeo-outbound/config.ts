@@ -29,6 +29,9 @@ export const DECISIONS = {
 }
 export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
+/** Spec v1.1 §19.5, §19.11: the version of the code-written sentences (sentences.ts). Bump it whenever their wording or
+ *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. */
+export const SENTENCES_VERSION = 1
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
 /** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */
@@ -37,12 +40,12 @@ export const MAX_LOOKBACK_DAYS = 400
 /** A brand shown above this visibility gets a notes-panel warning (spec §7): common-word names match unrelated answers. */
 export const IMPLAUSIBLE_VISIBILITY_PCT = 90
 
-/** Data contracts (spec v1.1 §10): the mode of each boundary's enforced fields. Every field a Peec boundary reads outside
- *  its enforced set is always observed. CONTRACT_DISABLED (any value but empty, 0 or false) turns every check off. */
+/** Data contracts (spec v1.1 §10, §19.6): the mode of each boundary's enforced fields. Every field a Peec boundary reads
+ *  outside its enforced set is always observed. There is no off switch. */
 export type ContractMode = 'observe' | 'warn' | 'enforce'
 export const CONTRACT_MODES = {
   'peec.projects': 'observe',
-  'peec.brands': 'observe',
+  'peec.brands': 'enforce',
   'peec.project_profile': 'observe',
   'peec.domains_by_date': 'enforce',
   'peec.brands_report': 'enforce',

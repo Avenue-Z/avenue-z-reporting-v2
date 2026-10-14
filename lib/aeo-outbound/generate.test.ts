@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { PeecClient } from './peec'
-import { generateSnapshot } from './generate'
+import { codeSetPath, generateSnapshot } from './generate'
+import { dataSentences } from './sentences'
 import type { GleanReply } from './glean'
 import { DECISIONS } from './config'
 import { SETTINGS_DEFAULTS } from './settings'
@@ -83,9 +84,10 @@ test('grounding-only problems still save as a draft, with notes', async () => {
   const bad = JSON.parse(GOOD); bad.why = 'Visibility rose 42.0% last year.'
   const glean = vi.fn(async (_prompt: string) => reply(JSON.stringify(bad)))
   const r = await generateSnapshot('or_a', deps(glean))
-  expect(r.ok && r.notes.map((n) => (typeof n === 'string' ? n : n.text)).join(' ')).toContain('"42.0%" is not in the Peec data')
+  // Spec v1.1 §19.3: a number in a field Glean wrote is an unchecked_number item, and still worth one retry.
+  expect(r.ok && r.notes.map((n) => (typeof n === 'string' ? n : n.text)).join(' ')).toContain('"42.0%": check this number against Peec\'s numbers on the page.')
   expect(glean).toHaveBeenCalledTimes(2)
-  expect(String(glean.mock.calls[1][0])).toContain('"42.0%" is not in the Peec data')
+  expect(String(glean.mock.calls[1][0])).toContain('"42.0%": check this number')
 })
 test('no second Glean attempt with under 60s left', async () => {
   let t = Date.parse('2026-10-08T12:00:00Z')
@@ -227,7 +229,7 @@ test('every failure carries its code', async () => {
   expect(await codeOf(run({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) }))).toBe('own_brand_count')
   expect(await codeOf(run({ ...base, '/reports/domains': () => [] }, { start: '2026-09-01', end: '2026-09-07' }))).toBe('no_data')
   expect(await codeOf(run({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3 }]) }))).toBe('own_brand_no_row')
-  expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', retrieved_chat_count: 0 }]) }))).toBe('zero_retrievals')
+  expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, mentioned_brands: [] }]) }))).toBe('zero_retrievals')
   const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
   expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, null, { maxRows: 3 }))).toBe('history_too_long')
   expect(await codeOf(run(timeoutRoutes))).toBe('history_too_long')
@@ -287,7 +289,7 @@ test('a flag on a page word Glean cannot fix costs no second attempt, and is sti
 })
 
 test('A1: a fixed next step with a number in it is a note, not a reason to retry Glean', async () => {
-  const grounded = JSON.stringify({ ...JSON.parse(GOOD), summary: 'Example Co has solid visibility.', context: 'Rival leads.', sources_bullets: [{ lead: 'Gap:', text: 'Trails Rival.' }, { lead: 'Mix:', text: 'You leads the mix.' }] })
+  const grounded = JSON.stringify({ ...JSON.parse(GOOD), headline: 'Example Co trails Rival', summary: 'Example Co has solid visibility.' })
   const baseline = vi.fn(async () => reply(grounded))
   await generateSnapshot('or_a', deps(baseline))
   expect(baseline).toHaveBeenCalledTimes(1)
@@ -299,13 +301,15 @@ test('A1: a fixed next step with a number in it is a note, not a reason to retry
 })
 
 // Spec v1.1 §18.7: a worse second Glean attempt never replaces a better first one; a tie takes the second.
-const GROUNDED = { ...JSON.parse(GOOD), summary: 'Example Co has solid visibility.', context: 'Rival leads.', sources_bullets: [{ lead: 'Gap:', text: 'Trails Rival.' }, { lead: 'Mix:', text: 'You leads the mix.' }] }
+const GROUNDED = { ...JSON.parse(GOOD), headline: 'Example Co trails Rival', summary: 'Example Co has solid visibility.' }
+// Flags on the fields Glean writes: the code-written sentences carry the same flags in both attempts (spec v1.1 §19.2).
 const numberFlags = (r: Awaited<ReturnType<typeof generateSnapshot>>) =>
-  r.ok ? r.notes.filter((n) => typeof n !== 'string' && n.kind === 'number_not_in_data') : []
+  r.ok ? r.notes.filter((n) => typeof n !== 'string' && n.kind === 'unchecked_number' && !codeSetPath(n.path ?? '', null)) : []
 
-test('§18.7: attempt 1 with one fixable flag beats attempt 2 with four: attempt 1 copy and its one flag are saved', async () => {
+test('§18.7: attempt 1 with one fixable flag beats attempt 2 with three: attempt 1 copy and its one flag are saved', async () => {
   const first = { ...GROUNDED, why: 'Visibility rose 42.0% last year.' }
-  const second = { ...GROUNDED, why: 'Visibility rose 37.0% last year.', summary: 'Example Co has 61.0% reach.', context: 'Rival leads at 88.0%.', headline: 'Up 19.0% this year' }
+  // Code writes the context now (spec v1.1 §19.2), so attempt 2's flags are its headline, summary and why.
+  const second = { ...GROUNDED, why: 'Visibility rose 37.0% last year.', summary: 'Example Co has 61.0% reach.', headline: 'Up 19.0% this year' }
   const glean = vi.fn().mockResolvedValueOnce(reply(JSON.stringify(first))).mockResolvedValueOnce(reply(JSON.stringify(second)))
   const r = await generateSnapshot('or_a', deps(glean))
   expect(glean).toHaveBeenCalledTimes(2)
@@ -315,9 +319,9 @@ test('§18.7: attempt 1 with one fixable flag beats attempt 2 with four: attempt
   expect(flags).toHaveLength(1)
   expect(flags[0]).toMatchObject({ path: 'why' })
   expect(JSON.stringify(flags[0])).toContain('42.0%')
-  // The same second reply, kept on its own (attempt 1 unreadable), carries four flags.
+  // The same second reply, kept on its own (attempt 1 unreadable), carries three flags.
   const alone = vi.fn().mockResolvedValueOnce(reply('not json')).mockResolvedValueOnce(reply(JSON.stringify(second)))
-  expect(numberFlags(await generateSnapshot('or_a', deps(alone)))).toHaveLength(4)
+  expect(numberFlags(await generateSnapshot('or_a', deps(alone)))).toHaveLength(3)
 })
 
 test('§18.7: a tie in flag count keeps attempt 2', async () => {
@@ -330,4 +334,42 @@ test('§18.7: a tie in flag count keeps attempt 2', async () => {
   const flags = numberFlags(r)
   expect(flags).toHaveLength(1)
   expect(JSON.stringify(flags[0])).toContain('37.0%')
+})
+
+test('spec v1.1 §19.2: the context, both boxes and the methodology are the data sentences, whatever Glean sends', async () => {
+  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))))
+  if (!r.ok) throw new Error(r.error)
+  const s = dataSentences(r.data)
+  expect(r.slots.context).toBe(s.context)
+  expect(r.slots.competitive_bullets).toEqual(s.competitive_bullets)
+  expect(r.slots.sources_bullets).toEqual(s.sources_bullets)
+  expect(r.slots.methodology).toBe(s.methodology)
+  expect(r.slots.context).not.toContain('26.1%')
+  expect(r.slots.context).toBe('Competitive context: Rival leads at 30% visibility / 80% share of voice, followed by Example Co at 15% / 20%. Example Co ranks last of the two brands tracked.')
+})
+
+test('spec v1.1 §19.2: a reply with only the opinion fields makes a draft', async () => {
+  const opinion = { headline: 'Example Co trails Rival', summary: 'Example Co trails Rival in AI visibility.', why: 'Why.', opportunities: JSON.parse(GOOD).opportunities }
+  const glean = vi.fn(async () => reply(JSON.stringify(opinion)))
+  const r = await generateSnapshot('or_a', deps(glean))
+  expect(r.ok).toBe(true)
+  expect(glean).toHaveBeenCalledTimes(1)
+})
+
+test('a project with no competitors gives 1 to 3 bullets per box and a draft', async () => {
+  const solo: Record<string, Route> = {
+    ...base,
+    '/brands': () => [ROSTER[0]],
+    '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.15, share_of_voice: 1, position: 3.1 }]),
+  }
+  const r = await generateSnapshot('or_a', { peec: fakePeec(solo).client, glean: vi.fn(async () => reply(GOOD)), deadline: NOW + 270_000, now: () => NOW })
+  if (!r.ok) throw new Error(r.error)
+  for (const box of [r.slots.competitive_bullets, r.slots.sources_bullets]) expect(box.length >= 1 && box.length <= 3).toBe(true)
+  expect(r.slots.context).toBe('No competitors are tracked in this Peec project.')
+})
+
+test('codeSetPath: code-written and settings-set paths never ask Glean for another attempt', () => {
+  for (const p of ['context', 'methodology', 'competitive_bullets.0.lead', 'sources_bullets.2.text', 'brand', 'window_label', 'market', 'page.series', 'kpis.1.value']) expect(codeSetPath(p, null), p).toBe(true)
+  expect(codeSetPath('next_step', 'Fixed.')).toBe(true)
+  for (const p of ['headline', 'summary', 'why', 'opportunities.0.signal', 'category', 'next_step']) expect(codeSetPath(p, null), p).toBe(false)
 })

@@ -252,7 +252,7 @@ test('progress steps are written unawaited for this row, and a failing write log
   expect(lines).toEqual(['[aeo-outbound] progress not recorded id=row-1 step=5 reason=57P01'])
 })
 
-test('with the contract kill switch on, a structurally bad body still answers 400 and inserts nothing', async () => {
+test('with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6), a structurally bad body answers 400 and inserts nothing', async () => {
   as('ryan@avenuez.com')
   vi.stubEnv('CONTRACT_DISABLED', '1')
   for (const b of ['null', '"x"', { projectId: 5 }, { projectId: '' }, { projectId: 'or_a', rerunOf: 'nope' }]) {
@@ -272,4 +272,24 @@ test('a settings user can generate, and the request settings reach the pipeline'
   expect(m.generateSnapshot.mock.calls[0][3]).toMatchObject({ rankAmong: 5, sectionTitles: ['Strengths', 'Gaps'] })
   expect(m.insertArgs).toHaveBeenLastCalledWith(expect.objectContaining({ createdBy: 'ana@avenuez.com' }))
   expect(m.readSettings).toHaveBeenCalledTimes(1)
+})
+
+// Paul's review of #388 (C1): unreadable settings are a retry here too, after the origin check.
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-only user; a foreign origin is still 403 first', async () => {
+  as('ana@avenuez.com')
+  m.readSettings.mockRejectedValueOnce(new Error('connection reset'))
+  const res = await post({ projectId: 'or_a' })
+  expect(res.status).toBe(503)
+  expect(await res.json()).toEqual({ error: 'unavailable' })
+  m.readSettings.mockRejectedValueOnce(new Error('connection reset'))
+  expect((await post({ projectId: 'or_a' }, { origin: 'https://evil.example' })).status).toBe(403)
+  expect(m.listProjects).not.toHaveBeenCalled()
+})
+
+// Paul's review of #388 (C10): a foreign Origin is refused before any session or settings read.
+test('a foreign Origin is a 403 before auth or the settings are read', async () => {
+  vi.mocked(auth).mockClear(); m.readSettings.mockClear()
+  expect((await post({ projectId: 'or_a' }, { origin: 'https://evil.example' })).status).toBe(403)
+  expect(auth).not.toHaveBeenCalled()
+  expect(m.readSettings).not.toHaveBeenCalled()
 })

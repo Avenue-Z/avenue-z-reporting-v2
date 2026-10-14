@@ -53,3 +53,13 @@ test('503 with one safe log line when the read fails', async () => {
   expect(res.status).toBe(503)
   expect(vi.mocked(console.error).mock.calls.map((c) => c.map(String).join(' '))).toEqual(['[aeo-outbound] hub older read failed reason=57P01'])
 })
+
+// Paul's review of #388 (C1).
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-only user, never 403', async () => {
+  const { readSettingsRow } = await import('@/lib/aeo-outbound/settings-store')
+  vi.mocked(readSettingsRow).mockRejectedValueOnce(new Error('connection reset'))
+  as('ana@avenuez.com')
+  const r = await get('')
+  expect(r.status).toBe(503)
+  expect(await r.json()).toEqual({ error: 'unavailable' })
+})

@@ -5,7 +5,7 @@ import { refresh } from 'next/cache'
 import { auth } from '@/auth'
 import { DECISIONS } from '@/lib/aeo-outbound/config'
 import { errorLabel } from '@/lib/aeo-outbound/log'
-import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
+import { preparedDay } from '@/lib/aeo-outbound/metrics'
 import { originAllowed } from '@/lib/aeo-outbound/permissions'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { cleanRecipient } from '@/lib/aeo-outbound/recipient'
@@ -21,13 +21,15 @@ const STALE: Fail = { ok: false, error: 'stale' }
 /** A database failure. The editor and hub show it as "Lost connection. Try again." */
 const UNAVAILABLE: Fail = { ok: false, error: 'unavailable' }
 
-/** The caller's email when they are allowlisted staff on a same-host request; otherwise null. */
-async function caller(): Promise<string | null> {
+/** The caller's email when they are allowlisted staff on a same-host request; otherwise the refusal. A foreign Origin is
+ *  forbidden first; settings that could not be read are unavailable, a retry, never forbidden (spec v1.1 §19.7, A3). */
+async function caller(): Promise<string | Fail> {
+  const h = await headers()
+  if (!originAllowed(h.get('origin'), h.get('host'))) return FORBIDDEN
   const session = await auth()
   const access = await outboundAccess(session?.user)
-  if (!access.ok) return null
-  const h = await headers()
-  return originAllowed(h.get('origin'), h.get('host')) ? access.email : null
+  if (!access.ok) return access.reason === 'unavailable' ? UNAVAILABLE : FORBIDDEN
+  return access.email
 }
 
 /**
@@ -46,7 +48,7 @@ async function guarded<T>(action: 'approve' | 'revoke' | 'discard' | 'copy', id:
 
 export async function approveSnapshotAction(id: string, revision: number, recipient: string): Promise<{ ok: true; token: string } | Fail> {
   const email = await caller()
-  if (!email) return FORBIDDEN
+  if (typeof email !== 'string') return email
   if (!isReportId(id) || !Number.isInteger(revision)) return NOT_FOUND
   return guarded('approve', id, async () => {
     const row = await getReport(id)
@@ -59,7 +61,8 @@ export async function approveSnapshotAction(id: string, revision: number, recipi
     const slots = withDefaults(row.slots, row.data)
     if (DECISIONS.needsValidationBlocksApprove && needsValidationPaths(slots).length) return { ok: false, error: 'Fill in every "Needs validation" first.' } as Fail
     const now = new Date()
-    const html = renderSnapshotHtml(row.data, slots, 'final', fmtEasternDay(now))
+    // Spec v1.1 §19.8: the Prepared date never falls before the data window's last day.
+    const html = renderSnapshotHtml(row.data, slots, 'final', preparedDay(now, row.data.window.end))
     const write = (token: string) => approveQuery(id, revision, { html, token, recipient: who.value, by: email, now })
     let done
     try {
@@ -77,7 +80,7 @@ export async function approveSnapshotAction(id: string, revision: number, recipi
 
 export async function revokeSnapshotAction(id: string): Promise<{ ok: true } | Fail> {
   const email = await caller()
-  if (!email) return FORBIDDEN
+  if (typeof email !== 'string') return email
   if (!isReportId(id)) return NOT_FOUND
   return guarded('revoke', id, async () => {
     const done = await revokeQuery(id, email, new Date())
@@ -89,7 +92,7 @@ export async function revokeSnapshotAction(id: string): Promise<{ ok: true } | F
 
 export async function discardSnapshotAction(id: string): Promise<{ ok: true } | Fail> {
   const email = await caller()
-  if (!email) return FORBIDDEN
+  if (typeof email !== 'string') return email
   if (!isReportId(id)) return NOT_FOUND
   return guarded('discard', id, async () => {
     const done = await discardQuery(id, email, new Date())
@@ -101,7 +104,7 @@ export async function discardSnapshotAction(id: string): Promise<{ ok: true } | 
 
 export async function copySnapshotAsDraftAction(id: string): Promise<{ ok: true; id: string } | Fail> {
   const email = await caller()
-  if (!email) return FORBIDDEN
+  if (typeof email !== 'string') return email
   if (!isReportId(id)) return NOT_FOUND
   return guarded('copy', id, async () => {
     const newId = await copyAsDraft(id, email, new Date())

@@ -17,7 +17,8 @@ export default async function NewBusinessEditorPage({
   const { reportId } = await params
   const session = await requireStaff()
   const access = await outboundAccess(session.user)
-  if (!access.ok) return <NoAccess admins={access.admins} />
+  // Spec v1.1 §19.7 (A3): unreadable settings are a moment to retry, not a refusal.
+  if (!access.ok) return <NoAccess admins={access.admins} unavailable={access.reason === 'unavailable'} />
   if (!isReportId(reportId)) return <SnapshotNotFound />
   let row: Awaited<ReturnType<typeof getReport>>
   try {

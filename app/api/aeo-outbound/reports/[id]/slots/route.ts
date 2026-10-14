@@ -36,14 +36,19 @@ function saveBy(b: { writer?: unknown; seq?: unknown }): SaveBy | null | undefin
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const forbidden = () => NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  // A foreign Origin is refused before any session or settings read, as in the actions (Paul, #388 review).
+  if (!originAllowed(req.headers.get('origin'), req.headers.get('host'))) return forbidden()
   const session = await auth()
-  if (!(await outboundAccess(session?.user)).ok || !originAllowed(req.headers.get('origin'), req.headers.get('host'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const access = await outboundAccess(session?.user)
+  // Spec v1.1 §19.7 (A3): unreadable settings are a retry, not a refusal.
+  if (!access.ok) return access.reason === 'unavailable' ? unavailable() : forbidden()
   const { id } = await ctx.params
   let body: unknown = null
   try { body = await req.json() } catch { /* below */ }
   // v1.1 §10: the body is a contract; a violation keeps the v1.0 400 body.
   if (!checkContract('request.slots', SLOTS_BODY, body).ok) return NextResponse.json({ error: 'bad-request' }, { status: 400 })
-  // The structural guard runs even when CONTRACT_DISABLED turns the contract off, so a bad body is a 400, never a TypeError.
+  // A structural guard as well as the contract, so a bad body is a 400, never a TypeError.
   const b = body as { path?: unknown; value?: unknown; revision?: unknown; writer?: unknown; seq?: unknown } | null
   if (!b || typeof b !== 'object' || typeof b.path !== 'string' || !Number.isInteger(b.revision)) return NextResponse.json({ error: 'bad-request' }, { status: 400 })
   const by = saveBy(b)

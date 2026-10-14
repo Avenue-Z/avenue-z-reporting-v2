@@ -1,5 +1,5 @@
 // Posts to /api/aeo-outbound/generate and maps every answer to what the hub or editor does next (spec §7a).
-import { ACCESS_MESSAGE, BAD_PROJECT, BAD_REQUEST, BAD_RERUN, LOST_CONNECTION } from './messages'
+import { ACCESS_MESSAGE, ACCESS_UNAVAILABLE, BAD_PROJECT, BAD_REQUEST, BAD_RERUN, LOST_CONNECTION } from './messages'
 import { failureText } from './failure-text'
 
 export type GenerateBody = { projectId: string; rerunOf?: string; start?: string; end?: string }
@@ -36,6 +36,9 @@ export async function requestGenerate(body: GenerateBody): Promise<GenerateOutco
       return { kind: 'message', text: ACCESS_MESSAGE, refresh: false }
     case 404:
       return { kind: 'message', text: BAD_RERUN, refresh: false }
+    // Spec v1.1 §19.7 (A3): the settings could not be read, so access could not be checked. Any other 503 is lost.
+    case 503:
+      return b.error === 'unavailable' ? { kind: 'message', text: ACCESS_UNAVAILABLE, refresh: false } : lost
     case 409: {
       const id = str(b.id)
       return id ? { kind: 'open', id } : { kind: 'message', text: '', refresh: true }

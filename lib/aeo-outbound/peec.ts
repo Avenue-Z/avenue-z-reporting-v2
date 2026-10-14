@@ -179,7 +179,7 @@ export class PeecClient {
 
   /** Every row of a list (GET) or report (POST): limit/offset, stop on the first EMPTY page, abort when a
    *  natural key repeats, within a page or across pages, abort past MAX_ENDPOINT_ROWS (aivx peec_api_export.py:106-198). */
-  async all<T>(method: 'GET' | 'POST', path: string, base: Record<string, unknown>, naturalKey: (row: T) => string, limit: number): Promise<T[]> {
+  async all<T>(method: 'GET' | 'POST', path: string, base: Record<string, unknown>, naturalKey: (row: T) => string | null | undefined, limit: number): Promise<T[]> {
     const rows: T[] = []
     const seen = new Set<string>()
     for (;;) {
@@ -190,6 +190,8 @@ export class PeecClient {
       if (page.length === 0) return rows
       for (const row of page) {
         const k = naturalKey(row)
+        // A row with no key is not a repeat: the caller's contract names the missing field (Paul, #388 review).
+        if (k == null) continue
         if (seen.has(k)) {
           throw new PeecError(`[PEEC API] ${path}: the page at offset ${rows.length} repeats a row (${k}), so the data has a duplicate or missing rows`)
         }

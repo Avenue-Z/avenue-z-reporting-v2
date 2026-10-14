@@ -7,7 +7,7 @@ import { checkContract, GENERATE_BODY, REPORT_ID_RE } from '@/lib/aeo-outbound/c
 import { generateSnapshot } from '@/lib/aeo-outbound/generate'
 import { gleanOnce } from '@/lib/aeo-outbound/glean'
 import { originAllowed } from '@/lib/aeo-outbound/permissions'
-import { outboundAccess } from '@/lib/aeo-outbound/access'
+import { outboundAccess, refusalStatus } from '@/lib/aeo-outbound/access'
 import { peecFromEnv, PeecClient, PeecError } from '@/lib/aeo-outbound/peec'
 import { listProjects } from '@/lib/aeo-outbound/pull'
 import { checkRange, type DayRange } from '@/lib/aeo-outbound/range'
@@ -33,9 +33,12 @@ const none = (v: unknown) => v === undefined || v === null
 export async function POST(req: NextRequest) {
   const started = Date.now()
   const deadline = started + GENERATION_DEADLINE_MS
+  // A foreign Origin is refused before any session or settings read, as in the actions (Paul, #388 review).
+  if (!originAllowed(req.headers.get('origin'), req.headers.get('host'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   const session = await auth()
   const access = await outboundAccess(session?.user)
-  if (!access.ok || !originAllowed(req.headers.get('origin'), req.headers.get('host'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  // Spec v1.1 §19.7 (A3): unreadable settings are a retry (503), not a refusal.
+  if (!access.ok) return NextResponse.json({ error: access.reason }, { status: refusalStatus(access.reason) })
   const email = access.email
 
   let body: Record<string, unknown> | null = null
@@ -45,7 +48,7 @@ export async function POST(req: NextRequest) {
   } catch { /* bad request below */ }
   // v1.1 §10: the body is a contract; a violation keeps the v1.0 400 body.
   if (!checkContract('request.generate', GENERATE_BODY, body).ok) return NextResponse.json(BAD_REQUEST, { status: 400 })
-  // The structural guard runs even when CONTRACT_DISABLED turns the contract off, so a bad body is a 400, never a TypeError.
+  // A structural guard as well as the contract, so a bad body is a 400, never a TypeError.
   const projectId = body?.projectId
   const rerunOf = body?.rerunOf ?? null
   if (typeof projectId !== 'string' || !projectId || (rerunOf !== null && !(typeof rerunOf === 'string' && REPORT_ID_RE.test(rerunOf)))) {

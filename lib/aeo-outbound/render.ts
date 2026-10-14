@@ -35,7 +35,8 @@ export const EDITOR_STYLE = '<style>' + [
  * after it ran keeps working. Slots become contenteditable only in edit mode, plaintext-only where supported, else true
  * with plain-text paste. In edit mode, clicks inside links and the sidebar nav never navigate; a click on a chart, a
  * fixed word or a mirror copy posts locked, except the four menu copies (data-mirror-edit, §17.16), which are editable
- * like slots and keep their section heading in sync. Preview posts nothing but ready.
+ * like slots and keep their section heading in sync. In Preview it posts only ready and its scroll position, at most
+ * every 200 ms and scrolls to a position the parent sends, so a reload after a bullet change opens where Ryan was (v1.1 §19.7).
  */
 export const FRAME_SCRIPT_JS = String.raw`(function(){
 var t={},edit=false;
@@ -52,7 +53,9 @@ function setMode(on){edit=on===true;document.documentElement.classList.toggle('a
 window.addEventListener('message',function(e){if(e.source!==parent||!e.data||typeof e.data!=='object')return;var d=e.data;
 if(d.type==='mode')setMode(d.edit);
 else if(d.type==='flush')flush();
-else if(d.type==='focus'&&typeof d.path==='string'){var el=slotEl(d.path);if(!el)return;if(el.scrollIntoView)el.scrollIntoView({block:'center'});if(el.focus)el.focus();el.classList.add('aeo-flash');setTimeout(function(){el.classList.remove('aeo-flash')},1200)}});
+else if(d.type==='focus'&&typeof d.path==='string'){var el=slotEl(d.path);if(!el)return;if(el.scrollIntoView)el.scrollIntoView({block:'center'});if(el.focus)el.focus();el.classList.add('aeo-flash');setTimeout(function(){el.classList.remove('aeo-flash')},1200)}
+else if(d.type==='scroll'&&typeof d.y==='number'&&d.y>=0&&window.scrollTo)window.scrollTo(0,d.y)});
+var st=null;window.addEventListener('scroll',function(){if(st)return;st=setTimeout(function(){st=null;post({type:'scroll',y:Math.round(window.scrollY||0)})},200)},{passive:true});
 document.addEventListener('input',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;var m=el.hasAttribute('data-mirror-edit');var p=el.getAttribute(m?'data-mirror':'data-slot');if(m){var v=el.textContent||'';var s=slotEl(p);if(s)s.textContent=v;mirror(p,v,el)}else syncMenu(p,el.textContent||'',el);post({type:'dirty',path:p});clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});
 document.addEventListener('keydown',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(edit&&el&&e.key==='Enter'){e.preventDefault();if(el.blur)el.blur()}});
 document.addEventListener('paste',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;e.preventDefault();var cd=e.clipboardData||window.clipboardData;var s=cd?cd.getData('text/plain'):'';if(document.execCommand)document.execCommand('insertText',false,s)});
@@ -133,7 +136,8 @@ export const PAGE_CSS = [
 
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
  *  the phone donut shows percentages (§17.2), and the menu marks 05 at the bottom of the page, where AIVx's scroll-spy
- *  never reaches the short last section (§17.12). Registered before the frame script's listener, so it runs first. */
+ *  never reaches the short last section (§17.12). Registered before the frame script's listener, so it runs first. The
+ *  phone legend rounds half to even on the same expression as metrics.ts pyRound, so it matches the source-mix sentence. */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
 function setActive(h){for(var i=0;i<nav.length;i++){if(nav[i].getAttribute('href')===h)nav[i].classList.add('active');else nav[i].classList.remove('active')}}
@@ -147,11 +151,12 @@ if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.
 },true);
 var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
 function copy(x){return JSON.parse(JSON.stringify(x))}
+function r1(x){var p=x.toFixed(100).split('.'),f=p[1]||'';if(/^50*$/.test(f.slice(1))){var d=Number(p[0]+'.'+f.charAt(0));return Number(f.charAt(0))%2===0?d:Number((d+0.1).toFixed(1))}return Number(x.toFixed(1))}
 function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
 function draw(d,l){try{var p=window.Plotly.react(el,d,l);if(p&&p.catch)p.catch(restore)}catch(err){restore()}}
 function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){draw(copy(orig.d),copy(orig.l));return}
 var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],total=0;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];
-t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{percent:.1%}':''});t.labels=lab.map(function(x,i){return x+' '+(100*v[i]/total).toFixed(1)+'%'});
+t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{percent:.1%}':''});t.labels=lab.map(function(x,i){return x+' '+r1((v[i]/total)*100).toFixed(1)+'%'});
 if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');draw(d,l)}
 function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};if(!window.matchMedia)return;var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}

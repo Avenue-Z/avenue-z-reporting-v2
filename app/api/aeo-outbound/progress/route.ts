@@ -4,7 +4,7 @@
 // Both 200 bodies carry `now`, Postgres's clock, so the hook can match its run on the clock that set createdAt (v1.1 §18.9).
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { outboundAccess } from '@/lib/aeo-outbound/access'
+import { outboundAccess, refusalStatus } from '@/lib/aeo-outbound/access'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { databaseNow, generationProgressQuery, isReportId } from '@/lib/aeo-outbound/store'
 
@@ -16,7 +16,9 @@ const PROJECT_ID_MAX = 200
 
 export async function GET(req: Request) {
   const session = await auth()
-  if (!(await outboundAccess(session?.user)).ok) return NextResponse.json({ error: 'forbidden' }, { status: 403, headers: NO_STORE })
+  const access = await outboundAccess(session?.user)
+  // Spec v1.1 §19.7 (A3): unreadable settings are a retry (503), not a refusal.
+  if (!access.ok) return NextResponse.json({ error: access.reason }, { status: refusalStatus(access.reason), headers: NO_STORE })
   const qs = new URL(req.url).searchParams
   const id = qs.get('id')
   const projectId = qs.get('projectId')

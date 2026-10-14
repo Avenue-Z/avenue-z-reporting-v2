@@ -250,3 +250,31 @@ test('approve: a page word still saying Needs validation is refused too, and an 
   expect(await approveSnapshotAction(ID, 1, 'Ada')).toEqual(NOT_FOUND)
   noWrites()
 })
+
+test('spec v1.1 §19.8: approve freezes the later of the Eastern day and the window end as the Prepared date', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    // 03:30 UTC on Oct 14 is 23:30 on Oct 13 in New York.
+    vi.setSystemTime(new Date('2026-10-14T03:30:00Z'))
+    vi.mocked(store.approveQuery).mockImplementation(((_id: string, _rev: number, v: { token: string }) => Promise.resolve([{ id: ID, shareToken: v.token }])) as never)
+    vi.mocked(store.getReport).mockResolvedValue({ ...DRAFT, data: { ...DATA, window: { start: '2026-10-01', end: '2026-10-14' } } } as never)
+    await approveSnapshotAction(ID, 1, 'Ada')
+    expect(vi.mocked(store.approveQuery).mock.calls[0][2].html).toContain('Prepared Oct 14, 2026')
+    vi.mocked(store.getReport).mockResolvedValue({ ...DRAFT } as never)
+    await approveSnapshotAction(ID, 1, 'Ada')
+    expect(vi.mocked(store.approveQuery).mock.calls[1][2].html).toContain('Prepared Oct 13, 2026')
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('spec v1.1 §19.7 (A3): with the settings unreadable, a Settings-only user gets unavailable (try again), never forbidden', async () => {
+  const { readSettingsRow } = await import('@/lib/aeo-outbound/settings-store')
+  vi.mocked(readSettingsRow).mockRejectedValue(new Error('connection reset'))
+  as('INTERNAL_ANALYST', 'ana@avenuez.com')
+  for (const r of await callAll()) expect(r).toEqual(UNAVAILABLE)
+  noWrites()
+  // A foreign Origin is still forbidden first.
+  setHost('https://evil.example')
+  for (const r of await callAll()) expect(r).toEqual(FORBIDDEN)
+})

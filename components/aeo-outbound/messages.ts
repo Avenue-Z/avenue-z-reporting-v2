@@ -1,6 +1,8 @@
 // Every message the hub and editor show, each from the spec (cited) or the task brief.
 /** §8: pages and the 403 answer. */
 export const ACCESS_MESSAGE = 'This tool is limited to the New Business team.'
+/** Spec v1.1 §19.7 (A3): the settings could not be read, so access could not be checked; never shown as no access. */
+export const ACCESS_UNAVAILABLE = "Couldn't check access just now. Reload in a moment."
 /** §7a: a dropped connection or an unexpected 5xx. */
 export const LOST_CONNECTION = 'Lost connection. Refreshing'
 /** §7a: 400 with code bad-project (and any other 400 that is not bad-range). */

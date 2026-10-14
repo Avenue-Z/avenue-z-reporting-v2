@@ -76,3 +76,14 @@ test('503 on a database error, logging one line with no ids or emails', async ()
   expect(await r.json()).toEqual({ error: 'unavailable' })
   expect(error.mock.calls.map((c) => String(c[0]))).toEqual(['[aeo-outbound] progress read failed reason=57P01'])
 })
+
+// Paul's review of #388 (C1).
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 no-store to a settings-only user, never 403', async () => {
+  const { readSettingsRow } = await import('@/lib/aeo-outbound/settings-store')
+  vi.mocked(readSettingsRow).mockRejectedValueOnce(new Error('connection reset'))
+  as('ana@avenuez.com')
+  const r = await get('?projectId=or_a')
+  expect(r.status).toBe(503)
+  expect(await r.json()).toEqual({ error: 'unavailable' })
+  expect(r.headers.get('Cache-Control')).toContain('no-store')
+})

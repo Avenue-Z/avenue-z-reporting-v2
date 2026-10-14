@@ -228,7 +228,7 @@ test('a settings change never alters an existing draft: words and code-set field
   expect(m.save.mock.calls[0][2].page.section_1_title).toBe('Strengths')
 })
 
-test('with the contract kill switch on, a null body and a string revision still answer 400 and save nothing', async () => {
+test('with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6), a null body and a string revision answer 400 and save nothing', async () => {
   vi.stubEnv('CONTRACT_DISABLED', '1')
   for (const b of ['null', { path: 'headline', value: 'x', revision: '3' }]) {
     const res = await patch(b)
@@ -408,4 +408,25 @@ test('an uppercase writer matches its own row: the route compares and stores the
   expect((await patch(edit({ writer: W.toUpperCase() }))).status).toBe(200)
   expect(m.save.mock.calls[0][1]).toBe(4)
   expect(m.save.mock.calls[0][5]).toEqual({ writer: W, seq: 2 })
+})
+
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-only user, so the queue retries; an env user still saves', async () => {
+  m.readSettings.mockRejectedValue(new Error('connection reset'))
+  as('ana@avenuez.com')
+  const res = await patch({ path: 'headline', value: 'x', revision: 3 })
+  expect(res.status).toBe(503)
+  expect(m.save).not.toHaveBeenCalled()
+  // A foreign Origin is still refused, settings readable or not.
+  expect((await patch({ path: 'headline', value: 'x', revision: 3 }, ID, { origin: 'https://evil.example' })).status).toBe(403)
+  as('ryan@avenuez.com')
+  expect((await patch({ path: 'headline', value: 'x', revision: 3 })).status).toBe(200)
+  m.readSettings.mockReset()
+})
+
+// Paul's review of #388 (C10): a foreign Origin is refused before any session or settings read.
+test('a foreign Origin is a 403 before auth or the settings are read', async () => {
+  vi.mocked(auth).mockClear(); m.readSettings.mockClear()
+  expect((await patch({ path: 'headline', value: 'x', revision: 3 }, ID, { origin: 'https://evil.example' })).status).toBe(403)
+  expect(auth).not.toHaveBeenCalled()
+  expect(m.readSettings).not.toHaveBeenCalled()
 })

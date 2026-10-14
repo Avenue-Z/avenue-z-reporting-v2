@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import vectors from './round.vectors.json'
-import { buildSnapshotData, fmtDay, fmtEasternDateTime, fmtEasternDay, pyRound, titleClassification, V1_SETTINGS_USED } from './metrics'
+import { buildSnapshotData, fmtDay, fmtEasternDateTime, fmtEasternDay, preparedDay, pyRound, titleClassification, V1_SETTINGS_USED } from './metrics'
 import type { MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
@@ -37,11 +37,11 @@ const PULL: PeecPull = {
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },
   ],
   domains: [
-    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, retrieved_percentage: 0.2236 },
+    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
     { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, mentioned_brands: [{ id: 'kw_a' }] },
     { domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 900, retrieval_count: 1000, mentioned_brands: [{ id: 'kw_own' }, { id: 'kw_a' }] },
     { domain: 'forum.com', classification: 'UGC', retrieved_chat_count: 300, retrieval_count: 400, mentioned_brands: [{ id: 'kw_b' }] },
-    { domain: 'blank.com', classification: null, retrieved_chat_count: 5, retrieval_count: 0 },
+    { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, mentioned_brands: [] },
   ],
   actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
   promptCount: 100,
@@ -144,18 +144,64 @@ test('Q4: competitorSiteGaps off leaves no gap sites', () => {
 
 test('source mix weighted by retrieved_chat_count (AIVx method)', () => {
   const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { ...DEFAULTS, sourceMixWeight: 'retrieved_chat_count' })
-  expect(d.sourceMix.map((s) => [s.label, s.weight])).toEqual([['You', 1989], ['Competitor', 1250], ['Editorial', 900], ['UGC', 300], ['Uncategorized', 5]])
+  expect(d.sourceMix.map((s) => [s.label, s.weight])).toEqual([['You', 1989], ['Competitor', 1250], ['Editorial', 900], ['UGC', 300], ['Other', 5]])
   expect(d.sourceMix.reduce((t, s) => t + s.weight, 0)).toBe(4444)
 })
 
-test('leader gaps use the exact ratios, not the rounded percentages (spec 5a row 17)', () => {
+test('leader gaps are the difference of the printed percentages, as in Ryan\'s example (spec v1.1 §19.4, issue 383)', () => {
   const brands = [
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.2614, share_of_voice: 0.2234, position: 2.4 },
     { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.1516, share_of_voice: 0.1585, position: 3.06 },
   ]
   const d = buildSnapshotData({ ...PULL, brands }, '2026-10-08T15:00:00Z')
-  // Rounded first: 26.1 - 15.2 = 10.9 and 22.3 - 15.9 = 6.4. Exact: 10.98 -> 11 and 6.49 -> 6.5.
-  expect(d.leaderGaps).toEqual([{ name: 'Alpha', visibilityPoints: 11, sovPoints: 6.5 }])
+  // Printed: 26.1 - 15.2 = 10.9 (the exact ratios would give 11.0) and 22.3 - 15.8 = 6.5 (15.85 is 15.8499... in binary).
+  expect(d.kpis.slice(0, 2).map((k) => k.value)).toEqual(['15.2%', '15.8%'])
+  expect(d.leaderGaps).toEqual([{ name: 'Alpha', visibilityPoints: 10.9, sovPoints: 6.5 }])
+})
+
+test('a rival behind on share of voice gives a negative share-of-voice gap', () => {
+  const brands = [
+    { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.30, share_of_voice: 0.10, position: 2 },
+    { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.20, share_of_voice: 0.15, position: 3 },
+  ]
+  expect(buildSnapshotData({ ...PULL, brands }, '2026-10-08T15:00:00Z').leaderGaps).toEqual([{ name: 'Alpha', visibilityPoints: 10, sovPoints: -5 }])
+})
+
+test('every gap in the fixture equals the printed difference to the tenth', () => {
+  const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z')
+  for (const g of d.leaderGaps) {
+    const rival = d.brands.find((b) => b.name === g.name)!
+    expect(g.visibilityPoints).toBe(Number((rival.visibilityPct - d.own.visibilityPct).toFixed(1)))
+    expect(g.sovPoints).toBe(Number((rival.sovPct! - d.own.sovPct!).toFixed(1)))
+  }
+})
+
+test('new rows carry sentences: 1 (spec v1.1 §19.5)', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').sentences).toBe(1)
+})
+
+test('ownSiteRank: 1 plus the domains with more retrieved chats than the top own site, ties not counted, null with none', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').ownSiteRank).toBe(1)
+  const more = (n: number, chats: number) => Array.from({ length: n }, (_, i) => ({ domain: `big${i}.org`, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, mentioned_brands: [] }))
+  expect(buildSnapshotData({ ...PULL, domains: [...PULL.domains, ...more(11, 5000)] }, '2026-10-08T15:00:00Z').ownSiteRank).toBe(12)
+  expect(buildSnapshotData({ ...PULL, domains: [...PULL.domains, ...more(3, 1989)] }, '2026-10-08T15:00:00Z').ownSiteRank).toBe(1)
+  expect(buildSnapshotData({ ...PULL, domains: PULL.domains.filter((r) => r.domain !== 'example.com') }, '2026-10-08T15:00:00Z').ownSiteRank).toBeNull()
+})
+
+test('noDataBrands: the ranked roster brands with no Peec row, in rank order, never in brands', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').noDataBrands).toEqual([])
+  const roster = [REF('kw_own', 'Own', true), REF('kw_a', 'A'), REF('kw_z', 'Zed'), REF('kw_m', 'Mid')]
+  const brands = [ROW('kw_a', 'A', 0.3), ROW('kw_own', 'Own', 0.2)]
+  const d = buildSnapshotData({ ...PULL, roster, ownBrand: roster[0], brands }, '2026-10-08T15:00:00Z')
+  expect(d.noDataBrands).toEqual(['Mid', 'Zed'])
+  expect(d.brands.map((b) => b.name)).toEqual(['A', 'Own'])
+})
+
+test('preparedDay: the later of the Eastern day and the window end (spec v1.1 §19.8)', () => {
+  // 23:30 Eastern on Oct 13 is Oct 14 in UTC, where a pitch run's data sits.
+  expect(preparedDay(new Date('2026-10-14T03:30:00Z'), '2026-10-14')).toBe('Oct 14, 2026')
+  expect(preparedDay(new Date('2026-10-14T03:30:00Z'), '2026-10-13')).toBe('Oct 13, 2026')
+  expect(preparedDay(new Date('2026-10-14T16:00:00Z'), '2026-10-10')).toBe('Oct 14, 2026')
 })
 
 test('leader gap share of voice is null when either side has none', () => {
@@ -166,7 +212,7 @@ test('leader gap share of voice is null when either side has none', () => {
 
 test('more than one own domain: each is listed with its own count and percentage, and the sum is never paired with one percentage', () => {
   const own = { ...PULL.ownBrand, domains: ['example.com', 'shop.example.com'] }
-  const domains = [...PULL.domains, { domain: 'shop.example.com', classification: 'OWN', retrieved_chat_count: 11, retrieval_count: 20, retrieved_percentage: 0.01 }]
+  const domains = [...PULL.domains, { domain: 'shop.example.com', classification: 'OWN', retrieved_chat_count: 11, retrieval_count: 20, retrieved_percentage: 0.01, mentioned_brands: [] }]
   const d = buildSnapshotData({ ...PULL, ownBrand: own, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownSites).toEqual([{ domain: 'example.com', retrievedChats: 1989, retrievedPct: 22.4 }, { domain: 'shop.example.com', retrievedChats: 11, retrievedPct: 1 }])
   expect(d.ownRetrievedChats).toBe(2000)
@@ -192,19 +238,25 @@ test('competitor gap domains are capped at 4, the top by retrieved chats', () =>
   expect(d.gapDomains.map((g) => g.domain)).toEqual(['gap5.com', 'gap4.com', 'gap3.com', 'gap2.com'])
 })
 
-const gapRow = (domain: string, classification: string | null, chats = 100) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, mentioned_brands: [{ id: 'kw_a' }] })
+const gapRow = (domain: string, classification: string, chats = 100) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, mentioned_brands: [{ id: 'kw_a' }] })
 
-test('gap sites leave out COMPETITOR and OWN rows, roster domains with no classification, and their subdomains', () => {
+test('gap sites leave out COMPETITOR and OWN rows, roster domains whatever their classification, and their subdomains', () => {
   const domains = [
     gapRow('rival-site.com', 'COMPETITOR'),
     gapRow('mine.com', 'OWN'),
-    gapRow('www.beta.com', null),
+    gapRow('www.beta.com', 'EDITORIAL'),
     gapRow('shop.alpha.com', 'EDITORIAL'),
     gapRow('notalpha.com', 'EDITORIAL', 50),
     gapRow('open.com', 'EDITORIAL', 40),
   ]
   const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
   expect(d.gapDomains.map((g) => g.domain)).toEqual(['notalpha.com', 'open.com'])
+})
+
+test('a domain with no retrieved chats is never a gap, so a sentence cannot list one "at 0" (final review M3)', () => {
+  const domains = [gapRow('open.com', 'EDITORIAL', 40), gapRow('zero.com', 'EDITORIAL', 0), { ...gapRow('none.com', 'EDITORIAL'), retrieved_chat_count: null }]
+  const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
+  expect(d.gapDomains).toEqual([{ domain: 'open.com', retrievedChats: 40 }])
 })
 
 const REF = (id: string, name: string, own = false) => ({ id, name, is_own: own, domains: [`${id}.example`] })
@@ -248,11 +300,11 @@ test('worked example: roster 8, rows 6, rankAmong 7 gives n 7 and the first no-d
 })
 
 test('a note says when the data covers fewer days than the range Ryan picked, and not when it covers them all', () => {
-  expect(texts(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes)).toContain('Requested 2026-09-09 to 2026-10-08; Peec data covers 2026-10-01 to 2026-10-08.')
+  expect(texts(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes)).toContain('You asked for Sep 9, 2026 to Oct 8, 2026. Peec has data for Oct 1, 2026 to Oct 8, 2026, so the report covers those days.')
   const same = buildSnapshotData({ ...PULL, requested: { ...PULL.window } }, '2026-10-08T15:00:00Z')
-  expect(texts(same.notes).join(' ')).not.toContain('Requested')
+  expect(texts(same.notes).join(' ')).not.toContain('You asked for')
   const dflt = buildSnapshotData({ ...PULL, rangePicked: false }, '2026-10-08T15:00:00Z')
-  expect(texts(dflt.notes).join(' ')).not.toContain('Requested')
+  expect(texts(dflt.notes).join(' ')).not.toContain('You asked for')
 })
 
 test('spec 18.10 row 1: a higher displayed visibility whose exact gap rounds to 0.0 is listed at 0.1, so rank and gaps agree', () => {
@@ -290,7 +342,7 @@ test('a competitor above 90% displayed visibility adds the warning note, after t
   expect(texts(d.notes)).toContain(WARN('Ace', '90.5'))
   const at = texts(d.notes).indexOf(WARN('Ace', '90.5'))
   const rank = texts(d.notes).findIndex((n) => n.startsWith('Rank is by visibility'))
-  const requested = texts(d.notes).findIndex((n) => n.startsWith('Requested '))
+  const requested = texts(d.notes).findIndex((n) => n.startsWith('You asked for '))
   expect(rank).toBeGreaterThanOrEqual(0)
   expect(requested).toBeGreaterThanOrEqual(0)
   expect(at).toBeGreaterThan(rank)
@@ -315,7 +367,7 @@ test('two brands above 90% give two notes, each after the rank note and before t
   expect(warns).toContain(WARN('Own', '95.0'))
   expect(warns).toContain(WARN('Ace', '98.6'))
   const rank = texts(d.notes).findIndex((n) => n.startsWith('Rank is by visibility'))
-  const requested = texts(d.notes).findIndex((n) => n.startsWith('Requested '))
+  const requested = texts(d.notes).findIndex((n) => n.startsWith('You asked for '))
   expect(rank).toBeGreaterThanOrEqual(0)
   expect(requested).toBeGreaterThanOrEqual(0)
   for (const w of warns) {
@@ -375,8 +427,8 @@ test('date and time in US Eastern, for the hub and the open list', () => {
 test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row; a lookalike domain is not', () => {
   const ownBrand = { ...PULL.ownBrand, domains: ['Brand.com', ''] }
   const roster = [ownBrand, ...PULL.roster.slice(1)]
-  const row = (domain: string, classification: string | null, chats: number) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, retrieved_percentage: chats / 1000 })
-  const domains = [row('brand.com', null, 100), row('blog.brand.com', 'EDITORIAL', 40), row('other.com', 'OWN', 7), row('notbrand.com', 'EDITORIAL', 900)]
+  const row = (domain: string, classification: string, chats: number) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, retrieved_percentage: chats / 1000, mentioned_brands: [] })
+  const domains = [row('brand.com', 'EDITORIAL', 100), row('blog.brand.com', 'EDITORIAL', 40), row('other.com', 'OWN', 7), row('notbrand.com', 'EDITORIAL', 900)]
   const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownSites).toEqual([
     { domain: 'brand.com', retrievedChats: 100, retrievedPct: 10 },
@@ -393,7 +445,7 @@ test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row
 test('an empty own domain matches nothing, so a brand with only that has no own rows', () => {
   const ownBrand = { ...PULL.ownBrand, domains: [''] }
   const roster = [ownBrand, ...PULL.roster.slice(1)]
-  const domains = [{ domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 9, retrieval_count: 1 }]
+  const domains = [{ domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 9, retrieval_count: 1, mentioned_brands: [] }]
   const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownRetrievedChats).toBe(0)
   expect(d.ownSites).toEqual([])

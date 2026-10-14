@@ -21,3 +21,15 @@ test('403 without the allowlist; 200 list; 502 when Peec fails', async () => {
   m.listProjects.mockRejectedValue(new PeecError('down'))
   expect((await GET()).status).toBe(502)
 })
+
+// Paul's review of #388 (C1).
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-only user, never 403', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { readSettingsRow } = await import('@/lib/aeo-outbound/settings-store')
+  vi.mocked(readSettingsRow).mockRejectedValueOnce(new Error('connection reset'))
+  vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ANALYST', email: 'ana@avenuez.com' } } as never)
+  const r = await GET()
+  expect(r.status).toBe(503)
+  expect(await r.json()).toEqual({ error: 'unavailable' })
+  expect(m.listProjects).not.toHaveBeenCalled()
+})

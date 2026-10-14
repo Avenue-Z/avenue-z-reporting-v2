@@ -14,10 +14,14 @@ import { saveSettings } from '@/lib/aeo-outbound/settings-store'
 export type SaveSettingsResult = { ok: true; updatedAt: string | null } | { ok: false; error: string; fieldErrors?: SettingsErrors }
 
 export async function saveSettingsAction(input: SettingsInput, expectedUpdatedAt: string | null): Promise<SaveSettingsResult> {
+  const h = await headers()
+  // A foreign Origin is refused before any session or settings read (Paul, #388 review).
+  if (!originAllowed(h.get('origin'), h.get('host'))) return { ok: false, error: 'forbidden' }
   const session = await auth()
   const access = await outboundAccess(session?.user)
-  const h = await headers()
-  if (!access.ok || !access.admin || !originAllowed(h.get('origin'), h.get('host'))) return { ok: false, error: 'forbidden' }
+  // Spec v1.1 §19.7 (A3): unreadable settings are a retry, not a refusal.
+  if (!access.ok) return { ok: false, error: access.reason }
+  if (!access.admin) return { ok: false, error: 'forbidden' }
   // A form posts an object; anything else (null, a string) is refused as invalid, not a 500.
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return { ok: false, error: 'invalid', fieldErrors: {} }
   if (access.settingsReadFailed) return { ok: false, error: SETTINGS_ERRORS.readFailed }

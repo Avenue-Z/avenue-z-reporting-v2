@@ -14,13 +14,15 @@ export interface BrandReportRow {
   share_of_voice?: number | null
   position?: number | null
 }
+/** A domains-report row as the contract enforces it (contracts.ts, peec.domains_report): a non-empty classification and a
+ *  mentioned_brands array on every row (spec v1.1 §19.6; Paul, #388 review). */
 export interface DomainRow {
   domain: string
-  classification?: string | null
+  classification: string
   retrieved_chat_count?: number | null
   retrieval_count?: number | null
   retrieved_percentage?: number | null
-  mentioned_brands?: { id: string }[] | null
+  mentioned_brands: { id: string }[]
 }
 export interface ActionRow { id: string; title?: string | null; impact?: string | null; type?: string | null; status?: string | null }
 export interface PeecPull {
@@ -99,7 +101,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   const W = { project_id: projectId, start_date: window.start, end_date: window.end }
 
   onStep?.(5)
-  const brands = peecContract('peec.brands_report', await client.all<BrandReportRow>('POST', '/reports/brands', W, (r) => r.brand.id, 10_000))
+  const brands = peecContract('peec.brands_report', await client.all<BrandReportRow>('POST', '/reports/brands', W, (r) => r.brand?.id, 10_000))
   if (!brands.some((r) => r.brand.id === owned[0].id)) throw new PeecError('The own brand has no row in the Peec brands report for this window', false, false, 'own_brand_no_row')
   const warnings: string[] = []
   // Both calls below only supply model names, so any failure but a spent deadline or a broken contract is a
