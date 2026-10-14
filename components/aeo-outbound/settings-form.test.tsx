@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SETTINGS_DEFAULTS } from '@/lib/aeo-outbound/settings'
 import { SettingsForm } from './settings-form'
 
@@ -129,7 +129,10 @@ test('after a save Back is not stopped, and a further edit makes it ask again', 
   render(<SettingsForm {...base} />)
   fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
-  expect(await screen.findByText('Saved')).toBeInTheDocument()
+  // Waiting for "Saved" is not enough: the save resolves outside act, so React can show it a task before the effect that
+  // drops the guard's click listener runs (CI run 38607387769). Awaiting the save inside act runs that effect too.
+  await act(() => save.mock.results[0].value)
+  expect(screen.getByText('Saved')).toBeInTheDocument()
   expect(backStopped()).toBe(false)
   fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths 2' } })
   expect(backStopped()).toBe(true)
