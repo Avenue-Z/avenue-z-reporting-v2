@@ -13,11 +13,21 @@ export type ContractResult = { ok: true } | { ok: false; issues: ContractIssue[]
 /** A zod path as a field name: array indexes dropped, so 10,000 rows missing one field are one field. */
 const fieldOf = (path: readonly PropertyKey[]): string => path.filter((p): p is string => typeof p === 'string').join('.') || '(root)'
 
+/** Spec v1.1 §19.6 removed the off switch. An environment that still sets it is told once per process, so a stale
+ *  setting is not mistaken for a working one (Paul, #388 review). */
+let switchWarned = false
+function warnIfSwitchSet(): void {
+  if (switchWarned || !process.env.CONTRACT_DISABLED) return
+  switchWarned = true
+  console.warn('[aeo-outbound] CONTRACT_DISABLED is set but ignored: AEO Outbound contracts have no off switch (spec v1.1 §19.6). Remove it from this environment.')
+}
+
 /**
  * Checks value against schema. Logs one line per distinct field and issue, with how many times it occurred, at info
  * (observe), warn (warn) or error (enforce), and never a value. Only enforce can fail.
  */
 export function checkContract(boundary: ContractBoundary, schema: z.ZodType, value: unknown, mode: ContractMode = CONTRACT_MODES[boundary]): ContractResult {
+  warnIfSwitchSet()
   const parsed = schema.safeParse(value)
   if (parsed.success) return { ok: true }
   const counts = new Map<string, { field: string; issue: string; n: number }>()

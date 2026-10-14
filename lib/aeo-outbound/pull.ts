@@ -14,13 +14,15 @@ export interface BrandReportRow {
   share_of_voice?: number | null
   position?: number | null
 }
+/** A domains-report row as the contract enforces it (contracts.ts, peec.domains_report): a non-empty classification and a
+ *  mentioned_brands array on every row (spec v1.1 §19.6; Paul, #388 review). */
 export interface DomainRow {
   domain: string
-  classification?: string | null
+  classification: string
   retrieved_chat_count?: number | null
   retrieval_count?: number | null
   retrieved_percentage?: number | null
-  mentioned_brands?: { id: string }[] | null
+  mentioned_brands: { id: string }[]
 }
 export interface ActionRow { id: string; title?: string | null; impact?: string | null; type?: string | null; status?: string | null }
 export interface PeecPull {

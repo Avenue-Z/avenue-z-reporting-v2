@@ -221,7 +221,8 @@ export function buildSnapshotData(
   for (const r of pull.domains) {
     const w = r[decisions.sourceMixWeight] ?? 0
     if (w <= 0) continue
-    const label = r.classification ? titleClassification(r.classification) : 'Uncategorized'
+    // The contract guarantees a non-empty classification on every row (contracts.ts, peec.domains_report).
+    const label = titleClassification(r.classification)
     weights.set(label, (weights.get(label) ?? 0) + w)
   }
   const total = [...weights.values()].reduce((s, w) => s + w, 0)
@@ -238,7 +239,7 @@ export function buildSnapshotData(
       // A domain no answer retrieved is not a gap worth naming (final review M3).
       if ((r.retrieved_chat_count ?? 0) <= 0) return false
       if (r.classification === 'COMPETITOR' || r.classification === 'OWN' || isRosterSite(r.domain)) return false
-      const ids = new Set((r.mentioned_brands ?? []).map((m) => m.id))
+      const ids = new Set(r.mentioned_brands.map((m) => m.id))
       return !ids.has(pull.ownBrand.id) && [...ids].some((id) => competitorIds.has(id))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))

@@ -186,7 +186,7 @@ const PULL: PeecPull = {
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },
   ],
   domains: [
-    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, retrieved_percentage: 0.2236 },
+    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
     { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, mentioned_brands: [{ id: 'kw_a' }] },
   ],
   actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
@@ -245,4 +245,20 @@ test('spec v1.1 §19.2: the Glean reply needs only headline, summary, why and op
     const { [key]: _gone, ...missing } = reply
     expect(checkContract('glean.slots', GLEAN_SLOTS, missing, 'enforce').ok, key).toBe(false)
   }
+})
+
+// Paul's review of #388 (C2): an environment that still sets the removed switch hears about it, once per process.
+test('spec v1.1 §19.6: CONTRACT_DISABLED still set logs one warning that it is ignored, and the checks still run', async () => {
+  vi.resetModules()
+  vi.stubEnv('CONTRACT_DISABLED', '1')
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const fresh = await import('./contracts')
+  const schema = z.object({ n: z.number() })
+  expect(fresh.checkContract('peec.brands_report', schema, { n: 'x' }, 'enforce').ok).toBe(false)
+  expect(fresh.checkContract('peec.brands_report', schema, { n: 'x' }, 'enforce').ok).toBe(false)
+  expect(warn.mock.calls.map((c) => c.join(' ')).filter((l) => l.includes('CONTRACT_DISABLED'))).toEqual([
+    '[aeo-outbound] CONTRACT_DISABLED is set but ignored: AEO Outbound contracts have no off switch (spec v1.1 §19.6). Remove it from this environment.',
+  ])
+  vi.unstubAllEnvs()
+  warn.mockRestore()
 })
