@@ -86,11 +86,16 @@ test('gleanOnce: with GLEAN_ACT_AS=true acts as the given email; any other value
     expect(Object.keys((fetchImpl.mock.calls.at(-1) as unknown as [string, RequestInit])[1].headers as Record<string, string>), v).not.toContain('X-Scio-Actas')
   }
 })
-test('gleanOnce: a refusal (4xx) logs Glean\'s reason without the token, and throws the status only', async () => {
+test('gleanOnce: a refusal (4xx) logs a named cause, never Glean\'s text, the prompt or the token, and throws the status only', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  const fetchImpl = vi.fn(async () => new Response(`Required header missing: X-Glean-ActAs ${FAKE_TOKEN}\nNot allowed`, { status: 400 }))
-  await expect(gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)).rejects.toThrow(/^Glean chat error 400$/)
-  expect(warn.mock.calls.map((c) => c.join(' '))).toEqual(['[aeo-outbound] glean refused status=400 actAs=false detail=Required header missing: X-Glean-ActAs [redacted] Not allowed'])
+  const fetchImpl = vi.fn(async () => new Response(`Required header missing: X-Glean-ActAs ${FAKE_TOKEN} the prompt\nNot allowed`, { status: 400 }))
+  await expect(gleanOnce('the prompt', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)).rejects.toThrow(/^Glean chat error 400$/)
+  fetchImpl.mockImplementationOnce(async () => new Response('the prompt was rejected', { status: 403 }))
+  await expect(gleanOnce('the prompt', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)).rejects.toThrow(/^Glean chat error 403$/)
+  expect(warn.mock.calls.map((c) => c.join(' '))).toEqual([
+    '[aeo-outbound] glean refused status=400 actAs=false cause=actasHeader',
+    '[aeo-outbound] glean refused status=403 actAs=false cause=other',
+  ])
 })
 test('gleanOnce: with GLEAN_ACT_AS=true refuses a malformed email before any request', async () => {
   process.env.GLEAN_ACT_AS = 'true'

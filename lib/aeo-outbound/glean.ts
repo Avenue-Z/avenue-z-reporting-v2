@@ -44,12 +44,11 @@ export async function gleanOnce(prompt: string, signal: AbortSignal, actAsEmail:
   })
   if (!res.ok) {
     if (res.status >= 400 && res.status < 500) {
-      // A refusal says why (a missing or rejected act-as header, say): log Glean's reason, short, with the token removed
-      // and no prompt text sent back; the thrown message stays the status only.
+      // A refusal is logged with its cause named from a fixed list, never Glean's own text (which could echo the prompt):
+      // actasHeader when Glean's answer is about the act-as header, the usual cause (spec v1.1, staging 2026-10-14).
       const why = await res.text().catch(() => '')
-      const token = process.env.GLEAN_API_TOKEN ?? ''
-      const detail = (token ? why.split(token).join('[redacted]') : why).replace(/\s+/g, ' ').trim().slice(0, 160)
-      console.warn(`[aeo-outbound] glean refused status=${res.status} actAs=${actAs} detail=${detail}`)
+      const cause = /act-?as/i.test(why) ? 'actasHeader' : 'other'
+      console.warn(`[aeo-outbound] glean refused status=${res.status} actAs=${actAs} cause=${cause}`)
     } else {
       await res.body?.cancel().catch(() => {})
     }
