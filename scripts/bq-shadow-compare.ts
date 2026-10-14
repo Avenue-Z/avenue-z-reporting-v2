@@ -19,7 +19,18 @@ process.env.BQ_CLIENTS = slug
 // (2026-04-01), or the Google Ads checks fall back to live and read NOT RUN.
 const RANGES = ['last_7_days', 'last_30_days', 'last_90_days', 'last_month', '2026-04-01,2026-06-30']
 
-type Diff = { path: string; live: unknown; bq: unknown; kind: 'MISMATCH' | 'TIE' }
+type Diff = { path: string; live: unknown; bq: unknown; kind: 'MISMATCH' | 'TIE' | 'ORDER' }
+
+// List items are matched by identity, not position: one restated lead re-ranks a list, and a
+// positional diff turns that into dozens of lines. A different order of the same items is ORDER.
+const ID_FIELDS = ['region', 'dma', 'bucket', 'week', 'date', 'key', 'name', 'ad', 'campaign', 'channel']
+function idOf(x: unknown): string | null {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return null
+  const o = x as Record<string, unknown>
+  if (typeof o.keyword === 'string') return `${o.keyword}|${String(o.matchType ?? '')}`
+  for (const f of ID_FIELDS) if (typeof o[f] === 'string') return `${f}=${o[f] as string}`
+  return null
+}
 
 function diff(live: unknown, bq: unknown, path: string, out: Diff[]): number {
   if (typeof live === 'number' && typeof bq === 'number') {
@@ -31,6 +42,18 @@ function diff(live: unknown, bq: unknown, path: string, out: Diff[]): number {
     out.push({ path, live, bq, kind: 'MISMATCH' }); return 1
   }
   if (Array.isArray(live) && Array.isArray(bq)) {
+    const liveIds = live.map(idOf), bqIds = bq.map(idOf)
+    if (live.length && bq.length && [...liveIds, ...bqIds].every((i) => i !== null)) {
+      const lm = new Map(live.map((x, i) => [liveIds[i]!, x])), bm = new Map(bq.map((x, i) => [bqIds[i]!, x]))
+      let n = 0
+      for (const id of new Set([...lm.keys(), ...bm.keys()])) {
+        if (!lm.has(id) || !bm.has(id)) { out.push({ path: `${path}{${id}}`, live: lm.has(id) ? 'present' : 'absent', bq: bm.has(id) ? 'present' : 'absent', kind: 'MISMATCH' }); n++; continue }
+        n += diff(lm.get(id), bm.get(id), `${path}{${id}}`, out)
+      }
+      const common = (ids: (string | null)[], other: Map<string, unknown>) => ids.filter((i) => other.has(i!)).join('\u0000')
+      if (common(liveIds, bm) !== common(bqIds, lm)) out.push({ path: `${path}.order`, live: liveIds.slice(0, 5), bq: bqIds.slice(0, 5), kind: 'ORDER' })
+      return n
+    }
     if (live.length !== bq.length) out.push({ path: `${path}.length`, live: live.length, bq: bq.length, kind: 'MISMATCH' })
     let n = 0
     for (let i = 0; i < Math.min(live.length, bq.length); i++) n += diff(live[i], bq[i], `${path}[${i}]`, out)
@@ -50,7 +73,12 @@ async function both<T>(flags: string[], fn: () => Promise<T>): Promise<{ live: T
   const live = await fn()
   const fellBack: string[] = []
   const warn = console.warn
-  console.warn = (msg?: unknown) => { if (typeof msg === 'string' && msg.includes('"bq_fallback"')) fellBack.push(msg); else warn(msg) }
+  // A fallback for a range before AW_HISTORY_FROM is the designed behaviour (e.g. a compare period
+  // reaching into Q1), not a failed BigQuery read, so it does not make the check NOT RUN.
+  console.warn = (msg?: unknown) => {
+    if (typeof msg !== 'string' || !msg.includes('"bq_fallback"')) return warn(msg)
+    if (!msg.includes('history floor')) fellBack.push(msg)
+  }
   for (const f of flags) process.env[f] = 'bq'
   try { return { live, bq: await fn(), fellBack } } finally { console.warn = warn; for (const f of flags) process.env[f] = 'live' }
 }
@@ -58,7 +86,7 @@ async function both<T>(flags: string[], fn: () => Promise<T>): Promise<{ live: T
 async function main() {
   const AW = ['DATA_BACKEND_GOOGLEADS']
   const LI = ['DATA_BACKEND_LINKEDIN']
-  let compared = 0, mismatches = 0, ties = 0, notRun = 0
+  let compared = 0, mismatches = 0, ties = 0, orders = 0, notRun = 0
   for (const r of RANGES) {
     const checks: Array<[string, string[], () => Promise<unknown>]> = [
       ['paid-search.kpis', AW, () => getPaidSearchKpis(slug, r, 'previous_period')],
@@ -77,13 +105,13 @@ async function main() {
       const out: Diff[] = []
       compared += diff(live, bq, name, out)
       for (const d of out) {
-        if (d.kind === 'TIE') ties++; else mismatches++
+        if (d.kind === 'TIE') ties++; else if (d.kind === 'ORDER') orders++; else mismatches++
         console.log(`${d.kind.padEnd(8)} ${r}  ${d.path}  live=${JSON.stringify(d.live)}  bq=${JSON.stringify(d.bq)}`)
       }
     }
   }
   const ok = mismatches === 0 && notRun === 0
-  console.log(`${ok ? 'SHADOW OK' : 'SHADOW DIFFERS'}: ${compared} compared, ${mismatches} MISMATCH, ${ties} TIE, ${notRun} NOT RUN`)
+  console.log(`${ok ? 'SHADOW OK' : 'SHADOW DIFFERS'}: ${compared} compared, ${mismatches} MISMATCH, ${ties} TIE, ${orders} ORDER, ${notRun} NOT RUN`)
   process.exit(ok ? 0 : 1)
 }
 
