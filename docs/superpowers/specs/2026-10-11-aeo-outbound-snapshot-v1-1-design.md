@@ -1257,26 +1257,33 @@ Formatting rules, used by every sentence:
   `sourceMix[].pct`) rounded half up to a whole number, so "15.1%" on the card reads "15%" in the sentence (Ryan's example).
   KPI cards and charts keep one decimal (unchanged).
 - **Points:** one decimal, from the displayed values (§19.4), e.g. "10.9 percentage points".
-- **Counts:** under 1,000 as digits ("142"); from 1,000 as thousands to one decimal ("2.0K"), from 1,000,000 as millions
-  ("1.2M"). "approximately" precedes a rounded count in the own-site bullet only (Ryan's wording; his gap list has none).
+- **Counts:** under 1,000 as digits ("142"); otherwise thousands to one decimal, rounded half up in integer arithmetic
+  (`Math.round(n / 100) / 10`, so 9,950 is "10.0K"), and from 999,950 millions the same way ("1.0M"). "approximately"
+  precedes a rounded count in the own-site bullet only (Ryan's wording; his gap list has none).
 - **Rank:** an ordinal word ("third"; "21st" from 21). **Brand count:** a word up to ten ("seven"), digits above.
-- **Lists:** "A and B"; "A, B, and C" (Ryan's serial comma). Names and domains as Peec gives them.
-- **The brand set:** `{N}` is `rankN`, the rank card's denominator (`metrics.ts:126,148`), and the noun is "tracked", or
-  "compared" when `rankAmong` cut the set (as the rank note words it, `metrics.ts:149-151`), in every sentence. The
-  brands ranked below the brand are those in `brands` with a lower displayed visibility, then `noDataBrands` (§19.5: roster
-  brands with no Peec row, which rank at zero visibility, `metrics.ts:118,127`), in that order. **Level:** the same
-  displayed visibility. **Top half:** rank at most `ceil(N / 2)`.
+- **Lists:** "A and B"; "A, B, and C" (Ryan's serial comma). Names and domains as Peec gives them, except a domain that
+  starts a sentence gets a capital first letter ("Ualett.com appears", as Ryan wrote it).
+- **The brand set:** `{N}` is `rankN`, the rank card's denominator (`metrics.ts:126,148`). In `context` and the bullets
+  the noun is "tracked", or "compared" when `settingsUsed.rankAmong` is not null; the methodology always says "compared".
+  The brands below the brand are those in `brands` with a lower displayed visibility, then `noDataBrands` (§19.5: roster
+  brands with no Peec row, which rank at zero visibility, `metrics.ts:118,127`) only when the brand's visibility is above
+  0.0. **Level:** the same displayed visibility (so at 0.0 the no-data brands are level with the brand, never below).
+  **Top half:** rank at most `ceil(N / 2)`. **Zero:** when the brand's displayed visibility is 0.0, the context reads
+  "{Brand} has 0% visibility in this window" followed by the leaders as above, and the first-section and leadership
+  bullets never call it first or strong; with every brand at 0.0 the leadership bullet reads lead "Leadership gap:", text
+  "No brand tracked shows visibility in this window."
 
 | Slot | Ryan's example | Sentence (variants) |
 |---|---|---|
-| `context` | "Competitive context: EarnIn leads at 26% visibility / 22% share of voice, followed by Dave at 19% / 17%. Ualett ranks ahead of Brigit, Giggle, MoneyLion, and Chime on the displayed leaderboard." | "Competitive context: {#1} leads at {v}% visibility / {s}% share of voice, followed by {#2} at {v}% / {s}%. {Brand} ranks ahead of {every brand ranked below it, at most five, then "and {k} more"}." The leader and runner-up are the top two of `brands`, the brand included ("{Brand} leads at ..."). A missing share of voice drops " / {s}% share of voice" for that brand. #1 and #2 level: "{#1} and {#2} lead at {v}% visibility, ..." with each one's share of voice. Only the brand has a Peec row: "{Brand} leads at {v}% visibility; the other {k} brands tracked have no Peec data in this window." Nobody below: "{Brand} ranks last of the {N} brands tracked." Brands level with the brand: "{Brand} is level with {X}" before or instead of "ranks ahead of". No competitors: the box is hidden (`render.ts:258`); the slot holds "No competitors are tracked in this Peec project." |
-| `competitive_bullets` (first section) | 1 "Strong category position: Ualett ranks third among the seven brands shown, with 15% visibility and 16% share of voice." 2 "Present in the source ecosystem: Ualett.com appears among the top domains at approximately 2.0K retrievals." 3 "Positive source-use signal: Ualett is shown as used as a source in 23% of tracked answers, up 8.7 percentage points in the displayed period." | 1 lead "Strong category position:" when rank is 3 or better and in the top half, else "Category position:"; text "{Brand} ranks {ordinal} among the {N} brands tracked, with {v}% visibility and {s}% share of voice." (no share of voice: ", with {v}% visibility."). No competitors: lead "AI visibility:", text "{Brand} appears in {v}% of tracked answers." 2 the most retrieved own site (`ownSites[0]`): lead "Present in the source ecosystem:", text "{domain} appears among the top domains at approximately {count} retrievals." when `ownSiteRank` is 10 or better (§19.5), else lead "Own-site retrievals:", text "{domain} appears in {count} retrievals." ("approximately" only before a rounded count); no own site, or its count is 0: lead "Own-site retrievals:", text "{Brand}'s own site was not retrieved in this window." 3 only when that site was retrieved and its `retrievedPct` is not null: lead "Source-use signal:", text "{subject} is used as a source in {p}% of tracked answers." where {subject} is the brand when it has exactly one own site with retrievals (`ownRetrievedPct` not null, `metrics.ts:195`) and the domain otherwise, so one site's figure is never given to the whole brand (v1.1 §9). Ryan's "up 8.7 points" needs an earlier window, which a pitch project does not have (spec 5a row 16): left out. |
-| `sources_bullets` (second section) | 1 "Leadership gap: Ualett trails EarnIn by 10.9 percentage points in visibility and 6.1 points in share of voice; it trails Dave by 3.9 and 1.1 points, respectively." 2 "Competitor domain gaps: The largest displayed gaps include MoneyLion at 9.4K, Finder at 9.0K, Giggle Finance at 8.7K, and EarnIn at 8.0K." 3 "Limited editorial and UGC presence: The displayed domain mix is led by Corporate sources at 45% and Institutional sources at 22%; Editorial represents 6% and UGC 3%." | 1 lead "Leadership gap:", text "{Brand} trails {L1} by {gv} percentage points in visibility and {gs} points in share of voice; it trails {L2} by {gv2} and {gs2} points, respectively." over the first two of `leaderGaps`. One leader: the first clause only. A share-of-voice gap of 0 or less reads "and leads it by {x} points in share of voice" / "and matches it in share of voice" (the second clause: "by {gv2} points in visibility and leads it by {x} in share of voice"); a missing one is left out. Brand ranked first: lead "Leadership position:", text "{Brand} leads {#2} by {g} percentage points in visibility and {s} points in share of voice." where {g} and {s} are the brand's displayed values minus #2's; {s} of 0 reads "and matches it in share of voice", below 0 "and trails it by {x} points in share of voice", missing is left out. Level at the top: "{Brand} is level with {X} at the top of the {N} brands tracked." No #2 with a Peec row: "{Brand} ranks first of the {N} brands tracked." No competitors: no bullet. 2 when `gapDomains` is not empty: lead "Competitor domain gaps:", text "The largest gaps include {d1} at {n1} retrievals, {d2} at {n2}, {d3} at {n3}, and {d4} at {n4}." (Ryan's numbers are not in Peec's feed, his Q4 answer: ranked by how often AI used each site, `metrics.ts:215-223`). 3 lead "Limited editorial and UGC presence:" when neither Editorial nor UGC is in the mix's top two, else "Source mix:"; text "The domain mix is led by {T1} sources at {p1}% and {T2} sources at {p2}%; Editorial represents {pe}% and UGC {pu}%." naming only the ones not already named (absent from the mix is 0%); the own-site slice (`You`) reads "own-site". One type only: "The domain mix is all {T1} sources." Empty mix (`metrics.ts:210`): lead "Source mix:", text "Peec reported no source types for this window." So this box always has 1 to 3 bullets, and the first box 1 to 3. |
+| `context` | "Competitive context: EarnIn leads at 26% visibility / 22% share of voice, followed by Dave at 19% / 17%. Ualett ranks ahead of Brigit, Giggle, MoneyLion, and Chime on the displayed leaderboard." | "Competitive context: {#1} leads at {v}% visibility / {s}% share of voice, followed by {#2} at {v}% / {s}%. {Brand} ranks ahead of {every brand ranked below it, at most five, then "and {k} more"}." The leader and runner-up are the top two of `brands`, the brand included ("{Brand} leads at ..."). A missing share of voice drops " / {s}% share of voice" for that brand. #1 and #2 level: "{#1} and {#2} lead at {v}% visibility, with {s1}% and {s2}% share of voice." Three or more level at the top: "{A}, {B}, and {C} lead at {v}% visibility." Only the brand has a Peec row (and its visibility is above 0.0): "{Brand} leads at {v}% visibility; the other {k} brands tracked have no Peec data in this window." and no "ranks ahead of" sentence. Nobody below: "{Brand} ranks last of the {N} brands tracked." Brands level with the brand: "{Brand} is level with {X}" before or instead of "ranks ahead of". No competitors: the box is hidden (`render.ts:258`); the slot holds "No competitors are tracked in this Peec project." |
+| `competitive_bullets` (first section) | 1 "Strong category position: Ualett ranks third among the seven brands shown, with 15% visibility and 16% share of voice." 2 "Present in the source ecosystem: Ualett.com appears among the top domains at approximately 2.0K retrievals." 3 "Positive source-use signal: Ualett is shown as used as a source in 23% of tracked answers, up 8.7 percentage points in the displayed period." | 1 lead "Strong category position:" when rank is 3 or better and in the top half, else "Category position:"; text "{Brand} ranks {ordinal} among the {N} brands tracked, with {v}% visibility and {s}% share of voice." (no share of voice: ", with {v}% visibility."). No competitors: lead "AI visibility:", text "{Brand} appears in {v}% of tracked answers." 2 the most retrieved own site (`ownSites[0]`): lead "Present in the source ecosystem:", text "{domain} appears among the top domains at approximately {count} retrievals." when `ownSiteRank` is 10 or better (§19.5), else lead "Own-site retrievals:", text "{domain} appears in {count} retrievals." (in both, "approximately" before a count of 1,000 or more); no own site, or its count is 0: lead "Own-site retrievals:", text "{Brand}'s own site was not retrieved in this window." 3 only when that site was retrieved and its `retrievedPct` is not null: lead "Source-use signal:", text "{subject} is used as a source in {p}% of tracked answers." where {subject} is the brand when it has exactly one own-site row (`ownSites.length === 1`, so `ownRetrievedPct` is set, `metrics.ts:195`) and the domain otherwise, so one site's figure is never given to the whole brand (v1.1 §9). Ryan's "up 8.7 points" needs an earlier window, which a pitch project does not have (spec 5a row 16): left out. |
+| `sources_bullets` (second section) | 1 "Leadership gap: Ualett trails EarnIn by 10.9 percentage points in visibility and 6.1 points in share of voice; it trails Dave by 3.9 and 1.1 points, respectively." 2 "Competitor domain gaps: The largest displayed gaps include MoneyLion at 9.4K, Finder at 9.0K, Giggle Finance at 8.7K, and EarnIn at 8.0K." 3 "Limited editorial and UGC presence: The displayed domain mix is led by Corporate sources at 45% and Institutional sources at 22%; Editorial represents 6% and UGC 3%." | 1 lead "Leadership gap:", text "{Brand} trails {L1} by {gv} percentage points in visibility and {gs} points in share of voice; it trails {L2} by {gv2} and {gs2} points, respectively." over the first two of `leaderGaps`. One leader: the first clause only. A share-of-voice gap of 0 or less reads "and leads it by {x} points in share of voice" / "and matches it in share of voice" (the second clause: "by {gv2} points in visibility and leads it by {x} in share of voice"). A missing share-of-voice gap drops its part: "{Brand} trails {L1} by {gv} percentage points in visibility" for the first clause, "it trails {L2} by {gv2} points in visibility" for the second (no "respectively"). Brand ranked first: lead "Leadership position:", text "{Brand} leads {#2} by {g} percentage points in visibility and {s} points in share of voice." where {g} and {s} are the brand's displayed values minus #2's; {s} of 0 reads "and matches it in share of voice", below 0 "and trails it by {x} points in share of voice", missing is left out. Level at the top: "{Brand} is level with {X} at the top of the {N} brands tracked." No #2 with a Peec row: "{Brand} ranks first of the {N} brands tracked." No competitors: no bullet. 2 when `gapDomains` is not empty: lead "Competitor domain gaps:", text "The largest gaps include {d1} at {n1} retrievals, {d2} at {n2}, {d3} at {n3}, and {d4} at {n4}." (Ryan's numbers are not in Peec's feed, his Q4 answer: ranked by how often AI used each site, `metrics.ts:215-223`). 3 lead "Limited editorial and UGC presence:" when neither Editorial nor UGC is in the mix's top two, else "Source mix:"; text "The domain mix is led by {T1} sources at {p1}% and {T2} sources at {p2}%; Editorial represents {pe}% and UGC {pu}%." naming only the ones not already named (absent from the mix is 0%); the own-site slice (`You`) reads "own-site". One type only: "The domain mix is all {T1} sources." Empty mix (`metrics.ts:210`): lead "Source mix:", text "Peec reported no source types for this window." So this box always has 1 to 3 bullets, and the first box 1 to 3. |
 | `methodology` | "Methodology: Snapshot based on ... last 30 days, the displayed seven-brand comparison set, ... Results are directional and intended to identify areas for deeper analysis." | "Snapshot based on Peec AI data for {windowLabel}: {N} brands compared, {P} prompts tracked, and answers from {models}. Results are directional and intended to identify areas for deeper analysis." Each part appears only when `settingsUsed.methodologyStatesPromptsAndModels` (Q6) and its value is known (`promptCount` not null, `models` not empty), joined as a list; with neither: "Snapshot based on Peec AI data for {windowLabel}, comparing {N} brands. Results are ...". No competitors: "the brand alone" for "{N} brands compared" (with neither part: "Snapshot based on Peec AI data for {windowLabel}, for the brand alone. Results are ..."). The label "Methodology:" is the page word, unchanged. |
 
 Every number in these sentences is in `SnapshotData` or computed from it by the rules above; nothing comes from Glean.
-Old rows are unchanged: their stored slots keep their Glean text, and every new check in §19.3 runs only on rows whose
-data carries `sentences: 1` (§19.5), so an older row's grounding is exactly today's.
+Old rows keep their stored Glean text, and every new grounding check in §19.3 runs only on rows whose data carries
+`sentences: 1` (§19.5), so an older row's flags are exactly today's. The one visible change on an older row is the
+`requested_range` note moving into Check these (§19.3).
 
 ### 19.2 Glean writes only the opinion, with no numbers
 
@@ -1303,7 +1310,8 @@ plus the check in §19.3.
   {titles}." when no action title shares a word of four letters or more with the signal.
 - The code-written slots keep `number_not_in_data`, and grounding's allowed numbers also take every number token of
   `dataSentences(d)` (so the whole-number percents, points and counts are allowed). Their domain check runs on the text
-  with brand names removed, so a brand named like a domain (Booking.com) is never flagged.
+  with brand names removed (the names in `brands` and in `noDataBrands`), so a brand named like a domain (Care.com) is
+  never flagged.
 - `requested_range` moves from About this data to Check these (`notes.ts:15`), and a new row's text reads "You asked for
   {fmtDay(start)} to {fmtDay(end)}. Peec has data for {window label}, so the report covers those days."
 
@@ -1333,7 +1341,7 @@ the number of domains with more `retrieved_chat_count` than `ownSites[0]`, null 
   passed): `peec.domains_by_date` `date` matches `^\d{4}-\d{2}-\d{2}`; `peec.domains_report` `classification` a non-empty
   string (Peec also sends custom names such as "Vendors & Platforms", so not a fixed list) and `mentioned_brands` an array
   of `{ id: string }` (often empty); `peec.brands` `id`, `name` strings, `is_own` boolean, `domains` an array of strings or
-  null (a new `enforce` schema, and `CONTRACT_MODES['peec.brands']` becomes `'enforce'`, `config.ts:45`). A violation
+  null or absent (`nullish`, as observed today; a new `enforce` schema, and `CONTRACT_MODES['peec.brands']` becomes `'enforce'`, `config.ts:45`). A violation
   fails the run with `contract_violation` naming the field, as today (`contracts.ts:83-91`). A null classification now
   fails the run instead of drawing an "Uncategorized" slice (`metrics.ts:203` stays as a guard but is unreachable).
 
@@ -1342,14 +1350,15 @@ the number of domains with more `retrieved_chat_count` than `ownSites[0]`, null 
 - **Back steps into the frame (live):** the editor mounts the iframe only once the report HTML has arrived, as a new
   element per load (`key` = the load count), with `srcDoc` set at creation. Trial 2026-10-14: today's empty-then-report
   load adds 1 history entry and each reload adds 2; a new element created with its report adds 0.
-- **Back drops unsaved text (A2):** the frame's `dirty` message carries the field's current text. On unmount the editor
-  queues the latest text of every field typed since its last `edit`, then lets the queue finish (`drain`) instead of
-  aborting it. A draining queue behaves exactly as a live one (a 400 refuses only its field, a 503 or network error
-  retries with the same backoff) and ends when nothing is pending or on a `stop`; it has no time limit while the page is
-  open. `drain` resolves with the paths left unsaved (the outstanding 400s, and every pending path after a `stop`). A
-  module-level map holds each draining queue by report id; an editor opening the same report shows "Finishing your last
-  edits..." and loads the report only when it resolves, then, if any path is left, shows "These edits from your last
-  visit weren't saved: {field labels}." Closing the tab still warns first (`use-leave-guard.ts:9-14`, unchanged).
+- **Back drops unsaved text (A2), my decision 2026-10-14:** the browser Back button asks first, exactly as the Back link,
+  the sidebar and closing the tab already do (`use-leave-guard.ts`, `editor.tsx:318,382`). `useLeaveGuard` (the editor
+  and Settings) adds one history entry for the current address when the page mounts; a `popstate` that lands back on
+  that address while there are unsaved edits opens the same Leave / Stay dialog (Stay adds the entry again, Leave goes
+  back), and with nothing unsaved it goes straight back, so Back still takes one press. Unsaved now also counts text typed
+  in the last 800 ms: the frame's `dirty` message makes the field dirty at the first keystroke (`save-queue.ts:82-87`,
+  unchanged), so the guard is on before the frame's timer fires. The mechanism is confirmed by a trial on the running app
+  before the build (Next's history handling, `next/dist/docs` "linking-and-navigating"). Nothing saves in the background
+  after the editor is gone, so nothing can be lost there.
 - **Old revision after Back (A1, live):** the view route sends the revision it rendered in an `X-Report-Revision` header;
   the editor hands it to the queue (`adopt`), which takes it only while it has sent nothing. The editor also calls
   `router.refresh()` once on mount, so the panel, brand and titles are current.
@@ -1374,23 +1383,25 @@ a pitch run today is covered.
 
 Brand first, last, alone, or level with another; one competitor; ten competitors (five named, "and {k} more"); no share of
 voice; no own site, several own sites (the most retrieved is named); own site eleventh; no gap domains; one source type;
-Editorial or UGC in the top two; a custom classification; a count of 999, 1,000 and 9,950 ("approximately 10.0K"); a
+Editorial or UGC in the top two; a custom classification; a count of 999, 1,000, 9,950 ("10.0K") and 999,950 ("1.0M"); the brand at 0.0% with no-data brands; a
 displayed 14.5% (whole 15); a gap of exactly 0.1; Glean writing "3", "three", "doubled" or "third"; "Peec recommends" with
 no actions, with a matching action, with an unrelated one; a 1-day and a 90-day window; generation at 23:30 Eastern.
 
 ### 19.10 Tests (written first)
 
-`sentences.test.ts` for every row of §19.1 and every edge in §19.9, plus the live A Place for Mom data (Peec values from
-the 2026-10-14 pull) giving the exact sentences; `metrics.test.ts` for displayed-value gaps, `ownSiteRank` and
-`preparedDay`; `prompt.test.ts` and `generate.test.ts` for the four slots from code and Glean writing the rest;
+`sentences.test.ts` for every row of §19.1 and every edge in §19.9, plus a synthetic fixture shaped like the
+2026-10-14 live run (five brands, one far ahead, a 0-visibility brand, 788 domains reduced to the ones that matter;
+made-up names, never a real prospect's data) giving the exact sentences; `metrics.test.ts` for displayed-value gaps,
+`ownSiteRank`, `noDataBrands`, `sentences: 1` and `preparedDay`; `prompt.test.ts` and `generate.test.ts` for the four slots from code and Glean writing the rest;
 `contracts.test.ts` for the new enforced fields and for no off switch; `grounding.test.ts` for both new kinds and the
 allowed sentence numbers; `notes.test.ts` for the group move; `access.test.ts` and the slots and view `route.test.ts` for
-503; `save-queue.test.ts` for `adopt`, `drain` and dropped list edits; `editor.test.tsx` for the iframe mounted once per
-load, the unmount drain, the header adoption, the scroll restore, the stop making the frame read-only and the tooltip;
+503 and the report load's two retries; `save-queue.test.ts` for `adopt` and dropped list edits; `use-leave-guard.test.ts`
+for Back with and without unsaved edits, Stay and Leave; `editor.test.tsx` for the iframe mounted once per load, the
+header adoption, the scroll restore, the stop making the frame read-only and the tooltip; `grounding.test.ts` also for
+the category exemption, number words scanned with names removed, and the code-written slots' domain check;
 `render.frame.test.ts` for the frame script's `dirty` value and `scroll`. Also: the `CONTRACT_DISABLED` cases in
 `access.test.ts`, `settings.test.ts`, `generate/route.test.ts` and slots `route.test.ts` are removed or inverted; a row
 without `sentences` gets exactly today's flags; `generate.test.ts` returns on the first attempt when only code-written
 slots carry flags; the view route and approve pass `preparedDay`'s value; a no-competitor project yields 1 to 3 bullets
-per box and saves. The A Place for Mom values are a fixture in `lib/aeo-outbound/__fixtures__/apfm-2026-09-20.ts`, copied
-from the 2026-10-14 read-only Peec pull (`scratchpad/live-check/peec-raw.mjs` output). Then the live dev check repeats
-the 2026-10-14 test.
+per box and saves. Then the live dev check repeats the 2026-10-14 test, including the page's numbers against a raw Peec
+pull and the Back button with and without unsaved edits.
