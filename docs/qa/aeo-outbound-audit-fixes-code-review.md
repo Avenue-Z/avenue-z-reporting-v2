@@ -9,7 +9,7 @@ holds through `cfb8cc55`, so this range is exactly #388's own work. No unrelated
 **Plan:** `docs/superpowers/plans/2026-10-11-aeo-outbound-snapshot-v1-1.md`, Tasks 37 to 45
 Both are on branch `docs/aeo-outbound-audit-spec` (#367).
 
-**Reviewers:** Paul, Thomas.
+**Reviewers:** Paul and me.
 
 **This document changes no code.**
 
