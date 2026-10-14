@@ -1430,3 +1430,18 @@ These refine §19.1, §19.3 and §19.10 where building or reviewing showed a cas
 - §19.7 A2 became the Back guard, so the frame's `dirty` message keeps carrying only its path (§19.10's "dirty value"
   test does not apply). The frame posts its scroll position (at most every 200 ms) and scrolls to one the editor sends;
   a position of 0 is not sent.
+- The Back guard (§19.7 A2) is built on the browser's Navigation API, not a history entry: a same-document Back or
+  Forward with unsaved edits is cancelled and asks; Leave redoes that exact traversal, and Stay leaves the page as it
+  was. Nothing is stored in history state, so Next.js's refresh (which rewrites the entry's state) cannot disturb it,
+  and the draft's one refresh on open (A1) stays. Where the API is missing, or the browser does not let the page cancel
+  a traversal, Back is left alone. A Back that leaves the page entirely falls to the browser's own leave prompt.
+- `SENTENCES_VERSION` (now 1) is stored on each row; the exact check of an edited code-written sentence runs only when
+  the row's version equals today's. Every percent in one sentence is read together (no two ranked values read equal).
+- The settings-unavailable state (A3) shows "try again" on the hub and the editor page, in the four actions and in the
+  slots and view routes.
+- Final review: Peec's domains are removed whole and in any case before brand names when a code-written sentence is
+  checked, so a brand that starts its own domain is never half a domain; on a row with sentences each domain is also
+  allowed without "www.". An edited count word (two to twenty) is compared like a number; this flags an added or
+  changed word, not a deleted one, and not two numbers swapped. `brands_report` brand id and name and `domains_report`
+  domain are enforced. A domain with no retrieved chats is never a gap. When every type after the first shows 0.0%,
+  the mix reads "almost entirely {Type} sources". The phone donut legend rounds half to even, as the sentence does.
