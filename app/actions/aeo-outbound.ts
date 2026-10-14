@@ -28,7 +28,7 @@ async function caller(): Promise<string | Fail> {
   if (!originAllowed(h.get('origin'), h.get('host'))) return FORBIDDEN
   const session = await auth()
   const access = await outboundAccess(session?.user)
-  if (!access.ok) return access.unavailable ? UNAVAILABLE : FORBIDDEN
+  if (!access.ok) return access.reason === 'unavailable' ? UNAVAILABLE : FORBIDDEN
   return access.email
 }
 

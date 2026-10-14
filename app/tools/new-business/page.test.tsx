@@ -12,7 +12,7 @@ const page = async () => render(await HubPage({ searchParams: Promise.resolve({}
 
 // Final review M4: the hub is Ryan's first screen, so unreadable settings say try again there too (spec v1.1 §19.7, A3).
 test('settings that could not be read say try again on the hub, not that Ryan has no access', async () => {
-  m.access.mockResolvedValue({ ok: false, admins: [], unavailable: true })
+  m.access.mockResolvedValue({ ok: false, admins: [], reason: 'unavailable' })
   await page()
   expect(screen.getByText("Couldn't check access just now. Reload in a moment.")).toBeInTheDocument()
   expect(screen.queryByText(/limited to the New Business team/)).toBeNull()
@@ -20,7 +20,7 @@ test('settings that could not be read say try again on the hub, not that Ryan ha
 })
 
 test('a real refusal still shows no access on the hub', async () => {
-  m.access.mockResolvedValue({ ok: false, admins: ['ryan@avenuez.com'] })
+  m.access.mockResolvedValue({ ok: false, admins: ['ryan@avenuez.com'], reason: 'forbidden' })
   await page()
   expect(screen.getByText(/limited to the New Business team/)).toBeInTheDocument()
   expect(m.list).not.toHaveBeenCalled()

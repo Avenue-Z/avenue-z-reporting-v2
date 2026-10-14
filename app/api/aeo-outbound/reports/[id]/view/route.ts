@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const session = await auth()
   const access = await outboundAccess(session?.user)
   // Spec v1.1 §19.7 (A3): unreadable settings are a retry, not a refusal.
-  if (!access.ok) return access.unavailable ? unavailable() : new Response('Forbidden', { status: 403 })
+  if (!access.ok) return access.reason === 'unavailable' ? unavailable() : new Response('Forbidden', { status: 403 })
   const { id } = await ctx.params
   if (!isReportId(id)) return notFound()
   let row: Awaited<ReturnType<typeof getReport>>

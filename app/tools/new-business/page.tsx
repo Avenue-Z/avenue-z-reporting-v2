@@ -5,8 +5,6 @@ import { hubCounts, listReportSummaries, projectStats } from '@/lib/aeo-outbound
 import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
 import { OutboundHub } from '@/components/aeo-outbound/hub'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
-import { ACCESS_UNAVAILABLE } from '@/components/aeo-outbound/messages'
-import { cardCls } from '@/components/aeo-outbound/ui'
 
 export default async function NewBusinessHubPage({
   searchParams,
@@ -17,8 +15,7 @@ export default async function NewBusinessHubPage({
   const session = await requireStaff()
   const access = await outboundAccess(session.user)
   // Spec v1.1 §19.7 (A3): unreadable settings are a moment to retry, not a refusal.
-  if (!access.ok && access.unavailable) return <div className={cardCls}><p className="text-sm text-text-muted">{ACCESS_UNAVAILABLE}</p></div>
-  if (!access.ok) return <NoAccess admins={access.admins} />
+  if (!access.ok) return <NoAccess admins={access.admins} unavailable={access.reason === 'unavailable'} />
   // v1.1 §5: search is server-side over every row; the tab counts cover every row that matches it.
   const search = cleanSearch(q)
   const now = Date.now()

@@ -273,3 +273,15 @@ test('a settings user can generate, and the request settings reach the pipeline'
   expect(m.insertArgs).toHaveBeenLastCalledWith(expect.objectContaining({ createdBy: 'ana@avenuez.com' }))
   expect(m.readSettings).toHaveBeenCalledTimes(1)
 })
+
+// Paul's review of #388 (C1): unreadable settings are a retry here too, after the origin check.
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-only user; a foreign origin is still 403 first', async () => {
+  as('ana@avenuez.com')
+  m.readSettings.mockRejectedValueOnce(new Error('connection reset'))
+  const res = await post({ projectId: 'or_a' })
+  expect(res.status).toBe(503)
+  expect(await res.json()).toEqual({ error: 'unavailable' })
+  m.readSettings.mockRejectedValueOnce(new Error('connection reset'))
+  expect((await post({ projectId: 'or_a' }, { origin: 'https://evil.example' })).status).toBe(403)
+  expect(m.listProjects).not.toHaveBeenCalled()
+})

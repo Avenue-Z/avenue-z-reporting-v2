@@ -36,12 +36,13 @@ function saveBy(b: { writer?: unknown; seq?: unknown }): SaveBy | null | undefin
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const forbidden = () => NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  // A foreign Origin is refused before any session or settings read, as in the actions (Paul, #388 review).
+  if (!originAllowed(req.headers.get('origin'), req.headers.get('host'))) return forbidden()
   const session = await auth()
   const access = await outboundAccess(session?.user)
-  const forbidden = () => NextResponse.json({ error: 'forbidden' }, { status: 403 })
-  if (!originAllowed(req.headers.get('origin'), req.headers.get('host'))) return forbidden()
   // Spec v1.1 §19.7 (A3): unreadable settings are a retry, not a refusal.
-  if (!access.ok) return access.unavailable ? unavailable() : forbidden()
+  if (!access.ok) return access.reason === 'unavailable' ? unavailable() : forbidden()
   const { id } = await ctx.params
   let body: unknown = null
   try { body = await req.json() } catch { /* below */ }

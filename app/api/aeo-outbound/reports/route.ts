@@ -3,7 +3,7 @@
 // left). Live rows are never here: the hub already lists every one of them.
 import { NextResponse, type NextRequest } from 'next/server'
 import { auth } from '@/auth'
-import { outboundAccess } from '@/lib/aeo-outbound/access'
+import { outboundAccess, refusalStatus } from '@/lib/aeo-outbound/access'
 import { cleanSearch, toHubRow } from '@/lib/aeo-outbound/hub-rows'
 import { errorLabel } from '@/lib/aeo-outbound/log'
 import { isReportId, listReportSummaries } from '@/lib/aeo-outbound/store'
@@ -13,7 +13,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
-  if (!(await outboundAccess(session?.user)).ok) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const access = await outboundAccess(session?.user)
+  // Spec v1.1 §19.7 (A3): unreadable settings are a retry (503), not a refusal.
+  if (!access.ok) return NextResponse.json({ error: access.reason }, { status: refusalStatus(access.reason) })
   const sp = req.nextUrl.searchParams
   const before = sp.get('before')
   const beforeId = sp.get('beforeId')

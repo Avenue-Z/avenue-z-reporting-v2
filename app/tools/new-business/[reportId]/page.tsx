@@ -7,8 +7,6 @@ import { needsValidationPaths, withDefaults } from '@/lib/aeo-outbound/slots'
 import { shareOrigin } from '@/lib/aeo-outbound/share-origin'
 import { OutboundEditor, type OpenEvent } from '@/components/aeo-outbound/editor'
 import { NoAccess } from '@/components/aeo-outbound/no-access'
-import { ACCESS_UNAVAILABLE } from '@/components/aeo-outbound/messages'
-import { cardCls } from '@/components/aeo-outbound/ui'
 import { SnapshotNotFound } from '@/components/aeo-outbound/snapshot-not-found'
 
 export default async function NewBusinessEditorPage({
@@ -20,8 +18,7 @@ export default async function NewBusinessEditorPage({
   const session = await requireStaff()
   const access = await outboundAccess(session.user)
   // Spec v1.1 §19.7 (A3): unreadable settings are a moment to retry, not a refusal.
-  if (!access.ok && access.unavailable) return <div className={cardCls}><p className="text-sm text-text-muted">{ACCESS_UNAVAILABLE}</p></div>
-  if (!access.ok) return <NoAccess admins={access.admins} />
+  if (!access.ok) return <NoAccess admins={access.admins} unavailable={access.reason === 'unavailable'} />
   if (!isReportId(reportId)) return <SnapshotNotFound />
   let row: Awaited<ReturnType<typeof getReport>>
   try {

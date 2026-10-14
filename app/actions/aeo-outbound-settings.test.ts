@@ -124,3 +124,11 @@ test('the last-admin floor counts only env entries that can sign in (@avenuez.co
   vi.stubEnv('AEO_OUTBOUND_USERS', 'ryan@avenuez.com')
   expect((await saveSettingsAction({ ...settingsToInput(STORED), admins: '' }, AT)).ok).toBe(true)
 })
+
+// Paul's review of #388 (C1): a Settings-only admin whose access can't be checked gets unavailable (try again), never forbidden.
+test('spec v1.1 §19.7 (A3): with the settings unreadable, a Settings-only admin gets unavailable, not forbidden', async () => {
+  as('ana@avenuez.com')
+  m.read.mockRejectedValue(Object.assign(new Error('x'), { code: '57P01' }))
+  expect(await saveSettingsAction(settingsToInput(STORED), AT)).toEqual({ ok: false, error: 'unavailable' })
+  expect(m.save).not.toHaveBeenCalled()
+})
