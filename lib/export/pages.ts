@@ -1,8 +1,9 @@
 // The pages a bulk export offers (spec 2026-10-14-bulk-pdf-export-design B2): the client's server-exportable reports in
 // sidebar order (ALL_REPORT_SLUGS), enabled and not hidden, each with the tabs its sidebar shows. A hidden tab is left
 // out: the page and resolveExportView show it as the section's Overview, so it would export the Overview twice.
+// Paid Media's sidebar lists every tab, but the page renders a hidden one as its Overview, so the same rule applies.
 import { AEO_SUBSECTIONS, ALL_REPORT_SLUGS, PAID_MEDIA_SUBSECTIONS, REPORT_NAMES, organicSocialSubsections, visibleSubsections } from '@/lib/constants'
-import { resolveExportView, type ExportViewClient } from './report-view'
+import type { ExportViewClient } from './report-view'
 import { isServerExportSection, type ServerExportSection } from './sections'
 
 export interface ExportPage {
@@ -13,8 +14,6 @@ export interface ExportPage {
   subsection: string | null
   /** The report's name, the popover's group heading. */
   reportTitle: string
-  /** The page title, as the page's header and its PDF show it. */
-  title: string
   /** The tab's sidebar label, the popover's checkbox label. */
   label: string
 }
@@ -37,7 +36,6 @@ export function exportablePages(client: ExportPagesClient): ExportPage[] {
       section,
       subsection: tab.id,
       reportTitle: REPORT_NAMES[section] ?? section,
-      title: resolveExportView(client, section, tab.id).pageTitle,
       label: tab.label,
     })),
   )

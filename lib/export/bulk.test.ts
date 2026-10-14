@@ -3,7 +3,7 @@ import { bulkFilename, bulkRequest, runBulkExport, type PageResult } from './bul
 import type { ExportPage } from './pages'
 
 const page = (section: ExportPage['section'], subsection: string | null = null): ExportPage =>
-  ({ key: `${section}:${subsection ?? ''}`, section, subsection, reportTitle: section, title: subsection ?? section, label: subsection ?? 'Overview' })
+  ({ key: `${section}:${subsection ?? ''}`, section, subsection, reportTitle: section, label: subsection ?? 'Overview' })
 const RANGES = { clientSlug: 'renaissance', dateRange: '2026-09-01:2026-09-30', compareRange: 'previous_period', models: 'ChatGPT,Gemini' }
 
 // Spec 2026-10-14 B5: every page takes the current page's raw ranges, except the Executive Overview's fixed window
