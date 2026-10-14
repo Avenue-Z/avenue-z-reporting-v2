@@ -8,12 +8,15 @@ import { showsPowered } from './render'
 import { dataSentences, isCodeSentencePath, type DataSentences } from './sentences'
 import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 
+/** Phrases that read as numbers but aren't figures, removed before the scan (Paul, #388 review). */
+const IDIOMS = /\b(?:double[- ]down|24\/7)\b/gi
 // Spec v1.1 §19.3: number words flagged in a Glean-written field (ordinals are not; "one" is too common to be a figure).
 const NUMBER_WORDS = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|hundred|thousand|half|twice|double|doubled|triple|tripled|percent)\b/gi
 const UNCHECKED = (token: string) => `"${token}": check this number against Peec's numbers on the page.`
 /** A number standing on its own in Glean's words, read whole: a digit run touching a letter (H1, H10, B2B) is part of a
- *  word; a K, M or x right after the digits is part of the number (10K, 3x). */
-const NUM_ALONE = /(?<![A-Za-z\d.,#])#?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:%|[KkMmx](?![A-Za-z]))?(?![A-Za-z\d])/g
+ *  word, as is one joined by a hyphen to a capital letter (COVID-19, GPT-4; "top-10" is still a number); a K, M or x right
+ *  after the digits is part of the number (10K, 3x). */
+const NUM_ALONE = /(?<![A-Za-z\d.,#])(?<![A-Z]-)#?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:%|[KkMmx](?![A-Za-z]))?(?![A-Za-z\d])/g
 /** Rank words in a code-written sentence ("third", "21st"): compared with Peec's sentence when Ryan edits it. */
 /** Count words a code-written sentence prints ("the five brands", "two more"), compared when Ryan edits it. "one" is left
  *  out, as in NUMBER_WORDS: it is too common to be a figure (final review M1). */
@@ -217,6 +220,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
         // Peec's own action titles (an "H1 heading") are not Glean's numbers.
         let words = text
         for (const a of d.actions) if (a.title) words = words.split(a.title).join(' ')
+        words = words.replace(IDIOMS, ' ')
         for (const m of words.match(NUM_ALONE) ?? []) add('unchecked_number', path, UNCHECKED(m))
         for (const m of words.match(NUMBER_WORDS) ?? []) add('unchecked_number', path, UNCHECKED(m))
       } else if (ref !== undefined) {

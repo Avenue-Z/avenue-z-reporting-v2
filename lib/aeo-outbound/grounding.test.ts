@@ -304,6 +304,20 @@ test('unchecked_number: every digit run and number word in a Glean field, names 
   expect(flagsFor(newRow(seven), { why: 'Seven Seas 24 is ahead.' })).toEqual([])
 })
 
+// Paul's review of #388 (C8): idioms and named things are not figures; real quantities still are.
+test('unchecked_number: "double down", 24/7 and a capitalized name like COVID-19 are not numbers; a quantity still is', () => {
+  const d = newRow()
+  expect(flagsFor(d, { why: 'Double down on editorial coverage, answered 24/7, as demand grew after COVID-19 and GPT-4.' })).toEqual([])
+  const texts = flagsFor(d, { why: 'Double the visibility with top-10 guides covering 1/3 of answers and half the prompts.' }).map((n) => n.text)
+  expect(texts).toEqual([
+    '"10": check this number against Peec\'s numbers on the page.',
+    '"1": check this number against Peec\'s numbers on the page.',
+    '"3": check this number against Peec\'s numbers on the page.',
+    '"Double": check this number against Peec\'s numbers on the page.',
+    '"half": check this number against Peec\'s numbers on the page.',
+  ])
+})
+
 test('unchecked_number: the category only when it is not Peec\'s value; next_step only when no fixed sentence is set', () => {
   const withDigit = newRow({ ...LIVE_SHAPE_PULL, profile: { industry: '24/7 Senior Care', markets: ['United States'] } })
   expect(flagsFor(withDigit)).toEqual([])
@@ -402,7 +416,9 @@ test('a digit inside a word (H1, B2B) is not a number; Peec action titles are re
   const d = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }] })
   const sig = { opportunities: [{ signal: 'Peec recommends H1 heading fixes', opportunity: 'Explore B2B pages', workstream: 'Technical AEO / SEO' }, ...OPINION.opportunities.slice(1)] }
   expect(flagsFor(d, sig)).toEqual([])
-  expect(flagsFor(d, { why: 'Buyers want 24/7 answers.' }).map((n) => n.text)).toEqual(['"24": check this number against Peec\'s numbers on the page.', '"7": check this number against Peec\'s numbers on the page.'])
+  // "24/7" is an idiom, not a figure (Paul's review of #388, C8); a plain 24 still is.
+  expect(flagsFor(d, { why: 'Buyers want 24/7 answers.' })).toEqual([])
+  expect(flagsFor(d, { why: 'Buyers want 24 answers.' }).map((n) => n.text)).toEqual(['"24": check this number against Peec\'s numbers on the page.'])
 })
 
 test('peec_recommends ignores common words: only words of five letters or more, not stop words, count as a match', () => {
