@@ -4,6 +4,7 @@ import type { StoredNote } from '@/lib/aeo-outbound/notes'
 import { RECIPIENT_ERROR } from '@/lib/aeo-outbound/recipient'
 import { OutboundEditor } from './editor'
 import { LOADING_REPORT } from './messages'
+import { EDITOR_MARKER } from './frame-height'
 
 const { refresh, push, actions } = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -939,7 +940,7 @@ test('the Fill in message follows the count and clears at zero', async () => {
 })
 
 // Spec 2026-10-14 editor space (#396): the editor uses the whole screen.
-const root = (c: HTMLElement) => c.querySelector('[data-aeo-editor]') as HTMLElement
+const root = (c: HTMLElement) => c.querySelector(`[${EDITOR_MARKER}]`) as HTMLElement
 
 test('#396: the editor marks its root in every status, so the tools layout drops its width cap only here', async () => {
   for (const over of [{}, { status: 'live' as const, token: 'tok' }, { status: 'revoked' as const }, { status: 'generating' as const }, { status: 'failed' as const }, { unreadable: true }]) {
@@ -957,6 +958,12 @@ test('#396: the frame and the loading box fill the screen under the toolbar, flo
   await waitFor(() => expect(frameIn(container)).not.toBeNull())
   expect(frameIn(container).style.height).toBe('calc(100vh - var(--aeo-toolbar-h, 108px) - 32px)')
   expect(frameIn(container).style.minHeight).toBe('320px')
+})
+
+test('#396: the 32px in the frame height is the toolbar\'s mb-4 above and the root\'s pb-4 below, both in the editor', async () => {
+  const { container } = await setup()
+  expect(root(container).className.split(' ')).toContain('pb-4')
+  expect((root(container).firstElementChild as HTMLElement).className.split(' ')).toContain('mb-4')
 })
 
 test('#396: the toolbar height follows the toolbar, measured as its border box, and stops being watched on unmount', async () => {

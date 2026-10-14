@@ -18,7 +18,7 @@ import { BeforeYouSend, openCount, type AboutInfo } from './before-you-send'
 import { ConfirmDialog } from './confirm-dialog'
 import { CopyLink } from './copy-link'
 import { failureText } from './failure-text'
-import { FRAME_HEIGHT, FRAME_MIN_HEIGHT, TOOLBAR_HEIGHT_VAR, toolbarHeightVar } from './frame-height'
+import { EDITOR_MARKER, FRAME_HEIGHT, FRAME_MIN_HEIGHT, TOOLBAR_HEIGHT_VAR, toolbarHeightVar } from './frame-height'
 import { requestGenerate } from './generate-client'
 import { StatusPill } from './hub'
 import {
@@ -462,7 +462,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const notClassifiedCount = props.opens.length < OPENS_SHOWN ? Math.max(0, props.openCount - props.opens.length) : 0
 
   return (
-    <div ref={rootRef} data-aeo-editor="">
+    <div ref={rootRef} {...{ [EDITOR_MARKER]: '' }} className="pb-4">
       <div ref={toolbarRef} className="sticky top-0 z-20 -mx-8 -mt-8 mb-4 border-b border-white/[0.06] bg-black px-8 py-3">
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/tools/new-business" onClick={(e) => { if (unsaved) { e.preventDefault(); setDialog({ kind: 'leave', then: () => router.push('/tools/new-business') }) } }} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-white">

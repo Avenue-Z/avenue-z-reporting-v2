@@ -6,6 +6,7 @@ vi.mock('@/lib/auth/page-access', () => ({ requireStaff: vi.fn(async () => ({ us
 vi.mock('@/lib/aeo-outbound/access', () => ({ outboundAccess: m.access }))
 vi.mock('@/lib/aeo-outbound/store', async (o) => ({ ...(await o<object>()), getReport: m.getReport }))
 import EditorPage from './page'
+import { EDITOR_MARKER } from '@/components/aeo-outbound/frame-height'
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 const ID = 'c7d8e0a1-1111-4111-8111-111111111111'
@@ -28,11 +29,11 @@ test('a real refusal still shows no access', async () => {
 test('#396: a refusal or a missing snapshot renders no editor marker, so the page keeps the width cap', async () => {
   m.access.mockResolvedValue({ ok: false, admins: [], reason: 'forbidden' })
   const refused = await page()
-  expect(refused.container.querySelector('[data-aeo-editor]')).toBeNull()
+  expect(refused.container.querySelector(`[${EDITOR_MARKER}]`)).toBeNull()
   cleanup()
   m.access.mockResolvedValue({ ok: true, settings: {} })
   m.getReport.mockResolvedValue(null)
   const missing = await page()
   expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
-  expect(missing.container.querySelector('[data-aeo-editor]')).toBeNull()
+  expect(missing.container.querySelector(`[${EDITOR_MARKER}]`)).toBeNull()
 })
