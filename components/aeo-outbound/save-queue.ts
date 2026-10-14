@@ -1,18 +1,24 @@
-// The editor's single save queue (spec §9a): one PATCH at a time, newest value per path, the revision from each
+// The editor's single save queue (spec §9a, v1.1 §3): one PATCH at a time, newest value per path, the revision from each
 // 200 carried into the next request. A field is dirty from its first keystroke until an edit sent after its last
 // keystroke is saved, so Approve (disabled while dirty or saving) can never approve text Ryan is still typing.
 // A 400 belongs to its own field: it is recorded, the field stays dirty, and every other pending field still sends.
+// A structural item (a bullet add or remove) goes out after every pending edit, unless its last attempt came back
+// `retry`, when it goes first; it carries the current revision, and its 200's revision is taken like any save's, so
+// the next keystroke carries the right one.
 // Spec v1.1 section 18.4: every save carries this queue's `writer` and the item's `seq` (assigned the first time the
-// item is sent, kept on every retry, so seq order is send order), a field whose attempt came back `retry` is sent
-// again before any other field, and an attempt that has not answered within SAVE_TIMEOUT_MS is aborted and retried.
+// item is sent, kept on every retry, so seq order is send order), an item whose attempt came back `retry` (a field, or
+// a structural item even with edits pending) is sent again before any other, and an attempt that has not answered
+// within SAVE_TIMEOUT_MS is aborted and retried.
 export type SendResult = { kind: 'ok'; revision: number } | { kind: 'bad'; error: string } | { kind: 'stop' } | { kind: 'retry' }
-export interface SaveState { dirty: boolean; saving: boolean; revision: number; error: string | null; stopped: boolean }
-const RETRY_MESSAGE = "Couldn't save, retrying"
+// badPaths: the fields with an outstanding 400, oldest first, so the newest is the one `error` describes.
+export interface SaveState { dirty: boolean; saving: boolean; structuring: boolean; revision: number; error: string | null; stopped: boolean; badPaths: string[] }
+export const RETRY_MESSAGE = "Couldn't save, retrying"
 const BACKOFF = [1000, 2000, 4000]
 // A decision, not a measurement (spec 18.4): a save is four Neon queries, normally well under a second.
 export const SAVE_TIMEOUT_MS = 15_000
 export interface SendMeta { writer: string; seq: number; signal: AbortSignal }
 type Item = { value: string; stamp: number; seq?: number }
+type StructureItem = { path: string; seq?: number }
 
 // crypto.randomUUID exists only in secure contexts, so the dev server opened by its LAN IP over plain http has none.
 // getRandomValues has no such limit: build an RFC 4122 version 4 UUID from 16 random bytes.
@@ -30,12 +36,15 @@ export class SaveQueue {
   private typed = new Map<string, number>()
   private dirtyPaths = new Set<string>()
   private bad = new Map<string, string>()
+  private structural: StructureItem[] = []
   private running = false
   private waiting = false
   private attempt = 0
   private nextSeq = 1
   // The path whose last attempt came back `retry`: its pending value is the next one sent.
   private retryPath: string | null = null
+  // True when the first structural item's last attempt came back `retry`: it goes next, ahead of pending edits.
+  private retryStructure = false
   // The attempt in flight, so stop() can abort it.
   private inFlight: AbortController | null = null
   readonly writer: string
@@ -50,11 +59,16 @@ export class SaveQueue {
     private readonly timeoutMs: number = SAVE_TIMEOUT_MS,
   ) {
     this.writer = newId()
-    this.state = { dirty: false, saving: false, revision, error: null, stopped: false }
+    this.state = { dirty: false, saving: false, structuring: false, revision, error: null, stopped: false, badPaths: [] }
   }
 
   private set(p: Partial<SaveState>) {
-    this.state = { ...this.state, ...p, dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 || this.bad.size > 0 }
+    this.state = {
+      ...this.state, ...p,
+      dirty: this.dirtyPaths.size > 0 || this.pending.size > 0 || this.bad.size > 0,
+      structuring: this.structural.length > 0,
+      badPaths: [...this.bad.keys()],
+    }
     this.onState(this.state)
   }
 
@@ -78,6 +92,13 @@ export class SaveQueue {
     this.pending.delete(path)
     this.pending.set(path, { value, stamp: this.typed.get(path) ?? 0 })
     this.set({ error: this.waiting || this.attempt > 0 ? RETRY_MESSAGE : this.outstandingBad() })
+    void this.run()
+  }
+
+  structure(path: string) {
+    if (this.state.stopped) return
+    this.structural.push({ path })
+    this.set({})
     void this.run()
   }
 
@@ -117,20 +138,40 @@ export class SaveQueue {
     if (this.running) return
     this.running = true
     try {
-      while (this.pending.size && !this.state.stopped) {
-        const [path, item] = this.next()
+      while ((this.pending.size || this.structural.length) && !this.state.stopped) {
+        const head = this.structural.length > 0 && (this.retryStructure || this.pending.size === 0) ? this.structural[0] : null
+        const isStructure = head !== null
+        const [path, item]: [string, Item] = head ? [head.path, { value: 'structure', stamp: 0 }] : this.next()
         this.retryPath = null
-        item.seq ??= this.nextSeq++
+        this.retryStructure = false
+        // A structural item keeps its seq on the list entry, so a retry resends the same seq.
+        const owner: { seq?: number } = head ?? item
+        const seq = (owner.seq ??= this.nextSeq++)
         this.set({ saving: true })
-        const r = await this.attemptSend(path, item.value, this.state.revision, item.seq)
+        const r = await this.attemptSend(path, item.value, this.state.revision, seq)
         if (this.state.stopped) return
         if (r.kind === 'ok') {
-          if (this.pending.get(path) === item) this.pending.delete(path)
-          if ((this.typed.get(path) ?? 0) === item.stamp && !this.pending.has(path)) this.dirtyPaths.delete(path)
+          if (isStructure) {
+            this.structural.shift()
+            // The list changed shape: its bullets' indices moved or vanished, so their errors and dirt describe nothing real.
+            const prefix = `${path.split('.')[0]}.`
+            for (const k of [...this.bad.keys()]) if (k.startsWith(prefix)) this.bad.delete(k)
+            for (const k of [...this.dirtyPaths]) if (k.startsWith(prefix)) this.dirtyPaths.delete(k)
+            for (const k of [...this.typed.keys()]) if (k.startsWith(prefix)) this.typed.delete(k)
+          } else {
+            if (this.pending.get(path) === item) this.pending.delete(path)
+            if ((this.typed.get(path) ?? 0) === item.stamp && !this.pending.has(path)) this.dirtyPaths.delete(path)
+          }
           this.attempt = 0
           this.set({ revision: r.revision, saving: false, error: this.outstandingBad() })
         } else if (r.kind === 'bad') {
           this.attempt = 0
+          if (isStructure) {
+            // A refused structure (a list already at its limit) is dropped and its reason shown.
+            this.structural.shift()
+            this.set({ saving: false, error: r.error })
+            continue
+          }
           // Only this field is refused. It stays dirty until Ryan changes that text; the others keep sending.
           if (this.pending.get(path) === item) {
             this.pending.delete(path)
@@ -142,7 +183,8 @@ export class SaveQueue {
           this.stop('This snapshot changed. Reload.')
           return
         } else {
-          this.retryPath = path
+          if (isStructure) this.retryStructure = true
+          else this.retryPath = path
           this.set({ saving: false, error: RETRY_MESSAGE })
           this.waiting = true
           try { await this.sleep(BACKOFF[this.attempt] ?? 10_000) } finally { this.waiting = false }

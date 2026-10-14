@@ -501,7 +501,7 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
   status: aeoOutboundStatusEnum('status').notNull().default('generating'),
   data: jsonb('data').$type<Record<string, unknown>>(),
   slots: jsonb('slots').$type<Record<string, unknown>>(),
-  notes: jsonb('notes').$type<string[]>(),
+  notes: jsonb('notes').$type<unknown[]>(),
   revision: integer('revision').notNull().default(0),
   error: text('error'),
   html: text('html'),
@@ -522,6 +522,13 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
   approvedAt: timestamp('approved_at', { withTimezone: true }),
   shareRevokedAt: timestamp('share_revoked_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  // v1.1 (spec 2026-10-11 §7): the generating row's last step written, and a failed row's error code.
+  progressStep: integer('progress_step').notNull().default(0),
+  errorCode: text('error_code'),
+  // v1.1 (spec 2026-10-11 section 18.4): the editor queue and item behind the last save, so a retried save whose answer
+  // was lost is recognized. Set (or cleared to NULL) by every saveSlotsQuery; nothing else writes them.
+  lastWriter: uuid('last_writer'),
+  lastSeq: integer('last_seq'),
 }, (table) => ({
   createdIdx: index('aeo_outbound_created_idx').on(table.createdAt),
   oneGenerating: uniqueIndex('aeo_outbound_one_generating').on(table.peecProjectId).where(sql`status = 'generating'`),
@@ -533,3 +540,47 @@ export const aeoOutboundReports = pgTable('aeo_outbound_reports', {
 }))
 
 export type AeoOutboundRow = typeof aeoOutboundReports.$inferSelect
+
+// v1.1 (spec 2026-10-11 §6): one row per counted open of a live link. No IP address and no full user agent.
+export const aeoOutboundOpens = pgTable('aeo_outbound_opens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reportId: uuid('report_id').notNull().references(() => aeoOutboundReports.id),
+  openedAt: timestamp('opened_at', { withTimezone: true }).notNull(),
+  uaFamily: text('ua_family').notNull(),
+  likelyAutomated: boolean('likely_automated').notNull(),
+  reason: text('reason'),
+}, (table) => ({
+  reportIdx: index('aeo_outbound_opens_report_idx').on(table.reportId, table.openedAt),
+}))
+export type AeoOutboundOpenRow = typeof aeoOutboundOpens.$inferSelect
+
+// v1.1 (spec 2026-10-11 §8): the tool's settings (one row at most) and every change made to them. Every write sets
+// updated_at explicitly at millisecond precision, so the optimistic check compares exactly what the browser was sent.
+export const aeoOutboundSettings = pgTable('aeo_outbound_settings', {
+  id: boolean('id').primaryKey().default(true),
+  users: jsonb('users').$type<string[]>().notNull(),
+  admins: jsonb('admins').$type<string[]>().notNull(),
+  sectionTitles: jsonb('section_titles').$type<string[]>().notNull(),
+  fixedNextStep: text('fixed_next_step'),
+  rankAmong: integer('rank_among'),
+  peecOpportunityRows: integer('peec_opportunity_rows').notNull(),
+  methodologyStatesPromptsAndModels: boolean('methodology_states_prompts_and_models').notNull(),
+  sidebarWordmark: text('sidebar_wordmark').notNull(),
+  series: text('series').notNull().default('AI Visibility Snapshot'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  updatedBy: text('updated_by').notNull(),
+}, (table) => ({
+  singleRow: check('aeo_outbound_settings_single_row', sql`${table.id}`),
+}))
+export type AeoOutboundSettingsRow = typeof aeoOutboundSettings.$inferSelect
+
+export const aeoOutboundSettingsLog = pgTable('aeo_outbound_settings_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
+  changedBy: text('changed_by').notNull(),
+  field: text('field').notNull(),
+  oldValue: jsonb('old_value'),
+  newValue: jsonb('new_value'),
+}, (table) => ({
+  changedIdx: index('aeo_outbound_settings_log_changed_idx').on(table.changedAt),
+}))

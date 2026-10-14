@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
-import { isPeecDeadline, isPeecTimeout, PeecClient, PeecDeadlineError, PeecError, retryDelayMs, rowsOf } from './peec'
+import { isPeecContractViolation, isPeecDeadline, isPeecRowCap, isPeecTimeout, PeecClient, PeecDeadlineError, PeecError, retryDelayMs, rowsOf } from './peec'
 
 const KEY = 'skc-test-key-123'
 
@@ -278,6 +278,33 @@ test('isPeecTimeout is true for a deadline and a timeout from the client, false 
   expect(new PeecError('x').timeout).toBe(false)
 })
 
+test('rowCap is true only for the row-cap error; isPeecRowCap agrees', async () => {
+  let n = 0
+  const capFetch = vi.fn(async () => json({ data: [{ id: `r${n++}` }, { id: `r${n++}` }] }))
+  const cap = await new PeecClient(KEY, { fetch: capFetch, maxRows: 3 }).all<{ id: string }>('GET', '/x', {}, (r) => r.id, 2).catch((e: unknown) => e)
+  expect((cap as Error).message).toContain('more than 3 rows')
+  expect((cap as PeecError).rowCap).toBe(true)
+  expect(isPeecRowCap(cap)).toBe(true)
+  const page = vi.fn(async () => json({ data: [{ id: 'a' }, { id: 'a' }] }))
+  const repeat = await new PeecClient(KEY, { fetch: page }).all<{ id: string }>('GET', '/x', {}, (r) => r.id, 10).catch((e: unknown) => e)
+  expect((repeat as PeecError).rowCap).toBe(false)
+  expect(isPeecRowCap(repeat)).toBe(false)
+  const http = await new PeecClient(KEY, { fetch: vi.fn(async () => new Response('bad', { status: 400 })) }).call('GET', '/x').catch((e: unknown) => e)
+  expect((http as Error).message).toContain('HTTP 400')
+  expect(isPeecRowCap(http)).toBe(false)
+  expect(isPeecRowCap(new Error('more than 3 rows'))).toBe(false)
+  expect(new PeecError('x').rowCap).toBe(false)
+})
+
+test('a PeecError carries an optional code, none by default', () => {
+  expect(new PeecError('x').code).toBeNull()
+  const e = new PeecError('No day between 2026-09-01 and 2026-09-07 has any Peec data for this project', false, false, 'no_data')
+  expect([e.code, e.timeout, e.rowCap, e.name]).toEqual(['no_data', false, false, 'PeecError'])
+  expect(isPeecContractViolation(new PeecError('peec.brands_report.visibility', false, false, 'contract_violation'))).toBe(true)
+  expect(isPeecContractViolation(e)).toBe(false)
+  expect(isPeecContractViolation(new Error('x'))).toBe(false)
+})
+
 // Spec 18.3: only a spent deadline is PeecDeadlineError; a 45s timer with budget left is a plain timed-out PeecError.
 const hangUntilAbort = vi.fn((_u: string, init?: RequestInit) => new Promise<Response>((_r, rej) => {
   init?.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
@@ -336,6 +363,13 @@ test('a 45s timer with budget left is a plain timed-out PeecError, not a deadlin
   const noDeadline = await new PeecClient(KEY, { fetch: vi.fn(async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }) }) }).call('GET', '/x').catch((e: unknown) => e)
   expect(isPeecDeadline(noDeadline)).toBe(false)
   expect(isPeecTimeout(noDeadline)).toBe(true)
+})
+
+test("#368's PeecError arguments keep their positions: a PeecDeadlineError is no row cap, has no code and is no contract violation", () => {
+  const e = new PeecDeadlineError('[PEEC API] /x: deadline reached')
+  expect([e.timeout, e.rowCap, e.code, e.name]).toEqual([true, false, null, 'PeecError'])
+  expect(isPeecRowCap(e)).toBe(false)
+  expect(isPeecContractViolation(e)).toBe(false)
 })
 
 test('isPeecDeadline is false for an HTTP error, a plain PeecError and a non-Peec error', async () => {

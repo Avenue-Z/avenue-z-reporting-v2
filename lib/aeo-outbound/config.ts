@@ -11,26 +11,86 @@ export const DECISIONS = {
   /** The source-mix weighting (my call, not Ryan's): retrieval_count matches Peec's dashboard within 1 point;
    *  retrieved_chat_count is AIVx's method. */
   sourceMixWeight: 'retrieval_count' as 'retrieval_count' | 'retrieved_chat_count',
-  /** Q3: Glean writes a more specific category instead of using Peec's `industry`. */
-  writeSpecificCategory: false as boolean,
-  /** Q5: how many of the three opportunities come from Peec actions when any exist. */
+  /** Q3 (Ryan, 2026-10-12: yes): Glean writes a more specific category instead of using Peec's `industry` (spec v1.1 §16.1). */
+  writeSpecificCategory: true as boolean,
+  /** Q5 (Ryan, 2026-10-12: only when relevant): at most this many of the three opportunities may come from Peec actions, never forced (spec v1.1 §16.1). */
   peecOpportunityRows: 1 as number,
   /** Q6: the methodology states the prompt count and the models covered. */
   methodologyStatesPromptsAndModels: true as boolean,
-  /** Q7: one fixed next-step sentence for every report, or null for one written per brand. */
-  fixedNextStep: null as string | null,
+  /** Q7 (Ryan, 2026-10-12: "This looks repeatable, yes"): one fixed next-step sentence for every report, the one from his
+   *  own example; null would mean one written per brand (spec v1.1 §16.1). */
+  fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.' as string | null,
   /** Q8: Approve stays disabled while any slot still says "Needs validation". */
   needsValidationBlocksApprove: true as boolean,
   /** Q9: only PITCH and PITCH_ENDED projects can be used. */
   pitchOnly: true as boolean,
-  /** Q10: the sidebar wordmark reads "AIVx", as on AIVx reports. */
-  showAivxName: true as boolean,
+  /** Q10 (Ryan, 2026-10-12: leave AIVx off the report): false makes the sidebar wordmark read "Avenue Z" (spec v1.1 §16.1). */
+  showAivxName: false as boolean,
 }
 export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
-/** Report window, in UTC calendar days (spec §7 step 4). */
-export const DEFAULT_WINDOW_DAYS = 30
+/** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */
 export const MAX_WINDOW_DAYS = 90
 export const MAX_LOOKBACK_DAYS = 400
+/** A brand shown above this visibility gets a notes-panel warning (spec §7): common-word names match unrelated answers. */
+export const IMPLAUSIBLE_VISIBILITY_PCT = 90
+
+/** Data contracts (spec v1.1 §10): the mode of each boundary's enforced fields. Every field a Peec boundary reads outside
+ *  its enforced set is always observed. CONTRACT_DISABLED (any value but empty, 0 or false) turns every check off. */
+export type ContractMode = 'observe' | 'warn' | 'enforce'
+export const CONTRACT_MODES = {
+  'peec.projects': 'observe',
+  'peec.brands': 'observe',
+  'peec.project_profile': 'observe',
+  'peec.domains_by_date': 'enforce',
+  'peec.brands_report': 'enforce',
+  'peec.brands_by_model': 'enforce',
+  'peec.model_channels': 'observe',
+  'peec.domains_report': 'enforce',
+  'peec.actions': 'observe',
+  'peec.prompts': 'enforce',
+  'glean.slots': 'enforce',
+  'request.generate': 'enforce',
+  'request.slots': 'enforce',
+  'settings.row': 'enforce',
+  'stored.data': 'enforce',
+  'stored.slots': 'enforce',
+  'stored.notes': 'enforce',
+} as const satisfies Record<string, ContractMode>
+export type ContractBoundary = keyof typeof CONTRACT_MODES
+
+/** Every fixed word on the v1.0 page (render.ts at 06e68c0d), keyed by its page slot (spec v1.1 §3). The default of each
+ *  page.* slot on a row from before v1.1. A new row takes section titles and the wordmark from settings instead. None
+ *  contains a number, so grounding on a row's page words is unchanged until Ryan types one. */
+export const PAGE_WORDS_V1 = {
+  series: 'AI Visibility Snapshot',
+  headline_label: 'Headline signal',
+  section_1_title: DECISIONS.sectionTitles[0],
+  section_2_title: DECISIONS.sectionTitles[1],
+  opps_label: 'Opportunities',
+  method_nav: 'Methodology',
+  category_label: 'Category:',
+  market_label: 'Market:',
+  window_prefix: 'Data window:',
+  chart_1_title: 'Domain Types',
+  chart_2_title: 'Competitive Visibility',
+  why_title: 'Why it matters',
+  opps_title: 'Three opportunities to explore',
+  opps_col_1: 'Signal',
+  opps_col_2: 'Opportunity to explore',
+  opps_col_3: 'Likely workstream',
+  opps_takeaway: 'These are opportunity hypotheses for discussion, not a full roadmap.',
+  method_label: 'Methodology:',
+  next_label: 'Next step:',
+  prepared_label: 'Prepared',
+  footer_name: 'Avenue Z',
+  footer_desc: 'Avenue Z is a digital marketing and PR agency specializing in AI visibility and Answer Engine Optimization (AEO). We help brands earn citation authority with AI models through earned media, content strategy, and technical optimization.',
+  footer_link: 'avenuez.com ↗',
+  footer_disclaimer: 'Data reflects a Peec AI visibility snapshot for the stated window and is directional. Avenue Z makes no representations about future AI visibility outcomes.',
+  sidebar_wordmark: DECISIONS.showAivxName ? 'AIVx' : 'Avenue Z',
+  sidebar_powered: 'Powered by Avenue Z',
+  sidebar_link: 'avenuez.com ↗',
+  method_title: 'Methodology and next step',
+}

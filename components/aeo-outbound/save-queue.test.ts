@@ -163,6 +163,67 @@ test('stop() while a send is in flight: a late ok changes neither the revision n
   release({ kind: 'ok', revision: 9 }); await flush()
   expect(q.state).toMatchObject({ revision: 5, stopped: true, error: 'This snapshot changed. Reload.' })
 })
+test('badPaths names every field with an outstanding 400, and empties once each is fixed', async () => {
+  let leadOk = false
+  const send = vi.fn(async (p: string): Promise<SendResult> => (p === LEAD && !leadOk ? { kind: 'bad', error: MSG } : { kind: 'ok', revision: 1 }))
+  const q = new SaveQueue(send, 0, () => {})
+  expect(q.state.badPaths).toEqual([])
+  q.markDirty(LEAD); q.edit(LEAD, 'x'.repeat(81))
+  q.markDirty('headline'); q.edit('headline', 'h')
+  await flush()
+  expect(q.state.badPaths).toEqual([LEAD])
+  expect(q.state.error).toBe(MSG)
+  leadOk = true
+  q.markDirty(LEAD); q.edit(LEAD, 'short')
+  await flush()
+  expect(q.state.badPaths).toEqual([])
+})
+
+test('a structural item waits for every pending edit, then goes out with the revision the last save returned', async () => {
+  const calls: [string, string, number][] = []
+  let rev = 3
+  const send = vi.fn(async (p: string, v: string, r: number): Promise<SendResult> => { calls.push([p, v, r]); return { kind: 'ok', revision: ++rev } })
+  const states: boolean[] = []
+  const q = new SaveQueue(send, 3, (s) => states.push(s.structuring))
+  q.markDirty('headline'); q.edit('headline', 'a')
+  q.structure('competitive_bullets.add')
+  expect(q.state.structuring).toBe(true)
+  await flush()
+  expect(calls).toEqual([['headline', 'a', 3], ['competitive_bullets.add', 'structure', 4]])
+  expect(q.state).toMatchObject({ structuring: false, dirty: false, saving: false, revision: 5 })
+  expect(states).toContain(true)
+})
+
+test('a refused structural item is dropped with its error; a stop stops it', async () => {
+  const q = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'bad', error: 'A list needs at least one bullet.' })), 0, () => {})
+  q.structure('sources_bullets.0.remove')
+  await flush()
+  expect(q.state).toMatchObject({ structuring: false, error: 'A list needs at least one bullet.' })
+  const stopped = new SaveQueue(vi.fn(async (): Promise<SendResult> => ({ kind: 'stop' })), 0, () => {})
+  stopped.structure('sources_bullets.add')
+  await flush()
+  expect(stopped.state).toMatchObject({ stopped: true, error: 'This snapshot changed. Reload.' })
+})
+
+test('a structural save clears the errors and dirt of the list it changed, and leaves other lists alone', async () => {
+  const send = vi.fn(async (p: string, _v: string, r: number): Promise<SendResult> =>
+    p === 'sources_bullets.2.lead' ? { kind: 'bad', error: 'Too long.' } : { kind: 'ok', revision: r + 1 })
+  const q = new SaveQueue(send, 1, () => {})
+  q.markDirty('sources_bullets.2.lead'); q.edit('sources_bullets.2.lead', 'x')
+  await flush()
+  expect(q.state).toMatchObject({ dirty: true, badPaths: ['sources_bullets.2.lead'], error: 'Too long.' })
+  q.markDirty('competitive_bullets.0.lead'); q.edit('competitive_bullets.0.lead', 'y')
+  await flush()
+  q.markDirty('competitive_bullets.1.lead')
+  q.structure('sources_bullets.2.remove')
+  await flush()
+  expect(q.state.badPaths).toEqual([])
+  expect(q.state.error).toBeNull()
+  expect(q.state.dirty).toBe(true)
+  q.edit('competitive_bullets.1.lead', 'z')
+  await flush()
+  expect(q.state).toMatchObject({ dirty: false, badPaths: [], error: null })
+})
 
 // Spec v1.1 section 18.4: every save says who wrote it and in what order, a retried field goes first, and a hung
 // save times out into a retry.
@@ -331,4 +392,41 @@ test('without crypto.randomUUID (plain http), the writer is a version 4 UUID bui
   } finally {
     vi.unstubAllGlobals()
   }
+})
+
+// Spec v1.1 section 18.4, structure items (#368 only): a structure item gets its seq on first send and keeps it on
+// every retry, and after a retry it stays first even when edits are pending.
+test('a structure item gets its seq on first send and keeps it on every retry', async () => {
+  const sleep = vi.fn(async (_ms: number) => {})
+  const log: Sent[] = []
+  const q = new SaveQueue(record(log, (n) => (n === 2 || n === 3 ? { kind: 'retry' } : { kind: 'ok', revision: n })), 0, () => {}, sleep, () => 'w')
+  q.edit('headline', 'a'); await flush()
+  q.structure('competitive_bullets.add'); await flush()
+  expect(log.map((s) => [s.path, s.value, s.seq, s.revision])).toEqual([
+    ['headline', 'a', 1, 0],
+    ['competitive_bullets.add', 'structure', 2, 1],
+    ['competitive_bullets.add', 'structure', 2, 1],
+    ['competitive_bullets.add', 'structure', 2, 1],
+  ])
+  expect(q.state).toMatchObject({ structuring: false, saving: false, error: null, revision: 4 })
+})
+test('a structure item retried goes before a pending edit and keeps its seq; then normal order resumes', async () => {
+  let release: () => void = () => {}
+  const sleep = vi.fn(() => new Promise<void>((r) => { release = r }))
+  const log: Sent[] = []
+  const q = new SaveQueue(record(log, (n) => (n === 1 ? { kind: 'retry' } : { kind: 'ok', revision: n })), 0, () => {}, sleep, () => 'w')
+  q.structure('competitive_bullets.add'); await flush()
+  expect(log.map((s) => [s.path, s.seq])).toEqual([['competitive_bullets.add', 1]])
+  // During the backoff an edit and a second structure item queue up. Without retry first the edit would go next.
+  q.markDirty('headline'); q.edit('headline', 'h')
+  q.structure('sources_bullets.0.remove')
+  release(); await flush()
+  // The retried add goes first with its seq; then edits before structure items again, each new item a new seq.
+  expect(log.map((s) => [s.path, s.value, s.seq])).toEqual([
+    ['competitive_bullets.add', 'structure', 1],
+    ['competitive_bullets.add', 'structure', 1],
+    ['headline', 'h', 2],
+    ['sources_bullets.0.remove', 'structure', 3],
+  ])
+  expect(q.state).toMatchObject({ structuring: false, dirty: false, saving: false, error: null, revision: 4 })
 })

@@ -288,7 +288,7 @@ with its 16 columns, both indexes (the partial one's `WHERE` intact), the foreig
 check; the ledger up by one with nothing pending; the table list changed by `chart_notes` only;
 no rows; Renaissance's row unchanged. Production: not applied.
 
-## Add aeo_outbound_reports (delivered, awaiting apply)
+## Add aeo_outbound_reports (applied on dev, awaiting staging and production)
 
 `drizzle/0026_aeo_outbound_reports.sql` creates the `aeo_outbound_status` enum and the standalone
 `aeo_outbound_reports` table (AEO Outbound Snapshot). Additive: no existing table, column or row
@@ -299,11 +299,129 @@ each on my written go, before the code reaches that environment.
 Each environment only on my written go, dev first, then staging, then production. That script
 applies every unrecorded migration in journal order and does not check which database it points
 at, so a host guard runs first and refuses any host that is not the one I named for that run.
-Before: a read-only dry run that lists what is pending. On dev and staging it must show exactly
-`0026_aeo_outbound_reports` and nothing else. On production `0025_chart_notes` is also unapplied,
+Before: a read-only dry run that lists what is pending. 0026 is applied on dev (2026-10-11). For every environment's dry run now that
+0027 is in the journal, see the 0027 entry below. On production `0025_chart_notes` is also unapplied,
 so production needs 0025 applied first, on my go, or the dry run will show both and the script
 would apply both. After: a read-only read-back of the `aeo_outbound_reports` table with its four
 open-tracking columns, its two date columns (`requested_start`, `requested_end`), its four checks (the approved check
 including `share_recipient`, and `aeo_outbound_range_both_or_neither`), both indexes
 with the partial `WHERE status = 'generating'` intact, the `aeo_outbound_status` enum, and the
 migration ledger up by one.
+
+Dev: `0026` applied to the dev database on 2026-10-11, on my written go. A dev-only host guard first (it refused any host other
+than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0026_aeo_outbound_reports` pending, the table and the
+`aeo_outbound_status` enum absent, the ledger at 31 rows. Applied with `scripts/migrate-http.ts`
+(`apply 0026_aeo_outbound_reports (4 stmt) ... done`, `applied 1 migration(s)`). Read back: the enum
+(`generating, draft, approved, failed`); the table with its 28 columns, including the four open-tracking columns and
+`requested_start` and `requested_end`; its four checks (`aeo_outbound_approved_complete` including `share_recipient`,
+`aeo_outbound_delete_only_draft_failed`, `aeo_outbound_range_both_or_neither`, `aeo_outbound_revoke_only_approved`); the
+`share_token` unique constraint; both indexes, with `aeo_outbound_one_generating`'s `WHERE status = 'generating'` intact; no
+rows; the ledger at 32 with nothing pending; `aeo_outbound_reports` the only table added. Staging and production: not applied.
+
+## Add the AEO Outbound v1.1 tables and columns (applied on dev, awaiting staging and production)
+
+`drizzle/0027_aeo_outbound_v1_1.sql` creates `aeo_outbound_opens` (one row per counted open of a live link: `report_id`
+with a foreign key to `aeo_outbound_reports`, `opened_at`, `ua_family`, `likely_automated`, `reason`; no IP address and no
+user agent), `aeo_outbound_settings` (at most one row: its key is `id boolean primary key default true` with the check
+`aeo_outbound_settings_single_row`) and `aeo_outbound_settings_log`, and adds `progress_step integer not null default 0`
+and `error_code text` to `aeo_outbound_reports`. Additive: no existing column, constraint or row changes, and only
+`lib/aeo-outbound/store.ts` and `lib/aeo-outbound/settings-store.ts` read these, so the `clients` 42703 risk above does
+not apply. Apply with the hash-checked `scripts/migrate-http.ts`, each environment only on my written go, dev first, with
+the same host guard as `0026`.
+
+Dry runs (read-only) before applying: dev must list exactly `0027_aeo_outbound_v1_1` (dev already has `0026`); staging
+lists `0026_aeo_outbound_reports` and `0027_aeo_outbound_v1_1`; production lists `0025_chart_notes`,
+`0026_aeo_outbound_reports` and `0027_aeo_outbound_v1_1`, and needs `0025` applied first, on my go. `0026` is applied on
+dev, so it keeps its number: if `dev` gains another `0026`, mine keeps its number and the other is renumbered.
+
+Read-back after applying: the three new tables with their columns, the foreign key, both new indexes and the single-row
+check; the two new `aeo_outbound_reports` columns, with `progress_step` 0 on every existing row; the ledger up by one
+with nothing pending. Until it is applied, the code that reads these tables must not reach that environment.
+
+Dev: `0027` applied to the dev database on 2026-10-12, on my written go. The dev-only host guard first (it refuses any host
+other than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0027_aeo_outbound_v1_1` pending, the three tables and
+the two columns absent, the ledger at 32. Applied with `scripts/migrate-http.ts`, given only the dev URL
+(`apply 0027_aeo_outbound_v1_1 (8 stmt) ... done`, `applied 1 migration(s)`). Read back: `aeo_outbound_opens` (6 columns, the
+foreign key to `aeo_outbound_reports`, the `(report_id, opened_at)` index), `aeo_outbound_settings` (11 columns, the
+`aeo_outbound_settings_single_row` check), `aeo_outbound_settings_log` (6 columns, the `changed_at` index), all empty;
+`aeo_outbound_reports.progress_step` `integer not null default 0` (0 on both existing rows) and `error_code text` (null on both);
+the ledger at 33 with nothing pending; those three tables the only ones added. Staging and production: not applied.
+
+## Add `series` to aeo_outbound_settings (applied on dev, awaiting staging and production)
+
+`drizzle/0028_aeo_outbound_settings_series.sql` is one statement: `ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series"
+text DEFAULT 'AI Visibility Snapshot' NOT NULL;`. It makes the report name a team setting (the default of `page.series` on
+every new report; the top-left name `sidebar_wordmark` is already a text column and needs no change). Additive: no existing
+column, constraint or row changes, and the column default fills an existing settings row. Only
+`lib/aeo-outbound/settings-store.ts` reads this table. Apply with the hash-checked `scripts/migrate-http.ts`, each
+environment only on my written go, dev first, with a host guard that refuses any host but the one named for that run (dev:
+`ep-still-tree-aqs8ui6d`).
+
+Dry runs (read-only) before applying: dev must list exactly `0028_aeo_outbound_settings_series` (dev already has `0027`);
+staging lists `0026_aeo_outbound_reports`, `0027_aeo_outbound_v1_1` and `0028_aeo_outbound_settings_series`; production lists
+`0025_chart_notes` through `0028_aeo_outbound_settings_series`, and needs `0025` applied first, on my go.
+
+Read-back after applying: `aeo_outbound_settings.series` is `text not null default 'AI Visibility Snapshot'` (the existing
+row, if any, reads that value); the ledger up by one with nothing pending.
+
+Any build whose `lib/db/schema.ts` has `series` must not reach an environment before `0028` is applied there: Drizzle names every column, so the settings read throws (42703), access falls back to `AEO_OUTBOUND_USERS`
+only, and every save is refused with the read-failed message.
+
+Dev: `0028` applied to the dev database on 2026-10-12, on my written go, so this branch's preview (if previews read the
+dev database, as ENGINEERS.md says; unverified from the repo) is out of that degraded state. The dev-only host guard first,
+then a read-only dry run: exactly `0028_aeo_outbound_settings_series` pending, the ledger at 33. Applied with
+`scripts/migrate-http.ts`, given only the dev URL (`apply 0028_aeo_outbound_settings_series (1 stmt) ... done`,
+`applied 1 migration(s)`). Read back: `aeo_outbound_settings` has 12 columns, `series` is `text not null default
+'AI Visibility Snapshot'`, the table has no rows yet; the ledger at 34 with nothing pending. Staging and production: not
+applied.
+
+Until this change merges to `dev`, keep the top-left name on dev to `AIVx` or `Avenue Z`. Older deployments that share the
+dev database still check it against the old two-value list, and a row outside it fails their settings contract, which
+drops Settings-only users and admins there.
+
+## Add `last_writer` and `last_seq` to aeo_outbound_reports (applied on dev, awaiting staging and production)
+
+`drizzle/0029_aeo_outbound_save_writer.sql` is two statements: `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_writer"
+uuid;` and `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_seq" integer;`. They record which editor queue (`writer`, a
+UUID per editor tab) and which of its saves (`seq`, rising in send order) made the last slots save, so a save whose answer
+was lost can be retried safely (spec v1.1 section 18.4): the slots route answers a retry of a save that already landed
+without applying it twice, and puts a newer save of ours on top of an earlier one of ours, while any other tab's write
+still gets 409 `stale`. Additive: both columns are nullable with no default, so no existing column, constraint or row
+changes, and every existing row reads NULL in both (treated as "not written by this queue"). Only
+`lib/aeo-outbound/store.ts` writes them (`saveSlotsQuery`, which sets both on every save, to the request's values or to
+NULL) and only the slots route (`app/api/aeo-outbound/reports/[id]/slots/route.ts`) reads them. Edit a copy
+(`copyAsDraftQuery`) lists its columns and leaves both NULL on the new draft. Apply with the hash-checked
+`scripts/migrate-http.ts`, each environment only on my written go, dev first, with a host guard that refuses any host but
+the one named for that run (dev: `ep-still-tree-aqs8ui6d`).
+
+Dry runs (read-only) before applying: dev must list exactly `0029_aeo_outbound_save_writer` (dev already has `0028`);
+staging lists `0026_aeo_outbound_reports` through `0029_aeo_outbound_save_writer`; production lists `0025_chart_notes`
+through `0029_aeo_outbound_save_writer`, and needs `0025` applied first, on my go.
+
+Read-back after applying: `aeo_outbound_reports.last_writer` is `uuid` nullable and `last_seq` is `integer` nullable, both
+with no default, and every existing row reads NULL in both; the ledger up by one with nothing pending.
+
+Deploy order: any build whose `lib/db/schema.ts` has these two columns must not reach an environment before `0029` is
+applied there. Drizzle names every column, so `getReport` throws (42703) on a database without them (the report page,
+its view route, the report actions, the generate route and every save read through it), and so does the generating insert
+(`insertGeneratingQuery`), whose column list names both. On dev that includes my local QA server:
+apply `0029` to the dev database before it runs this branch.
+
+Mixed builds: builds from before `0029` that share a database (dev's older previews) can still save, and their update
+leaves both columns as they were. So a save of ours that landed, then a save from such a build, then a retry of ours, is
+answered as already landed while the row holds that build's text. And after an acknowledged save of ours, such a build's
+save leaves the columns at our writer and seq, so our next item (a higher seq) is applied on top of that build's revision
+in step 4 instead of getting 409 `stale`; a structure remove there can delete a different bullet than the one Ryan
+clicked. Only dev runs mixed builds; staging and production run one build at a time: accepted.
+
+Rollback (spec v1.1 section 18.12, which ships in the same PR): a build without 18.12 reads a stored row with 1 or 4 to 6
+bullets in a list as unreadable (`lib/aeo-outbound/contracts.ts` stored slots, `lib/aeo-outbound/store.ts` `typed`),
+drafts and approved rows alike. Rolling back past this build after anyone has saved such a row breaks those rows until it
+is rolled forward. The columns `0029` adds are harmless to an older build once applied (it never names them).
+
+Dev: `0029` applied to the dev database on 2026-10-13, on my written go. The dev-only host guard first, then a read-only
+dry run: exactly `0029_aeo_outbound_save_writer` pending, the ledger at 34, neither column present, 11 report rows. The
+apply refused to run unless exactly that one entry was pending, then ran `scripts/migrate-http.ts` given only the dev URL
+(`apply 0029_aeo_outbound_save_writer (2 stmt) ... done`, `applied 1 migration(s)`). Read back: `last_writer` is `uuid`
+nullable and `last_seq` is `integer` nullable, both with no default; all 11 rows read NULL in both; the ledger at 35 with
+nothing pending. Staging and production: not applied.

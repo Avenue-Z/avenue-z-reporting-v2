@@ -1,6 +1,7 @@
 // Peec Customer API client for the AEO Outbound Snapshot. Ported from AIVx (aivx-reports@ff18697
 // lib/peec-client.ts:17-139 and agent/peec_api_export.py:106-198) with the retry numbers tightened
 // to fit the 270s generation deadline (spec §7a). The key never reaches a message.
+import type { PeecErrorCode } from './error-codes'
 const BASE = 'https://api.peec.ai/customer/v1'
 const MAX_ATTEMPTS = 3
 const RETRY_MAX_SECONDS = 20
@@ -12,10 +13,16 @@ export const MAX_ENDPOINT_ROWS = 250_000
 export class PeecError extends Error {
   /** True only for an exhausted time budget: the deadline passed or a call timed out. */
   readonly timeout: boolean
-  constructor(message: string, timeout = false) {
+  /** True only for the MAX_ENDPOINT_ROWS cap, never for a repeated row or an HTTP error. */
+  readonly rowCap: boolean
+  /** Why, for the UI (spec v1.1 §7). Null for an HTTP or transport failure. */
+  readonly code: PeecErrorCode | null
+  constructor(message: string, timeout = false, rowCap = false, code: PeecErrorCode | null = null) {
     super(message)
     this.name = 'PeecError'
     this.timeout = timeout
+    this.rowCap = rowCap
+    this.code = code
   }
 }
 
@@ -30,6 +37,9 @@ export class PeecDeadlineError extends PeecError {
 
 /** Any timeout: the deadline or a per-call timer. A required call reports either as a timeout. */
 export const isPeecTimeout = (e: unknown): boolean => e instanceof PeecError && e.timeout
+export const isPeecRowCap = (e: unknown): boolean => e instanceof PeecError && e.rowCap
+/** A Peec field broke its enforced contract (lib/aeo-outbound/contracts.ts). Never downgraded to a warning. */
+export const isPeecContractViolation = (e: unknown): boolean => e instanceof PeecError && e.code === 'contract_violation'
 
 /** Only a spent deadline. Optional calls rethrow this and turn a per-call timeout into a warning. */
 export const isPeecDeadline = (e: unknown): boolean => e instanceof PeecDeadlineError
@@ -186,7 +196,7 @@ export class PeecClient {
         seen.add(k)
       }
       rows.push(...page)
-      if (rows.length > this.maxRows) throw new PeecError(`[PEEC API] ${path}: more than ${this.maxRows} rows, stopping`)
+      if (rows.length > this.maxRows) throw new PeecError(`[PEEC API] ${path}: more than ${this.maxRows} rows, stopping`, false, true)
     }
   }
 }

@@ -1,5 +1,5 @@
 // The requested report range (spec §7 step 4). UTC calendar days, YYYY-MM-DD, both ends inclusive.
-import { DEFAULT_WINDOW_DAYS, MAX_LOOKBACK_DAYS, MAX_WINDOW_DAYS } from './config'
+import { MAX_LOOKBACK_DAYS, MAX_WINDOW_DAYS } from './config'
 
 export interface DayRange { start: string; end: string }
 
@@ -16,9 +16,10 @@ function parseDay(s: unknown): number | null {
   return new Date(ms).toISOString().slice(0, 10) === s ? ms : null
 }
 
+/** The project's full history: the earliest day checkRange accepts through today. */
 export function defaultRange(nowMs: number): DayRange {
   const end = todayUtc(nowMs)
-  const start = new Date(Date.parse(`${end}T00:00:00Z`) - (DEFAULT_WINDOW_DAYS - 1) * DAY_MS).toISOString().slice(0, 10)
+  const start = new Date(Date.parse(`${end}T00:00:00Z`) - MAX_LOOKBACK_DAYS * DAY_MS).toISOString().slice(0, 10)
   return { start, end }
 }
 

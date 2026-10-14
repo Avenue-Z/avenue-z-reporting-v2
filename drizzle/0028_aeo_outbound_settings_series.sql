@@ -1,0 +1,1 @@
+ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series" text DEFAULT 'AI Visibility Snapshot' NOT NULL;
