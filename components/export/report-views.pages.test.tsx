@@ -29,6 +29,8 @@ import { auth } from '@/auth'
 import { parseModelsParam } from '@/lib/peec/models'
 import { resolveExportView, type ExportViewClient } from '@/lib/export/report-view'
 import { exportReportElement } from './report-element'
+import { exportablePages } from '@/lib/export/pages'
+import type { BulkExport } from '@/components/export-pdf-button'
 import { SERVER_EXPORT_SECTIONS, type ServerExportSection } from '@/lib/export/sections'
 
 const REPORTS = new Set(['OrganicSocialReport', 'PeecAIReport', 'PRInfluenceReport', 'ContentImpactReport', 'TechnicalAuditReport',
@@ -157,5 +159,47 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     const { button } = await onPage(Route, CLIENT, 'peec-ai', 'pr-influence')
     expect(button.props.serverExport).toEqual({ clientSlug: 'c', section: 'peec-ai', subsection: 'pr-influence',
       dateRange: Q.dateRange, compareRange: Q.compareRange, models: 'ChatGPT,Claude' })
+  })
+}
+
+// Spec 2026-10-14-bulk-pdf-export-design B1, B2, B5: every report page offers the client's exportable pages, the
+// current one pre-selected, with the page's raw ranges.
+const bulkOf = (button: { props: Record<string, unknown> }) => button.props.bulk as BulkExport
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  test(`${routeName}: the button offers the client's exportable pages, this one pre-selected, with the page's ranges`, async () => {
+    const { button } = await onPage(Route, CLIENT, 'peec-ai', 'pr-influence')
+    expect(button.props.bulk).toEqual({
+      pages: exportablePages(CLIENT as ExportViewClient & typeof CLIENT), currentKey: 'peec-ai:pr-influence',
+      clientSlug: 'c', dateRange: Q.dateRange, compareRange: Q.compareRange, models: 'ChatGPT,Claude',
+      fromSection: 'peec-ai', lockedMonths: false,
+    })
+  })
+
+  test(`${routeName}: on a hidden or unknown tab, the pre-selected page is the Overview the page shows`, async () => {
+    const { button } = await onPage(Route, { ...CLIENT, hiddenReports: ['meta'] }, 'paid-media', 'meta')
+    expect(bulkOf(button).currentKey).toBe('paid-media:')
+    expect(bulkOf((await onPage(Route, CLIENT, 'organic-social', 'not-a-tab')).button).currentKey).toBe('organic-social:')
+  })
+
+  // Final review, Important 2: the pre-selected page is always one the list offers, else the picker opens with nothing
+  // checked and no way to export the page in view.
+  test(`${routeName}: the pre-selected page is always in the list`, async () => {
+    for (const [section, subs] of [...CASES, ['executive-overview', [undefined]]] as const) {
+      for (const sub of subs) {
+        const b = bulkOf((await onPage(Route, CLIENT, section, sub)).button)
+        expect(b.pages.map((p) => p.key)).toContain(b.currentKey)
+      }
+    }
+  })
+
+  test(`${routeName}: the Executive Overview pre-selects itself`, async () => {
+    expect(bulkOf((await onPage(Route, CLIENT, 'executive-overview')).button).currentKey).toBe('executive-overview:')
+  })
+
+  test(`${routeName}: on a page the server doesn't export, the pages are offered with none pre-selected`, async () => {
+    const { button } = await onPage(Route, { ...CLIENT, enabledReports: [...CLIENT.enabledReports, 'ga4'] }, 'ga4')
+    expect(button.props.serverExport).toBeUndefined()
+    expect(bulkOf(button).currentKey).toBeNull()
+    expect(bulkOf(button).pages).toEqual(exportablePages(CLIENT as ExportViewClient & typeof CLIENT))
   })
 }
