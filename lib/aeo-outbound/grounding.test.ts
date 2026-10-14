@@ -362,6 +362,20 @@ test('code-written sentences: an own site whose domain starts with the brand nam
   expect(groundingFlags(edited, prefix, dataBlock(prefix)).map((n) => n.text)).toContain('"Fakeexamplesenior.com" is not a domain in the Peec data')
 })
 
+test('the domain without its www. is allowed only on rows with code-written sentences; an older row keeps its flags (re-review N1)', () => {
+  const d = newRow({
+    ...LIVE_SHAPE_PULL,
+    roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === 'kw_own' ? { ...b, domains: [] } : b)),
+    ownBrand: { ...LIVE_SHAPE_PULL.ownBrand, domains: [] },
+    domains: LIVE_SHAPE_PULL.domains.map((r) => (r.domain === 'examplesenior.com' ? { ...r, domain: 'www.examplesenior.com' } : r)),
+  })
+  const { sentences: _s, noDataBrands: _n, ownSiteRank: _r, ...older } = d
+  const old = older as unknown as SnapshotData
+  const slots = { ...slotsFor(d), why: 'Answers cite x and see seniorsite at examplesenior.com.' }
+  expect(groundingFlags(slots, old, dataBlock(old)).filter((n) => n.path === 'why').map((n) => n.text)).toEqual(['"examplesenior.com" is not a domain in the Peec data'])
+  expect(groundingFlags(slots, d, dataBlock(d)).filter((n) => n.kind === 'domain_not_in_data')).toEqual([])
+})
+
 test('an edited code sentence that changes a count word is flagged; the same word kept is not (final review M1)', () => {
   const d = newRow()
   const edit = (text: string) => {

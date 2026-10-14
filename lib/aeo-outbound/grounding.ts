@@ -123,9 +123,10 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // Spec v1.1 §19.3: the new checks run only on rows generated with code-written sentences, so an older row's flags
   // are exactly what they were.
   const sentencesRow = typeof d.sentences === 'number'
-  // Each domain also without its "www.", the way a code-written sentence prints it (sentences.ts, capital).
+  // On a row with sentences, each domain also without its "www.", the way a code-written sentence prints it
+  // (sentences.ts, capital). An older row's set is unchanged.
   const allowedDomains = new Set([...d.ownDomains, ...d.gapDomains.map((g) => g.domain), ...(dataText.match(DOMAIN) ?? []), ...ALWAYS_ALLOWED_DOMAINS]
-    .map((x) => x.toLowerCase()).flatMap((x) => [x, x.replace(/^www\./, '')]))
+    .map((x) => x.toLowerCase()).flatMap((x) => (sentencesRow ? [x, x.replace(/^www\./, '')] : [x])))
   // With no competitors tracked the Data block names no outside brand, so its digits are not exempt either. A row with
   // sentences also names its no-data roster brands in the context (v1.1 §19.1), so those names are exempt too.
   const brandNames = [
