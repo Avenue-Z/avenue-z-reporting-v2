@@ -493,7 +493,7 @@ test('a locked click shows its message for 3 seconds: a chart, a fixed word, a m
   const { iframe } = await setup()
   vi.useFakeTimers()
   await fromFrame(iframe, { type: 'locked', what: 'chart' })
-  expect(screen.getByText('Charts come from Peec data. Change the dates and Rerun to update them.')).toBeInTheDocument()
+  expect(screen.getByText('Charts come from Peec data and can\'t be edited. For other dates, start a new report from the main page.')).toBeInTheDocument()
   await act(() => vi.advanceTimersByTimeAsync(3000))
   expect(screen.queryByText(/^Charts come from Peec data/)).not.toBeInTheDocument()
   await fromFrame(iframe, { type: 'locked', what: 'fixed' })
