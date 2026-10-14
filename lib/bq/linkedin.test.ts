@@ -31,6 +31,15 @@ describe('buildLiSql', () => {
   test('LinkedIn keys the day lowercase `date`, as its Supermetrics connector does', () => {
     expect(buildLiSql({ table: 'mart_linkedin_campaign_performance', fields: ['Date', 'spend'] })).toContain('cast(event_date as string) as `date`')
   })
+  test('creative rows whose metrics are all zero are dropped, as Supermetrics drops them', () => {
+    // Prod holds e.g. Broad B2B / Ad_2 on 2026-08-13 with every metric 0; live returns no such row.
+    const sql = buildLiSql({ table: 'mart_linkedin_creative_performance', fields: ['creativeDscName', 'spend', 'ctr'] })
+    expect(sql).toContain('having sum(t.cost) != 0 or sum(t.impressions) != 0 or sum(t.clicks) != 0 or sum(t.leads) != 0 or sum(t.lead_form_opens) != 0 or sum(t.landing_page_clicks) != 0')
+    expect(sql).toMatch(/\bfrom `[^`]+` t\n/)
+  })
+  test('campaign-mart reads keep every row (no evidence Supermetrics drops them)', () => {
+    expect(buildLiSql({ table: 'mart_linkedin_campaign_performance', fields: ['Date', 'spend', 'clicks'] })).not.toContain('having')
+  })
   test('maxRows keeps the top rows by spend', () => {
     expect(buildLiSql({ table: 'mart_linkedin_creative_performance', fields: ['creativeDscName', 'spend'] }, 200)).toMatch(/order by sum\(cost\) desc\nlimit 200$/)
   })

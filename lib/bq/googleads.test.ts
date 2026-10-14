@@ -41,6 +41,20 @@ describe('buildAwSql', () => {
   test('ISO weeks are written year|week, matching Supermetrics Yearweekiso', () => {
     expect(buildAwSql(['Yearweekiso', 'Cost', 'Clicks', 'Impressions'])).toContain("format_date('%G|%V', event_date) as `Yearweekiso`")
   })
+  test('grouped conversion rows with zero conversions are dropped, as Supermetrics drops them', () => {
+    // Prod holds e.g. Renaissance ISO week 2026|16 with six conversion types at 0; live returns no such
+    // rows, so a BigQuery-only 0-lead trend bucket appeared (shadow compare, 2026-10-14).
+    expect(buildAwSql(['Yearweekiso', 'ConversionTypeName', 'Conversions'])).toMatch(/\nhaving sum\(t\.conversions\) != 0$/)
+    expect(buildAwSql(['ConversionTypeName', 'Conversions'])).toMatch(/having sum\(t\.conversions\) != 0$/)
+  })
+  test('HAVING qualifies its column: BigQuery aliases are case-insensitive, so a bare `conversions` binds to the summed `Conversions` alias', () => {
+    const sql = buildAwSql(['ConversionTypeName', 'Conversions'])
+    expect(sql).toMatch(/\bfrom `[^`]+` t\n/)
+    expect(sql).not.toMatch(/having sum\(conversions\)/)
+  })
+  test('metric marts keep every grouped row (no evidence Supermetrics drops them)', () => {
+    expect(buildAwSql(['Date', 'Cost', 'Clicks', 'Impressions'])).not.toContain('having')
+  })
   test('totals have no group by', () => {
     expect(buildAwSql(['Cost', 'Clicks', 'Impressions'])).not.toContain('group by')
   })

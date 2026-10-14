@@ -57,10 +57,13 @@ export function buildAwSql(fields: string[]): string {
   const select = fields.map((f) => (mart.dims.includes(f) ? `${DIM_EXPR[f]} as \`${f}\`` : `sum(${METRIC_COL[f]}) as \`${f}\``))
   return [
     `select ${select.join(', ')}`,
-    `from ${martRef(mart.table)}`,
+    `from ${martRef(mart.table)} t`,
     'where cast(ACCOUNT_ID as string) = @account',
     '  and event_date between date(@start) and date(@end)',
     dims.length ? `group by ${dims.map((f) => DIM_EXPR[f]).join(', ')}` : '',
+    // Supermetrics returns no row for a conversion type with 0 conversions; the marts keep them.
+    // Qualified: BigQuery aliases are case-insensitive, so a bare `conversions` binds to `Conversions`.
+    dims.length && fields.includes('Conversions') ? 'having sum(t.conversions) != 0' : '',
   ].filter(Boolean).join('\n')
 }
 

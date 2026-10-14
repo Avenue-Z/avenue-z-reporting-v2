@@ -58,10 +58,13 @@ export function buildLiSql(q: LiQuery, maxRows?: number): string {
   const limit = maxRows != null && Number.isInteger(maxRows) && maxRows > 0 ? maxRows : null
   return [
     `select ${select.join(', ')}`,
-    `from ${martRef(q.table)}`,
+    `from ${martRef(q.table)} t`,
     'where cast(ACCOUNT_ID as string) = @account',
     '  and event_date between date(@start) and date(@end)',
     dims.length ? `group by ${dims.map((f) => DIMS[f][1]).join(', ')}` : '',
+    // Supermetrics returns no creative row whose metrics are all 0; the creative mart keeps them.
+    // Qualified: BigQuery aliases are case-insensitive, so a bare `clicks` binds to the `clicks` alias.
+    dims.length && q.table === CREATIVE ? `having ${Object.values(SUMS).map((c) => `sum(t.${c}) != 0`).join(' or ')}` : '',
     limit ? `order by sum(cost) desc\nlimit ${limit}` : '',
   ].filter(Boolean).join('\n')
 }
