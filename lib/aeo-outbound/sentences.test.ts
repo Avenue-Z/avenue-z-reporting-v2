@@ -216,3 +216,11 @@ test('a www. own domain reads without it, capitalised', () => {
   const s = sent({ ...base, domains: [{ domain: 'www.own.example', classification: 'OWN', retrieved_chat_count: 40, retrieval_count: 40, retrieved_percentage: 0.2, mentioned_brands: [] }] })
   expect(s.competitive_bullets[1].text).toBe('Own.example appears among the top domains at 40 retrievals.')
 })
+
+// Review of Tasks 41 to 44: the pairing applies to every pair a sentence names.
+test('a tie at second and the source-mix tail keep one decimal where whole numbers would read equal', () => {
+  expect(sent(brandPull([['a', 'A', 0.154, 0.2], ['b', 'B', 0.146, 0.1], ['c', 'C', 0.146, 0.1], ['own', 'Own', 0.05, 0.05]])).context).toBe('Competitive context: A leads at 15.4% visibility / 20% share of voice, followed by B and C at 14.6%. Own ranks last of the four brands tracked.')
+  const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
+  const mix = (rows: [string, number][]) => sent({ ...base, domains: rows.map(([classification, w], i) => ({ domain: `d${i}.example`, classification, retrieved_chat_count: 1, retrieval_count: w, mentioned_brands: [] })) }).sources_bullets.at(-1)?.text
+  expect(mix([['CORPORATE', 500], ['INSTITUTIONAL', 260], ['EDITORIAL', 124], ['UGC', 116]])).toBe('The domain mix is led by Corporate sources at 50% and Institutional sources at 26%; Editorial represents 12.4% and UGC 11.6%.')
+})

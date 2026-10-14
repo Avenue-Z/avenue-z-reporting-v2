@@ -1,6 +1,6 @@
 // Turns a Peec pull into the numbers the page shows and Glean writes from (spec §5a, §7; v1.1 §4, §9, §10).
 // It writes schema version 2: structured notes, each own domain on its own, the project status and the settings used.
-import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT } from './config'
+import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT, SENTENCES_VERSION } from './config'
 import type { Note, NoteKind, StoredNote } from './notes'
 import type { PeecPull } from './pull'
 
@@ -63,9 +63,9 @@ export interface SnapshotData {
   ownSites?: OwnSite[]
   /** Version 2: the settings this generation used. */
   settingsUsed?: SettingsUsed
-  /** Spec v1.1 §19.5: 1 on rows whose context, findings and methodology code wrote (sentences.ts). Absent on older rows,
-   *  whose Glean text and grounding stay exactly as they were. */
-  sentences?: 1
+  /** Spec v1.1 §19.5: the SENTENCES_VERSION of rows whose context, findings and methodology code wrote (sentences.ts).
+   *  Absent on older rows, whose Glean text and grounding stay exactly as they were. */
+  sentences?: number
   /** Spec v1.1 §19.5: 1 plus the domains with more retrieved chats than the most retrieved own site; null when none. */
   ownSiteRank?: number | null
   /** Spec v1.1 §19.5: the ranked roster brands with no Peec row (zero visibility), in rank order. */
@@ -275,7 +275,7 @@ export function buildSnapshotData(
     projectStatus: pull.project.status,
     ownSites,
     settingsUsed: { rankAmong: decisions.rankAmong, peecOpportunityRows: used.peecOpportunityRows, methodologyStatesPromptsAndModels: used.methodologyStatesPromptsAndModels, fixedNextStep: used.fixedNextStep },
-    sentences: 1,
+    sentences: SENTENCES_VERSION,
     ownSiteRank,
     noDataBrands,
   }

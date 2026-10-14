@@ -50,12 +50,15 @@ const MAX_NAMED = 5
 /** At most five names, then "and k more" (k as a count word). */
 const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${countWord(names.length - MAX_NAMED)} more`] : names)
 
-/** Two percents named in one sentence: both keep one decimal when their whole numbers would read the same but differ,
- *  so brands ranked apart never read as equal (review of Tasks 37 to 40). */
+/** The percents one sentence names: a value keeps one decimal when another value in the sentence differs from it but
+ *  would read the same as a whole number, so values ranked apart never read as equal (spec v1.1 §19.11). */
+function pctAll(values: number[]): string[] {
+  const text = values.map(pctText)
+  return values.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && values[j] !== v) ? `${v.toFixed(1)}%` : text[i]))
+}
 function pctPair(a: number, b: number): [string, string] {
-  const pa = pctText(a)
-  const pb = pctText(b)
-  return pa === pb && a !== b ? [`${a.toFixed(1)}%`, `${b.toFixed(1)}%`] : [pa, pb]
+  const [pa, pb] = pctAll([a, b])
+  return [pa, pb]
 }
 
 export function dataSentences(d: SnapshotData): DataSentences {
@@ -85,7 +88,8 @@ export function dataSentences(d: SnapshotData): DataSentences {
       return `${a.name} and ${b.name} lead at ${pctText(top.visibilityPct)} visibility${sa ? `, with ${sa} and ${sb} share of voice` : ''}.`
     }
     if (runners.length >= 2) {
-      return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}, followed by ${someNames(runners.map((b) => b.name))} at ${pctText(runnerPct)}.`
+      const [vt, vr] = pctPair(top.visibilityPct, runnerPct)
+      return `${top.name} leads at ${vt} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}, followed by ${someNames(runners.map((b) => b.name))} at ${vr}.`
     }
     const next = runners[0]
     if (!next) return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}.`
@@ -186,12 +190,13 @@ export function dataSentences(d: SnapshotData): DataSentences {
     else if (mix.length === 1) out.push({ lead: 'Source mix:', text: `The domain mix is all ${label(mix[0].label)} sources.` })
     else {
       const [t1, t2] = mix
-      const [p1, p2] = pctPair(t1.pct, t2.pct)
       const named = new Set([t1.label, t2.label])
       const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l)).map((l) => [l, mix.find((m) => m.label === l)?.pct ?? 0] as const)
+      // Every percent in this one sentence is read together, so no two values ranked apart read the same.
+      const [p1, p2, ...pe] = pctAll([t1.pct, t2.pct, ...extras.map(([, v]) => v)])
       const tail = extras.length === 2
-        ? `; ${extras[0][0]} represents ${pctText(extras[0][1])} and ${extras[1][0]} ${pctText(extras[1][1])}`
-        : extras.length === 1 ? `; ${extras[0][0]} represents ${pctText(extras[0][1])}` : ''
+        ? `; ${extras[0][0]} represents ${pe[0]} and ${extras[1][0]} ${pe[1]}`
+        : extras.length === 1 ? `; ${extras[0][0]} represents ${pe[0]}` : ''
       out.push({
         lead: extras.length === 2 ? 'Limited editorial and UGC presence:' : 'Source mix:',
         text: `The domain mix is led by ${label(t1.label)} sources at ${p1} and ${label(t2.label)} sources at ${p2}${tail}.`,

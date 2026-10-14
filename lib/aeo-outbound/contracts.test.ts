@@ -202,7 +202,7 @@ test('stored data declares the spec v1.1 §19.5 fields: optional, and refused wh
   const { sentences: _s, ownSiteRank: _r, noDataBrands: _n, ...older } = v2
   expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
   expect(checkContract('stored.data', STORED_DATA, { ...v2, ownSiteRank: null }, 'enforce')).toEqual({ ok: true })
-  for (const bad of [{ sentences: 2 }, { ownSiteRank: 0 }, { ownSiteRank: 1.5 }, { noDataBrands: [3] }]) {
+  for (const bad of [{ sentences: 0 }, { sentences: 1.5 }, { ownSiteRank: 0 }, { ownSiteRank: 1.5 }, { noDataBrands: [3] }]) {
     expect(checkContract('stored.data', STORED_DATA, { ...v2, ...bad }, 'enforce').ok).toBe(false)
   }
 })

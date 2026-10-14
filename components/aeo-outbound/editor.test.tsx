@@ -813,11 +813,8 @@ test('the queue adopts the revision the view rendered, so an editor reopened fro
   expect(screen.queryByText('Saved')).toBeNull()
 })
 
-test('a draft refreshes its page data once when it opens, so the panel, brand and titles are current', async () => {
+test('opening a draft does not refresh the router, which would rewrite the Back guard\'s history entry', async () => {
   await setup()
-  expect(refresh).toHaveBeenCalledTimes(1)
-  cleanup(); refresh.mockReset()
-  await setup({ status: 'live', token: 'tok_1' })
   expect(refresh).not.toHaveBeenCalled()
 })
 

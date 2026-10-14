@@ -376,3 +376,21 @@ test('an older row with a no-data brand named like a domain keeps today\'s flag:
   const f = groundingFlags(slotsFor(d), older as SnapshotData, dataBlock(older as SnapshotData))
   expect(f).toContainEqual({ kind: 'domain_not_in_data', path: 'context', text: '"Care.com" is not a domain in the Peec data' })
 })
+
+test('a number token is read whole: H10 is a word, 10x and 10K are numbers named in full', () => {
+  const d = newRow()
+  expect(flagsFor(d, { why: 'Add an H10 heading.' })).toEqual([])
+  expect(flagsFor(d, { why: 'Visibility grew 10x.' }).map((n) => n.text)).toEqual(['"10x": check this number against Peec\'s numbers on the page.'])
+  expect(flagsFor(d, { why: 'It sees 10K retrievals.' }).map((n) => n.text)).toEqual(['"10K": check this number against Peec\'s numbers on the page.'])
+  expect(flagsFor(d, { why: '3x more answers.' }).map((n) => n.text)).toEqual(['"3x": check this number against Peec\'s numbers on the page.'])
+})
+
+test('the exact sentence check runs only for rows written by the current sentences version', () => {
+  const d = { ...newRow(), sentences: 99 } as unknown as SnapshotData
+  const edited = slotsFor(newRow())
+  edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Example Senior Living ranks second, with 1.3% visibility.' }, ...edited.competitive_bullets.slice(1)]
+  // Another version's sentences differ by design, so they are checked against every Peec number instead (1.3% is Caringly's).
+  expect(groundingFlags(edited, d, dataBlock(d)).filter((n) => n.path === 'competitive_bullets.0.text')).toEqual([])
+  // It is still a new row: a number in Glean's words is still an unchecked_number item.
+  expect(groundingFlags({ ...edited, why: 'It rose 4.4%.' }, d, dataBlock(d)).filter((n) => n.path === 'why').map((n) => n.kind)).toEqual(['unchecked_number'])
+})

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, renderHook } from '@testing-library/react'
-import { GUARD_STATE_KEY, useLeaveGuard } from './use-leave-guard'
+import { useLeaveGuard } from './use-leave-guard'
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
@@ -87,80 +87,79 @@ test('beforeunload is prevented while unsaved only, and both listeners go when i
   expect(click(link('/y')).defaultPrevented).toBe(false)
 })
 
-// Spec v1.1 §19.7 (A2): the browser Back button asks first while there are unsaved edits.
-describe('browser Back', () => {
-  let pushState: ReturnType<typeof vi.spyOn>
-  let back: ReturnType<typeof vi.spyOn>
-  let go: ReturnType<typeof vi.spyOn>
+// Spec v1.1 §19.7 (A2): the browser Back and Forward buttons ask first while there are unsaved edits, through the
+// browser's Navigation API (a stand-in here: jsdom has none).
+describe('browser Back and Forward', () => {
+  let nav: EventTarget & { traverseTo: ReturnType<typeof vi.fn> }
   beforeEach(() => {
-    window.history.replaceState({ __NA: true }, '', '/tools/new-business/abc')
-    pushState = vi.spyOn(window.history, 'pushState')
-    back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
-    go = vi.spyOn(window.history, 'go').mockImplementation(() => {})
+    nav = Object.assign(new EventTarget(), { traverseTo: vi.fn(() => ({ finished: Promise.resolve() })) })
+    Object.defineProperty(window, 'navigation', { value: nav, configurable: true })
   })
+  afterEach(() => { delete (window as unknown as { navigation?: unknown }).navigation })
 
-  /** The browser landing back on the page's own entry: the one under the guard entry, same address, no guard mark. */
-  const landOnPage = () => {
-    window.history.replaceState({ __NA: true }, '', '/tools/new-business/abc')
-    window.dispatchEvent(new PopStateEvent('popstate', { state: { __NA: true } }))
+  /** A navigate event as the browser fires it; returns whether the page cancelled it. */
+  const traverse = (over: { navigationType?: string; cancelable?: boolean; key?: string } = {}) => {
+    const e = new Event('navigate', { cancelable: over.cancelable ?? true })
+    Object.assign(e, { navigationType: over.navigationType ?? 'traverse', destination: { key: over.key ?? 'k-hub' } })
+    nav.dispatchEvent(e)
+    return e.defaultPrevented
   }
 
-  test('mounting adds one guard entry for the same address, keeping the router state; a remount on it adds none', () => {
-    const first = renderHook(() => useLeaveGuard(false, ask))
-    expect(pushState).toHaveBeenCalledTimes(1)
-    expect(pushState.mock.calls[0][0]).toMatchObject({ __NA: true, [GUARD_STATE_KEY]: true })
-    expect(pushState.mock.calls[0][2]).toBe(window.location.href)
-    first.unmount()
-    // A remount while the guard entry is current (React's strict-mode double mount) does not add a second.
-    renderHook(() => useLeaveGuard(false, ask))
-    expect(pushState).toHaveBeenCalledTimes(1)
-  })
-
-  test('with nothing unsaved, Back goes straight back: one press, no question', () => {
-    renderHook(() => useLeaveGuard(false, ask))
-    landOnPage()
-    expect(back).toHaveBeenCalledTimes(1)
-    expect(ask).not.toHaveBeenCalled()
-  })
-
-  test('with unsaved edits, Back stays on the page and asks; Stay keeps it, Leave goes back past the guard entry', () => {
+  test('with unsaved edits, Back is cancelled and asks; Leave goes where Back was going, once', () => {
     renderHook(() => useLeaveGuard(true, ask))
-    pushState.mockClear()
-    landOnPage()
-    expect(back).not.toHaveBeenCalled()
-    // The guard entry is added again at once, so staying needs nothing and a second Back asks again.
-    expect(pushState).toHaveBeenCalledTimes(1)
+    expect(traverse()).toBe(true)
     expect(ask).toHaveBeenCalledTimes(1)
-    const leave = ask.mock.calls[0][0] as () => void
-    leave()
-    expect(go).toHaveBeenCalledWith(-2)
-    // While leaving, the popstate that follows is not asked about again.
-    landOnPage()
+    expect(nav.traverseTo).not.toHaveBeenCalled()
+    ask.mock.calls[0][0]()
+    expect(nav.traverseTo).toHaveBeenCalledWith('k-hub')
+    // The traversal Leave starts is not asked about again.
+    expect(traverse()).toBe(false)
     expect(ask).toHaveBeenCalledTimes(1)
   })
 
-  test('a popstate onto another address, or onto the guard entry itself, is left alone', () => {
+  test('Stay is doing nothing: the page stays and the next Back asks again', () => {
     renderHook(() => useLeaveGuard(true, ask))
-    window.history.replaceState({ __NA: true }, '', '/tools/new-business')
-    window.dispatchEvent(new PopStateEvent('popstate', { state: { __NA: true } }))
-    window.history.replaceState({ __NA: true, [GUARD_STATE_KEY]: true }, '', '/tools/new-business/abc')
-    window.dispatchEvent(new PopStateEvent('popstate', { state: { __NA: true, [GUARD_STATE_KEY]: true } }))
-    expect(ask).not.toHaveBeenCalled()
-    expect(back).not.toHaveBeenCalled()
+    traverse()
+    expect(traverse()).toBe(true)
+    expect(ask).toHaveBeenCalledTimes(2)
   })
 
-  test('unmounting removes the Back listener', () => {
-    const h = renderHook(() => useLeaveGuard(true, ask))
-    h.unmount()
-    landOnPage()
+  test('with nothing unsaved, Back and Forward pass straight through, adding no history entry', () => {
+    const pushState = vi.spyOn(window.history, 'pushState')
+    renderHook(() => useLeaveGuard(false, ask))
+    expect(traverse()).toBe(false)
     expect(ask).not.toHaveBeenCalled()
-    expect(back).not.toHaveBeenCalled()
+    expect(pushState).not.toHaveBeenCalled()
+  })
+
+  test('a push or replace navigation, or a traversal the browser does not let the page cancel, is left alone', () => {
+    renderHook(() => useLeaveGuard(true, ask))
+    expect(traverse({ navigationType: 'push' })).toBe(false)
+    expect(traverse({ navigationType: 'replace' })).toBe(false)
+    expect(traverse({ cancelable: false })).toBe(false)
+    expect(ask).not.toHaveBeenCalled()
   })
 
   test('the unsaved flag is read when Back is pressed, not when the page mounted', () => {
     const h = renderHook(({ unsaved }) => useLeaveGuard(unsaved, ask), { initialProps: { unsaved: false } })
     h.rerender({ unsaved: true })
-    landOnPage()
-    expect(ask).toHaveBeenCalledTimes(1)
+    expect(traverse()).toBe(true)
+  })
+
+  test('a Leave whose traversal fails hands the guard back', async () => {
+    nav.traverseTo.mockReturnValueOnce({ finished: Promise.reject(new Error('gone')) })
+    renderHook(() => useLeaveGuard(true, ask))
+    traverse()
+    ask.mock.calls[0][0]()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(traverse()).toBe(true)
+  })
+
+  test('unmounting removes the listener; without the Navigation API nothing is registered and nothing breaks', () => {
+    const h = renderHook(() => useLeaveGuard(true, ask))
+    h.unmount()
+    expect(traverse()).toBe(false)
+    delete (window as unknown as { navigation?: unknown }).navigation
+    expect(() => renderHook(() => useLeaveGuard(true, ask))).not.toThrow()
   })
 })

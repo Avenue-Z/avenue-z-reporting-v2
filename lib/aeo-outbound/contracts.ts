@@ -1,5 +1,5 @@
 // Data contracts (spec v1.1 §10). contract-core's model (one declared schema per boundary, a mode per boundary, one
-// log line per violation naming the boundary, field and issue, never a value, and a kill switch) applied with zod,
+// log line per violation naming the boundary, field and issue, never a value; no kill switch, §19.6) applied with zod,
 // because contract-core is Python. Peec boundaries enforce their numeric fields and observe every other field they read.
 import { z } from 'zod'
 import { CONTRACT_MODES, type ContractBoundary, type ContractMode } from './config'
@@ -146,7 +146,7 @@ export const STORED_DATA = z.looseObject({
   actions: z.array(z.looseObject({ title: z.string(), impact: z.string(), type: z.string() })),
   promptCount: z.number().nullable(), models: z.array(z.string()), notes: STORED_NOTES,
   // Spec v1.1 §19.5: on rows generated with code-written sentences; absent on older rows.
-  sentences: z.literal(1).optional(),
+  sentences: z.number().int().min(1).optional(),
   ownSiteRank: z.number().int().min(1).nullable().optional(),
   noDataBrands: z.array(z.string()).optional(),
 })

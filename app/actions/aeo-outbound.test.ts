@@ -267,3 +267,14 @@ test('spec v1.1 §19.8: approve freezes the later of the Eastern day and the win
     vi.useRealTimers()
   }
 })
+
+test('spec v1.1 §19.7 (A3): with the settings unreadable, a Settings-only user gets unavailable (try again), never forbidden', async () => {
+  const { readSettingsRow } = await import('@/lib/aeo-outbound/settings-store')
+  vi.mocked(readSettingsRow).mockRejectedValue(new Error('connection reset'))
+  as('INTERNAL_ANALYST', 'ana@avenuez.com')
+  for (const r of await callAll()) expect(r).toEqual(UNAVAILABLE)
+  noWrites()
+  // A foreign Origin is still forbidden first.
+  setHost('https://evil.example')
+  for (const r of await callAll()) expect(r).toEqual(FORBIDDEN)
+})

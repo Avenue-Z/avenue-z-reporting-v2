@@ -178,12 +178,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
     return () => { live = false }
   }, [id, status, showsReport, reloadKey])
 
-  // A draft re-reads its page data once when it opens: a page restored from the browser's cache would otherwise show
-  // an old panel, brand and titles (spec v1.1 §19.7).
-  useEffect(() => {
-    if (props.status === 'draft') router.refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // No router.refresh() on opening a draft: Next.js rewrites the current history entry's state on a refresh, which would
+  // remove the Back guard's entry mark (use-leave-guard.ts, live test 2026-10-14). The save queue adopts the revision the
+  // view rendered instead, so saves are never against an old one.
 
   // One save queue per draft. Leaving draft (an approve) stops it.
   useEffect(() => {
@@ -362,8 +359,6 @@ export function OutboundEditor(props: OutboundEditorProps) {
   // An edit not yet saved: the browser warns on unload, and in-app navigation asks first in the in-app dialog.
   const unsaved = status === 'draft' && !!save && (save.dirty || save.saving || save.structuring)
   useLeaveGuard(unsaved, (go) => setDialog({ kind: 'leave', then: go }))
-  // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
-  // After a 200 the page is reloading, and the new frame's ready sets the mode instead (spec v1.1 18.12).
   // A stopped queue leaves the frame read-only (spec v1.1 §19.7): nothing typed after a stop can look saved.
   useEffect(() => {
     if (save?.stopped) toFrame({ type: 'mode', edit: false })
@@ -373,6 +368,8 @@ export function OutboundEditor(props: OutboundEditorProps) {
   useEffect(() => {
     setMessage((m) => (m !== null && /^Fill in \d+ items? first$/.test(m) ? (needsValidation.length ? fillFirst(needsValidation.length) : null) : m))
   }, [needsValidation.length])
+  // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
+  // After a 200 the page is reloading, and the new frame's ready sets the mode instead (spec v1.1 18.12).
   const wasStructuring = useRef(false)
   useEffect(() => {
     const now = !!save?.structuring

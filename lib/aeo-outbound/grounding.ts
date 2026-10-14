@@ -1,7 +1,7 @@
 // Post-generation checks (spec §6, v1.1 §3): numbers must appear in the Data block, domains must be Peec's, on every
 // slot. A KPI value is compared with Peec's value and the window label with Peec's label instead. Modeled on
 // lib/peec/content-impact-synopsis.ts:58-100. Runs on every save, so notes stay current. Flags are structured notes.
-import { NEEDS_VALIDATION } from './config'
+import { NEEDS_VALIDATION, SENTENCES_VERSION } from './config'
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
 import { showsPowered } from './render'
@@ -11,8 +11,9 @@ import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 // Spec v1.1 §19.3: number words flagged in a Glean-written field (ordinals are not; "one" is too common to be a figure).
 const NUMBER_WORDS = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|hundred|thousand|half|twice|double|doubled|triple|tripled|percent)\b/gi
 const UNCHECKED = (token: string) => `"${token}": check this number against Peec's numbers on the page.`
-/** A number standing on its own in Glean's words: a digit run next to a letter (H1, B2B) is part of a word, not a figure. */
-const NUM_ALONE = /(?<![A-Za-z])#?\d[\d,]*(?:\.\d+)?%?(?![A-Za-z])/g
+/** A number standing on its own in Glean's words, read whole: a digit run touching a letter (H1, H10, B2B) is part of a
+ *  word; a K, M or x right after the digits is part of the number (10K, 3x). */
+const NUM_ALONE = /(?<![A-Za-z\d.,#])#?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:%|[KkMmx](?![A-Za-z]))?(?![A-Za-z\d])/g
 /** Rank words in a code-written sentence ("third", "21st"): compared with Peec's sentence when Ryan edits it. */
 const ORDINAL = /\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|\d+(?:st|nd|rd|th))\b/gi
 // Words that say nothing about which action is meant, so they never count as a match (review of Tasks 37 to 40).
@@ -117,7 +118,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   const full = withDefaults(slots, d)
   // Spec v1.1 §19.3: the new checks run only on rows generated with code-written sentences, so an older row's flags
   // are exactly what they were.
-  const sentencesRow = d.sentences === 1
+  const sentencesRow = typeof d.sentences === 'number'
   const allowedDomains = new Set([...d.ownDomains, ...d.gapDomains.map((g) => g.domain), ...(dataText.match(DOMAIN) ?? []), ...ALWAYS_ALLOWED_DOMAINS].map((x) => x.toLowerCase()))
   // With no competitors tracked the Data block names no outside brand, so its digits are not exempt either. A row with
   // sentences also names its no-data roster brands in the context (v1.1 §19.1), so those names are exempt too.
@@ -134,7 +135,9 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   const allowed = new Set((figures.match(NUM) ?? []).map((t) => `${kindOf(t)}:${digitsOf(t)}`))
   for (const y of [d.window.start, d.window.end]) allowed.add(`bare:${y.slice(0, 4)}`)
   // Every number of the code-written sentences is allowed (whole percents, points, counts), read the same way as a slot.
+  // Allowed numbers come from today's sentences on any new row; the word-for-word check needs the row's own version.
   const sentences: DataSentences | null = sentencesRow ? dataSentences(d) : null
+  const sameVersion = d.sentences === SENTENCES_VERSION
   if (sentences) {
     const s = sentences
     let sentenceText = [s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | ')
@@ -196,7 +199,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed.
       const domainText = sentencesRow && isCodeSentencePath(path) ? text : value
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
-      const ref = sentencesRow && isCodeSentencePath(path) ? peecSentence(path) : undefined
+      const ref = sameVersion && isCodeSentencePath(path) ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
         // Peec's own action titles (an "H1 heading") are not Glean's numbers.
         let words = text
