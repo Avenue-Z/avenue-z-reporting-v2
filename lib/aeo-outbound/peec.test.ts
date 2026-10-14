@@ -400,3 +400,10 @@ test('capped is decided per attempt: a roomy first attempt gets a 429, the retry
     vi.useRealTimers()
   }
 })
+
+// Paul's review of #388 (C6): a row with no natural key is not a duplicate; the caller's contract names the missing field.
+test('rows with no natural key are kept and never counted as repeats', async () => {
+  const pages = [[{ id: 'a' }, {}, {}], []]
+  const fetch = vi.fn(async () => json({ data: pages.shift() ?? [] }))
+  expect(await new PeecClient(KEY, { fetch }).all<{ id?: string }>('GET', '/brands', {}, (r) => r.id, 3)).toEqual([{ id: 'a' }, {}, {}])
+})

@@ -101,7 +101,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   const W = { project_id: projectId, start_date: window.start, end_date: window.end }
 
   onStep?.(5)
-  const brands = peecContract('peec.brands_report', await client.all<BrandReportRow>('POST', '/reports/brands', W, (r) => r.brand.id, 10_000))
+  const brands = peecContract('peec.brands_report', await client.all<BrandReportRow>('POST', '/reports/brands', W, (r) => r.brand?.id, 10_000))
   if (!brands.some((r) => r.brand.id === owned[0].id)) throw new PeecError('The own brand has no row in the Peec brands report for this window', false, false, 'own_brand_no_row')
   const warnings: string[] = []
   // Both calls below only supply model names, so any failure but a spent deadline or a broken contract is a

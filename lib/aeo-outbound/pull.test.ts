@@ -295,3 +295,13 @@ test('/actions/list: a per-call timeout on page 2 with budget left gives no acti
   expect(pull.warnings).toEqual(['Peec actions could not be loaded, so opportunities come from the data only.'])
   expect(f.seen.some((s) => s.path === '/prompts')).toBe(true)
 })
+
+// Paul's review of #388 (C6): the paging key must not crash on a row the contract should name.
+test('a brands report row with no brand, or domain rows with no domain, fail as contract_violation naming the field', async () => {
+  const own = { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.2, share_of_voice: 0.2 }
+  const b = fakePeec({ ...base, '/reports/brands': (_u, x) => (x?.dimensions ? [] : [own, { visibility: 0.1, share_of_voice: 0.1 }]) })
+  await expect(pullSnapshot(b.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.brands_report.brand' })
+  const noDomain = { classification: 'OTHER', retrieved_chat_count: 3, retrieval_count: 3, mentioned_brands: [] }
+  const d = fakePeec({ ...base, '/reports/domains': (_u, x) => (x?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [noDomain, noDomain]) })
+  await expect(pullSnapshot(d.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.domains_report.domain' })
+})
