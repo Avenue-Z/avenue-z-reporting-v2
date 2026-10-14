@@ -287,3 +287,23 @@ reached staging. A read-only preflight first, host-guarded to the address the sc
 with its 16 columns, both indexes (the partial one's `WHERE` intact), the foreign key and the
 check; the ledger up by one with nothing pending; the table list changed by `chart_notes` only;
 no rows; Renaissance's row unchanged. Production: not applied.
+
+## Add aeo_outbound_reports (delivered, awaiting apply)
+
+`drizzle/0026_aeo_outbound_reports.sql` creates the `aeo_outbound_status` enum and the standalone
+`aeo_outbound_reports` table (AEO Outbound Snapshot). Additive: no existing table, column or row
+changes, and only `lib/aeo-outbound/store.ts` reads it, so the `clients` 42703 risk above does not
+apply. Apply with the hash-checked `scripts/migrate-http.ts`, dev first, then staging and production
+each on my written go, before the code reaches that environment.
+
+Each environment only on my written go, dev first, then staging, then production. That script
+applies every unrecorded migration in journal order and does not check which database it points
+at, so a host guard runs first and refuses any host that is not the one I named for that run.
+Before: a read-only dry run that lists what is pending. On dev and staging it must show exactly
+`0026_aeo_outbound_reports` and nothing else. On production `0025_chart_notes` is also unapplied,
+so production needs 0025 applied first, on my go, or the dry run will show both and the script
+would apply both. After: a read-only read-back of the `aeo_outbound_reports` table with its four
+open-tracking columns, its two date columns (`requested_start`, `requested_end`), its four checks (the approved check
+including `share_recipient`, and `aeo_outbound_range_both_or_neither`), both indexes
+with the partial `WHERE status = 'generating'` intact, the `aeo_outbound_status` enum, and the
+migration ledger up by one.
