@@ -380,6 +380,10 @@ export function OutboundEditor(props: OutboundEditorProps) {
     if (save?.stopped) toFrame({ type: 'mode', edit: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save?.stopped])
+  // At zero the Fill in message is gone for good: an item that comes back later does not bring it back unasked.
+  useEffect(() => {
+    if (!needsValidation.length) setMessage((m) => (m === FILL_FIRST ? null : m))
+  }, [needsValidation.length])
   // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
   // After a 200 the page is reloading, and the new frame's ready sets the mode instead (spec v1.1 18.12).
   const wasStructuring = useRef(false)

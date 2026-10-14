@@ -422,3 +422,11 @@ test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-o
   expect((await patch({ path: 'headline', value: 'x', revision: 3 })).status).toBe(200)
   m.readSettings.mockReset()
 })
+
+// Paul's review of #388 (C10): a foreign Origin is refused before any session or settings read.
+test('a foreign Origin is a 403 before auth or the settings are read', async () => {
+  vi.mocked(auth).mockClear(); m.readSettings.mockClear()
+  expect((await patch({ path: 'headline', value: 'x', revision: 3 }, ID, { origin: 'https://evil.example' })).status).toBe(403)
+  expect(auth).not.toHaveBeenCalled()
+  expect(m.readSettings).not.toHaveBeenCalled()
+})

@@ -930,4 +930,9 @@ test('the Fill in message follows the count and clears at zero', async () => {
   patch = async () => json(200, { revision: 6, notes: [], needsValidation: [] })
   await fromFrame(iframe, { type: 'edit', path: 'market', value: 'United States' })
   await waitFor(() => expect(screen.queryByText(/^Fill in \d/)).toBeNull())
+  // Once cleared it stays cleared: an item that comes back later does not bring the message back unasked.
+  patch = async () => json(200, { revision: 7, notes: [], needsValidation: ['market'] })
+  await fromFrame(iframe, { type: 'edit', path: 'market', value: 'Needs validation' })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Before you send (1)' })).toBeInTheDocument())
+  expect(screen.queryByText(/^Fill in \d/)).toBeNull()
 })
