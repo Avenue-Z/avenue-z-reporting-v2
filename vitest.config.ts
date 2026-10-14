@@ -74,6 +74,7 @@ export default defineConfig({
       'components/charts/kpi-card.test.tsx',
       'components/charts/progress-ring.test.tsx',
       'components/export-pdf-button.test.tsx',
+      'components/export-pdf-button.bulk.test.tsx',
       'lib/export-period.test.ts',
       'lib/export-period.pages.test.tsx',
       'lib/export/**/*.test.{ts,tsx}',
