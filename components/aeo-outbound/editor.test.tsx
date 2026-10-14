@@ -26,8 +26,14 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 let patch: () => Promise<Response>
 let progress: (url: string) => Promise<Response> = async () => json(200, { step: null })
 let generateAnswer: () => Promise<Response> = async () => json(200, { id: NEW_ID, status: 'draft' })
+// Spec v1.1 §19.7: the revision the view route says it rendered (none by default), and an optional view answer.
+let viewRevision: number | null = null
+let viewAnswer: ((url: string) => Response) | null = null
 const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
-  if (url.startsWith(`/api/aeo-outbound/reports/${ID}/view`)) return new Response(`<p>${url}</p>`, { status: 200 })
+  if (url.startsWith(`/api/aeo-outbound/reports/${ID}/view`)) {
+    if (viewAnswer) return viewAnswer(url)
+    return new Response(`<p>${url}</p>`, { status: 200, headers: viewRevision === null ? {} : { 'X-Report-Revision': String(viewRevision) } })
+  }
   if (url === `/api/aeo-outbound/reports/${ID}/slots`) return patch()
   if (url === '/api/aeo-outbound/generate') return generateAnswer()
   if (url.startsWith('/api/aeo-outbound/progress?')) return progress(url)
@@ -51,15 +57,19 @@ beforeEach(() => {
   patch = async () => json(200, { revision: 5, notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [] })
   generateAnswer = async () => json(200, { id: NEW_ID, status: 'draft' })
   progress = async () => json(200, { id: ID, step: 4, createdAt: '2026-10-08T15:00:00.000Z' })
+  viewRevision = null
+  viewAnswer = null
   vi.stubGlobal('fetch', fetchMock)
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
+// Spec v1.1 §19.7: the frame is mounted only once its report has arrived, as a new element per load.
+const frameIn = (c: HTMLElement) => c.querySelector('iframe') as HTMLIFrameElement
 async function setup(over: Partial<Props> = {}) {
   const utils = render(<OutboundEditor {...base} {...over} />)
-  const iframe = utils.container.querySelector('iframe')
-  if (iframe) await waitFor(() => expect(iframe.getAttribute('srcdoc')).toContain('/view'))
-  return { ...utils, iframe: iframe as HTMLIFrameElement }
+  const status = over.status ?? base.status
+  if (!over.unreadable && ['draft', 'live', 'revoked'].includes(status)) await waitFor(() => expect(frameIn(utils.container)?.getAttribute('srcdoc')).toContain('/view'))
+  return { ...utils, iframe: frameIn(utils.container) }
 }
 const fromFrame = (iframe: HTMLIFrameElement, data: unknown) =>
   act(() => { window.dispatchEvent(new MessageEvent('message', { data, source: iframe.contentWindow })) })
@@ -201,6 +211,7 @@ test('the Approve dialog shows the confirm text and requires who it is for', asy
   fireEvent.change(field, { target: { value: '   ' } })
   expect(confirm).toBeDisabled()
   fireEvent.change(field, { target: { value: 'Jane Doe, Acme' } })
+  refresh.mockClear()
   fireEvent.click(confirm)
   await waitFor(() => expect(actions.approveSnapshotAction).toHaveBeenCalledWith(ID, 4, 'Jane Doe, Acme'))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -603,14 +614,16 @@ test('a live row lists its opens with the caveat, and counts opens from before v
   expect(within(list).getByText('1 not classified')).toBeInTheDocument()
 })
 
-test('while the report loads, the frame area is black and says Loading report…', async () => {
+test('while the report loads, the area says Loading report… and holds no frame, so no empty page enters the history (spec v1.1 §19.7)', async () => {
   let release: (r: Response) => void = () => {}
   fetchMock.mockImplementationOnce(() => new Promise<Response>((r) => { release = r }))
   const { container } = render(<OutboundEditor {...base} />)
   expect(screen.getByText('Loading report…')).toBeInTheDocument()
-  expect(container.querySelector('iframe')).toHaveClass('bg-black')
+  expect(container.querySelector('iframe')).toBeNull()
   await act(async () => release(new Response('<p>x</p>')))
   await waitFor(() => expect(screen.queryByText('Loading report…')).not.toBeInTheDocument())
+  expect(frameIn(container)).toHaveClass('bg-black')
+  expect(frameIn(container).getAttribute('srcdoc')).toBe('<p>x</p>')
 })
 
 test('a brand save renames the toolbar and the frame title', async () => {
@@ -690,20 +703,24 @@ test('after a refused structure (400) the next structure message is accepted (sp
 test('a structure message during a retry backoff is dropped; after the retry lands with 200 the next is accepted (spec v1.1 18.12)', async () => {
   const answers = [json(503, { error: 'unavailable' }), json(200, { revision: 5, notes: [], needsValidation: [], slots: {} }), json(200, { revision: 6, notes: [], needsValidation: [], slots: {} })]
   patch = async () => answers.shift()!
-  const { iframe } = await setup()
+  const { iframe, container } = await setup()
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   await fromFrame(iframe, { type: 'structure', op: 'add', path: 'competitive_bullets' })
   await waitFor(() => expect(screen.getByText(/Couldn't save, retrying/)).toBeInTheDocument())
   await fromFrame(iframe, { type: 'structure', op: 'add', path: 'sources_bullets' })
   await waitFor(() => expect(views()).toHaveLength(2), { timeout: 3000 })
   expect(structurePatches().map((b) => b.path)).toEqual(['competitive_bullets.add', 'competitive_bullets.add'])
-  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'sources_bullets' })
+  // The reloaded report is a new frame (spec v1.1 §19.7); its next click is accepted.
+  await waitFor(() => expect(frameIn(container)).not.toBe(iframe))
+  const next = frameIn(container)
+  await fromFrame(next, { type: 'ready' })
+  await fromFrame(next, { type: 'structure', op: 'add', path: 'sources_bullets' })
   await waitFor(() => expect(structurePatches().map((b) => b.path)).toEqual(['competitive_bullets.add', 'competitive_bullets.add', 'sources_bullets.add']))
 })
 
 test('between a structure 200 and the new frame\'s ready, no edit mode reaches the frame; ready then hands it back (spec v1.1 18.12)', async () => {
   patch = async () => json(200, { revision: 5, notes: [], needsValidation: [], slots: {} })
-  const { iframe } = await setup()
+  const { iframe, container } = await setup()
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   const post = vi.spyOn(iframe.contentWindow!, 'postMessage')
   await fromFrame(iframe, { type: 'structure', op: 'remove', path: 'competitive_bullets.4' })
@@ -712,12 +729,17 @@ test('between a structure 200 and the new frame\'s ready, no edit mode reaches t
   await waitFor(() => expect(screen.queryByText('Saving…')).toBeNull())
   await new Promise((r) => setTimeout(r, 20))
   expect(post.mock.calls.filter(([m]) => (m as { type?: string; edit?: boolean }).type === 'mode' && (m as { edit?: boolean }).edit === true)).toEqual([])
-  // Switching modes in the gap does not hand edit mode to the old frame either.
+  // The reloaded report is a new frame element (spec v1.1 §19.7). Switching modes before its ready hands it no edit mode.
+  await waitFor(() => expect(frameIn(container)).not.toBe(iframe))
+  const next = frameIn(container)
+  const nextPost = vi.spyOn(next.contentWindow!, 'postMessage')
   fireEvent.click(screen.getByRole('button', { name: 'Done editing' }))
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
-  expect(post.mock.calls.filter(([m]) => (m as { type?: string; edit?: boolean }).type === 'mode' && (m as { edit?: boolean }).edit === true)).toEqual([])
-  await fromFrame(iframe, { type: 'ready' })
-  expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: true }, '*')
+  const editOn = (spy: typeof post) => spy.mock.calls.filter(([m]) => (m as { type?: string; edit?: boolean }).type === 'mode' && (m as { edit?: boolean }).edit === true)
+  expect(editOn(post)).toEqual([])
+  expect(editOn(nextPost)).toEqual([])
+  await fromFrame(next, { type: 'ready' })
+  expect(nextPost).toHaveBeenLastCalledWith({ type: 'mode', edit: true }, '*')
 })
 
 test('Approve is not offered on an unreadable draft', () => {
@@ -763,4 +785,113 @@ test.each(['live', 'revoked'] as const)('a %s report has no Before you send pill
   await setup({ status, token: 'tok_123', needsValidation: ['market'] })
   expect(screen.queryByRole('complementary', { name: 'Before you send' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /^Show Before you send/ })).not.toBeInTheDocument()
+})
+
+// Spec v1.1 §19.7: the editor never loses or stalls.
+test('each report load is a new frame element created with its report, and a bullet change reloads into a new one', async () => {
+  patch = async () => json(200, { revision: 5, notes: [], needsValidation: [], slots: {} })
+  const { iframe, container } = await setup()
+  expect(container.querySelectorAll('iframe')).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'competitive_bullets' })
+  await waitFor(() => expect(views()).toHaveLength(2))
+  await waitFor(() => expect(frameIn(container)).not.toBe(iframe))
+  expect(container.querySelectorAll('iframe')).toHaveLength(1)
+  expect(frameIn(container).getAttribute('srcdoc')).toContain('/view')
+})
+
+test('the queue adopts the revision the view rendered, so an editor reopened from the cache saves against the current row (A1)', async () => {
+  viewRevision = 9
+  const { iframe } = await setup({ revision: 4 })
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'H' })
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  expect(JSON.parse(String(patches()[0][1]?.body))).toMatchObject({ revision: 9 })
+  // Adopting is not a save: the toolbar does not say Saved before anything was saved.
+  cleanup(); fetchMock.mockClear()
+  viewRevision = 9
+  await setup({ revision: 4 })
+  expect(screen.queryByText('Saved')).toBeNull()
+})
+
+test('a draft refreshes its page data once when it opens, so the panel, brand and titles are current', async () => {
+  await setup()
+  expect(refresh).toHaveBeenCalledTimes(1)
+  cleanup(); refresh.mockReset()
+  await setup({ status: 'live', token: 'tok_1' })
+  expect(refresh).not.toHaveBeenCalled()
+})
+
+test('the report load retries a 503 twice, after 1 and 2 seconds, before showing its error', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  let n = 0
+  viewAnswer = () => (++n <= 2 ? new Response('Unavailable', { status: 503 }) : new Response('<p>ok</p>'))
+  const { container } = render(<OutboundEditor {...base} />)
+  await act(() => vi.advanceTimersByTimeAsync(999))
+  expect(n).toBe(1)
+  await act(() => vi.advanceTimersByTimeAsync(2001))
+  await waitFor(() => expect(frameIn(container)?.getAttribute('srcdoc')).toBe('<p>ok</p>'))
+  expect(n).toBe(3)
+  cleanup()
+  n = 0
+  viewAnswer = () => { n++; return new Response('Unavailable', { status: 503 }) }
+  render(<OutboundEditor {...base} />)
+  await act(() => vi.advanceTimersByTimeAsync(3500))
+  expect(await screen.findByText('Lost connection.')).toBeInTheDocument()
+  expect(n).toBe(3)
+})
+
+test('a stopped queue makes the frame read-only, and Edit cannot hand it edit mode back', async () => {
+  patch = async () => json(409, { error: 'stale', revision: 9 })
+  const { iframe } = await setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  const post = vi.spyOn(iframe.contentWindow!, 'postMessage')
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'x' })
+  expect(await screen.findByText('This snapshot changed. Reload.')).toBeInTheDocument()
+  await waitFor(() => expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: false }, '*'))
+  fireEvent.click(screen.getByRole('button', { name: 'Done editing' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: false }, '*')
+})
+
+test('after a bullet change the new frame is sent back to where Ryan had scrolled', async () => {
+  patch = async () => json(200, { revision: 5, notes: [], needsValidation: [], slots: {} })
+  const { iframe, container } = await setup()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  await fromFrame(iframe, { type: 'scroll', y: 1840 })
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'sources_bullets' })
+  await waitFor(() => expect(frameIn(container)).not.toBe(iframe))
+  const next = frameIn(container)
+  const post = vi.spyOn(next.contentWindow!, 'postMessage')
+  await fromFrame(next, { type: 'ready' })
+  expect(post).toHaveBeenCalledWith({ type: 'scroll', y: 1840 }, '*')
+  // A later ready (no bullet change since) sends no scroll.
+  post.mockClear()
+  await fromFrame(next, { type: 'ready' })
+  expect(post.mock.calls.some(([m]) => (m as { type?: string }).type === 'scroll')).toBe(false)
+})
+
+test('Approve\'s tooltip names the real reason: the refused field, the stop, else saving', async () => {
+  patch = async () => json(400, { error: "This field can't be empty." })
+  const { iframe } = await setup()
+  await fromFrame(iframe, { type: 'dirty', path: 'headline' })
+  expect(approveBtn()).toHaveAttribute('title', 'Saving. Try again in a moment.')
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: '' })
+  await waitFor(() => expect(approveBtn()).toHaveAttribute('title', "Headline: This field can't be empty."))
+  cleanup()
+  patch = async () => json(409, { error: 'stale', revision: 9 })
+  const again = await setup()
+  await fromFrame(again.iframe, { type: 'edit', path: 'why', value: 'x' })
+  await waitFor(() => expect(approveBtn()).toHaveAttribute('title', 'This snapshot changed. Reload.'))
+})
+
+test('the Fill in message follows the count and clears at zero', async () => {
+  const { iframe } = await setup({ needsValidation: ['market', 'category'] })
+  fireEvent.click(approveBtn())
+  expect(await screen.findByText('Fill in 2 items first')).toBeInTheDocument()
+  patch = async () => json(200, { revision: 5, notes: [], needsValidation: ['market'] })
+  await fromFrame(iframe, { type: 'edit', path: 'category', value: 'Senior care' })
+  expect(await screen.findByText('Fill in 1 item first')).toBeInTheDocument()
+  patch = async () => json(200, { revision: 6, notes: [], needsValidation: [] })
+  await fromFrame(iframe, { type: 'edit', path: 'market', value: 'United States' })
+  await waitFor(() => expect(screen.queryByText(/^Fill in \d/)).toBeNull())
 })

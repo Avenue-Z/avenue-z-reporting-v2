@@ -57,5 +57,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (row.status !== 'draft' || !row.data || !row.slots) return notFound()
   // The date approving now would freeze (app/actions/aeo-outbound.ts), so the editor and its preview show the Prepared date
   // the prospect will see (spec v1.1 §18.6): today's Eastern day, or the window's last day when later (§19.8).
-  return new Response(renderSnapshotHtml(row.data, row.slots, preview ? 'preview' : 'draft', preparedDay(new Date(), row.data.window.end)), { headers: HEADERS })
+  // X-Report-Revision: the revision this draft was rendered at, which the editor's save queue adopts (spec v1.1 §19.7).
+  return new Response(renderSnapshotHtml(row.data, row.slots, preview ? 'preview' : 'draft', preparedDay(new Date(), row.data.window.end)), { headers: { ...HEADERS, 'X-Report-Revision': String(row.revision) } })
 }

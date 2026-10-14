@@ -270,3 +270,11 @@ test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-o
   as('ana@avenuez.com')
   expect((await get()).status).toBe(503)
 })
+
+test('spec v1.1 §19.7: a draft says which revision it rendered in X-Report-Revision; a sent report does not', async () => {
+  m.getReport.mockResolvedValue(row({ revision: 12 }))
+  expect((await get()).headers.get('X-Report-Revision')).toBe('12')
+  expect((await get(ID, '?mode=preview')).headers.get('X-Report-Revision')).toBe('12')
+  m.getReport.mockResolvedValue(row({ status: 'approved', html: '<p>frozen</p>', revision: 12 }))
+  expect((await get()).headers.get('X-Report-Revision')).toBeNull()
+})

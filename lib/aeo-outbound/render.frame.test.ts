@@ -469,3 +469,22 @@ test('leaving Edit mode sends a pending menu edit once', () => {
   vi.advanceTimersByTime(1000)
   expect(sent().filter((x) => (x as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.opps_label', value: 'Pending' }])
 })
+
+// Spec v1.1 §19.7: after a bullet add or remove the new frame opens where Ryan was.
+test('scrolling posts the frame\'s position at most every 200 ms, and a scroll message from the parent restores it', () => {
+  boot()
+  const scrollTo = vi.fn()
+  Object.assign(win, { scrollY: 640, scrollTo })
+  post.mockClear()
+  win.dispatchEvent(new Event('scroll'))
+  win.dispatchEvent(new Event('scroll'))
+  expect(sent()).toEqual([])
+  vi.advanceTimersByTime(200)
+  expect(sent()).toEqual([{ type: 'scroll', y: 640 }])
+  fromParent({ type: 'scroll', y: 1234 })
+  expect(scrollTo).toHaveBeenCalledWith(0, 1234)
+  for (const bad of [{ type: 'scroll', y: -1 }, { type: 'scroll', y: '9' }, { type: 'scroll' }]) fromParent(bad)
+  expect(scrollTo).toHaveBeenCalledTimes(1)
+  fromParent({ type: 'scroll', y: 50 }, null)
+  expect(scrollTo).toHaveBeenCalledTimes(1)
+})

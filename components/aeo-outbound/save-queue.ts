@@ -102,6 +102,15 @@ export class SaveQueue {
     void this.run()
   }
 
+  /** Spec v1.1 §19.7 (A1): the revision of the report on screen, from the view route. Taken only while nothing has been
+   *  sent, nothing is pending and the queue is not stopped, so a page reopened from the browser's cache saves against the
+   *  row as it is now instead of the revision its cached props carried. */
+  adopt(revision: number): boolean {
+    if (this.state.stopped || this.nextSeq !== 1 || this.running || this.pending.size || this.structural.length) return false
+    if (revision !== this.state.revision) this.set({ revision })
+    return true
+  }
+
   stop(message: string) {
     this.set({ stopped: true, saving: false, error: message })
     this.inFlight?.abort()
@@ -158,6 +167,8 @@ export class SaveQueue {
             for (const k of [...this.bad.keys()]) if (k.startsWith(prefix)) this.bad.delete(k)
             for (const k of [...this.dirtyPaths]) if (k.startsWith(prefix)) this.dirtyPaths.delete(k)
             for (const k of [...this.typed.keys()]) if (k.startsWith(prefix)) this.typed.delete(k)
+            // Spec v1.1 §19.7: edits for that list that arrived during the structure were written against the old indices.
+            for (const k of [...this.pending.keys()]) if (k.startsWith(prefix)) this.pending.delete(k)
           } else {
             if (this.pending.get(path) === item) this.pending.delete(path)
             if ((this.typed.get(path) ?? 0) === item.stamp && !this.pending.has(path)) this.dirtyPaths.delete(path)

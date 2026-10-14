@@ -66,6 +66,8 @@ const POLL_MS = 100
 const LOCKED_MS = 3000
 const OPENS_SHOWN = 200
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+/** The waits before a report load is tried again after a 503 (spec v1.1 §19.7). */
+const VIEW_RETRY_MS = [1000, 2000]
 const isStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === 'string')
 
 type Mode = 'preview' | 'edit'
@@ -83,6 +85,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
   // Spec v1.1 18.12: set on a structure 200, which reloads the page; until the new frame says ready, the old frame (whose
   // bullet indexes are stale) never gets edit mode back. Cleared by the new frame's ready.
   const reloadPendingRef = useRef(false)
+  // Spec v1.1 §19.7: the frame's last scroll position, and the one to restore on the next ready after a bullet change.
+  const scrollRef = useRef(0)
+  const restoreScrollRef = useRef<number | null>(null)
 
   // Local status and token follow the server's on each refresh, and move ahead of it after an approve or revoke.
   const [status, setStatus] = useState(props.status)
@@ -113,9 +118,13 @@ export function OutboundEditor(props: OutboundEditorProps) {
   }
 
   const [html, setHtml] = useState<string | null>(null)
+  // Spec v1.1 §19.7: each load is a new iframe element created with its report, so no load adds a history entry.
+  const [loads, setLoads] = useState(0)
   const [viewError, setViewError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [save, setSave] = useState<SaveState | null>(null)
+  // The revision the page was opened at: props.revision, or the view route's when the queue adopted it (A1).
+  const [openedRevision, setOpenedRevision] = useState(props.revision)
   const [message, setMessage] = useState<string | null>(null)
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [mode, setMode] = useState<Mode>('preview')
@@ -130,28 +139,51 @@ export function OutboundEditor(props: OutboundEditorProps) {
 
   const showsReport = !props.unreadable && (status === 'draft' || status === 'live' || status === 'revoked')
   const toFrame = (m: unknown) => iframeRef.current?.contentWindow?.postMessage(m, '*')
-  /** Edit mode, unless a structural change is queued or in flight, or its reload has not arrived yet: the frame is
-   *  read-only then (v1.1 §3, 18.12). */
-  const frameEditable = () => modeRef.current === 'edit' && !queueRef.current?.state.structuring && !reloadPendingRef.current
+  /** Edit mode, unless a structural change is queued or in flight, its reload has not arrived yet, or saving stopped: the
+   *  frame is read-only then (v1.1 §3, 18.12, 19.7). */
+  const frameEditable = () => modeRef.current === 'edit' && !queueRef.current?.state.structuring && !reloadPendingRef.current && !queueRef.current?.state.stopped
 
-  // The report HTML: the draft page (editing hooks, Preview until Edit) for a draft, the frozen preview otherwise.
+  // The report HTML: the draft page (editing hooks, Preview until Edit) for a draft, the frozen preview otherwise. A 503
+  // (settings unreadable, spec v1.1 §19.7) is tried twice more, after 1 and 2 seconds, before the error shows.
   useEffect(() => {
     if (!showsReport) return
     let live = true
     const url = `/api/aeo-outbound/reports/${id}/view${status === 'draft' ? '' : '?mode=preview'}`
     setViewError(null)
     setHtml(null)
-    fetch(url)
-      .then(async (res) => {
+    void (async () => {
+      try {
+        let res = await fetch(url)
+        for (const wait of VIEW_RETRY_MS) {
+          if (!live || res.status !== 503) break
+          await sleep(wait)
+          if (!live) return
+          res = await fetch(url)
+        }
         if (!live) return
         if (res.status === 404) return setViewError(GONE)
         if (!res.ok) return setViewError(VIEW_FAILED)
+        const shown = Number(res.headers.get('X-Report-Revision'))
         const text = await res.text()
-        if (live) setHtml(text)
-      })
-      .catch(() => { if (live) setViewError(VIEW_FAILED) })
+        if (!live) return
+        // Spec v1.1 §19.7 (A1): save against the revision this report was rendered at, while nothing has been sent.
+        const q = queueRef.current
+        if (q && res.headers.has('X-Report-Revision') && Number.isInteger(shown) && q.adopt(shown)) setOpenedRevision(shown)
+        setHtml(text)
+        setLoads((n) => n + 1)
+      } catch {
+        if (live) setViewError(VIEW_FAILED)
+      }
+    })()
     return () => { live = false }
   }, [id, status, showsReport, reloadKey])
+
+  // A draft re-reads its page data once when it opens: a page restored from the browser's cache would otherwise show
+  // an old panel, brand and titles (spec v1.1 §19.7).
+  useEffect(() => {
+    if (props.status === 'draft') router.refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // One save queue per draft. Leaving draft (an approve) stops it.
   useEffect(() => {
@@ -175,6 +207,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
           // The list's indices changed: its Looks right ticks no longer point at the same bullets (v1.1 §3).
           dropTicksFor(path.split('.')[0])
           reloadPendingRef.current = true
+          restoreScrollRef.current = scrollRef.current
           setReloadKey((k) => k + 1)
         } else if (path === 'brand') { setBrand(cleanValue(value)); setLinkBrand(cleanValue(value)) }
         else if (path === 'page.section_1_title') setTitles(([, two]): [string, string] => [cleanValue(value), two])
@@ -204,9 +237,17 @@ export function OutboundEditor(props: OutboundEditorProps) {
     function onMessage(e: MessageEvent) {
       const frame = iframeRef.current?.contentWindow
       if (!frame || e.source !== frame) return
-      const d = e.data as { type?: unknown; path?: unknown; value?: unknown; what?: unknown; op?: unknown } | null
+      const d = e.data as { type?: unknown; path?: unknown; value?: unknown; what?: unknown; op?: unknown; y?: unknown } | null
       if (!d || typeof d !== 'object') return
-      if (d.type === 'ready') { reloadPendingRef.current = false; frame.postMessage({ type: 'mode', edit: frameEditable() }, '*'); return }
+      if (d.type === 'ready') {
+        reloadPendingRef.current = false
+        frame.postMessage({ type: 'mode', edit: frameEditable() }, '*')
+        // Spec v1.1 §19.7: a reload after a bullet change opens where Ryan was.
+        if (restoreScrollRef.current) frame.postMessage({ type: 'scroll', y: restoreScrollRef.current }, '*')
+        restoreScrollRef.current = null
+        return
+      }
+      if (d.type === 'scroll') { if (typeof d.y === 'number' && d.y >= 0) scrollRef.current = d.y; return }
       if (d.type === 'locked') {
         const text = d.what === 'chart' ? LOCKED_CHART : typeof d.path === 'string' ? LOCKED_MIRROR : LOCKED_FIXED
         setLocked((l) => ({ text, n: (l?.n ?? 0) + 1 }))
@@ -261,7 +302,12 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const blockedByValidation = props.needsValidationBlocksApprove && needsValidation.length > 0
   const busySaving = !save || save.dirty || save.saving || save.stopped || save.structuring
   const approveDisabled = busySaving || busy
-  const approveTitle = busySaving ? FLUSH_WAIT : undefined
+  // Spec v1.1 §19.7: the disabled Approve says why: the stop, the refused field, else saving.
+  const refusedField = save && !save.stopped && save.error && save.error !== RETRY_MESSAGE ? save.badPaths.at(-1) : undefined
+  const approveTitle = !busySaving ? undefined
+    : save?.stopped ? save.error ?? FLUSH_WAIT
+      : refusedField ? `${fieldLabel(refusedField, titles)}: ${save!.error}`
+        : FLUSH_WAIT
 
   async function onApprove() {
     const q = queueRef.current
@@ -318,6 +364,15 @@ export function OutboundEditor(props: OutboundEditorProps) {
   useLeaveGuard(unsaved, (go) => setDialog({ kind: 'leave', then: go }))
   // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
   // After a 200 the page is reloading, and the new frame's ready sets the mode instead (spec v1.1 18.12).
+  // A stopped queue leaves the frame read-only (spec v1.1 §19.7): nothing typed after a stop can look saved.
+  useEffect(() => {
+    if (save?.stopped) toFrame({ type: 'mode', edit: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [save?.stopped])
+  // The Fill in message follows the current count, and clears at zero (spec v1.1 §19.7).
+  useEffect(() => {
+    setMessage((m) => (m !== null && /^Fill in \d+ items? first$/.test(m) ? (needsValidation.length ? fillFirst(needsValidation.length) : null) : m))
+  }, [needsValidation.length])
   const wasStructuring = useRef(false)
   useEffect(() => {
     const now = !!save?.structuring
@@ -370,7 +425,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
       const field = save.error !== RETRY_MESSAGE ? save.badPaths.at(-1) : undefined
       saveText = field ? `${fieldLabel(field, titles)}: ${save.error}` : save.error
     } else if (save.saving || save.dirty || save.structuring) saveText = 'Saving…'
-    else if (save.revision !== props.revision) saveText = 'Saved'
+    else if (save.revision !== openedRevision) saveText = 'Saved'
   }
   const sent = status === 'live' || status === 'revoked'
   const notClassifiedCount = props.opens.length < OPENS_SHOWN ? Math.max(0, props.openCount - props.opens.length) : 0
@@ -444,8 +499,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
               {viewError !== GONE && <button type="button" className={btnCls} onClick={() => window.location.reload()}>Reload</button>}
             </p>
           )}
-          <iframe ref={iframeRef} title={brand} sandbox={REPORT_SANDBOX} srcDoc={html ?? ''} className="w-full rounded-lg bg-black" style={{ height: 'calc(100vh - 140px)' }} />
-          {html === null && !viewError && <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black text-sm text-text-muted">{LOADING_REPORT}</div>}
+          {/* Spec v1.1 §19.7: mounted only with its report, a new element per load, so no load adds a history entry. */}
+          {html !== null && <iframe key={loads} ref={iframeRef} title={brand} sandbox={REPORT_SANDBOX} srcDoc={html} className="w-full rounded-lg bg-black" style={{ height: 'calc(100vh - 140px)' }} />}
+          {html === null && !viewError && <div className="flex items-center justify-center rounded-lg bg-black text-sm text-text-muted" style={{ height: 'calc(100vh - 140px)' }}>{LOADING_REPORT}</div>}
           {panelOpen && (
             <BeforeYouSend
               needsValidation={needsValidation} notes={notes} titles={titles} about={props.about} ticks={ticks} ownTicks={ownTicks} highlight={highlight}

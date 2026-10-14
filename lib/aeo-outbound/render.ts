@@ -35,7 +35,8 @@ export const EDITOR_STYLE = '<style>' + [
  * after it ran keeps working. Slots become contenteditable only in edit mode, plaintext-only where supported, else true
  * with plain-text paste. In edit mode, clicks inside links and the sidebar nav never navigate; a click on a chart, a
  * fixed word or a mirror copy posts locked, except the four menu copies (data-mirror-edit, §17.16), which are editable
- * like slots and keep their section heading in sync. Preview posts nothing but ready.
+ * like slots and keep their section heading in sync. In Preview it posts only ready and its scroll position, at most
+ * every 200 ms and scrolls to a position the parent sends, so a reload after a bullet change opens where Ryan was (v1.1 §19.7).
  */
 export const FRAME_SCRIPT_JS = String.raw`(function(){
 var t={},edit=false;
@@ -52,7 +53,9 @@ function setMode(on){edit=on===true;document.documentElement.classList.toggle('a
 window.addEventListener('message',function(e){if(e.source!==parent||!e.data||typeof e.data!=='object')return;var d=e.data;
 if(d.type==='mode')setMode(d.edit);
 else if(d.type==='flush')flush();
-else if(d.type==='focus'&&typeof d.path==='string'){var el=slotEl(d.path);if(!el)return;if(el.scrollIntoView)el.scrollIntoView({block:'center'});if(el.focus)el.focus();el.classList.add('aeo-flash');setTimeout(function(){el.classList.remove('aeo-flash')},1200)}});
+else if(d.type==='focus'&&typeof d.path==='string'){var el=slotEl(d.path);if(!el)return;if(el.scrollIntoView)el.scrollIntoView({block:'center'});if(el.focus)el.focus();el.classList.add('aeo-flash');setTimeout(function(){el.classList.remove('aeo-flash')},1200)}
+else if(d.type==='scroll'&&typeof d.y==='number'&&d.y>=0&&window.scrollTo)window.scrollTo(0,d.y)});
+var st=null;window.addEventListener('scroll',function(){if(st)return;st=setTimeout(function(){st=null;post({type:'scroll',y:Math.round(window.scrollY||0)})},200)},{passive:true});
 document.addEventListener('input',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;var m=el.hasAttribute('data-mirror-edit');var p=el.getAttribute(m?'data-mirror':'data-slot');if(m){var v=el.textContent||'';var s=slotEl(p);if(s)s.textContent=v;mirror(p,v,el)}else syncMenu(p,el.textContent||'',el);post({type:'dirty',path:p});clearTimeout(t[p]);t[p]=setTimeout(function(){send(p)},800)});
 document.addEventListener('keydown',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(edit&&el&&e.key==='Enter'){e.preventDefault();if(el.blur)el.blur()}});
 document.addEventListener('paste',function(e){var el=within(e.target,'[data-slot],[data-mirror-edit]');if(!el||!edit)return;e.preventDefault();var cd=e.clipboardData||window.clipboardData;var s=cd?cd.getData('text/plain'):'';if(document.execCommand)document.execCommand('insertText',false,s)});
