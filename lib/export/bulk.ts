@@ -1,6 +1,7 @@
 // Bulk export (spec 2026-10-14-bulk-pdf-export-design): the selected pages are exported one request at a time through
 // the single-page route (B6), and the browser merges them (lib/export/merge-pdfs.ts). Pure: the request itself is
 // passed in, so this runs the same in a test as in the Export PDF button.
+import { carriesRange } from '@/lib/organic-social/section-range'
 import { exportFilename } from './filename'
 import type { ExportPage } from './pages'
 import type { ExportRequest } from './request'
@@ -8,20 +9,25 @@ import type { ExportRequest } from './request'
 /** One page's request body, before the button adds the requester's timezone. */
 export type PageRequest = Omit<ExportRequest, 'tz'>
 
-/** The current page's raw ranges (the URL's), which every page in the export takes (B5). */
+/** The current page's raw ranges (the URL's), which the pages in the export take as the sidebar carries them (B5). */
 export interface BulkRanges {
   clientSlug: string
   dateRange: string
   compareRange: string | null
   /** AEO's `?models=` filter, or null. */
   models: string | null
+  /** The section the export is started from. */
+  fromSection: string
+  /** The client has locked Organic Social months (hasReportingMonths): the range doesn't cross into or out of it. */
+  lockedMonths: boolean
 }
 
 export type PageResult = { ok: true; pdf: ArrayBuffer; filename: string } | { ok: false; error: string }
 
-/** B5: the current page's ranges, except the Executive Overview's fixed window (#354); only AEO takes `models`. */
+/** B5: the current page's ranges where the sidebar would carry them (carriesRange), else the page's default; the
+ *  Executive Overview's fixed window (#354); only AEO takes `models`. */
 export function bulkRequest(page: ExportPage, r: BulkRanges): PageRequest {
-  const fixed = page.section === 'executive-overview'
+  const fixed = page.section === 'executive-overview' || !carriesRange(r.lockedMonths, r.fromSection === 'organic-social', page.section)
   return {
     clientSlug: r.clientSlug,
     section: page.section,

@@ -4,7 +4,8 @@ import type { ExportPage } from './pages'
 
 const page = (section: ExportPage['section'], subsection: string | null = null): ExportPage =>
   ({ key: `${section}:${subsection ?? ''}`, section, subsection, reportTitle: section, label: subsection ?? 'Overview' })
-const RANGES = { clientSlug: 'renaissance', dateRange: '2026-09-01:2026-09-30', compareRange: 'previous_period', models: 'ChatGPT,Gemini' }
+const RANGES = { clientSlug: 'renaissance', dateRange: '2026-09-01:2026-09-30', compareRange: 'previous_period', models: 'ChatGPT,Gemini', fromSection: 'paid-media', lockedMonths: false }
+const BODY = { clientSlug: RANGES.clientSlug, dateRange: RANGES.dateRange, compareRange: RANGES.compareRange, models: RANGES.models }
 
 // Spec 2026-10-14 B5: every page takes the current page's raw ranges, except the Executive Overview's fixed window
 // (#354), and only AEO pages take the models filter.
@@ -15,12 +16,23 @@ test('the Executive Overview always posts its fixed window and no comparison', (
 })
 
 test('an AEO page posts the ranges and the models filter', () => {
-  expect(bulkRequest(page('peec-ai', 'pr-influence'), RANGES)).toEqual({ ...RANGES, section: 'peec-ai', subsection: 'pr-influence' })
+  expect(bulkRequest(page('peec-ai', 'pr-influence'), RANGES)).toEqual({ ...BODY, section: 'peec-ai', subsection: 'pr-influence' })
 })
 
 test('a Paid Media or Organic Social page posts the ranges and no models filter', () => {
-  expect(bulkRequest(page('paid-media', 'meta'), RANGES)).toEqual({ ...RANGES, section: 'paid-media', subsection: 'meta', models: null })
+  expect(bulkRequest(page('paid-media', 'meta'), RANGES)).toEqual({ ...BODY, section: 'paid-media', subsection: 'meta', models: null })
   expect(bulkRequest(page('organic-social'), RANGES)).toMatchObject({ dateRange: RANGES.dateRange, compareRange: RANGES.compareRange, models: null })
+})
+
+// B5, as the sidebar carries ranges (carriesRange): for a client with locked Organic Social months, the range does not
+// cross between Organic Social and the other reports; the page across takes its default (Organic Social: its month).
+test('with locked months, the range does not cross between Organic Social and the other reports', () => {
+  const locked = { ...RANGES, lockedMonths: true }
+  expect(bulkRequest(page('organic-social'), locked)).toMatchObject({ dateRange: 'last_30_days', compareRange: null })
+  expect(bulkRequest(page('paid-media'), locked)).toMatchObject({ dateRange: RANGES.dateRange, compareRange: RANGES.compareRange })
+  const fromOrganic = { ...locked, fromSection: 'organic-social', dateRange: 'custom:2026-09-01,2026-09-30' }
+  expect(bulkRequest(page('organic-social', 'organic-instagram'), fromOrganic)).toMatchObject({ dateRange: 'custom:2026-09-01,2026-09-30', compareRange: RANGES.compareRange })
+  expect(bulkRequest(page('peec-ai'), fromOrganic)).toMatchObject({ dateRange: 'last_30_days', compareRange: null })
 })
 
 // B4: dated in the requester's timezone, like the single-page name.

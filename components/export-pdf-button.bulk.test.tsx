@@ -16,9 +16,10 @@ const PAGES: ExportPage[] = [
 ]
 const ID: Record<string, number> = { 'executive-overview:': 1, 'peec-ai:': 2, 'peec-ai:pr-influence': 3 }
 const RANGES = { clientSlug: 'renaissance', dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, models: 'ChatGPT' }
+const SPOT = { fromSection: 'peec-ai', lockedMonths: false }
 const props = { clientName: 'Renaissance', pageTitle: 'Answer Engine Optimization', periodLabel: null }
 const serverExport = { ...RANGES, section: 'peec-ai' as const, subsection: null }
-const bulk = (over: Partial<{ pages: ExportPage[]; currentKey: string | null }> = {}) => ({ pages: PAGES, currentKey: 'peec-ai:', ...RANGES, ...over })
+const bulk = (over: Partial<{ pages: ExportPage[]; currentKey: string | null }> = {}) => ({ pages: PAGES, currentKey: 'peec-ai:', ...RANGES, ...SPOT, ...over })
 
 const keyOf = (init: RequestInit) => {
   const b = JSON.parse(String(init.body)) as { section: string; subsection: string | null }
