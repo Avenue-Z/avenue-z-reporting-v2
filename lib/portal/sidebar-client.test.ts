@@ -16,10 +16,10 @@ const FULL = {
   reportSectionConfig: { note: 'SECRET-CONFIG' },
 } as unknown as Client
 
-test('only the six fields the sidebar reads', () => {
+test('only the seven fields the sidebar reads', () => {
   expect(toPortalSidebarClient(FULL)).toEqual({
     slug: 'a-client', name: 'A Client', logoUrl: 'https://example.com/a.png',
-    enabledReports: ['organic-social'], hiddenReports: ['organic-x'],
+    enabledReports: ['organic-social'], hiddenReports: ['organic-x'], lockedMonths: false,
     dashSocialConfig: { channels: ['instagram', 'facebook'], influencerSection: { INSTAGRAM: { label: 'Partnership Posts' } } },
   })
 })
@@ -45,4 +45,13 @@ test("a client's Organic Social tabs are the same from the trimmed record as fro
     { ...FULL, hiddenReports: ['organic-instagram'] },
   ] as unknown as Client[]
   for (const c of shapes) expect(organicSocialSubsections(toPortalSidebarClient(c))).toEqual(organicSocialSubsections(c))
+})
+
+test('lockedMonths says whether the client is on locked months, and the setting itself never leaves the server', () => {
+  const locked = { ...FULL, dashSocialConfig: { ...(FULL.dashSocialConfig as object), reportingMonths: { firstMonth: '2026-07', clientMonths: 1, note: 'SECRET-RM' } } } as unknown as Client
+  const out = toPortalSidebarClient(locked)
+  expect(out.lockedMonths).toBe(true)
+  expect(JSON.stringify(out)).not.toContain('reportingMonths')
+  expect(JSON.stringify(out)).not.toContain('SECRET-RM')
+  expect(toPortalSidebarClient({ ...FULL, dashSocialConfig: null } as unknown as Client).lockedMonths).toBe(false)
 })

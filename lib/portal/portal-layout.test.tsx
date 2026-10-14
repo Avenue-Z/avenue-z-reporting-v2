@@ -46,6 +46,7 @@ test('the portal never loads every client, and the sidebar gets only the trimmed
     client: {
       slug: 'renaissance', name: 'Renaissance', logoUrl: null,
       enabledReports: ['organic-social'], hiddenReports: ['technical-audit'], dashSocialConfig: { channels: undefined },
+      lockedMonths: false,
     },
     userRole: 'CLIENT_VIEWER',
   })

@@ -17,7 +17,7 @@ interface NeedsConnectionProps {
  */
 export function NeedsConnection({ sourceName }: NeedsConnectionProps) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-white/10 bg-bg-surface/50 px-8 py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-white/10 bg-bg-surface/50 px-8 py-12 text-center" data-export-block="">
       <p className="text-lg font-bold text-white">{sourceName} not connected</p>
       <p className="mt-1 text-sm text-text-muted">
         Connect your {sourceName} to see this data in the report.

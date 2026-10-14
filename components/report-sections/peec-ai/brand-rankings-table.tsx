@@ -86,7 +86,7 @@ export function BrandRankingsTable({ rankings }: { rankings: BrandRanking[] }) {
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
-      <div className="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4">
+      <div className="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4" data-export-keep-with-next="">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which brands appear most often in AI answers?</p>
         <InfoTooltip text={`Brand visibility across all brands tracked in Peec AI. ${PEEC.visibility.text}`} />
       </div>

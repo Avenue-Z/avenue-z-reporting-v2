@@ -56,6 +56,7 @@ export default defineConfig({
       'lib/auth/page-access.test.ts',
       'lib/auth/log-id.test.ts',
       'lib/auth/protected-pages.test.ts',
+      'lib/auth/api-routes.test.ts',
       'proxy.test.ts',
       'lib/dash-social/content.test.ts',
       'lib/dash-social/uncached.test.ts',
@@ -68,6 +69,8 @@ export default defineConfig({
       // Pinned file, not a glob: other components/charts/*.test.tsx are manual `npx tsx`
       // assertion scripts (console.log('ok')), not vitest suites — a glob would sweep them in.
       'components/charts/line-chart.test.tsx',
+      'components/charts/export-charts.test.tsx',
+      'components/charts/data-table.export.test.tsx',
       'components/charts/kpi-card.test.tsx',
       'components/charts/progress-ring.test.tsx',
       'components/export-pdf-button.test.tsx',
@@ -75,6 +78,8 @@ export default defineConfig({
       'lib/export-period.pages.test.tsx',
       'lib/export/**/*.test.{ts,tsx}',
       'components/export/**/*.test.{ts,tsx}',
+      'e2e/export/pdf-check.test.ts',
+      'e2e/export/pair.test.ts',
       'components/layout/sticky-report-header.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
     ],
