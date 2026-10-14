@@ -58,10 +58,6 @@ function pctAll(values: number[]): string[] {
   const text = values.map(pctText)
   return values.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && values[j] !== v) ? `${v.toFixed(1)}%` : text[i]))
 }
-function pctPair(a: number, b: number): [string, string] {
-  const [pa, pb] = pctAll([a, b])
-  return [pa, pb]
-}
 
 export function dataSentences(d: SnapshotData): DataSentences {
   const brand = d.brand
@@ -86,17 +82,17 @@ export function dataSentences(d: SnapshotData): DataSentences {
     if (topGroup.length >= 3) return `${someNames(topGroup.map((b) => b.name))} lead at ${pctText(top.visibilityPct)} visibility.`
     if (topGroup.length === 2) {
       const [a, b] = topGroup
-      const [sa, sb] = a.sovPct !== null && b.sovPct !== null ? pctPair(a.sovPct, b.sovPct) : ['', '']
+      const [sa, sb] = a.sovPct !== null && b.sovPct !== null ? pctAll([a.sovPct, b.sovPct]) : ['', '']
       return `${a.name} and ${b.name} lead at ${pctText(top.visibilityPct)} visibility${sa ? `, with ${sa} and ${sb} share of voice` : ''}.`
     }
     if (runners.length >= 2) {
-      const [vt, vr] = pctPair(top.visibilityPct, runnerPct)
+      const [vt, vr] = pctAll([top.visibilityPct, runnerPct])
       return `${top.name} leads at ${vt} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}, followed by ${someNames(runners.map((b) => b.name))} at ${vr}.`
     }
     const next = runners[0]
     if (!next) return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}.`
-    const [vt, vn] = pctPair(top.visibilityPct, next.visibilityPct)
-    const [st, sn] = top.sovPct !== null && next.sovPct !== null ? pctPair(top.sovPct, next.sovPct) : [top.sovPct === null ? '' : pctText(top.sovPct), next.sovPct === null ? '' : pctText(next.sovPct)]
+    const [vt, vn] = pctAll([top.visibilityPct, next.visibilityPct])
+    const [st, sn] = top.sovPct !== null && next.sovPct !== null ? pctAll([top.sovPct, next.sovPct]) : [top.sovPct === null ? '' : pctText(top.sovPct), next.sovPct === null ? '' : pctText(next.sovPct)]
     // With no share of voice for the leader, the runner-up's is labelled, so its second number says what it is.
     const nextSov = next.sovPct === null ? '' : top.sovPct === null ? ` / ${sn} share of voice` : ` / ${sn}`
     return `${top.name} leads at ${vt} visibility${st ? ` / ${st} share of voice` : ''}, followed by ${next.name} at ${vn}${nextSov}.`

@@ -68,6 +68,8 @@ const OPENS_SHOWN = 200
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 /** The waits before a report load is tried again after a 503 (spec v1.1 §19.7). */
 const VIEW_RETRY_MS = [1000, 2000]
+/** The toolbar shows "Fill in N items first" for the current count (see `message`). */
+const FILL_FIRST = Symbol('fill-first')
 const isStrings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === 'string')
 
 type Mode = 'preview' | 'edit'
@@ -133,7 +135,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [reloadKey, setReloadKey] = useState(0)
   // The revision the page was opened at: props.revision, or the view route's when the queue adopted it (A1).
   const [openedRevision, setOpenedRevision] = useState(props.revision)
-  const [message, setMessage] = useState<string | null>(null)
+  // The toolbar message: plain text, or FILL_FIRST, whose words are built from the live count at render, so it follows the
+  // count and clears at zero without matching its own wording (spec v1.1 §19.7; Paul, #388 review).
+  const [message, setMessage] = useState<string | typeof FILL_FIRST | null>(null)
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [mode, setMode] = useState<Mode>('preview')
   const [locked, setLocked] = useState<{ text: string; n: number } | null>(null)
@@ -310,6 +314,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const blockedByValidation = props.needsValidationBlocksApprove && needsValidation.length > 0
   const busySaving = !save || save.dirty || save.saving || save.stopped || save.structuring
   const approveDisabled = busySaving || busy
+  const shownMessage = message === FILL_FIRST ? (needsValidation.length ? fillFirst(needsValidation.length) : null) : message
   // Spec v1.1 §19.7: the disabled Approve says why: the stop, the refused field, else saving.
   const refusedField = save && !save.stopped && save.error && save.error !== RETRY_MESSAGE ? save.badPaths.at(-1) : undefined
   const approveTitle = !busySaving ? undefined
@@ -325,7 +330,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
     if (blockedByValidation) {
       setPanelOpen(true)
       setHighlight(needsValidation[0])
-      setMessage(fillFirst(needsValidation.length))
+      setMessage(FILL_FIRST)
       return
     }
     toFrame({ type: 'flush' })
@@ -375,10 +380,6 @@ export function OutboundEditor(props: OutboundEditorProps) {
     if (save?.stopped) toFrame({ type: 'mode', edit: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save?.stopped])
-  // The Fill in message follows the current count, and clears at zero (spec v1.1 §19.7).
-  useEffect(() => {
-    setMessage((m) => (m !== null && /^Fill in \d+ items? first$/.test(m) ? (needsValidation.length ? fillFirst(needsValidation.length) : null) : m))
-  }, [needsValidation.length])
   // A structural item that settled without a reload (a refused one) leaves the frame read-only: hand edit mode back.
   // After a 200 the page is reloading, and the new frame's ready sets the mode instead (spec v1.1 18.12).
   const wasStructuring = useRef(false)
@@ -454,7 +455,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
               <button type="button" className={btnCls} onClick={() => window.location.reload()}>Reload</button>
             </span>
           )}
-          {message && <span className="text-xs text-[#FF6B6B]">{message}</span>}
+          {shownMessage && <span className="text-xs text-[#FF6B6B]">{shownMessage}</span>}
           {rerunning !== null ? <div className="ml-auto"><ProgressChecklist step={rerunLive.step} startedAtMs={rerunning} /></div> : (
           <div role="toolbar" aria-label="Snapshot actions" className="ml-auto flex flex-wrap items-center gap-1.5">
             {status === 'draft' && (

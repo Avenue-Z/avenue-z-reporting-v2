@@ -17,10 +17,10 @@ const UNCHECKED = (token: string) => `"${token}": check this number against Peec
  *  word, as is one joined by a hyphen to a capital letter (COVID-19, GPT-4; "top-10" is still a number); a K, M or x right
  *  after the digits is part of the number (10K, 3x). */
 const NUM_ALONE = /(?<![A-Za-z\d.,#])(?<![A-Z]-)#?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:%|[KkMmx](?![A-Za-z]))?(?![A-Za-z\d])/g
-/** Rank words in a code-written sentence ("third", "21st"): compared with Peec's sentence when Ryan edits it. */
 /** Count words a code-written sentence prints ("the five brands", "two more"), compared when Ryan edits it. "one" is left
  *  out, as in NUMBER_WORDS: it is too common to be a figure (final review M1). */
 const COUNT_WORDS = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi
+/** Rank words in a code-written sentence ("third", "21st"): compared with Peec's sentence when Ryan edits it. */
 const ORDINAL = /\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|\d+(?:st|nd|rd|th))\b/gi
 // Words that say nothing about which action is meant, so they never count as a match (review of Tasks 37 to 40).
 const STOP = new Set(['about', 'their', 'these', 'those', 'which', 'where', 'there', 'other', 'every', 'peecs'])
@@ -139,9 +139,10 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // An edited brand name is exempt too (v1.1 §14). It is added only when it differs, so a version 1 row is unchanged.
   const renamed = full.brand !== d.brand ? [full.brand] : []
   const exemptNames = [...brandNames, ...renamed, ...allowedDomains].filter(Boolean).sort((a, b) => b.length - a.length)
+  /** The text with every exempt name and domain removed, longest first: digits inside a name are not figures. */
+  const stripNames = (v: string) => { let t = v; for (const name of exemptNames) t = t.split(name).join(' '); return t }
   // Digits inside a name or a domain are not figures. The window's days and years are in the Data block, so they stay allowed as bare numbers.
-  let figures = dataText
-  for (const name of exemptNames) figures = figures.split(name).join(' ')
+  const figures = stripNames(dataText)
   const allowed = new Set((figures.match(NUM) ?? []).map((t) => `${kindOf(t)}:${digitsOf(t)}`))
   for (const y of [d.window.start, d.window.end]) allowed.add(`bare:${y.slice(0, 4)}`)
   // Every number of the code-written sentences is allowed (whole percents, points, counts), read the same way as a slot.
@@ -150,8 +151,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   const sameVersion = d.sentences === SENTENCES_VERSION
   if (sentences) {
     const s = sentences
-    let sentenceText = [s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | ')
-    for (const name of exemptNames) sentenceText = sentenceText.split(name).join(' ')
+    const sentenceText = stripNames([s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | '))
     for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
   }
   const fixedNext = settingsUsedOf(d).fixedNextStep
@@ -161,7 +161,6 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (path === 'category') return cleanValue(full.category) !== cleanValue(d.category ?? NEEDS_VALIDATION)
     return path === 'next_step' && fixedNext === null
   }
-  const stripNames = (v: string) => { let t = v; for (const name of exemptNames) t = t.split(name).join(' '); return t }
   const domainsLongestFirst = [...allowedDomains].sort((a, b) => b.length - a.length)
   const namesOnly = [...brandNames, ...renamed].filter(Boolean).sort((a, b) => b.length - a.length)
   const stripBrandNames = (v: string) => { let t = v; for (const name of namesOnly) t = t.split(name).join(' '); return t }
@@ -206,8 +205,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       if (value !== d.windowLabel) add('kpi_changed', path, `Data window shows ${value} but Peec says ${d.windowLabel}`)
       continue
     }
-    let text = value
-    for (const name of exemptNames) text = text.split(name).join(' ')
+    const text = stripNames(value)
     // The report name and the top-left name come from settings or Ryan's own edit, not from Glean (v1.1 §17.5): no domain or number check.
     if (path !== 'page.series' && path !== 'page.sidebar_wordmark') {
       // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed. Peec's
