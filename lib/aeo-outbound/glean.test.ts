@@ -31,14 +31,16 @@ test('malformed payloads never throw a TypeError', () => {
 
 const FAKE_TOKEN = 'fake-token-abc123'
 const EMAIL = 'ryan@avenuez.com'
-let saved: { token?: string; instance?: string }
+let saved: { token?: string; instance?: string; actAs?: string }
 beforeEach(() => {
-  saved = { token: process.env.GLEAN_API_TOKEN, instance: process.env.GLEAN_INSTANCE }
+  saved = { token: process.env.GLEAN_API_TOKEN, instance: process.env.GLEAN_INSTANCE, actAs: process.env.GLEAN_ACT_AS }
   process.env.GLEAN_API_TOKEN = FAKE_TOKEN
   process.env.GLEAN_INSTANCE = 'fake-instance'
+  delete process.env.GLEAN_ACT_AS
 })
 afterEach(() => {
-  for (const [k, v] of [['GLEAN_API_TOKEN', saved.token], ['GLEAN_INSTANCE', saved.instance]] as const) {
+  vi.restoreAllMocks()
+  for (const [k, v] of [['GLEAN_API_TOKEN', saved.token], ['GLEAN_INSTANCE', saved.instance], ['GLEAN_ACT_AS', saved.actAs]] as const) {
     if (v === undefined) delete process.env[k]
     else process.env[k] = v
   }
@@ -63,13 +65,35 @@ test('gleanOnce: returns the CONTENT reply and sends saveChat false with the sig
   expect(init.signal).toBe(signal)
   expect(JSON.parse(init.body as string).saveChat).toBe(false)
 })
-test('gleanOnce: acts as the given email', async () => {
+// The deployed environments' GLEAN_API_TOKEN is a user token, which refuses act-as with a 400 (seen on staging,
+// 2026-10-14); an organization-wide token requires it (probed locally: "Required header missing: X-Glean-ActAs").
+// So the tool acts as the user only where the token is organization-wide, GLEAN_ACT_AS=true, and otherwise calls
+// Glean the way the Peec synopses do (lib/glean.ts gleanChat), as the token's owner.
+test('gleanOnce: by default sends no act-as header, as the synopses do, and needs no email', async () => {
+  const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ messages: [ai('CONTENT', [{ text: 'hi' }])] }), { status: 200 }))
+  await gleanOnce('p', new AbortController().signal, '', fetchImpl as unknown as typeof fetch)
+  const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+  expect(Object.keys(init.headers as Record<string, string>)).not.toContain('X-Scio-Actas')
+})
+test('gleanOnce: with GLEAN_ACT_AS=true acts as the given email; any other value does not', async () => {
+  process.env.GLEAN_ACT_AS = 'true'
   const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ messages: [ai('CONTENT', [{ text: 'hi' }])] }), { status: 200 }))
   await gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)
-  const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
-  expect((init.headers as Record<string, string>)['X-Scio-Actas']).toBe(EMAIL)
+  expect(((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>)['X-Scio-Actas']).toBe(EMAIL)
+  for (const v of ['1', 'yes', 'TRUE ', '']) {
+    process.env.GLEAN_ACT_AS = v
+    await gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)
+    expect(Object.keys((fetchImpl.mock.calls.at(-1) as unknown as [string, RequestInit])[1].headers as Record<string, string>), v).not.toContain('X-Scio-Actas')
+  }
 })
-test('gleanOnce: refuses a malformed email before any request', async () => {
+test('gleanOnce: a refusal (4xx) logs Glean\'s reason without the token, and throws the status only', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const fetchImpl = vi.fn(async () => new Response(`Required header missing: X-Glean-ActAs ${FAKE_TOKEN}\nNot allowed`, { status: 400 }))
+  await expect(gleanOnce('p', new AbortController().signal, EMAIL, fetchImpl as unknown as typeof fetch)).rejects.toThrow(/^Glean chat error 400$/)
+  expect(warn.mock.calls.map((c) => c.join(' '))).toEqual(['[aeo-outbound] glean refused status=400 actAs=false detail=Required header missing: X-Glean-ActAs [redacted] Not allowed'])
+})
+test('gleanOnce: with GLEAN_ACT_AS=true refuses a malformed email before any request', async () => {
+  process.env.GLEAN_ACT_AS = 'true'
   for (const bad of ['', 'ryan', 'a@', 'a@b']) {
     const fetchImpl = vi.fn()
     await expect(gleanOnce('p', new AbortController().signal, bad, fetchImpl as unknown as typeof fetch)).rejects.toThrow("Glean needs the signed-in user's email")
