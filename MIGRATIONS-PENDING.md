@@ -425,3 +425,16 @@ apply refused to run unless exactly that one entry was pending, then ran `script
 (`apply 0029_aeo_outbound_save_writer (2 stmt) ... done`, `applied 1 migration(s)`). Read back: `last_writer` is `uuid`
 nullable and `last_seq` is `integer` nullable, both with no default; all 11 rows read NULL in both; the ledger at 35 with
 nothing pending. Staging and production: not applied.
+
+## No migration: the AEO Outbound audit fixes (spec v1.1 section 19), rollback note
+
+The audit-fixes PR adds no migration. It changes what new rows store, inside existing JSON columns:
+`aeo_outbound_reports.data` gains `sentences: 1`, `ownSiteRank` and `noDataBrands` (declared optional in
+`lib/aeo-outbound/contracts.ts` `STORED_DATA`, absent on older rows), and `notes` can hold two new note kinds,
+`unchecked_number` and `peec_recommends` (`lib/aeo-outbound/notes.ts` `NOTE_KINDS`).
+
+Rollback: a build without section 19 reads a row whose notes carry either new kind as unreadable (`STORED_NOTES` there
+lists only the kinds it knows), drafts and approved rows alike. The new data fields are harmless to it (`STORED_DATA` is a
+loose object). Rolling back past this build after anyone has generated or saved a row since breaks those rows until it is
+rolled forward, as section 18.12 does for its bullet counts. Deploy order: this PR's build may reach an environment
+before or after any migration; it needs `0026` to `0029` like the build before it.
