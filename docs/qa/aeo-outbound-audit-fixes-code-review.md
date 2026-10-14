@@ -2,8 +2,10 @@
 
 **Feature under review:** PR #388, `AEO Outbound: audit fixes, numbers written by code in Ryan's format → dev`
 
-**Diff range reviewed:** `e27125b5..41b92756`, fourteen commits. `e27125b5` is #368's last reviewed commit, which `dev`
-holds through `cfb8cc55`, so this range is exactly #388's own work. No unrelated code.
+**Diff range reviewed:** `e27125b5..ae8694a0`, fifteen commits. `e27125b5` is #368's last reviewed commit, which `dev`
+holds through `cfb8cc55`, so this range is exactly #388's own work. No unrelated code. The last commit, `ae8694a0`, is
+docs only: `MIGRATIONS-PENDING.md` records `0026` to `0029` as applied on staging (2026-10-14); the code reviewed here
+ends at `41b92756`.
 
 **Spec:** `docs/superpowers/specs/2026-10-11-aeo-outbound-snapshot-v1-1-design.md`, §19 (Amendment 8)
 **Plan:** `docs/superpowers/plans/2026-10-11-aeo-outbound-snapshot-v1-1.md`, Tasks 37 to 45
@@ -19,7 +21,7 @@ Both are on branch `docs/aeo-outbound-audit-spec` (#367).
 | Checks | `lib/aeo-outbound/grounding.ts`, `notes.ts`, `contracts.ts` |
 | Editor | `components/aeo-outbound/editor.tsx`, `save-queue.ts`, `use-leave-guard.ts`, `messages.ts`, `lib/aeo-outbound/render.ts` (frame and page scripts) |
 | Access and routes | `lib/aeo-outbound/access.ts`, `app/actions/aeo-outbound.ts`, `app/api/aeo-outbound/reports/[id]/slots/route.ts`, `.../view/route.ts`, `app/tools/new-business/page.tsx`, `.../[reportId]/page.tsx` |
-| Records | `MIGRATIONS-PENDING.md` (no migration; rollback caveat), `.env.example` (`CONTRACT_DISABLED` removed), `vitest.config.ts` (tool page tests included) |
+| Records | `MIGRATIONS-PENDING.md` (no migration; rollback caveat; staging applied for `0026` to `0029`), `.env.example` (`CONTRACT_DISABLED` removed), `vitest.config.ts` (tool page tests included) |
 
 ---
 
