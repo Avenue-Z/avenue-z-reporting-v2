@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, renderHook } from '@testing-library/react'
-import { useLeaveGuard } from './use-leave-guard'
+import { GUARD_STATE_KEY, useLeaveGuard } from './use-leave-guard'
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
@@ -85,4 +85,82 @@ test('beforeunload is prevented while unsaved only, and both listeners go when i
   window.dispatchEvent(gone)
   expect(gone.defaultPrevented).toBe(false)
   expect(click(link('/y')).defaultPrevented).toBe(false)
+})
+
+// Spec v1.1 §19.7 (A2): the browser Back button asks first while there are unsaved edits.
+describe('browser Back', () => {
+  let pushState: ReturnType<typeof vi.spyOn>
+  let back: ReturnType<typeof vi.spyOn>
+  let go: ReturnType<typeof vi.spyOn>
+  beforeEach(() => {
+    window.history.replaceState({ __NA: true }, '', '/tools/new-business/abc')
+    pushState = vi.spyOn(window.history, 'pushState')
+    back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+    go = vi.spyOn(window.history, 'go').mockImplementation(() => {})
+  })
+
+  /** The browser landing back on the page's own entry: the one under the guard entry, same address, no guard mark. */
+  const landOnPage = () => {
+    window.history.replaceState({ __NA: true }, '', '/tools/new-business/abc')
+    window.dispatchEvent(new PopStateEvent('popstate', { state: { __NA: true } }))
+  }
+
+  test('mounting adds one guard entry for the same address, keeping the router state; a remount on it adds none', () => {
+    const first = renderHook(() => useLeaveGuard(false, ask))
+    expect(pushState).toHaveBeenCalledTimes(1)
+    expect(pushState.mock.calls[0][0]).toMatchObject({ __NA: true, [GUARD_STATE_KEY]: true })
+    expect(pushState.mock.calls[0][2]).toBe(window.location.href)
+    first.unmount()
+    // A remount while the guard entry is current (React's strict-mode double mount) does not add a second.
+    renderHook(() => useLeaveGuard(false, ask))
+    expect(pushState).toHaveBeenCalledTimes(1)
+  })
+
+  test('with nothing unsaved, Back goes straight back: one press, no question', () => {
+    renderHook(() => useLeaveGuard(false, ask))
+    landOnPage()
+    expect(back).toHaveBeenCalledTimes(1)
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  test('with unsaved edits, Back stays on the page and asks; Stay keeps it, Leave goes back past the guard entry', () => {
+    renderHook(() => useLeaveGuard(true, ask))
+    pushState.mockClear()
+    landOnPage()
+    expect(back).not.toHaveBeenCalled()
+    // The guard entry is added again at once, so staying needs nothing and a second Back asks again.
+    expect(pushState).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledTimes(1)
+    const leave = ask.mock.calls[0][0] as () => void
+    leave()
+    expect(go).toHaveBeenCalledWith(-2)
+    // While leaving, the popstate that follows is not asked about again.
+    landOnPage()
+    expect(ask).toHaveBeenCalledTimes(1)
+  })
+
+  test('a popstate onto another address, or onto the guard entry itself, is left alone', () => {
+    renderHook(() => useLeaveGuard(true, ask))
+    window.history.replaceState({ __NA: true }, '', '/tools/new-business')
+    window.dispatchEvent(new PopStateEvent('popstate', { state: { __NA: true } }))
+    window.history.replaceState({ __NA: true, [GUARD_STATE_KEY]: true }, '', '/tools/new-business/abc')
+    window.dispatchEvent(new PopStateEvent('popstate', { state: { __NA: true, [GUARD_STATE_KEY]: true } }))
+    expect(ask).not.toHaveBeenCalled()
+    expect(back).not.toHaveBeenCalled()
+  })
+
+  test('unmounting removes the Back listener', () => {
+    const h = renderHook(() => useLeaveGuard(true, ask))
+    h.unmount()
+    landOnPage()
+    expect(ask).not.toHaveBeenCalled()
+    expect(back).not.toHaveBeenCalled()
+  })
+
+  test('the unsaved flag is read when Back is pressed, not when the page mounted', () => {
+    const h = renderHook(({ unsaved }) => useLeaveGuard(unsaved, ask), { initialProps: { unsaved: false } })
+    h.rerender({ unsaved: true })
+    landOnPage()
+    expect(ask).toHaveBeenCalledTimes(1)
+  })
 })
