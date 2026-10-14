@@ -54,19 +54,26 @@ expanded:
   `app/tools/new-business/[reportId]/page.tsx:21-22,31`), which render without the editor.
 - Mechanism: the editor's root element carries a marker attribute `data-aeo-editor`; the wrapper in
   `app/tools/layout.tsx:23` adds Tailwind's `has-[[data-aeo-editor]]:` variant (CSS `:has()`) to drop `max-w-7xl` and
-  shrink the bottom padding (4.2). No other page renders the marker. The repo already uses `has-[...]`
+  remove the bottom padding (`pb-0`; the editor keeps its own, 4.2), and `<main>` keeps the scrollbar's room
+  (`has-[[data-aeo-editor]]:[scrollbar-gutter:stable]`): otherwise, with scrollbars that take up width, a toolbar that
+  grows briefly overflows `<main>`, a scrollbar comes in and narrows the toolbar, and the re-measure logs "ResizeObserver
+  loop completed with undelivered notifications" (Paul, #399; reproduced: 3 errors in 8 Edit toggles, 0 with the
+  gutter). The marker name is `EDITOR_MARKER` in `components/aeo-outbound/frame-height.ts`. No other page renders the
+  marker. The layout relies on the editor leaving the DOM on navigation (Next's `cacheComponents`, not enabled, would
+  keep a hidden one mounted). The repo already uses `has-[...]`
   (`components/ui/button.tsx:24`) on Tailwind 4 (`package.json:79`). A browser without `:has()` keeps today's layout.
 - The marker is on the editor in every status (generating, failed, unreadable, draft, live, revoked), so the toolbar
   never changes width when a generating row becomes a draft.
 - Accepted consequences of the full width: the action group (`ml-auto`, `editor.tsx:464`) sits at the far right, away
   from Back and the brand name; the Opens table (`w-full`, `editor.tsx:537`) and the generating, failed and unreadable
   cards (`cardCls`, `components/aeo-outbound/ui.ts:2`) stretch to the full width. Checked in the browser (§8).
-- With no `:has()` support the wrapper keeps `max-w-7xl` and `pb-8` while the frame assumes `pb-4`, so the page scrolls
-  16px. Accepted: every browser the team uses supports `:has()`.
+- With no `:has()` support the wrapper keeps `max-w-7xl` and `pb-8` on top of the editor's own `pb-4`, so the page
+  scrolls 32px. Accepted: every browser the team uses supports `:has()`.
 
 ### 4.2 Height
 - The frame and its loading box fill the screen under the toolbar, with a 16px gap above (the toolbar's existing
-  `mb-4`) and a 16px gap below (the wrapper's bottom padding on the editor page, `pb-4` instead of `pb-8`). Both get
+  `mb-4`) and a 16px gap below (the editor root's `pb-4`; the layout's bottom padding is `pb-0` on the editor page), both
+  in `editor.tsx` and pinned by a test (Paul, #399). Both get
   one constant inline style: `height: calc(100vh - var(--aeo-toolbar-h, 108px) - 32px)` and `min-height: 320px`.
   `100vh` matches the shell, which is `h-screen` (`app/tools/layout.tsx:18`).
 - `--aeo-toolbar-h` is T, the sticky toolbar's border-box height (padding and border included), rounded up to a whole
@@ -88,8 +95,7 @@ expanded:
 - The 320px floor keeps the frame usable when a very short window or a heavily wrapped toolbar would leave almost
   nothing; the page then scrolls under the sticky toolbar, as it does today.
 - Accepted changes in motion: the frame now resizes when the toolbar does. Edit/Done toggles the banner line
-  (`editor.tsx:495`) and a locked message shows for 3s (`:496`, `:288-292`), so the frame shrinks and grows by one line
-  each time and the report's Plotly charts (`responsive: true`, `lib/aeo-outbound/charts.ts:18`) relayout. While a rerun
+  (`editor.tsx:495`), so the frame shrinks and grows by one line each time and the report's Plotly charts (`responsive: true`, `lib/aeo-outbound/charts.ts:18`) relayout. While a rerun
   runs, the progress checklist replaces the action bar inside the toolbar (`editor.tsx:463`,
   `components/aeo-outbound/progress-checklist.tsx:17-36`), so the frame is shorter for the rerun instead of the page
   scrolling. All checked in the browser (§8).
@@ -122,7 +128,7 @@ expanded:
 | 1440×900, sidebar expanded | frame 1440 − 256 − 64 = 1120 wide (today 1120 too: the cap did not bite); bottom strip gone |
 | 1440×900, sidebar collapsed | frame 1440 − 56 − 64 = 1320 wide (today 1216) |
 | Edit mode (banner shows) | T grows by the banner line; the frame shrinks by the same; no scroll |
-| Locked message for 3s | same as the banner, then back |
+| Locked message for 3s | floats just under the toolbar; the toolbar and the frame keep their size (Paul, #399) |
 | Rerun running | the checklist replaces the action bar; T grows with it and the frame is shorter until it ends |
 | Narrow window, toolbar wraps | T follows; floor 320px |
 | Window resized | frame follows (100vh in CSS; T by the observer) |
@@ -130,7 +136,7 @@ expanded:
 | Generating / failed / unreadable | no frame; the card is full width |
 | Hub, Settings, other tools pages; NoAccess, SnapshotNotFound | 1280px cap, unchanged |
 | No `ResizeObserver` (jsdom) | variable never set: today's 140px height |
-| No `:has()` support | today's width; frame assumes `pb-4`, so a 16px scroll (accepted, §4.1) |
+| No `:has()` support | today's width; `pb-8` on top of the editor's `pb-4`, so a 32px scroll (accepted, §4.1) |
 
 ## 7. Tests (written first)
 All in Vitest + jsdom. jsdom keeps both `calc(100vh - var(--aeo-toolbar-h, 108px) - 32px)` and a custom property set
@@ -149,7 +155,9 @@ with `style.setProperty` intact (probed against the installed jsdom 25.0.1, 2026
 7. Tools layout (`app/tools/layout.test.tsx`, added to the `include` list in `vitest.config.ts:76-91`, which today only
    covers `app/tools/new-business/**`): with `@/auth` resolving a staff session and `Sidebar` mocked, the content wrapper
    keeps `mx-auto max-w-7xl px-8 py-8` and carries `has-[[data-aeo-editor]]:max-w-none` and
-   `has-[[data-aeo-editor]]:pb-4`.
+   `has-[[data-aeo-editor]]:pb-0`, and `<main>` carries `has-[[data-aeo-editor]]:[scrollbar-gutter:stable]`, all built
+   from `EDITOR_MARKER`. The editor root carries `pb-4` and the toolbar `mb-4`. The 3s locked message is a child of the
+   toolbar positioned `absolute top-full`, out of its flow, so it never resizes the report (Paul, #399).
 8. Every existing editor, hub, settings and page test passes unchanged.
 
 ## 8. Verification beyond tests

@@ -289,8 +289,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
   }, [])
 
   // Spec 2026-10-14 editor space §4.2: the frame fills the screen under the toolbar, whose height changes (it wraps, the
-  // edit banner, a locked message, a rerun's checklist). The height goes straight onto the root as a CSS variable, with
-  // no state, so it lands before the next paint. The root has no style prop, so React never overwrites the variable.
+  // edit banner, a rerun's checklist). The height goes straight onto the root as a CSS variable, with
+  // no state, so it lands before the next paint. Never set --aeo-toolbar-h through React's style prop: React 19 sets and
+  // clears only the keys of the style objects it is given, so any other style prop leaves the variable alone (Paul, #399).
   // Runs once: the root and the toolbar render in every status.
   useLayoutEffect(() => {
     const rootEl = rootRef.current
@@ -511,7 +512,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
           )}
         </div>
         {status === 'draft' && mode === 'edit' && <p role="status" className="mt-2 text-xs text-[#60FFEA]">{EDIT_BANNER}</p>}
-        {locked && <p role="status" className="mt-2 text-xs text-[#FFFC60]">{locked.text}</p>}
+        {/* Floats just under the toolbar, out of its flow: it shows for 3s per click, and in the flow it would resize the
+            measured toolbar, and the report with it, twice each time (Paul, #399 review). */}
+        {locked && <p role="status" className="absolute left-8 top-full mt-2 max-w-xl rounded-md border border-white/[0.08] bg-bg-surface px-3 py-1.5 text-xs text-[#FFFC60] shadow-lg">{locked.text}</p>}
       </div>
 
       {status === 'generating' && (
