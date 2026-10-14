@@ -16,12 +16,17 @@ onto the editor's root from the toolbar's measured height. No React state.
 **Spec:** `docs/superpowers/specs/2026-10-14-aeo-outbound-editor-space-design.md` (reviewed twice; round 2 had no
 BLOCKER or MAJOR).
 
+**After Paul's #399 review (2026-10-14):** the code differs from the task text below in eight places, all in the spec:
+`<main>` keeps the scrollbar gutter on the editor; the layout's bottom padding is `pb-0` there and the editor root
+carries `pb-4`; the marker name is `EDITOR_MARKER`; the locked message floats under the toolbar. Mapping:
+`aeo-outbound-audit-notes` `findings/2026-10-14-paul-review-399.md`. The code and the spec are the reference.
+
 ## Global Constraints
 
 - Frame and loading box style, exactly: `height: calc(100vh - var(--aeo-toolbar-h, 108px) - 32px)`, `min-height: 320px`.
 - Variable: `--aeo-toolbar-h`, value `` `${Math.ceil(toolbar.getBoundingClientRect().height)}px` ``, written with
   `style.setProperty` on the editor's root element. Never from `ResizeObserverEntry.contentRect`.
-- Layout wrapper classes, exactly: `mx-auto max-w-7xl px-8 py-8 has-[[data-aeo-editor]]:max-w-none has-[[data-aeo-editor]]:pb-4`.
+- Layout wrapper classes, exactly: `mx-auto max-w-7xl px-8 py-8 has-[[data-aeo-editor]]:max-w-none has-[[data-aeo-editor]]:pb-0`.
 - Marker: `data-aeo-editor=""` on the editor's root `<div>`, every status. The root must not get a `style` prop.
 - No other file's behavior changes. Comments match the surrounding code; no em or en dashes.
 
@@ -200,7 +205,7 @@ test('#396: every tools page keeps the 1280px cap; only a page holding the edito
   const { container } = render(await ToolsLayout({ children: <p>page</p> }))
   const wrap = container.querySelector('main > div') as HTMLElement
   expect(wrap.className.split(' ')).toEqual(expect.arrayContaining([
-    'mx-auto', 'max-w-7xl', 'px-8', 'py-8', 'has-[[data-aeo-editor]]:max-w-none', 'has-[[data-aeo-editor]]:pb-4',
+    'mx-auto', 'max-w-7xl', 'px-8', 'py-8', 'has-[[data-aeo-editor]]:max-w-none', 'has-[[data-aeo-editor]]:pb-0',
   ]))
 })
 ```
@@ -228,7 +233,7 @@ reach `getReport`.)
 ```tsx
         {/* Spec 2026-10-14 editor space (#396): the report editor marks its root, and only there the 1280px cap and half
             the bottom padding go, so the report fills the screen. Every other tools page is unchanged. */}
-        <div className="mx-auto max-w-7xl px-8 py-8 has-[[data-aeo-editor]]:max-w-none has-[[data-aeo-editor]]:pb-4">{children}</div>
+        <div className="mx-auto max-w-7xl px-8 py-8 has-[[data-aeo-editor]]:max-w-none has-[[data-aeo-editor]]:pb-0">{children}</div>
 ```
 - [ ] **Step 4:** same command. Expected: PASS.
 - [ ] **Step 5:** commit the four files by name; push.
