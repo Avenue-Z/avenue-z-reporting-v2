@@ -2,10 +2,10 @@
 
 **Feature under review:** PR #388, `AEO Outbound: audit fixes, numbers written by code in Ryan's format → dev`
 
-**Diff range reviewed:** `e27125b5..ae8694a0`, fifteen commits. `e27125b5` is #368's last reviewed commit, which `dev`
-holds through `cfb8cc55`, so this range is exactly #388's own work. No unrelated code. The last commit, `ae8694a0`, is
-docs only: `MIGRATIONS-PENDING.md` records `0026` to `0029` as applied on staging (2026-10-14); the code reviewed here
-ends at `41b92756`.
+**Diff range reviewed:** `e27125b5..eb0de64b`, twenty-three commits. `e27125b5` is #368's last reviewed commit, which
+`dev` holds through `cfb8cc55`, so this range is exactly #388's own work. No unrelated code. `ae8694a0` is docs only
+(`MIGRATIONS-PENDING.md` records `0026` to `0029` as applied on staging, 2026-10-14). `ae8694a0..eb0de64b` answers Paul's
+review (findings 32 to 48).
 
 **Spec:** `docs/superpowers/specs/2026-10-11-aeo-outbound-snapshot-v1-1-design.md`, §19 (Amendment 8)
 **Plan:** `docs/superpowers/plans/2026-10-11-aeo-outbound-snapshot-v1-1.md`, Tasks 37 to 45
@@ -92,6 +92,11 @@ on 2026-10-14.
   parent commit by the re-reviewer (eight tests, one per finding, fail at `23bae08f` and pass at `d13f58d9`).
 - **Gate.** `make check` at `41b92756`: typecheck, 335 test files, 3,669 tests, `check:rsc`, build, all green. CI on
   #388: every check green.
+- **Paul's review** (APPROVED 2026-10-14 on `ae8694a0`, 13 inline comments, no blockers): each comment traced to the
+  code before any change (mapping kept in the project notes), fixed test first or answered with a reason on its thread,
+  then a fresh scoped review of `ae8694a0..02123397` (CLEAN; every new test red at `ae8694a0`; 4 Minor, 2 fixed in
+  `eb0de64b`). `make check` at `02123397`: 337 files, 3,683 tests. Checked live: a normal open makes one page-data request;
+  Back into a cached draft makes one refresh and edits after it save.
 - **Reviews.** Four rounds, each by a fresh reviewer with no build history: Tasks 37 to 40, Tasks 41 to 44, the whole
   branch, and a scoped re-review of the final fixes. Logic was exercised in throwaway probes (about 25 brand, tie, zero,
   own-site and source-mix shapes for the sentences; about 2 million inputs for the legend rounding).
@@ -145,6 +150,23 @@ trigger not reproduced). Locations are at `41b92756` unless the finding was abou
 | 29 | ○ | CONFIRMED | `grounding.ts:128` | The www.-less domains applied to older rows too. | **Fixed** `41b92756` |
 | 30 | ○ | PLAUSIBLE | `editor.tsx:185` | A save landing in the same moment as the open-time refresh can be overwritten in the panel until the next save. | **Declined**: narrow, self-correcting |
 | 31 | ○ | CONFIRMED | `grounding.ts:232-237` | The count-word check flags an added or changed word, not a deleted one, and not two numbers swapped. | **Declined**: recorded as a limit in spec §19.11 |
+| 32 | ● | CONFIRMED | `access.ts:40`; generate, progress, projects, reports routes; Settings page and action | Paul C1: "try again" missing on four routes; six callers in all read only `.ok`. | **Fixed** `ca88fc9c` |
+| 33 | ● | CONFIRMED | `contracts.ts:68`, `pull.ts`, `metrics.ts:224` | Paul C2: one unclassified row fails the run; types and fallback disagreed with the contract; no signal for a leftover switch. | **Fixed** `ddb90281` (failure kept by decision) |
+| 34 | ● | CONFIRMED | `sentences.ts:13`, `metrics.ts:191-197` | Paul C3: "98%" next to a 96.7 gap does not subtract. | **Kept**: Ryan's own format (26%, 15%, 10.9) |
+| 35 | ● | CONFIRMED | `sentences.ts:203` | Paul C4: "Limited editorial and UGC presence" at a 31% share. | **Fixed** `9f9a4eff` (each under 10%) |
+| 36 | ● | CONFIRMED | `editor.tsx:184-187`, `:114-118` | Paul C5: refresh on every open; an early save could be reset by an older refresh. | **Fixed** `abcbaa27`, verified live |
+| 37 | ○ | CONFIRMED | `peec.ts:191-192`, `pull.ts:102` | Paul C6: a row with no brand crashed the pager as `internal`; two rows with no domain read as a repeat. | **Fixed** `f165ea6c` |
+| 38 | ○ | CONFIRMED | `sentences.ts` own-site bullet | Paul C7: "retrievals" is `retrieved_chat_count`. | **Kept**: spec 5a row 14 |
+| 39 | ○ | CONFIRMED | `grounding.ts:12`, `:16` | Paul C8: "double down", 24/7 and COVID-19 flagged as numbers, each costing a second Glean attempt. | **Fixed** `d1e0a50b` |
+| 40 | ○ | CONFIRMED | `access.ts:40` | Paul C9: callers had to remember the unavailable case. | **Fixed** `ca88fc9c` (required `reason`) |
+| 41 | ○ | CONFIRMED | `slots/route.ts:39-42` | Paul C10: settings read before the Origin check. | **Fixed** `ca88fc9c`, tested `eb0de64b` |
+| 42 | ○ | CONFIRMED | hub and editor pages | Paul C11: the try-again markup was duplicated. | **Fixed** `ca88fc9c` (`NoAccess`) |
+| 43 | ○ | CONFIRMED | `grounding.ts`, `sentences.ts:59-62` | Paul C12: name-strip loop four times, a misplaced comment, `pctPair` passthrough. | **Fixed** `02123397` |
+| 44 | ○ | CONFIRMED | `editor.tsx:373` | Paul C13: the Fill in message matched its own wording. | **Fixed** `02123397` |
+| 45 | ○ | CONFIRMED | `editor.tsx` | Fix review: at zero the Fill in marker stayed set, so a returning item brought the message back unasked. | **Fixed** `eb0de64b` |
+| 46 | ○ | CONFIRMED | slots and generate tests | Fix review: the Origin-first order had no test. | **Fixed** `eb0de64b` (red on the old order) |
+| 47 | ○ | PLAUSIBLE | `editor.tsx` props sync | Fix review: after a fast save on a cached draft, the toolbar brand and titles stay stale until the next sync. | **Declined**: re-seeding from older props could revert a just-saved brand; the link brand syncs separately |
+| 48 | ○ | CONFIRMED | `grounding.ts:18` | Fix review: a figure after an all-caps hyphenated word ("TOP-10") is not flagged. | **Declined**: indistinguishable from COVID-19; Glean is told to write no numbers |
 
 ## §4 Detail
 
@@ -183,6 +205,12 @@ named `contract_violation`.
 inputs with no mismatch.
 
 **30, 31.** Declined with reasons above.
+
+**32 to 48 (Paul's review and the fix review).** Each was traced to its root in the code before any change. The key one:
+`outboundAccess` returned "unavailable" as an optional flag, so every caller had to remember it and six did not; the
+refusal now requires a `reason` and one `refusalStatus` gives every route its status. The refresh on open (36) now runs
+only when the props are older than the report the view rendered, and the props sync ignores props older than the save
+queue's revision. Kept findings (34, 38) and declined ones (47, 48) have their reasons on the PR threads and in the table.
 
 ## §5 Follow-ups
 
