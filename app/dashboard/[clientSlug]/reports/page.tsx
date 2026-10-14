@@ -35,6 +35,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { parseModelsParam, serializeModelsParam } from '@/lib/peec/models'
 import { isServerExportSection } from '@/lib/export/sections'
 import { resolveExportView } from '@/lib/export/report-view'
+import { exportablePages } from '@/lib/export/pages'
 import { SectionSkeleton } from './section-skeleton'
 import { HealthProbe } from '@/lib/health/probe'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
@@ -286,7 +287,19 @@ export default async function ReportPage({
                 compareRange: activeSection === 'executive-overview' ? null : servedCompareRange,
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
               } }
-            : {})} />
+            : {})}
+          // Bulk export (spec 2026-10-14-bulk-pdf-export-design): the client's exportable pages, this one pre-selected,
+          // with the page's raw ranges; lib/export/bulk.ts applies each page's own (B5).
+          bulk={{
+            pages: exportablePages(client),
+            currentKey: isServerExportSection(activeSection)
+              ? `${activeSection}:${resolveExportView(client, activeSection, subsectionParam ?? null).subsectionId ?? ''}`
+              : null,
+            clientSlug, dateRange, compareRange,
+            models: models ? serializeModelsParam(models) : null,
+            fromSection: activeSection,
+            lockedMonths: hasReportingMonths(client),
+          }} />
       </StickyReportHeader>
 
       <div className="h-8" />
