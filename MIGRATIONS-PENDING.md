@@ -288,7 +288,7 @@ with its 16 columns, both indexes (the partial one's `WHERE` intact), the foreig
 check; the ledger up by one with nothing pending; the table list changed by `chart_notes` only;
 no rows; Renaissance's row unchanged. Production: not applied.
 
-## Add aeo_outbound_reports (applied on dev, awaiting staging and production)
+## Add aeo_outbound_reports (applied on dev and staging, awaiting production)
 
 `drizzle/0026_aeo_outbound_reports.sql` creates the `aeo_outbound_status` enum and the standalone
 `aeo_outbound_reports` table (AEO Outbound Snapshot). Additive: no existing table, column or row
@@ -316,9 +316,9 @@ than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0026_aeo_outb
 `requested_start` and `requested_end`; its four checks (`aeo_outbound_approved_complete` including `share_recipient`,
 `aeo_outbound_delete_only_draft_failed`, `aeo_outbound_range_both_or_neither`, `aeo_outbound_revoke_only_approved`); the
 `share_token` unique constraint; both indexes, with `aeo_outbound_one_generating`'s `WHERE status = 'generating'` intact; no
-rows; the ledger at 32 with nothing pending; `aeo_outbound_reports` the only table added. Staging and production: not applied.
+rows; the ledger at 32 with nothing pending; `aeo_outbound_reports` the only table added. Staging: applied 2026-10-14 with `0026` to `0029` together (see the `0029` entry). Production: not applied.
 
-## Add the AEO Outbound v1.1 tables and columns (applied on dev, awaiting staging and production)
+## Add the AEO Outbound v1.1 tables and columns (applied on dev and staging, awaiting production)
 
 `drizzle/0027_aeo_outbound_v1_1.sql` creates `aeo_outbound_opens` (one row per counted open of a live link: `report_id`
 with a foreign key to `aeo_outbound_reports`, `opened_at`, `ua_family`, `likely_automated`, `reason`; no IP address and no
@@ -345,9 +345,9 @@ the two columns absent, the ledger at 32. Applied with `scripts/migrate-http.ts`
 foreign key to `aeo_outbound_reports`, the `(report_id, opened_at)` index), `aeo_outbound_settings` (11 columns, the
 `aeo_outbound_settings_single_row` check), `aeo_outbound_settings_log` (6 columns, the `changed_at` index), all empty;
 `aeo_outbound_reports.progress_step` `integer not null default 0` (0 on both existing rows) and `error_code text` (null on both);
-the ledger at 33 with nothing pending; those three tables the only ones added. Staging and production: not applied.
+the ledger at 33 with nothing pending; those three tables the only ones added. Staging: applied 2026-10-14 with `0026` to `0029` together (see the `0029` entry). Production: not applied.
 
-## Add `series` to aeo_outbound_settings (applied on dev, awaiting staging and production)
+## Add `series` to aeo_outbound_settings (applied on dev and staging, awaiting production)
 
 `drizzle/0028_aeo_outbound_settings_series.sql` is one statement: `ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series"
 text DEFAULT 'AI Visibility Snapshot' NOT NULL;`. It makes the report name a team setting (the default of `page.series` on
@@ -372,14 +372,14 @@ dev database, as ENGINEERS.md says; unverified from the repo) is out of that deg
 then a read-only dry run: exactly `0028_aeo_outbound_settings_series` pending, the ledger at 33. Applied with
 `scripts/migrate-http.ts`, given only the dev URL (`apply 0028_aeo_outbound_settings_series (1 stmt) ... done`,
 `applied 1 migration(s)`). Read back: `aeo_outbound_settings` has 12 columns, `series` is `text not null default
-'AI Visibility Snapshot'`, the table has no rows yet; the ledger at 34 with nothing pending. Staging and production: not
-applied.
+'AI Visibility Snapshot'`, the table has no rows yet; the ledger at 34 with nothing pending. Staging: applied 2026-10-14 with `0026` to
+`0029` together (see the `0029` entry). Production: not applied.
 
 Until this change merges to `dev`, keep the top-left name on dev to `AIVx` or `Avenue Z`. Older deployments that share the
 dev database still check it against the old two-value list, and a row outside it fails their settings contract, which
 drops Settings-only users and admins there.
 
-## Add `last_writer` and `last_seq` to aeo_outbound_reports (applied on dev, awaiting staging and production)
+## Add `last_writer` and `last_seq` to aeo_outbound_reports (applied on dev and staging, awaiting production)
 
 `drizzle/0029_aeo_outbound_save_writer.sql` is two statements: `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_writer"
 uuid;` and `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_seq" integer;`. They record which editor queue (`writer`, a
@@ -424,7 +424,18 @@ dry run: exactly `0029_aeo_outbound_save_writer` pending, the ledger at 34, neit
 apply refused to run unless exactly that one entry was pending, then ran `scripts/migrate-http.ts` given only the dev URL
 (`apply 0029_aeo_outbound_save_writer (2 stmt) ... done`, `applied 1 migration(s)`). Read back: `last_writer` is `uuid`
 nullable and `last_seq` is `integer` nullable, both with no default; all 11 rows read NULL in both; the ledger at 35 with
-nothing pending. Staging and production: not applied.
+nothing pending. Staging: applied 2026-10-14 with `0026` to `0029` together (see the `0029` entry). Production: not applied.
+
+Staging: `0026` to `0029` applied to the staging database on 2026-10-14, on my written go, after Paul approved #361, #366
+and #368 and before any of their code reached staging. A staging-only host guard (it refuses any host other than
+`ep-restless-union-aqkw7ig0`, the URL read from `.env.staging` into memory and never printed), then a read-only dry run:
+exactly `0026_aeo_outbound_reports`, `0027_aeo_outbound_v1_1`, `0028_aeo_outbound_settings_series` and
+`0029_aeo_outbound_save_writer` pending, the ledger at 26, no `aeo_outbound` tables. The apply refused to run unless exactly
+those four were pending, then ran `scripts/migrate-http.ts` (`skip` for `0000` to `0025`, then `apply 0026 (4 stmt)`,
+`0027 (8 stmt)`, `0028 (1 stmt)`, `0029 (2 stmt)`, each `done`, `applied 4 migration(s)`). Read back: the ledger at 30 with
+nothing pending; `aeo_outbound_reports` (32 columns, including `progress_step`, `error_code`, `last_writer` and
+`last_seq`), `aeo_outbound_opens` (6), `aeo_outbound_settings` (12, including `series`) and `aeo_outbound_settings_log` (6),
+all empty; the `aeo_outbound_status` type present. Production: not applied (needs `0025` first).
 
 ## No migration: the AEO Outbound audit fixes (spec v1.1 section 19), rollback note
 
