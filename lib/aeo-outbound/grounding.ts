@@ -5,7 +5,15 @@ import { NEEDS_VALIDATION } from './config'
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
 import { showsPowered } from './render'
+import { dataSentences } from './sentences'
 import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
+
+// Spec v1.1 §19.3: number words flagged in a Glean-written field (ordinals are not; "one" is too common to be a figure).
+const NUMBER_WORDS = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|hundred|thousand|half|twice|double|doubled|triple|tripled|percent)\b/gi
+const UNCHECKED = (token: string) => `"${token}": check this number against Peec's numbers on the page.`
+/** Paths code writes on a row with sentences: 1 (v1.1 §19.1). */
+const CODE_SENTENCE = /^(?:context|methodology|(?:competitive|sources)_bullets\.\d\.(?:lead|text))$/
+const WORDS4 = (s: string) => new Set((s.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []).filter((w) => w !== 'peec' && !w.startsWith('recommend')))
 
 const NUM = /#?\d[\d,]*(?:\.\d+)?%?/g
 const DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi
@@ -100,9 +108,16 @@ function dashExempt(path: string, s: { category: string; next_step: string }, d:
 
 export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string): Note[] {
   const full = withDefaults(slots, d)
+  // Spec v1.1 §19.3: the new checks run only on rows generated with code-written sentences, so an older row's flags
+  // are exactly what they were.
+  const sentencesRow = d.sentences === 1
   const allowedDomains = new Set([...d.ownDomains, ...d.gapDomains.map((g) => g.domain), ...(dataText.match(DOMAIN) ?? []), ...ALWAYS_ALLOWED_DOMAINS].map((x) => x.toLowerCase()))
-  // With no competitors tracked the Data block names no outside brand, so its digits are not exempt either.
-  const brandNames = (d.competitorsTracked === 0 ? d.brands.filter((b) => b.isOwn) : d.brands).map((b) => b.name)
+  // With no competitors tracked the Data block names no outside brand, so its digits are not exempt either. A row with
+  // sentences also names its no-data roster brands in the context (v1.1 §19.1), so those names are exempt too.
+  const brandNames = [
+    ...(d.competitorsTracked === 0 ? d.brands.filter((b) => b.isOwn) : d.brands).map((b) => b.name),
+    ...(sentencesRow && d.competitorsTracked > 0 ? d.noDataBrands ?? [] : []),
+  ]
   // An edited brand name is exempt too (v1.1 §14). It is added only when it differs, so a version 1 row is unchanged.
   const renamed = full.brand !== d.brand ? [full.brand] : []
   const exemptNames = [...brandNames, ...renamed, ...allowedDomains].filter(Boolean).sort((a, b) => b.length - a.length)
@@ -111,6 +126,20 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   for (const name of exemptNames) figures = figures.split(name).join(' ')
   const allowed = new Set((figures.match(NUM) ?? []).map((t) => `${kindOf(t)}:${digitsOf(t)}`))
   for (const y of [d.window.start, d.window.end]) allowed.add(`bare:${y.slice(0, 4)}`)
+  // Every number of the code-written sentences is allowed (whole percents, points, counts), read the same way as a slot.
+  if (sentencesRow) {
+    const s = dataSentences(d)
+    let sentenceText = [s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | ')
+    for (const name of exemptNames) sentenceText = sentenceText.split(name).join(' ')
+    for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
+  }
+  const fixedNext = settingsUsedOf(d).fixedNextStep
+  /** A field Glean wrote (v1.1 §19.3): the category only while it is not Peec's value, next_step only with no fixed sentence. */
+  const gleanWrote = (path: string): boolean => {
+    if (/^(?:headline|summary|why|opportunities\.\d\.(?:signal|opportunity|workstream))$/.test(path)) return true
+    if (path === 'category') return cleanValue(full.category) !== cleanValue(d.category ?? NEEDS_VALIDATION)
+    return path === 'next_step' && fixedNext === null
+  }
   const grounded = (t: string) => {
     const k = kindOf(t), v = digitsOf(t)
     return allowed.has(`${k}:${v}`) || (k === 'bare' && allowed.has(`hash:${v}`))
@@ -142,9 +171,22 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     for (const name of exemptNames) text = text.split(name).join(' ')
     // The report name and the top-left name come from settings or Ryan's own edit, not from Glean (v1.1 §17.5): no domain or number check.
     if (path !== 'page.series' && path !== 'page.sidebar_wordmark') {
-      for (const m of value.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
-      for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
+      // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed.
+      const domainText = sentencesRow && CODE_SENTENCE.test(path) ? text : value
+      for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
+      if (sentencesRow && gleanWrote(path)) {
+        for (const m of text.match(NUM) ?? []) add('unchecked_number', path, UNCHECKED(m))
+        for (const m of text.match(NUMBER_WORDS) ?? []) add('unchecked_number', path, UNCHECKED(m))
+      } else {
+        for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
+      }
       for (const m of datesOutsideWindow(text, d.window)) add('date_not_in_window', path, `"${m}" is outside the data window (${d.windowLabel})`)
+    }
+    if (sentencesRow && /^opportunities\.\d\.signal$/.test(path) && /peec\s+recommend/i.test(value)) {
+      const words = WORDS4(value)
+      const actionWords = d.actions.map((a) => WORDS4(a.title))
+      if (!d.actions.length) add('peec_recommends', path, 'Peec has no recommended actions for this project.')
+      else if (!actionWords.some((a) => [...words].some((w) => a.has(w)))) add('peec_recommends', path, `Check this against Peec's recommended actions: ${d.actions.map((a) => a.title).join('; ')}.`)
     }
     if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }

@@ -84,9 +84,10 @@ test('grounding-only problems still save as a draft, with notes', async () => {
   const bad = JSON.parse(GOOD); bad.why = 'Visibility rose 42.0% last year.'
   const glean = vi.fn(async (_prompt: string) => reply(JSON.stringify(bad)))
   const r = await generateSnapshot('or_a', deps(glean))
-  expect(r.ok && r.notes.map((n) => (typeof n === 'string' ? n : n.text)).join(' ')).toContain('"42.0%" is not in the Peec data')
+  // Spec v1.1 §19.3: a number in a field Glean wrote is an unchecked_number item, and still worth one retry.
+  expect(r.ok && r.notes.map((n) => (typeof n === 'string' ? n : n.text)).join(' ')).toContain('"42.0%": check this number against Peec\'s numbers on the page.')
   expect(glean).toHaveBeenCalledTimes(2)
-  expect(String(glean.mock.calls[1][0])).toContain('"42.0%" is not in the Peec data')
+  expect(String(glean.mock.calls[1][0])).toContain('"42.0%": check this number')
 })
 test('no second Glean attempt with under 60s left', async () => {
   let t = Date.parse('2026-10-08T12:00:00Z')
@@ -288,7 +289,7 @@ test('a flag on a page word Glean cannot fix costs no second attempt, and is sti
 })
 
 test('A1: a fixed next step with a number in it is a note, not a reason to retry Glean', async () => {
-  const grounded = JSON.stringify({ ...JSON.parse(GOOD), summary: 'Example Co has solid visibility.', context: 'Rival leads.', sources_bullets: [{ lead: 'Gap:', text: 'Trails Rival.' }, { lead: 'Mix:', text: 'You leads the mix.' }] })
+  const grounded = JSON.stringify({ ...JSON.parse(GOOD), headline: 'Example Co trails Rival', summary: 'Example Co has solid visibility.' })
   const baseline = vi.fn(async () => reply(grounded))
   await generateSnapshot('or_a', deps(baseline))
   expect(baseline).toHaveBeenCalledTimes(1)
@@ -300,10 +301,10 @@ test('A1: a fixed next step with a number in it is a note, not a reason to retry
 })
 
 // Spec v1.1 §18.7: a worse second Glean attempt never replaces a better first one; a tie takes the second.
-const GROUNDED = { ...JSON.parse(GOOD), summary: 'Example Co has solid visibility.', context: 'Rival leads.', sources_bullets: [{ lead: 'Gap:', text: 'Trails Rival.' }, { lead: 'Mix:', text: 'You leads the mix.' }] }
+const GROUNDED = { ...JSON.parse(GOOD), headline: 'Example Co trails Rival', summary: 'Example Co has solid visibility.' }
 // Flags on the fields Glean writes: the code-written sentences carry the same flags in both attempts (spec v1.1 §19.2).
 const numberFlags = (r: Awaited<ReturnType<typeof generateSnapshot>>) =>
-  r.ok ? r.notes.filter((n) => typeof n !== 'string' && n.kind === 'number_not_in_data' && !codeSetPath(n.path ?? '', null)) : []
+  r.ok ? r.notes.filter((n) => typeof n !== 'string' && n.kind === 'unchecked_number' && !codeSetPath(n.path ?? '', null)) : []
 
 test('§18.7: attempt 1 with one fixable flag beats attempt 2 with three: attempt 1 copy and its one flag are saved', async () => {
   const first = { ...GROUNDED, why: 'Visibility rose 42.0% last year.' }

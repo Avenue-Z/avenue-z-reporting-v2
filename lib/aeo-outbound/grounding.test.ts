@@ -271,3 +271,72 @@ test('a date inside a roster brand name is not a date, and a hostile long input 
   flagged(hostile)
   expect(Date.now() - t0).toBeLessThan(2000)
 })
+
+// Spec v1.1 §19.3: rows with sentences: 1 (generated with code-written sentences).
+import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
+import { buildSnapshotData } from './metrics'
+import { dataSentences } from './sentences'
+import type { PeecPull } from './pull'
+
+const USED = { peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: null }
+const newRow = (p: PeecPull = LIVE_SHAPE_PULL, used: typeof USED | { peecOpportunityRows: number; methodologyStatesPromptsAndModels: boolean; fixedNextStep: string | null } = USED) =>
+  buildSnapshotData(p, '2026-10-14T13:00:00Z', { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' }, used)
+const OPINION = { headline: 'Example Senior Living trails the leader', summary: 'Example Senior Living sits behind the leader in AI visibility.', why: 'Institutional sources shape the category.', opportunities: [0, 1, 2].map(() => ({ signal: 'Example Senior Living trails Carefinder', opportunity: 'Explore answer-ready content', workstream: 'Content / AEO' })) }
+const slotsFor = (d: SnapshotData, over: Partial<Slots> = {}): Slots => ({ category: d.category ?? 'Needs validation', market: d.market ?? 'Needs validation', next_step: 'Book an audit.', ...dataSentences(d), ...OPINION, ...over })
+const flagsFor = (d: SnapshotData, over: Partial<Slots> = {}) => groundingFlags(slotsFor(d, over), d, dataBlock(d))
+
+test('spec v1.1 §19.3: a new row with code-written sentences and number-free opinion carries no flags', () => {
+  const d = newRow()
+  expect(d.sentences).toBe(1)
+  expect(flagsFor(d)).toEqual([])
+})
+
+test('unchecked_number: every digit run and number word in a Glean field, names removed, ordinals not flagged', () => {
+  const d = newRow()
+  const f = flagsFor(d, { headline: 'Example Senior Living ranks third, two places behind', summary: 'It holds 1.1% of answers.', why: 'Its visibility doubled.' })
+  expect(f).toEqual([
+    { kind: 'unchecked_number', path: 'headline', text: '"two": check this number against Peec\'s numbers on the page.' },
+    { kind: 'unchecked_number', path: 'summary', text: '"1.1%": check this number against Peec\'s numbers on the page.' },
+    { kind: 'unchecked_number', path: 'why', text: '"doubled": check this number against Peec\'s numbers on the page.' },
+  ])
+  expect(f.some((n) => n.kind === 'number_not_in_data')).toBe(false)
+  const seven = { ...LIVE_SHAPE_PULL, roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === 'kw_run' ? { ...b, name: 'Seven Seas 24' } : b)), brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === 'kw_run' ? { ...b, brand: { ...b.brand, name: 'Seven Seas 24' } } : b)) }
+  expect(flagsFor(newRow(seven), { why: 'Seven Seas 24 is ahead.' })).toEqual([])
+})
+
+test('unchecked_number: the category only when it is not Peec\'s value; next_step only when no fixed sentence is set', () => {
+  const withDigit = newRow({ ...LIVE_SHAPE_PULL, profile: { industry: '24/7 Senior Care', markets: ['United States'] } })
+  expect(flagsFor(withDigit)).toEqual([])
+  expect(flagsFor(withDigit, { category: 'Top 10 Senior Care' })).toEqual([{ kind: 'unchecked_number', path: 'category', text: '"10": check this number against Peec\'s numbers on the page.' }])
+  expect(flagsFor(newRow(), { next_step: 'Book a 30-minute call.' })).toEqual([{ kind: 'unchecked_number', path: 'next_step', text: '"30": check this number against Peec\'s numbers on the page.' }])
+  const fixed = newRow(LIVE_SHAPE_PULL, { ...USED, fixedNextStep: 'Book a 30-minute call.' })
+  expect(flagsFor(fixed, { next_step: 'Book a 30-minute call.' })).toEqual([{ kind: 'number_not_in_data', path: 'next_step', text: '"30" is not in the Peec data' }])
+})
+
+test('peec_recommends: no actions, a matching action, an unrelated one', () => {
+  const sig = (signal: string) => ({ opportunities: [{ signal, opportunity: 'Explore it', workstream: 'Technical AEO / SEO' }, ...OPINION.opportunities.slice(1)] })
+  expect(flagsFor(newRow(), sig('Peec recommends heading improvements'))).toEqual([{ kind: 'peec_recommends', path: 'opportunities.0.signal', text: 'Peec has no recommended actions for this project.' }])
+  const withActions = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }, { id: 'b', title: 'Add image descriptions', impact: 'LOW', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  expect(flagsFor(withActions, sig('Peec recommends heading improvements'))).toEqual([])
+  expect(flagsFor(withActions, sig('Peec recommends schema markup'))).toEqual([{ kind: 'peec_recommends', path: 'opportunities.0.signal', text: "Check this against Peec's recommended actions: Give this page an H1 heading; Add image descriptions." }])
+  expect(flagsFor(withActions, sig('Peec’s data points to schema'))).toEqual([])
+})
+
+test('code-written sentences: a brand named like a domain is never flagged, a no-data one included; an edited wrong number is', () => {
+  const p: PeecPull = { ...LIVE_SHAPE_PULL, roster: [...LIVE_SHAPE_PULL.roster, { id: 'kw_dotcom', name: 'Care.com', is_own: false, domains: ['care.com'] }] }
+  const d = newRow(p)
+  expect(d.noDataBrands).toEqual(['Care.com'])
+  expect(dataSentences(d).context).toContain('Care.com')
+  expect(flagsFor(d)).toEqual([])
+  const edited = slotsFor(d)
+  edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Example Senior Living ranks third, with 4.4% visibility.' }, ...edited.competitive_bullets.slice(1)]
+  expect(groundingFlags(edited, d, dataBlock(d))).toEqual([{ kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"4.4%" is not in the Peec data' }])
+})
+
+test('a row without sentences keeps today\'s flags: a Glean number is number_not_in_data, never unchecked_number', () => {
+  const d = newRow()
+  const { sentences: _s, ...older } = d
+  const f = groundingFlags(slotsFor(d, { why: 'Its visibility rose 42.0%.' }), older as SnapshotData, dataBlock(older as SnapshotData))
+  expect(f.filter((n) => n.path === 'why')).toEqual([{ kind: 'number_not_in_data', path: 'why', text: '"42.0%" is not in the Peec data' }])
+  expect(f.some((n) => n.kind === 'unchecked_number' || n.kind === 'peec_recommends')).toBe(false)
+})
