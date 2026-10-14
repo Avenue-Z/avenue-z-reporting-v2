@@ -253,6 +253,12 @@ test('gap sites leave out COMPETITOR and OWN rows, roster domains with no classi
   expect(d.gapDomains.map((g) => g.domain)).toEqual(['notalpha.com', 'open.com'])
 })
 
+test('a domain with no retrieved chats is never a gap, so a sentence cannot list one "at 0" (final review M3)', () => {
+  const domains = [gapRow('open.com', 'EDITORIAL', 40), gapRow('zero.com', 'EDITORIAL', 0), { ...gapRow('none.com', 'EDITORIAL'), retrieved_chat_count: null }]
+  const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
+  expect(d.gapDomains).toEqual([{ domain: 'open.com', retrievedChats: 40 }])
+})
+
 const REF = (id: string, name: string, own = false) => ({ id, name, is_own: own, domains: [`${id}.example`] })
 const ROW = (id: string, name: string, visibility: number) => ({ brand: { id, name }, visibility, share_of_voice: 0.1, position: 2 })
 

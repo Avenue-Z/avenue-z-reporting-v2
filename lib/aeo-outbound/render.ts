@@ -136,7 +136,8 @@ export const PAGE_CSS = [
 
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
  *  the phone donut shows percentages (§17.2), and the menu marks 05 at the bottom of the page, where AIVx's scroll-spy
- *  never reaches the short last section (§17.12). Registered before the frame script's listener, so it runs first. */
+ *  never reaches the short last section (§17.12). Registered before the frame script's listener, so it runs first. The
+ *  phone legend rounds half to even on the same expression as metrics.ts pyRound, so it matches the source-mix sentence. */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
 function setActive(h){for(var i=0;i<nav.length;i++){if(nav[i].getAttribute('href')===h)nav[i].classList.add('active');else nav[i].classList.remove('active')}}
@@ -150,11 +151,12 @@ if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.
 },true);
 var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
 function copy(x){return JSON.parse(JSON.stringify(x))}
+function r1(x){var p=x.toFixed(100).split('.'),f=p[1]||'';if(/^50*$/.test(f.slice(1))){var d=Number(p[0]+'.'+f.charAt(0));return Number(f.charAt(0))%2===0?d:Number((d+0.1).toFixed(1))}return Number(x.toFixed(1))}
 function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
 function draw(d,l){try{var p=window.Plotly.react(el,d,l);if(p&&p.catch)p.catch(restore)}catch(err){restore()}}
 function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){draw(copy(orig.d),copy(orig.l));return}
 var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],total=0;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];
-t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{percent:.1%}':''});t.labels=lab.map(function(x,i){return x+' '+(100*v[i]/total).toFixed(1)+'%'});
+t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{percent:.1%}':''});t.labels=lab.map(function(x,i){return x+' '+r1((v[i]/total)*100).toFixed(1)+'%'});
 if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');draw(d,l)}
 function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};if(!window.matchMedia)return;var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}

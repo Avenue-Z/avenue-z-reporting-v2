@@ -15,6 +15,9 @@ const UNCHECKED = (token: string) => `"${token}": check this number against Peec
  *  word; a K, M or x right after the digits is part of the number (10K, 3x). */
 const NUM_ALONE = /(?<![A-Za-z\d.,#])#?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:%|[KkMmx](?![A-Za-z]))?(?![A-Za-z\d])/g
 /** Rank words in a code-written sentence ("third", "21st"): compared with Peec's sentence when Ryan edits it. */
+/** Count words a code-written sentence prints ("the five brands", "two more"), compared when Ryan edits it. "one" is left
+ *  out, as in NUMBER_WORDS: it is too common to be a figure (final review M1). */
+const COUNT_WORDS = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi
 const ORDINAL = /\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|\d+(?:st|nd|rd|th))\b/gi
 // Words that say nothing about which action is meant, so they never count as a match (review of Tasks 37 to 40).
 const STOP = new Set(['about', 'their', 'these', 'those', 'which', 'where', 'there', 'other', 'every', 'peecs'])
@@ -32,6 +35,7 @@ const DASHES = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(
 /** Avenue Z's own site, linked from the page itself (v1.1 §3). */
 const ALWAYS_ALLOWED_DOMAINS = ['avenuez.com']
 const RANK_CARD = /^#\d+ of \d+ brands$/
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Dates (spec v1.1 §17.14). Month names are capitalised, full, three-letter or Sept, with an optional period. Each gap is
 // one `\s+`, and every digit run is closed by (?!\d), so the pattern is linear: nothing can backtrack across a run.
@@ -119,7 +123,9 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // Spec v1.1 §19.3: the new checks run only on rows generated with code-written sentences, so an older row's flags
   // are exactly what they were.
   const sentencesRow = typeof d.sentences === 'number'
-  const allowedDomains = new Set([...d.ownDomains, ...d.gapDomains.map((g) => g.domain), ...(dataText.match(DOMAIN) ?? []), ...ALWAYS_ALLOWED_DOMAINS].map((x) => x.toLowerCase()))
+  // Each domain also without its "www.", the way a code-written sentence prints it (sentences.ts, capital).
+  const allowedDomains = new Set([...d.ownDomains, ...d.gapDomains.map((g) => g.domain), ...(dataText.match(DOMAIN) ?? []), ...ALWAYS_ALLOWED_DOMAINS]
+    .map((x) => x.toLowerCase()).flatMap((x) => [x, x.replace(/^www\./, '')]))
   // With no competitors tracked the Data block names no outside brand, so its digits are not exempt either. A row with
   // sentences also names its no-data roster brands in the context (v1.1 §19.1), so those names are exempt too.
   const brandNames = [
@@ -152,6 +158,10 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     return path === 'next_step' && fixedNext === null
   }
   const stripNames = (v: string) => { let t = v; for (const name of exemptNames) t = t.split(name).join(' '); return t }
+  const domainsLongestFirst = [...allowedDomains].sort((a, b) => b.length - a.length)
+  const namesOnly = [...brandNames, ...renamed].filter(Boolean).sort((a, b) => b.length - a.length)
+  const stripBrandNames = (v: string) => { let t = v; for (const name of namesOnly) t = t.split(name).join(' '); return t }
+  const withoutDomains = (v: string) => { let t = v; for (const x of domainsLongestFirst) t = t.replace(new RegExp(`(?<![A-Za-z0-9.-])${escapeRe(x)}(?!\\.?[A-Za-z0-9-])`, 'gi'), ' '); return t }
   /** Peec's own sentence for a code-written path, found by path, and for a bullet by its lead, so an added or removed
    *  bullet still matches; undefined when Ryan changed the lead (then the number check uses every Peec number). */
   const peecSentence = (path: string): string | undefined => {
@@ -196,8 +206,10 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     for (const name of exemptNames) text = text.split(name).join(' ')
     // The report name and the top-left name come from settings or Ryan's own edit, not from Glean (v1.1 §17.5): no domain or number check.
     if (path !== 'page.series' && path !== 'page.sidebar_wordmark') {
-      // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed.
-      const domainText = sentencesRow && isCodeSentencePath(path) ? text : value
+      // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed. Peec's
+      // domains go first and in any case, so a brand that starts its own domain ("Giggle", "Gigglefinance.com") cannot
+      // leave half a domain behind (final review I2).
+      const domainText = sentencesRow && isCodeSentencePath(path) ? stripBrandNames(withoutDomains(value)) : value
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
       const ref = sameVersion && isCodeSentencePath(path) ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
@@ -216,6 +228,12 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
         }
         const ranks = new Set((stripNames(ref).match(ORDINAL) ?? []).map((w) => w.toLowerCase()))
         for (const w of text.match(ORDINAL) ?? []) if (!ranks.has(w.toLowerCase())) add('number_not_in_data', path, `"${w}" does not match Peec's rank in this sentence`)
+        const words = counted((stripNames(ref).match(COUNT_WORDS) ?? []).map((w) => w.toLowerCase()))
+        for (const w of text.match(COUNT_WORDS) ?? []) {
+          const k = w.toLowerCase()
+          if (words.get(k)) words.set(k, words.get(k)! - 1)
+          else add('number_not_in_data', path, `"${w}" does not match Peec's number in this sentence`)
+        }
       } else {
         for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
       }

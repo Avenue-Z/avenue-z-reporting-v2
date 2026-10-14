@@ -333,6 +333,48 @@ test('code-written sentences: a brand named like a domain is never flagged, a no
   expect(groundingFlags(edited, d, dataBlock(d))).toEqual([{ kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"4.4%" does not match Peec\'s number in this sentence' }])
 })
 
+test('code-written sentences: an own site whose domain starts with the brand name, or carries www., is not flagged (final review I2)', () => {
+  // The sentence prints the domain capitalised ("Examplesenior.com"); removing the brand name first left "senior.com".
+  const rename = (name: string) => ({
+    ...LIVE_SHAPE_PULL,
+    roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === 'kw_own' ? { ...b, name } : b)),
+    ownBrand: { ...LIVE_SHAPE_PULL.ownBrand, name },
+    brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === 'kw_own' ? { ...b, brand: { ...b.brand, name } } : b)),
+  })
+  const prefix = newRow(rename('Examplesenior'))
+  expect(dataSentences(prefix).competitive_bullets[1].text).toContain('Examplesenior.com')
+  expect(flagsFor(prefix)).toEqual([])
+  // A www. own row with no own domain on the roster prints without the www.
+  const bare = newRow({
+    ...LIVE_SHAPE_PULL,
+    roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === 'kw_own' ? { ...b, domains: [] } : b)),
+    ownBrand: { ...LIVE_SHAPE_PULL.ownBrand, domains: [] },
+    domains: LIVE_SHAPE_PULL.domains.map((r) => (r.domain === 'examplesenior.com' ? { ...r, domain: 'www.examplesenior.com' } : r)),
+  })
+  expect(dataSentences(bare).competitive_bullets[1].text).toContain('Examplesenior.com')
+  expect(flagsFor(bare)).toEqual([])
+  // A domain that is not Peec's is still flagged in an edited code sentence.
+  const edited = slotsFor(prefix)
+  edited.competitive_bullets = edited.competitive_bullets.map((b, i) => (i === 1 ? { ...b, text: 'Elsewhere.com appears among the top domains at 142 retrievals.' } : b))
+  expect(groundingFlags(edited, prefix, dataBlock(prefix)).map((n) => n.text)).toContain('"Elsewhere.com" is not a domain in the Peec data')
+  // Only a whole domain is Peec's: one that merely ends with it is still flagged.
+  edited.competitive_bullets = edited.competitive_bullets.map((b, i) => (i === 1 ? { ...b, text: 'Fakeexamplesenior.com appears among the top domains at 142 retrievals.' } : b))
+  expect(groundingFlags(edited, prefix, dataBlock(prefix)).map((n) => n.text)).toContain('"Fakeexamplesenior.com" is not a domain in the Peec data')
+})
+
+test('an edited code sentence that changes a count word is flagged; the same word kept is not (final review M1)', () => {
+  const d = newRow()
+  const edit = (text: string) => {
+    const s = slotsFor(d)
+    s.competitive_bullets = s.competitive_bullets.map((b, i) => (i === 0 ? { ...b, text } : b))
+    return groundingFlags(s, d, dataBlock(d))
+  }
+  expect(edit('Example Senior Living ranks third among the nine brands tracked, with 1.1% visibility and 0.1% share of voice.')).toEqual([
+    { kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"nine" does not match Peec\'s number in this sentence' },
+  ])
+  expect(edit('Among the five brands tracked, Example Senior Living ranks third, with 1.1% visibility and 0.1% share of voice.')).toEqual([])
+})
+
 test('a row without sentences keeps today\'s flags: a Glean number is number_not_in_data, never unchecked_number', () => {
   const d = newRow()
   const { sentences: _s, ...older } = d

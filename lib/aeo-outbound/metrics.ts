@@ -235,6 +235,8 @@ export function buildSnapshotData(
   const isRosterSite = (domain: string) => { const d = bare(domain); return rosterDomains.some((rd) => d === rd || d.endsWith(`.${rd}`)) }
   const gapDomains = !decisions.competitorSiteGaps ? [] : pull.domains
     .filter((r) => {
+      // A domain no answer retrieved is not a gap worth naming (final review M3).
+      if ((r.retrieved_chat_count ?? 0) <= 0) return false
       if (r.classification === 'COMPETITOR' || r.classification === 'OWN' || isRosterSite(r.domain)) return false
       const ids = new Set((r.mentioned_brands ?? []).map((m) => m.id))
       return !ids.has(pull.ownBrand.id) && [...ids].some((id) => competitorIds.has(id))

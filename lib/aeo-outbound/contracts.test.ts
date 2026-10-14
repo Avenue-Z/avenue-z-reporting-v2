@@ -102,6 +102,11 @@ test('spec v1.1 §19.6: the date, classification, mentioned brands and roster fi
   expect(() => peecContract('peec.brands', [{ ...brand, id: 5 }])).toThrow('peec.brands.id')
   expect(() => peecContract('peec.brands', [{ ...brand, name: null }])).toThrow('peec.brands.name')
   expect(() => peecContract('peec.brands', [{ ...brand, domains: 'alpha.example' }])).toThrow('peec.brands.domains')
+  // Final review M2: the names and domains the sentences print are enforced too.
+  for (const domain of [null, undefined, '', 7]) expect(() => peecContract('peec.domains_report', [{ ...dom, domain }]), String(domain)).toThrow('peec.domains_report.domain')
+  expect(() => peecContract('peec.brands_report', [{ ...ROW, brand: { id: 'kw_a', name: null } }])).toThrow('peec.brands_report.brand.name')
+  expect(() => peecContract('peec.brands_report', [{ ...ROW, brand: { id: 5, name: 'Alpha' } }])).toThrow('peec.brands_report.brand.id')
+  expect(() => peecContract('peec.brands_report', [{ ...ROW, brand: null }])).toThrow('peec.brands_report.brand')
   let err: unknown
   try { peecContract('peec.domains_report', [{ ...dom, classification: null }]) } catch (e) { err = e }
   expect((err as PeecError).code).toBe('contract_violation')
@@ -116,9 +121,9 @@ test('spec v1.1 §19.6: the live shapes of 2026-10-14 pass: custom classificatio
 })
 
 test('fields outside the enforced set are observed only: drift logs one info line and never throws', () => {
-  const rows = [{ ...ROW, brand: { id: 'kw_a', name: 7 } }]
-  expect(peecContract('peec.brands_report', rows)).toBe(rows)
-  expect(lines()).toEqual(['[aeo-outbound] contract boundary=peec.brands_report field=brand.name issue=invalid_type count=1 mode=observe'])
+  const rows = [{ brand: { id: 'kw_a' }, model_channel: { id: 7 }, visibility_total: 3 }]
+  expect(peecContract('peec.brands_by_model', rows)).toBe(rows)
+  expect(lines()).toEqual(['[aeo-outbound] contract boundary=peec.brands_by_model field=model_channel.id issue=invalid_type count=1 mode=observe'])
 })
 
 test('unused fields pass through untouched: the very same value comes back', () => {

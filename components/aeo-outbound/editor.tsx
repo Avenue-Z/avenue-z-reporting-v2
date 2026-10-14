@@ -178,9 +178,13 @@ export function OutboundEditor(props: OutboundEditorProps) {
     return () => { live = false }
   }, [id, status, showsReport, reloadKey])
 
-  // No router.refresh() on opening a draft: Next.js rewrites the current history entry's state on a refresh, which would
-  // remove the Back guard's entry mark (use-leave-guard.ts, live test 2026-10-14). The save queue adopts the revision the
-  // view rendered instead, so saves are never against an old one.
+  // A draft re-reads its page data once when it opens: a page restored from the router cache by Back or Forward would
+  // otherwise show an old panel, brand and titles (spec v1.1 §19.7, A1). The Back guard keeps nothing in history state,
+  // so the refresh's replaceState cannot disturb it.
+  useEffect(() => {
+    if (props.status === 'draft') router.refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // One save queue per draft. Leaving draft (an approve) stops it.
   useEffect(() => {

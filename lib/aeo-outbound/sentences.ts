@@ -188,6 +188,8 @@ export function dataSentences(d: SnapshotData): DataSentences {
     const mix = d.sourceMix
     if (!mix.length) out.push({ lead: 'Source mix:', text: 'Peec reported no source types for this window.' })
     else if (mix.length === 1) out.push({ lead: 'Source mix:', text: `The domain mix is all ${label(mix[0].label)} sources.` })
+    // Every other type rounds to 0.0%, so none of them is a leading type (final review M6).
+    else if (mix[1].pct === 0) out.push({ lead: 'Source mix:', text: `The domain mix is almost entirely ${label(mix[0].label)} sources.` })
     else {
       const [t1, t2] = mix
       const named = new Set([t1.label, t2.label])

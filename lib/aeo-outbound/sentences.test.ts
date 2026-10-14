@@ -162,6 +162,8 @@ test('source mix: Editorial or UGC in the top two, one type only, empty, the own
   }
   expect(mixOf([['EDITORIAL', 50], ['CORPORATE', 30], ['UGC', 20]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is led by Editorial sources at 50% and Corporate sources at 30%; UGC represents 20%.' })
   expect(mixOf([['CORPORATE', 100]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is all Corporate sources.' })
+  // A second type that shows 0.0% is not a leading type (final review M6).
+  expect(mixOf([['CORPORATE', 9996], ['OWN', 4]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is almost entirely Corporate sources.' })
   expect(mixOf([['CORPORATE', 0]])).toEqual({ lead: 'Source mix:', text: 'Peec reported no source types for this window.' })
   expect(mixOf([['OWN', 60], ['Vendors & Platforms', 40]])).toEqual({ lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by own-site sources at 60% and Vendors & Platforms sources at 40%; Editorial represents 0.0% and UGC 0.0%.' })
 })

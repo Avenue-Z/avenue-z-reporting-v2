@@ -52,9 +52,10 @@ export const PEEC_CONTRACTS = {
     enforce: z.array(z.looseObject({ retrieved_chat_count: count, date: z.string().regex(/^\d{4}-\d{2}-\d{2}/) })),
     observe: z.array(z.looseObject({ domain: z.string() })),
   },
+  // The brand's name is printed in the sentences, and its id ranks it (final review M2).
   'peec.brands_report': {
-    enforce: z.array(z.looseObject({ visibility: ratio, share_of_voice: ratio.nullish(), position: z.number().nonnegative().nullish() })),
-    observe: z.array(z.looseObject({ brand: z.looseObject({ id: z.string(), name: z.string() }) })),
+    enforce: z.array(z.looseObject({ brand: z.looseObject({ id: z.string(), name: z.string() }), visibility: ratio, share_of_voice: ratio.nullish(), position: z.number().nonnegative().nullish() })),
+    observe: z.unknown(),
   },
   'peec.brands_by_model': {
     enforce: z.array(z.looseObject({ visibility_total: count })),
@@ -62,10 +63,10 @@ export const PEEC_CONTRACTS = {
   },
   'peec.model_channels': { observe: z.array(z.looseObject({ id: z.string(), description: z.string().nullish() })) },
   // classification decides the source mix and the donut (Peec also sends custom names, so any non-empty string);
-  // mentioned_brands decides the competitor domain gaps (often an empty array).
+  // mentioned_brands decides the competitor domain gaps (often an empty array); the domain is printed in the sentences.
   'peec.domains_report': {
-    enforce: z.array(z.looseObject({ retrieved_chat_count: count, retrieval_count: count, retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
-    observe: z.array(z.looseObject({ domain: z.string() })),
+    enforce: z.array(z.looseObject({ domain: z.string().min(1), retrieved_chat_count: count, retrieval_count: count, retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
+    observe: z.unknown(),
   },
   'peec.actions': { observe: z.array(z.looseObject({ title: z.string().nullish(), impact: z.string().nullish(), type: z.string().nullish(), status: z.string().nullish() })) },
   'peec.prompts': { enforce: z.looseObject({ total_count: count }).nullable(), observe: z.unknown() },

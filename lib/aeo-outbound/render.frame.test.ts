@@ -3,6 +3,7 @@ import { FRAME_SCRIPT_JS, PAGE_JS, renderSnapshotHtml, type RenderMode } from '.
 import { AIVX_SHARE_BLOCK } from './aivx/share'
 import { AIVX_JS } from './aivx/js'
 import { sourceDonutFigure } from './charts'
+import { pyRound } from './metrics'
 import { V1_DATA, V1_SLOTS } from './__fixtures__/v1-row'
 import type { Slots } from './slots'
 
@@ -226,8 +227,8 @@ test('a link to a hash with no section is not prevented', () => {
 
 // The donut (v1.1 §17.2): Plotly and matchMedia are stubs; the tests prove the calls.
 const MIX = [{ label: 'Reference', weight: 4.8 }, { label: 'Corporate', weight: 60.3 }, { label: 'You', weight: 34.9 }]
-function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean } = {}) {
-  const fig = sourceDonutFigure(MIX)
+function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; mix?: typeof MIX } = {}) {
+  const fig = sourceDonutFigure(over.mix ?? MIX)
   const react = vi.fn(over.react ?? (() => Promise.resolve()))
   const listeners: ((e: { matches: boolean }) => void)[] = []
   const mq = { matches: over.matches ?? true, addEventListener: (_: string, f: (e: { matches: boolean }) => void) => { listeners.push(f) } }
@@ -255,6 +256,14 @@ test('donut on a phone: one react call with percent text from 5%, percentages in
   expect(String(t.hovertemplate)).toContain('%{customdata}')
   expect(String(t.hovertemplate)).not.toContain('%{label}')
   expect(layout).toEqual(JSON.parse(JSON.stringify(fig.layout)))
+})
+
+test('donut on a phone: an exact tie rounds half to even, the same as the source-mix sentence (final review M5)', () => {
+  // 25 of 400 is exactly 6.25 and 375 of 400 exactly 93.75: the sentence's pyRound gives 6.2 and 93.8.
+  const { react } = bootDonut({ mix: [{ label: 'Corporate', weight: 375 }, { label: 'Editorial', weight: 25 }] })
+  const t = (react.mock.calls[0] as unknown as [unknown, Record<string, unknown>[]])[1][0]
+  expect(t.labels).toEqual([`Corporate ${pyRound((375 / 400) * 100, 1).toFixed(1)}%`, `Editorial ${pyRound((25 / 400) * 100, 1).toFixed(1)}%`])
+  expect(t.labels).toEqual(['Corporate 93.8%', 'Editorial 6.2%'])
 })
 
 test('donut: when the query stops matching react gets the originals; matching again redraws', () => {
