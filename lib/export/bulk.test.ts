@@ -62,13 +62,14 @@ test('pages are exported one at a time, in order, with progress before each', as
     'progress 1 peec-ai:', 'export peec-ai:',
     'progress 2 paid-media:', 'export paid-media:',
   ])
-  expect(results.map((r) => r.page)).toEqual(pages)
+  expect(results.results.map((r) => r.page)).toEqual(pages)
+  expect(results.cancelled).toBe(false)
 })
 
 // B7: a failure is kept and the run carries on.
 test('a failed page is recorded and the run carries on', async () => {
   const pages = [page('executive-overview'), page('peec-ai'), page('paid-media')]
-  const results = await runBulkExport(pages, async (p) => (p.section === 'peec-ai' ? { ok: false, error: 'This report is still loading.' } : ok(2)), {})
+  const { results } = await runBulkExport(pages, async (p) => (p.section === 'peec-ai' ? { ok: false, error: 'This report is still loading.' } : ok(2)), {})
   expect(results.map((r) => r.result.ok)).toEqual([true, false, true])
   expect(results[1].result).toEqual({ ok: false, error: 'This report is still loading.' })
 })
@@ -80,23 +81,31 @@ test('the signal is passed to each export', async () => {
   expect(exportOne).toHaveBeenCalledWith(expect.objectContaining({ section: 'peec-ai' }), abort.signal)
 })
 
-// B6: Cancel stops the run: no further page is exported and the run rejects, so nothing downloads.
-test('cancelling stops before the next page and rejects with an AbortError', async () => {
+// B6: Cancel stops the run: no further page is exported. Thomas, #386 export-pdf-button.tsx:311: the pages it finished
+// come back with it, so the person can still download them.
+test('cancelling stops before the next page and hands back the pages it finished', async () => {
   const abort = new AbortController()
   const exportOne = vi.fn(async () => {
     abort.abort()
     return ok(1)
   })
-  const run = runBulkExport([page('executive-overview'), page('peec-ai')], exportOne, { signal: abort.signal })
-  await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+  const run = await runBulkExport([page('executive-overview'), page('peec-ai')], exportOne, { signal: abort.signal })
   expect(exportOne).toHaveBeenCalledTimes(1)
+  expect(run.cancelled).toBe(true)
+  expect(run.results.map((r) => r.page.key)).toEqual(['executive-overview:'])
 })
 
-test('an export that throws on cancel rejects the run', async () => {
+test('a page cancelled mid-request is left out; the pages before it come back', async () => {
   const abort = new AbortController()
-  const run = runBulkExport([page('peec-ai'), page('paid-media')], async () => {
+  const run = await runBulkExport([page('executive-overview'), page('peec-ai'), page('paid-media')], async (p) => {
+    if (p.section === 'executive-overview') return ok(1)
     abort.abort()
     throw new DOMException('Aborted', 'AbortError')
   }, { signal: abort.signal })
-  await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+  expect(run).toEqual({ cancelled: true, results: [{ page: page('executive-overview'), result: ok(1) }] })
+})
+
+test('an error that is not a cancel still rejects the run', async () => {
+  const run = runBulkExport([page('peec-ai')], async () => { throw new Error('a bug') }, { signal: new AbortController().signal })
+  await expect(run).rejects.toThrow('a bug')
 })

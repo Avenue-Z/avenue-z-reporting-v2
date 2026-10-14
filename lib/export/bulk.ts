@@ -43,25 +43,27 @@ export function bulkFilename(clientName: string, pages: number, now: Date, tz: s
   return exportFilename(clientName, `Report (${pages} pages)`, now, tz)
 }
 
-const aborted = () => new DOMException('The export was cancelled.', 'AbortError')
-
 /**
  * Exports `pages` one at a time, in order (B6), calling `onProgress` before each. A page that fails is kept as
- * `{ ok: false }` and the run carries on (B7). A cancelled `signal` stops the run before the next page and rejects
- * with an AbortError, so nothing is downloaded.
+ * `{ ok: false }` and the run carries on (B7). A cancelled `signal` stops the run before the next page and returns
+ * `cancelled` with the pages already finished (Thomas, #386), so the person can still download them; a page cancelled
+ * mid-request is left out. Any other error rejects.
  */
 export async function runBulkExport<P>(
   pages: readonly P[],
   exportOne: (page: P, signal?: AbortSignal) => Promise<PageResult>,
   { onProgress, signal }: { onProgress?: (index: number, page: P) => void; signal?: AbortSignal },
-): Promise<{ page: P; result: PageResult }[]> {
+): Promise<{ results: { page: P; result: PageResult }[]; cancelled: boolean }> {
   const results: { page: P; result: PageResult }[] = []
   for (const [i, page] of pages.entries()) {
-    if (signal?.aborted) throw aborted()
+    if (signal?.aborted) return { results, cancelled: true }
     onProgress?.(i, page)
-    const result = await exportOne(page, signal)
-    results.push({ page, result })
+    try {
+      results.push({ page, result: await exportOne(page, signal) })
+    } catch (e) {
+      if (signal?.aborted) return { results, cancelled: true }
+      throw e
+    }
   }
-  if (signal?.aborted) throw aborted()
-  return results
+  return { results, cancelled: !!signal?.aborted }
 }

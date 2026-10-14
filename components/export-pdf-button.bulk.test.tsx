@@ -271,3 +271,54 @@ test('on a page missing from the list, the button exports that page as before', 
   await waitFor(() => expect(downloads).toHaveLength(1))
   expect(posted()).toEqual(['paid-media:'])
 })
+
+// Thomas, #386 export-pdf-button.tsx:311: cancelling a first run keeps the pages it finished, offered as after a failure;
+// nothing downloads unless the person asks.
+test('cancelling a first run keeps the pages it finished: Download them, or Try again for the rest', async () => {
+  fetchMock = vi.fn((_url: string, init: RequestInit) => {
+    const key = keyOf(init)
+    if (key !== 'peec-ai:pr-influence' || fetchMock.mock.calls.length > 3) return Promise.resolve(pdfFor(key))
+    return new Promise<Response>((_r, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
+  open()
+  fireEvent.click(box('All pages'))
+  fireEvent.click(screen.getByRole('button', { name: 'Export 3 pages' }))
+  await screen.findByText('Exporting 3 of 3: Answer Engine Optimization – PR Influence')
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent).toContain('Answer Engine Optimization – PR Influence: Not exported: the export was cancelled.')
+  expect(downloads).toEqual([])
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+  await waitFor(() => expect(downloads).toHaveLength(1))
+  expect(posted()).toEqual(['executive-overview:', 'peec-ai:', 'peec-ai:pr-influence', 'peec-ai:pr-influence'])
+  expect(downloads[0].bytes).toEqual([1, 2, 3])
+})
+
+test('after cancelling a first run, Download the ones that worked merges what finished', async () => {
+  fetchMock = vi.fn((_url: string, init: RequestInit) => keyOf(init) === 'peec-ai:pr-influence'
+    ? new Promise<Response>((_r, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))
+    : Promise.resolve(pdfFor(keyOf(init))))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
+  open()
+  fireEvent.click(box('All pages'))
+  fireEvent.click(screen.getByRole('button', { name: 'Export 3 pages' }))
+  await screen.findByText('Exporting 3 of 3: Answer Engine Optimization – PR Influence')
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Download the 2 that worked' }))
+  await waitFor(() => expect(downloads).toHaveLength(1))
+  expect(downloads[0]).toEqual({ name: expect.stringMatching(/Report \(2 pages\)/), bytes: [1, 2] })
+})
+
+// Thomas, #386 export-pdf-button.tsx:309: a throw that isn't a cancel says so, instead of ending the run silently.
+test('an unexpected error during the download says the PDF could not be created', async () => {
+  vi.mocked(URL.createObjectURL).mockImplementationOnce(() => { throw new Error('quota') })
+  render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
+  open()
+  fireEvent.click(screen.getByRole('button', { name: 'Export 1 page' }))
+  expect((await screen.findByRole('alert')).textContent).toBe("The PDF couldn't be created. Try again.")
+  expect(downloads).toEqual([])
+  expect(screen.getByRole('dialog')).toBeTruthy()
+})

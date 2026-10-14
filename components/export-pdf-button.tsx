@@ -47,6 +47,7 @@ const ERRORS: Record<string, string> = {
 }
 const FAILED = "The PDF couldn't be created. Try again."
 const COMBINE_FAILED = "The PDF couldn't be combined. Try again."
+const NOT_EXPORTED = 'Not exported: the export was cancelled.'
 /** Just past the route's own 60 s ceiling: a slow render still wins, a connection that died silently gives up. */
 const REQUEST_TIMEOUT_MS = 70_000
 
@@ -234,7 +235,13 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
   useEffect(() => () => abortRef.current?.abort(), [])
 
   const chosen = bulk.pages.filter((p) => selected.has(p.key))
-  const reason = (p: ExportPage) => { const r = results?.get(p.key); return r && !r.ok ? r.error : null }
+  // After a run that didn't download: why each page of the selection has no PDF (failed, or never exported because
+  // the run was cancelled), or null for the pages that exported.
+  const reason = (p: ExportPage) => {
+    if (!results) return null
+    const r = results.get(p.key)
+    return !r ? NOT_EXPORTED : r.ok ? null : r.error
+  }
   const failed = chosen.filter((p) => reason(p) !== null)
   const groups = bulk.pages.reduce<{ title: string; pages: ExportPage[] }[]>((acc, p) => {
     const last = acc[acc.length - 1]
@@ -264,9 +271,9 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
   }
 
   /**
-   * Exports `pages` (all of the selection, or its failed pages again on a retry, merged into `prior`), then downloads the
-   * pages that exported, in list order, if all did or `downloadNow`: one as the server named it, several combined.
-   * Cancel stops either step and nothing downloads; a cancelled retry keeps `prior`.
+   * Exports `pages` (all of the selection, or the pages without a PDF again on a retry, merged into `prior`), then
+   * downloads the pages that exported, in list order, if all did or `downloadNow`: one as the server named it, several
+   * combined. Cancel stops either step and nothing downloads; the pages already exported stay, offered as after a failure.
    */
   async function run(pages: ExportPage[], prior: Map<string, PageResult>, downloadNow = false) {
     const abort = new AbortController()
@@ -277,15 +284,19 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
     let done = prior
     try {
       if (pages.length > 0) {
-        const out = await runBulkExport(pages, (p, signal) => requestPdf(bulkRequest(p, ranges), signal), {
+        const { results: out, cancelled } = await runBulkExport(pages, (p, signal) => requestPdf(bulkRequest(p, ranges), signal), {
           signal: abort.signal,
           onProgress: (i, p) => setProgress(`Exporting ${i + 1} of ${pages.length}: ${pageName(p)}`),
         })
         done = new Map(prior)
         for (const { page, result } of out) done.set(page.key, result)
+        if (cancelled) {
+          setResults(done.size > 0 ? done : null)
+          return
+        }
       }
       setResults(done)
-      if (!downloadNow && ![...done.values()].every((r) => r.ok)) return
+      if (!downloadNow && chosen.some((p) => !done.get(p.key)?.ok)) return
       const parts = chosen.flatMap((p) => { const r = done.get(p.key); return r?.ok ? [r] : [] })
       if (parts.length === 1) {
         download(parts[0].pdf, parts[0].filename)
@@ -300,15 +311,17 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
           setError(COMBINE_FAILED)
           return
         }
-        if (abort.signal.aborted) throw abort.signal.reason
+        if (abort.signal.aborted) return
         download(merged, bulkFilename(clientName, parts.length, new Date(), timeZone()))
       }
       // Downloaded: the parts aren't needed any more.
       setResults(null)
       setOpen(false)
     } catch {
-      // Cancelled: nothing downloads, the selection and any pages already exported stay.
-      setResults(prior.size > 0 ? prior : null)
+      // requestPdf throws only on a cancel, which runBulkExport returns as `cancelled`; anything else here (the
+      // download, a bug) must not end the run silently (Thomas, #386).
+      setResults(done.size > 0 ? done : null)
+      if (!abort.signal.aborted) setError(FAILED)
     } finally {
       setProgress(null)
       if (abortRef.current === abort) abortRef.current = null
@@ -362,6 +375,7 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
               </>
             )}
           </div>
+          {!running && error && <p role="alert" className="text-xs text-red-400">{error}</p>}
           {running ? null : failed.length > 0 ? (
             <>
               <ul role="alert" className="space-y-1 text-xs text-red-400">
@@ -380,7 +394,6 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
             </>
           ) : (
             <>
-              {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
               <button
                 type="button"
                 disabled={chosen.length === 0}
