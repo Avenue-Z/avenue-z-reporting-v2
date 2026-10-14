@@ -5,15 +5,22 @@ import { NEEDS_VALIDATION } from './config'
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
 import { showsPowered } from './render'
-import { dataSentences } from './sentences'
+import { dataSentences, isCodeSentencePath, type DataSentences } from './sentences'
 import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 
 // Spec v1.1 §19.3: number words flagged in a Glean-written field (ordinals are not; "one" is too common to be a figure).
 const NUMBER_WORDS = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|hundred|thousand|half|twice|double|doubled|triple|tripled|percent)\b/gi
 const UNCHECKED = (token: string) => `"${token}": check this number against Peec's numbers on the page.`
-/** Paths code writes on a row with sentences: 1 (v1.1 §19.1). */
-const CODE_SENTENCE = /^(?:context|methodology|(?:competitive|sources)_bullets\.\d\.(?:lead|text))$/
-const WORDS4 = (s: string) => new Set((s.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []).filter((w) => w !== 'peec' && !w.startsWith('recommend')))
+/** A number standing on its own in Glean's words: a digit run next to a letter (H1, B2B) is part of a word, not a figure. */
+const NUM_ALONE = /(?<![A-Za-z])#?\d[\d,]*(?:\.\d+)?%?(?![A-Za-z])/g
+/** Rank words in a code-written sentence ("third", "21st"): compared with Peec's sentence when Ryan edits it. */
+const ORDINAL = /\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|\d+(?:st|nd|rd|th))\b/gi
+// Words that say nothing about which action is meant, so they never count as a match (review of Tasks 37 to 40).
+const STOP = new Set(['about', 'their', 'these', 'those', 'which', 'where', 'there', 'other', 'every', 'peecs'])
+/** The words of five letters or more that can tie a "Peec recommends" line to one of Peec's action titles. */
+const keyWords = (s: string) => new Set((s.toLowerCase().match(/[a-z0-9]{5,}/g) ?? []).filter((w) => !STOP.has(w) && !w.startsWith('recommend')))
+/** Each token, with how often it occurs. */
+const counted = (tokens: string[]) => { const m = new Map<string, number>(); for (const t of tokens) m.set(t, (m.get(t) ?? 0) + 1); return m }
 
 const NUM = /#?\d[\d,]*(?:\.\d+)?%?/g
 const DOMAIN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi
@@ -127,8 +134,9 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   const allowed = new Set((figures.match(NUM) ?? []).map((t) => `${kindOf(t)}:${digitsOf(t)}`))
   for (const y of [d.window.start, d.window.end]) allowed.add(`bare:${y.slice(0, 4)}`)
   // Every number of the code-written sentences is allowed (whole percents, points, counts), read the same way as a slot.
-  if (sentencesRow) {
-    const s = dataSentences(d)
+  const sentences: DataSentences | null = sentencesRow ? dataSentences(d) : null
+  if (sentences) {
+    const s = sentences
     let sentenceText = [s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | ')
     for (const name of exemptNames) sentenceText = sentenceText.split(name).join(' ')
     for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
@@ -139,6 +147,20 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (/^(?:headline|summary|why|opportunities\.\d\.(?:signal|opportunity|workstream))$/.test(path)) return true
     if (path === 'category') return cleanValue(full.category) !== cleanValue(d.category ?? NEEDS_VALIDATION)
     return path === 'next_step' && fixedNext === null
+  }
+  const stripNames = (v: string) => { let t = v; for (const name of exemptNames) t = t.split(name).join(' '); return t }
+  /** Peec's own sentence for a code-written path, found by path, and for a bullet by its lead, so an added or removed
+   *  bullet still matches; undefined when Ryan changed the lead (then the number check uses every Peec number). */
+  const peecSentence = (path: string): string | undefined => {
+    if (!sentences) return undefined
+    if (path === 'context') return sentences.context
+    if (path === 'methodology') return sentences.methodology
+    const m = /^(competitive_bullets|sources_bullets)\.(\d)\.(lead|text)$/.exec(path)
+    if (!m) return undefined
+    const key = m[1] as 'competitive_bullets' | 'sources_bullets'
+    const lead = full[key][Number(m[2])]?.lead
+    const gen = lead === undefined ? undefined : sentences[key].find((b) => cleanValue(b.lead) === cleanValue(lead))
+    return gen ? (m[3] === 'lead' ? gen.lead : gen.text) : undefined
   }
   const grounded = (t: string) => {
     const k = kindOf(t), v = digitsOf(t)
@@ -172,19 +194,33 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     // The report name and the top-left name come from settings or Ryan's own edit, not from Glean (v1.1 §17.5): no domain or number check.
     if (path !== 'page.series' && path !== 'page.sidebar_wordmark') {
       // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed.
-      const domainText = sentencesRow && CODE_SENTENCE.test(path) ? text : value
+      const domainText = sentencesRow && isCodeSentencePath(path) ? text : value
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
+      const ref = sentencesRow && isCodeSentencePath(path) ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
-        for (const m of text.match(NUM) ?? []) add('unchecked_number', path, UNCHECKED(m))
-        for (const m of text.match(NUMBER_WORDS) ?? []) add('unchecked_number', path, UNCHECKED(m))
+        // Peec's own action titles (an "H1 heading") are not Glean's numbers.
+        let words = text
+        for (const a of d.actions) if (a.title) words = words.split(a.title).join(' ')
+        for (const m of words.match(NUM_ALONE) ?? []) add('unchecked_number', path, UNCHECKED(m))
+        for (const m of words.match(NUMBER_WORDS) ?? []) add('unchecked_number', path, UNCHECKED(m))
+      } else if (ref !== undefined) {
+        // Ryan edited a code-written sentence: every number and rank word must be one Peec's sentence has (review of Tasks 37 to 40).
+        const want = counted((stripNames(ref).match(NUM) ?? []).map((t) => `${kindOf(t)}:${digitsOf(t)}`))
+        for (const m of text.match(NUM) ?? []) {
+          const k = `${kindOf(m)}:${digitsOf(m)}`
+          if (want.get(k)) want.set(k, want.get(k)! - 1)
+          else add('number_not_in_data', path, `"${m}" does not match Peec's number in this sentence`)
+        }
+        const ranks = new Set((stripNames(ref).match(ORDINAL) ?? []).map((w) => w.toLowerCase()))
+        for (const w of text.match(ORDINAL) ?? []) if (!ranks.has(w.toLowerCase())) add('number_not_in_data', path, `"${w}" does not match Peec's rank in this sentence`)
       } else {
         for (const m of text.match(NUM) ?? []) if (!grounded(m)) add('number_not_in_data', path, `"${m}" is not in the Peec data`)
       }
       for (const m of datesOutsideWindow(text, d.window)) add('date_not_in_window', path, `"${m}" is outside the data window (${d.windowLabel})`)
     }
     if (sentencesRow && /^opportunities\.\d\.signal$/.test(path) && /peec\s+recommend/i.test(value)) {
-      const words = WORDS4(value)
-      const actionWords = d.actions.map((a) => WORDS4(a.title))
+      const words = keyWords(value)
+      const actionWords = d.actions.map((a) => keyWords(a.title))
       if (!d.actions.length) add('peec_recommends', path, 'Peec has no recommended actions for this project.')
       else if (!actionWords.some((a) => [...words].some((w) => a.has(w)))) add('peec_recommends', path, `Check this against Peec's recommended actions: ${d.actions.map((a) => a.title).join('; ')}.`)
     }

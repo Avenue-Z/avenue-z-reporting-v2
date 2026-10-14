@@ -118,6 +118,8 @@ const TITLE: Record<string, string> = {
 export const titleClassification = (c: string): string => TITLE[c] ?? c
 
 const pct1 = (ratio: number) => pyRound(ratio * 100, 1)
+/** a minus b for two 1-decimal values, exact to the tenth (spec v1.1 §19.4). */
+export const tenths = (a: number, b: number): number => Math.round((a - b) * 10) / 10
 const bare = (d: string) => d.trim().toLowerCase().replace(/^www\./, '')
 
 export function buildSnapshotData(
@@ -186,7 +188,6 @@ export function buildSnapshotData(
   // Spec v1.1 §19.4 (supersedes 5a row 17 and 18.1): competitor minus own from the printed 1-decimal values, in tenths,
   // so a gap always equals the difference of the two numbers on the page, as in Ryan's example. Every brand with a
   // higher displayed visibility is listed, so the gaps agree with the rank card; a tied brand is never a leader.
-  const tenths = (a: number, b: number) => Math.round((a - b) * 10) / 10
   const leaderGaps = brands
     .filter((b) => b.visibilityPct > own.visibilityPct)
     .map((rival) => ({

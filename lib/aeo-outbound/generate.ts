@@ -11,7 +11,7 @@ import { pullSnapshot } from './pull'
 import { buildPrompt, dataBlock, parseModelJson } from './prompt'
 import { groundingFlags } from './grounding'
 import { cleanValue, MAX_LEAD, pageDefaults, validateGeneratedSlots, withDefaults, type FixedSlots, type FullSlots } from './slots'
-import { dataSentences } from './sentences'
+import { dataSentences, isCodeSentencePath } from './sentences'
 import type { GleanReply } from './glean'
 import type { DayRange } from './range'
 import { SETTINGS_DEFAULTS, type GenerationSettings } from './settings'
@@ -25,12 +25,12 @@ export const WRITING_STEP = 9
 /** The step reported just before Glean's second attempt, only when it runs (spec v1.1 §16.3). */
 export const SECOND_ATTEMPT_STEP = 10
 
-const CODE_SET_PATHS = ['brand', 'window_label', 'market', 'context', 'methodology']
+const CODE_SET_PATHS = ['brand', 'window_label', 'market']
 /** True for a path code or settings write, whose flags Glean cannot fix: page words, KPIs, brand, window label, market,
  *  the data sentences (spec v1.1 §19.2), and next_step while a fixed sentence is set. Such a flag is still stored as a
  *  note; it never asks Glean for another attempt. */
 export function codeSetPath(path: string, fixedNextStep: string | null): boolean {
-  if (/^(page|kpis|competitive_bullets|sources_bullets)\./.test(path)) return true
+  if (/^(page|kpis)\./.test(path) || isCodeSentencePath(path)) return true
   return CODE_SET_PATHS.includes(path) || (fixedNextStep !== null && path === 'next_step')
 }
 

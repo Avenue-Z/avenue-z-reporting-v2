@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
 import { groundingFlags } from './grounding'
+import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
+import { buildSnapshotData } from './metrics'
+import { dataSentences } from './sentences'
+import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
@@ -273,10 +277,6 @@ test('a date inside a roster brand name is not a date, and a hostile long input 
 })
 
 // Spec v1.1 §19.3: rows with sentences: 1 (generated with code-written sentences).
-import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
-import { buildSnapshotData } from './metrics'
-import { dataSentences } from './sentences'
-import type { PeecPull } from './pull'
 
 const USED = { peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: null }
 const newRow = (p: PeecPull = LIVE_SHAPE_PULL, used: typeof USED | { peecOpportunityRows: number; methodologyStatesPromptsAndModels: boolean; fixedNextStep: string | null } = USED) =>
@@ -330,7 +330,7 @@ test('code-written sentences: a brand named like a domain is never flagged, a no
   expect(flagsFor(d)).toEqual([])
   const edited = slotsFor(d)
   edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Example Senior Living ranks third, with 4.4% visibility.' }, ...edited.competitive_bullets.slice(1)]
-  expect(groundingFlags(edited, d, dataBlock(d))).toEqual([{ kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"4.4%" is not in the Peec data' }])
+  expect(groundingFlags(edited, d, dataBlock(d))).toEqual([{ kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"4.4%" does not match Peec\'s number in this sentence' }])
 })
 
 test('a row without sentences keeps today\'s flags: a Glean number is number_not_in_data, never unchecked_number', () => {
@@ -339,4 +339,40 @@ test('a row without sentences keeps today\'s flags: a Glean number is number_not
   const f = groundingFlags(slotsFor(d, { why: 'Its visibility rose 42.0%.' }), older as SnapshotData, dataBlock(older as SnapshotData))
   expect(f.filter((n) => n.path === 'why')).toEqual([{ kind: 'number_not_in_data', path: 'why', text: '"42.0%" is not in the Peec data' }])
   expect(f.some((n) => n.kind === 'unchecked_number' || n.kind === 'peec_recommends')).toBe(false)
+})
+
+// Fix round after the Tasks 37 to 40 review.
+test('a digit inside a word (H1, B2B) is not a number; Peec action titles are removed before the scan', () => {
+  const d = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  const sig = { opportunities: [{ signal: 'Peec recommends H1 heading fixes', opportunity: 'Explore B2B pages', workstream: 'Technical AEO / SEO' }, ...OPINION.opportunities.slice(1)] }
+  expect(flagsFor(d, sig)).toEqual([])
+  expect(flagsFor(d, { why: 'Buyers want 24/7 answers.' }).map((n) => n.text)).toEqual(['"24": check this number against Peec\'s numbers on the page.', '"7": check this number against Peec\'s numbers on the page.'])
+})
+
+test('peec_recommends ignores common words: only words of five letters or more, not stop words, count as a match', () => {
+  const d = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Fix broken links with redirects', impact: 'LOW', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  const sig = { opportunities: [{ signal: 'Peec recommends earning coverage with editorial outlets', opportunity: 'Explore it', workstream: 'PR / earned media' }, ...OPINION.opportunities.slice(1)] }
+  expect(flagsFor(d, sig).map((n) => n.kind)).toEqual(['peec_recommends'])
+})
+
+test('a code-written sentence Ryan edits is compared with Peec\'s sentence: a changed number or rank word is flagged', () => {
+  const d = newRow()
+  const edited = slotsFor(d)
+  edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Example Senior Living ranks second among the five brands tracked, with 1.3% visibility and 0.1% share of voice.' }, ...edited.competitive_bullets.slice(1)]
+  expect(groundingFlags(edited, d, dataBlock(d))).toEqual([
+    { kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"1.3%" does not match Peec\'s number in this sentence' },
+    { kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"second" does not match Peec\'s rank in this sentence' },
+  ])
+  // A rewording with the same numbers is fine; a bullet whose lead Ryan changed is checked against all of Peec's numbers.
+  const reworded = slotsFor(d)
+  reworded.competitive_bullets = [{ ...reworded.competitive_bullets[0], text: 'With 1.1% visibility and 0.1% share of voice, Example Senior Living is third of five.' }, { lead: 'My own lead:', text: 'It has 26% of answers.' }]
+  expect(groundingFlags(reworded, d, dataBlock(d))).toEqual([])
+})
+
+test('an older row with a no-data brand named like a domain keeps today\'s flag: the exemption is new-row only', () => {
+  const p: PeecPull = { ...LIVE_SHAPE_PULL, roster: [...LIVE_SHAPE_PULL.roster, { id: 'kw_dotcom', name: 'Care.com', is_own: false, domains: ['care.com'] }] }
+  const d = newRow(p)
+  const { sentences: _s, noDataBrands: _n, ownSiteRank: _r, ...older } = d
+  const f = groundingFlags(slotsFor(d), older as SnapshotData, dataBlock(older as SnapshotData))
+  expect(f).toContainEqual({ kind: 'domain_not_in_data', path: 'context', text: '"Care.com" is not a domain in the Peec data' })
 })

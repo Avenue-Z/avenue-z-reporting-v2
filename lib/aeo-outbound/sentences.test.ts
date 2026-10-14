@@ -55,17 +55,17 @@ test('formatters: percents, counts, ordinals, lists', () => {
 })
 
 test('context: the brand leads, level at the top, three level at the top', () => {
-  expect(sent(brandPull([['own', 'Own', 0.4, 0.5], ['a', 'A', 0.2, 0.3], ['b', 'B', 0.1, 0.2]])).context).toBe('Competitive context: Own leads at 40% visibility / 50% share of voice, followed by A at 20% / 30%. Own ranks ahead of A and B.')
+  expect(sent(brandPull([['own', 'Own', 0.4, 0.5], ['a', 'A', 0.2, 0.3], ['b', 'B', 0.1, 0.2]])).context).toBe('Competitive context: Own leads at 40% visibility / 50% share of voice, followed by A at 20% / 30%. Own also ranks ahead of B.')
   expect(sent(brandPull([['a', 'A', 0.3, 0.4], ['own', 'Own', 0.3, 0.35], ['b', 'B', 0.1, 0.2]])).context).toBe('Competitive context: A and Own lead at 30% visibility, with 40% and 35% share of voice. Own ranks ahead of B.')
   expect(sent(brandPull([['a', 'A', 0.3, 0.3], ['b', 'B', 0.3, 0.3], ['c', 'C', 0.3, 0.3], ['own', 'Own', 0.1, 0.1]])).context).toBe('Competitive context: A, B, and C lead at 30% visibility. Own ranks last of the four brands tracked.')
 })
 
 test('context: last, level with the brand, more than five below, a missing share of voice', () => {
   expect(sent(brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.1, 0.1]])).context).toBe('Competitive context: A leads at 30% visibility / 30% share of voice, followed by Own at 10% / 10%. Own ranks last of the two brands tracked.')
-  expect(sent(brandPull([['a', 'A', 0.5, 0.5], ['b', 'B', 0.2, 0.2], ['own', 'Own', 0.2, 0.25], ['c', 'C', 0.1, 0.1]])).context).toBe('Competitive context: A leads at 50% visibility / 50% share of voice, followed by B at 20% / 20%. Own is level with B and ranks ahead of C.')
+  expect(sent(brandPull([['a', 'A', 0.5, 0.5], ['b', 'B', 0.2, 0.2], ['own', 'Own', 0.2, 0.25], ['c', 'C', 0.1, 0.1]])).context).toBe('Competitive context: A leads at 50% visibility / 50% share of voice, followed by B and Own at 20%. Own is level with B and ranks ahead of C.')
   const many = brandPull([['a', 'A', 0.6, 0.5], ['own', 'Own', 0.5, 0.4], ...['b', 'c', 'd', 'e', 'f', 'g', 'h'].map((x, i): [string, string, number, number] => [x, x.toUpperCase(), 0.4 - i * 0.05, 0.1])])
-  expect(sent(many).context).toBe('Competitive context: A leads at 60% visibility / 50% share of voice, followed by Own at 50% / 40%. Own ranks ahead of B, C, D, E, F, and 2 more.')
-  expect(sent(brandPull([['a', 'A', 0.3, null], ['own', 'Own', 0.2, 0.2], ['b', 'B', 0.1, 0.1]])).context).toBe('Competitive context: A leads at 30% visibility, followed by Own at 20% / 20%. Own ranks ahead of B.')
+  expect(sent(many).context).toBe('Competitive context: A leads at 60% visibility / 50% share of voice, followed by Own at 50% / 40%. Own ranks ahead of B, C, D, E, F, and two more.')
+  expect(sent(brandPull([['a', 'A', 0.3, null], ['own', 'Own', 0.2, 0.2], ['b', 'B', 0.1, 0.1]])).context).toBe('Competitive context: A leads at 30% visibility, followed by Own at 20% / 20% share of voice. Own ranks ahead of B.')
 })
 
 test('context: brands with no Peec row rank below the brand, and only the brand has a row', () => {
@@ -184,4 +184,35 @@ test('every box has 1 to 3 bullets in every edge case above', () => {
       for (const b of box) expect(b.lead.length).toBeLessThanOrEqual(80)
     }
   }
+})
+
+// Fix round after the Tasks 37 to 40 review.
+test('whole percents that would collide in one sentence keep one decimal', () => {
+  expect(sent(brandPull([['a', 'A', 0.154, 0.2], ['own', 'Own', 0.146, 0.19], ['b', 'B', 0.05, 0.05]])).context).toBe('Competitive context: A leads at 15.4% visibility / 20% share of voice, followed by Own at 14.6% / 19%. Own ranks ahead of B.')
+  const mix = sent({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: [['CORPORATE', 454], ['INSTITUTIONAL', 446], ['EDITORIAL', 100]].map(([classification, w], i) => ({ domain: `d${i}.example`, classification: String(classification), retrieved_chat_count: 1, retrieval_count: Number(w), mentioned_brands: [] })) }).sources_bullets.at(-1)
+  expect(mix).toEqual({ lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by Corporate sources at 45.4% and Institutional sources at 44.6%; Editorial represents 10% and UGC 0.0%.' })
+})
+
+test('a tie at second names every brand there; the brand leading names its runner-up once', () => {
+  expect(sent(brandPull([['a', 'A', 0.3, 0.3], ['b', 'B', 0.2, 0.2], ['c', 'C', 0.2, 0.2], ['own', 'Own', 0.1, 0.1]])).context).toBe('Competitive context: A leads at 30% visibility / 30% share of voice, followed by B and C at 20%. Own ranks last of the four brands tracked.')
+  expect(sent(brandPull([['own', 'Own', 0.6, 0.5], ['b', 'B', 0.4, 0.1], ['c', 'C', 0.3, 0.1]])).context).toBe('Competitive context: Own leads at 60% visibility / 50% share of voice, followed by B at 40% / 10%. Own also ranks ahead of C.')
+  expect(sent(brandPull([['own', 'Own', 0.6, 0.5], ['b', 'B', 0.4, 0.1]])).context).toBe('Competitive context: Own leads at 60% visibility / 50% share of voice, followed by B at 40% / 10%.')
+})
+
+test('zero visibility: the leaders as above, the runner-up included, never the brand itself', () => {
+  expect(sent(brandPull([['a', 'A', 0.3, 0.3], ['b', 'B', 0.2, 0.2], ['own', 'Own', 0, 0]])).context).toBe('Competitive context: A leads at 30% visibility / 30% share of voice, followed by B at 20% / 20%. Own has 0.0% visibility in this window.')
+})
+
+test('long level and top lists are capped like the ranks-ahead list', () => {
+  const rows: [string, string, number, number][] = [['own', 'Own', 0.3, 0.3], ...Array.from({ length: 45 }, (_, i): [string, string, number, number] => [`b${i}`, `Brand number ${i} with a long name`, 0.3, 0.3])]
+  const s = sent(brandPull(rows))
+  expect(s.context.length).toBeLessThan(1000)
+  expect(s.context).toContain('and 41 more')
+  expect(s.sources_bullets[0].text.length).toBeLessThan(1000)
+})
+
+test('a www. own domain reads without it, capitalised', () => {
+  const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
+  const s = sent({ ...base, domains: [{ domain: 'www.own.example', classification: 'OWN', retrieved_chat_count: 40, retrieval_count: 40, retrieved_percentage: 0.2, mentioned_brands: [] }] })
+  expect(s.competitive_bullets[1].text).toBe('Own.example appears among the top domains at 40 retrievals.')
 })

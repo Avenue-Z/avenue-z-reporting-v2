@@ -1,9 +1,12 @@
 // The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
 // methodology, written by code from a row's data so every number is Peec's. Glean writes only the opinion (§19.2).
-import { settingsUsedOf, type BrandMetric, type SnapshotData } from './metrics'
+import { settingsUsedOf, tenths, type SnapshotData } from './metrics'
 import type { Bullet } from './slots'
 
 export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string }
+
+/** The slot paths these sentences fill (spec v1.1 §19.1), shared by generation and grounding. */
+export const isCodeSentencePath = (path: string): boolean => /^(?:context|methodology|(?:competitive|sources)_bullets\.\d\.(?:lead|text))$/.test(path)
 
 /** A displayed 1-decimal percent in a sentence: whole from 10 up (Ryan's "26%"), one decimal below 10 so a 1.3 and a
  *  1.1 never both read "1%", and never rounded up to 100. Half up, from the value the page shows. */
@@ -39,14 +42,21 @@ export function listText(items: string[]): string {
   return `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`
 }
 
-/** A domain that starts a sentence gets a capital first letter, as Ryan wrote "Ualett.com". */
-const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
+/** A domain that starts a sentence: no leading "www.", a capital first letter, as Ryan wrote "Ualett.com". */
+const capital = (s: string): string => { const d = s.replace(/^www\./i, ''); return d.charAt(0).toUpperCase() + d.slice(1) }
 const points = (x: number): string => Math.abs(x).toFixed(1)
-const tenths = (a: number, b: number): number => Math.round((a - b) * 10) / 10
 const MAX_NAMED = 5
 
-/** At most five names, then "and k more". */
-const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${names.length - MAX_NAMED} more`] : names)
+/** At most five names, then "and k more" (k as a count word). */
+const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${countWord(names.length - MAX_NAMED)} more`] : names)
+
+/** Two percents named in one sentence: both keep one decimal when their whole numbers would read the same but differ,
+ *  so brands ranked apart never read as equal (review of Tasks 37 to 40). */
+function pctPair(a: number, b: number): [string, string] {
+  const pa = pctText(a)
+  const pb = pctText(b)
+  return pa === pb && a !== b ? [`${a.toFixed(1)}%`, `${b.toFixed(1)}%`] : [pa, pb]
+}
 
 export function dataSentences(d: SnapshotData): DataSentences {
   const brand = d.brand
@@ -61,36 +71,48 @@ export function dataSentences(d: SnapshotData): DataSentences {
   const top = d.brands[0]
   const topGroup = top ? d.brands.filter((b) => b.visibilityPct === top.visibilityPct) : []
   const level = others.filter((b) => b.visibilityPct === own.visibilityPct)
+  // The runner-up group: every brand at the highest visibility below the top. At zero the brand itself is never named.
+  const runnerPct = Math.max(-1, ...d.brands.filter((b) => top && b.visibilityPct < top.visibilityPct && !(ownZero && b.isOwn)).map((b) => b.visibilityPct))
+  const runners = runnerPct < 0 ? [] : d.brands.filter((b) => b.visibilityPct === runnerPct && !(ownZero && b.isOwn))
   // No-data brands rank at zero visibility, so they sit below the brand only when it is above zero.
   const below = [...others.filter((b) => b.visibilityPct < own.visibilityPct).map((b) => b.name), ...(ownZero ? [] : noData)]
-  const sovOf = (b: BrandMetric) => (b.sovPct === null ? '' : ` / ${pctText(b.sovPct)} share of voice`)
 
-  function leaders(withRunnerUp: boolean): string {
-    if (topGroup.length >= 3) return `${listText(topGroup.map((b) => b.name))} lead at ${pctText(top.visibilityPct)} visibility.`
+  function leaders(): string {
+    if (topGroup.length >= 3) return `${someNames(topGroup.map((b) => b.name))} lead at ${pctText(top.visibilityPct)} visibility.`
     if (topGroup.length === 2) {
       const [a, b] = topGroup
-      const sov = a.sovPct !== null && b.sovPct !== null ? `, with ${pctText(a.sovPct)} and ${pctText(b.sovPct)} share of voice` : ''
-      return `${a.name} and ${b.name} lead at ${pctText(top.visibilityPct)} visibility${sov}.`
+      const [sa, sb] = a.sovPct !== null && b.sovPct !== null ? pctPair(a.sovPct, b.sovPct) : ['', '']
+      return `${a.name} and ${b.name} lead at ${pctText(top.visibilityPct)} visibility${sa ? `, with ${sa} and ${sb} share of voice` : ''}.`
     }
-    const next = d.brands.find((b) => b.visibilityPct < top.visibilityPct)
-    const runner = withRunnerUp && next ? `, followed by ${next.name} at ${pctText(next.visibilityPct)}${next.sovPct === null ? '' : ` / ${pctText(next.sovPct)}`}` : ''
-    return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${sovOf(top)}${runner}.`
+    if (runners.length >= 2) {
+      return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}, followed by ${someNames(runners.map((b) => b.name))} at ${pctText(runnerPct)}.`
+    }
+    const next = runners[0]
+    if (!next) return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}.`
+    const [vt, vn] = pctPair(top.visibilityPct, next.visibilityPct)
+    const [st, sn] = top.sovPct !== null && next.sovPct !== null ? pctPair(top.sovPct, next.sovPct) : [top.sovPct === null ? '' : pctText(top.sovPct), next.sovPct === null ? '' : pctText(next.sovPct)]
+    // With no share of voice for the leader, the runner-up's is labelled, so its second number says what it is.
+    const nextSov = next.sovPct === null ? '' : top.sovPct === null ? ` / ${sn} share of voice` : ` / ${sn}`
+    return `${top.name} leads at ${vt} visibility${st ? ` / ${st} share of voice` : ''}, followed by ${next.name} at ${vn}${nextSov}.`
   }
 
   function context(): string {
     if (solo) return 'No competitors are tracked in this Peec project.'
     if (allZero) return 'Competitive context: No brand tracked shows visibility in this window.'
-    if (ownZero) return `Competitive context: ${leaders(false)} ${brand} has ${pctText(0)} visibility in this window.`
+    if (ownZero) return `Competitive context: ${leaders()} ${brand} has ${pctText(0)} visibility in this window.`
     if (others.length === 0) {
       const k = noData.length
       return `Competitive context: ${brand} leads at ${pctText(own.visibilityPct)} visibility; ${k === 1 ? `the other brand ${noun} has` : `the other ${countWord(k)} brands ${noun} have`} no Peec data in this window.`
     }
     const ownLeads = topGroup.some((b) => b.isOwn)
+    // When the brand leads alone, its runner-up is already named: the rest follow with "also".
+    const named = ownLeads && topGroup.length === 1 ? new Set(runners.map((b) => b.name)) : new Set<string>()
+    const rest = below.filter((n) => !named.has(n))
     let tail: string
-    if (!ownLeads && level.length) tail = `${brand} is level with ${listText(level.map((b) => b.name))}${below.length ? ` and ranks ahead of ${someNames(below)}` : ''}.`
-    else if (below.length) tail = `${brand} ranks ahead of ${someNames(below)}.`
+    if (!ownLeads && level.length) tail = `${brand} is level with ${someNames(level.map((b) => b.name))}${below.length ? ` and ranks ahead of ${someNames(below)}` : ''}.`
+    else if (rest.length) tail = `${brand} ${named.size ? 'also ' : ''}ranks ahead of ${someNames(rest)}.`
     else tail = ownLeads ? '' : `${brand} ranks last of the ${countWord(N)} brands ${noun}.`
-    return `Competitive context: ${leaders(true)}${tail ? ` ${tail}` : ''}`
+    return `Competitive context: ${leaders()}${tail ? ` ${tail}` : ''}`
   }
 
   function firstBox(): Bullet[] {
@@ -144,7 +166,7 @@ export function dataSentences(d: SnapshotData): DataSentences {
       }
       return { lead: 'Leadership gap:', text: `${text}.` }
     }
-    if (level.length) return { lead: 'Leadership position:', text: `${brand} is level with ${listText(level.map((b) => b.name))} at the top of the ${countWord(N)} brands ${noun}.` }
+    if (level.length) return { lead: 'Leadership position:', text: `${brand} is level with ${someNames(level.map((b) => b.name))} at the top of the ${countWord(N)} brands ${noun}.` }
     const second = d.brands.find((b) => !b.isOwn)
     if (!second) return { lead: 'Leadership position:', text: `${brand} ranks first of the ${countWord(N)} brands ${noun}.` }
     const sov = own.sovPct !== null && second.sovPct !== null ? tenths(own.sovPct, second.sovPct) : null
@@ -164,6 +186,7 @@ export function dataSentences(d: SnapshotData): DataSentences {
     else if (mix.length === 1) out.push({ lead: 'Source mix:', text: `The domain mix is all ${label(mix[0].label)} sources.` })
     else {
       const [t1, t2] = mix
+      const [p1, p2] = pctPair(t1.pct, t2.pct)
       const named = new Set([t1.label, t2.label])
       const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l)).map((l) => [l, mix.find((m) => m.label === l)?.pct ?? 0] as const)
       const tail = extras.length === 2
@@ -171,7 +194,7 @@ export function dataSentences(d: SnapshotData): DataSentences {
         : extras.length === 1 ? `; ${extras[0][0]} represents ${pctText(extras[0][1])}` : ''
       out.push({
         lead: extras.length === 2 ? 'Limited editorial and UGC presence:' : 'Source mix:',
-        text: `The domain mix is led by ${label(t1.label)} sources at ${pctText(t1.pct)} and ${label(t2.label)} sources at ${pctText(t2.pct)}${tail}.`,
+        text: `The domain mix is led by ${label(t1.label)} sources at ${p1} and ${label(t2.label)} sources at ${p2}${tail}.`,
       })
     }
     return out
