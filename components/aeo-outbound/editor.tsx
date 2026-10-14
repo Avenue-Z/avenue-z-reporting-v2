@@ -88,6 +88,10 @@ export function OutboundEditor(props: OutboundEditorProps) {
   // Spec v1.1 §19.7: the frame's last scroll position, and the one to restore on the next ready after a bullet change.
   const scrollRef = useRef(0)
   const restoreScrollRef = useRef<number | null>(null)
+  // Paul's review of #388 (C5): the revision the page's props carried when it opened, and whether the first report load
+  // has happened. A refresh runs only on that first load, and only when the view rendered a newer revision.
+  const openedPropsRevisionRef = useRef(props.revision)
+  const firstLoadRef = useRef(true)
 
   // Local status and token follow the server's on each refresh, and move ahead of it after an approve or revoke.
   const [status, setStatus] = useState(props.status)
@@ -111,10 +115,15 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [seenLinkBrand, setSeenLinkBrand] = useState(props.linkBrand)
   if (props.linkBrand !== seenLinkBrand) { setSeenLinkBrand(props.linkBrand); setLinkBrand(props.linkBrand) }
   const [titles, setTitles] = useState<[string, string]>(props.sectionTitles)
+  const [save, setSave] = useState<SaveState | null>(null)
   const sync = `${props.status}|${props.revision}`
   const [seenSync, setSeenSync] = useState(sync)
   if (sync !== seenSync) {
-    setSeenSync(sync); setNotes(props.notes); setNeedsValidation(props.needsValidation); setBrand(props.brand); setTitles(props.sectionTitles)
+    setSeenSync(sync)
+    // Paul's review of #388 (C5): props older than a save this page already made (a refresh that read the row before that
+    // save landed) never reset the panel, or a filled item would come back. Newer props, or a status change, still do.
+    const older = props.status === 'draft' && save !== null && props.revision < save.revision
+    if (!older) { setNotes(props.notes); setNeedsValidation(props.needsValidation); setBrand(props.brand); setTitles(props.sectionTitles) }
   }
 
   const [html, setHtml] = useState<string | null>(null)
@@ -122,7 +131,6 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [loads, setLoads] = useState(0)
   const [viewError, setViewError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [save, setSave] = useState<SaveState | null>(null)
   // The revision the page was opened at: props.revision, or the view route's when the queue adopted it (A1).
   const [openedRevision, setOpenedRevision] = useState(props.revision)
   const [message, setMessage] = useState<string | null>(null)
@@ -169,6 +177,11 @@ export function OutboundEditor(props: OutboundEditorProps) {
         // Spec v1.1 §19.7 (A1): save against the revision this report was rendered at, while nothing has been sent.
         const q = queueRef.current
         if (q && res.headers.has('X-Report-Revision') && Number.isInteger(shown) && q.adopt(shown)) setOpenedRevision(shown)
+        // A1 (Paul's review of #388, C5): props older than the report on screen mean the page came from the router cache
+        // (Back or Forward), so re-read its data once. A normal open, and every later load, does not refresh.
+        const first = firstLoadRef.current
+        firstLoadRef.current = false
+        if (first && status === 'draft' && res.headers.has('X-Report-Revision') && Number.isInteger(shown) && shown !== openedPropsRevisionRef.current) router.refresh()
         setHtml(text)
         setLoads((n) => n + 1)
       } catch {
@@ -176,15 +189,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
       }
     })()
     return () => { live = false }
-  }, [id, status, showsReport, reloadKey])
-
-  // A draft re-reads its page data once when it opens: a page restored from the router cache by Back or Forward would
-  // otherwise show an old panel, brand and titles (spec v1.1 §19.7, A1). The Back guard keeps nothing in history state,
-  // so the refresh's replaceState cannot disturb it.
-  useEffect(() => {
-    if (props.status === 'draft') router.refresh()
+    // The router only serves the one-time refresh above; a new router object must never reload the report.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [id, status, showsReport, reloadKey])
 
   // One save queue per draft. Leaving draft (an approve) stops it.
   useEffect(() => {

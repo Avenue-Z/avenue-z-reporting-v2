@@ -813,12 +813,39 @@ test('the queue adopts the revision the view rendered, so an editor reopened fro
   expect(screen.queryByText('Saved')).toBeNull()
 })
 
-test('a draft refreshes its page data once when it opens, so the panel, brand and titles are current (A1)', async () => {
-  await setup()
+// Paul's review of #388 (C5): refresh only when the page's props are older than the report the view rendered (the Back
+// case, A1), only on the first load, and only for a draft; a normal open renders once.
+test('a draft refreshes its page data on open only when the view rendered a newer revision than its props (A1)', async () => {
+  viewRevision = 4
+  await setup({ revision: 4 })
+  expect(refresh).not.toHaveBeenCalled()
+  cleanup(); refresh.mockReset(); fetchMock.mockClear()
+  viewRevision = 9
+  const { iframe } = await setup({ revision: 4 })
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+  // A bullet change reloads the view (still revision 9 here, props still 4): no second refresh.
+  patch = async () => json(200, { revision: 10, notes: [], needsValidation: [] })
+  await fromFrame(iframe, { type: 'structure', op: 'add', path: 'competitive_bullets' })
+  await waitFor(() => expect(views()).toHaveLength(2))
   expect(refresh).toHaveBeenCalledTimes(1)
   cleanup(); refresh.mockReset()
-  await setup({ status: 'live', token: 'tok_1' })
+  viewRevision = 9
+  await setup({ status: 'live', token: 'tok_1', revision: 4 })
   expect(refresh).not.toHaveBeenCalled()
+})
+
+// Paul's review of #388 (C5): a refresh that answers with a revision older than a save this page already made never
+// resets the panel, so a filled item does not come back.
+test('server props older than a save this page made never reset the panel; newer ones still do', async () => {
+  const { iframe, rerender } = await setup({ revision: 4, needsValidation: ['market'] })
+  expect(screen.getByRole('button', { name: 'Before you send (2)' })).toBeInTheDocument()
+  patch = async () => json(200, { revision: 6, notes: [], needsValidation: [] })
+  await fromFrame(iframe, { type: 'edit', path: 'market', value: 'United States' })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Before you send (0)' })).toBeInTheDocument())
+  rerender(<OutboundEditor {...base} revision={5} needsValidation={['market']} />)
+  expect(screen.getByRole('button', { name: 'Before you send (0)' })).toBeInTheDocument()
+  rerender(<OutboundEditor {...base} revision={7} needsValidation={['market']} />)
+  expect(screen.getByRole('button', { name: 'Before you send (2)' })).toBeInTheDocument()
 })
 
 test('the report load retries a 503 twice, after 1 and 2 seconds, before showing its error', async () => {
