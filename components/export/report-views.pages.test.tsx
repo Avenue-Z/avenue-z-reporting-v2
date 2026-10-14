@@ -181,6 +181,17 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     expect(bulkOf((await onPage(Route, CLIENT, 'organic-social', 'not-a-tab')).button).currentKey).toBe('organic-social:')
   })
 
+  // Final review, Important 2: the pre-selected page is always one the list offers, else the picker opens with nothing
+  // checked and no way to export the page in view.
+  test(`${routeName}: the pre-selected page is always in the list`, async () => {
+    for (const [section, subs] of [...CASES, ['executive-overview', [undefined]]] as const) {
+      for (const sub of subs) {
+        const b = bulkOf((await onPage(Route, CLIENT, section, sub)).button)
+        expect(b.pages.map((p) => p.key)).toContain(b.currentKey)
+      }
+    }
+  })
+
   test(`${routeName}: the Executive Overview pre-selects itself`, async () => {
     expect(bulkOf((await onPage(Route, CLIENT, 'executive-overview')).button).currentKey).toBe('executive-overview:')
   })

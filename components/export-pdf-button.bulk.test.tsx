@@ -70,14 +70,18 @@ const open = () => {
   return screen.getByRole('dialog')
 }
 const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement
+// Each page's checkbox is named for its report and tab, so the three "Overview"s are told apart (final review, Minor 6).
+const AEO = 'Answer Engine Optimization – Overview'
+const PRI = 'Answer Engine Optimization – PR Influence'
+const named = (p: ExportPage) => (p.label === p.reportTitle ? p.label : `${p.reportTitle} – ${p.label}`)
 
 test('Export PDF opens the page picker, grouped by report, with the current page checked', () => {
   render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
   const dialog = open()
-  expect(within(dialog).getByText('Answer Engine Optimization')).toBeTruthy()
-  expect(box('Overview').checked).toBe(true)
+  expect(within(dialog).getByRole('group', { name: 'Answer Engine Optimization' })).toBeTruthy()
+  expect(box(AEO).checked).toBe(true)
   expect(box('Executive Overview').checked).toBe(false)
-  expect(box('PR Influence').checked).toBe(false)
+  expect(box(PRI).checked).toBe(false)
   expect(box('All pages').checked).toBe(false)
   expect(fetchMock).not.toHaveBeenCalled()
 })
@@ -86,11 +90,11 @@ test('All pages checks every page; a report checkbox toggles its tabs', () => {
   render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
   open()
   fireEvent.click(box('All pages'))
-  expect(PAGES.every((p) => box(p.label).checked)).toBe(true)
+  expect(PAGES.every((p) => box(named(p)).checked)).toBe(true)
   fireEvent.click(box('Answer Engine Optimization'))
-  expect([box('Overview').checked, box('PR Influence').checked, box('Executive Overview').checked]).toEqual([false, false, true])
+  expect([box(AEO).checked, box(PRI).checked, box('Executive Overview').checked]).toEqual([false, false, true])
   fireEvent.click(box('Answer Engine Optimization'))
-  expect([box('Overview').checked, box('PR Influence').checked]).toEqual([true, true])
+  expect([box(AEO).checked, box(PRI).checked]).toEqual([true, true])
 })
 
 // B4: one page downloads exactly as the single-page export did, and nothing is merged.
@@ -110,7 +114,7 @@ test('one page downloads as today, under the name the server gives', async () =>
 test('several pages are exported one at a time in list order and download as one PDF', async () => {
   render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
   open()
-  fireEvent.click(box('PR Influence'))
+  fireEvent.click(box(PRI))
   fireEvent.click(box('Executive Overview'))
   fireEvent.click(screen.getByRole('button', { name: 'Export 3 pages' }))
   await waitFor(() => expect(downloads).toHaveLength(1))
@@ -193,8 +197,77 @@ test('a client with no exportable page: the button prints, with no picker', () =
 test('on a page that is not exported on the server, nothing is checked and Print this page prints it', () => {
   render(<ExportPdfButton {...props} bulk={bulk({ currentKey: null })} />)
   open()
-  expect(PAGES.some((p) => box(p.label).checked)).toBe(false)
+  expect(PAGES.some((p) => box(named(p)).checked)).toBe(false)
   expect((screen.getByRole('button', { name: 'Export 0 pages' }) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Print this page' }))
   expect(window.print).toHaveBeenCalled()
+})
+
+// Final review, Important 1: the merge is part of the run. Nothing can start a second export while it runs, Cancel still
+// works, and a cancelled merge downloads nothing.
+test('while the pages are combined, nothing can start another export, and Cancel stops the download', async () => {
+  let release!: () => void
+  mergePdfs.mockImplementationOnce(async (parts: ArrayBuffer[]) => {
+    await new Promise<void>((r) => { release = r })
+    return new Uint8Array(parts.length)
+  })
+  render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
+  open()
+  fireEvent.click(box('Executive Overview'))
+  fireEvent.click(screen.getByRole('button', { name: 'Export 2 pages' }))
+  expect(await screen.findByText('Combining 2 pages…')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /^Export \d+ pages?$/ })).toBeNull()
+  expect(box('Executive Overview').disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  release()
+  await screen.findByRole('button', { name: 'Export 2 pages' })
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+  expect(downloads).toEqual([])
+})
+
+// Final review, Minor 4: cancelling a retry keeps the pages that already exported.
+test('cancelling Try again keeps the pages that worked', async () => {
+  let calls = 0
+  fetchMock = vi.fn((_url: string, init: RequestInit) => {
+    const key = keyOf(init)
+    if (key !== 'peec-ai:pr-influence') return Promise.resolve(pdfFor(key))
+    // The first attempt fails; the retry hangs until cancelled.
+    if (calls++ === 0) return Promise.resolve(loading())
+    return new Promise<Response>((_r, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
+  open()
+  fireEvent.click(box('All pages'))
+  fireEvent.click(screen.getByRole('button', { name: 'Export 3 pages' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Download the 2 that worked' }))
+  await waitFor(() => expect(downloads).toHaveLength(1))
+  expect(downloads[0].bytes).toEqual([1, 2])
+})
+
+// Final review, Minor 5: a retry exports with the ranges the run started with, even after the page moved on.
+test('Try again keeps the ranges the export started with', async () => {
+  answer(['peec-ai:pr-influence'], true)
+  const { rerender } = render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
+  open()
+  fireEvent.click(box(PRI))
+  fireEvent.click(screen.getByRole('button', { name: 'Export 2 pages' }))
+  await screen.findByRole('button', { name: 'Try again' })
+  rerender(<ExportPdfButton {...props} serverExport={serverExport} bulk={{ ...bulk(), dateRange: 'last_7_days' }} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+  await waitFor(() => expect(downloads).toHaveLength(1))
+  const ranges = fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)).dateRange)
+  expect(ranges).toEqual([RANGES.dateRange, RANGES.dateRange, RANGES.dateRange])
+})
+
+// Final review, Important 2: staff can open a report the client hides from its portal; it isn't in the list, so the page
+// keeps the single-page export it had.
+test('on a page missing from the list, the button exports that page as before', async () => {
+  render(<ExportPdfButton {...props} serverExport={{ ...serverExport, section: 'paid-media' }} bulk={bulk({ currentKey: 'paid-media:' })} />)
+  fireEvent.click(screen.getByRole('button', { name: /Export PDF/ }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  await waitFor(() => expect(downloads).toHaveLength(1))
+  expect(posted()).toEqual(['paid-media:'])
 })

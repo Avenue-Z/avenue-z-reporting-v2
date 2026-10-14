@@ -161,7 +161,8 @@ export function ExportPdfButton({ clientName, pageTitle, periodLabel, serverExpo
   )
   const buttonClass = 'no-print inline-flex items-center gap-2 rounded-full bg-white text-black px-4 py-2 text-sm font-bold transition-opacity hover:opacity-80 disabled:cursor-wait disabled:opacity-60'
 
-  if (bulk && bulk.pages.length > 0) {
+  // A page missing from the list (staff on a report the client hides from its portal) keeps its single-page export.
+  if (bulk && bulk.pages.length > 0 && (bulk.currentKey === null || bulk.pages.some((p) => p.key === bulk.currentKey))) {
     return (
       <>
         {stamp}
@@ -188,8 +189,8 @@ export function ExportPdfButton({ clientName, pageTitle, periodLabel, serverExpo
 /** "Paid Media – Overview"; a one-page report is just its name. */
 const pageName = (p: ExportPage) => (p.label === p.reportTitle ? p.label : `${p.reportTitle} – ${p.label}`)
 
-function Check({ label, checked, indeterminate = false, disabled, onChange, pageKey }: {
-  label: string; checked: boolean; indeterminate?: boolean; disabled: boolean; onChange: () => void; pageKey?: string
+function Check({ label, name, checked, indeterminate = false, disabled, onChange, pageKey }: {
+  label: string; name?: string; checked: boolean; indeterminate?: boolean; disabled: boolean; onChange: () => void; pageKey?: string
 }) {
   return (
     <label className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 text-sm text-white hover:bg-white/[0.04]">
@@ -201,6 +202,7 @@ function Check({ label, checked, indeterminate = false, disabled, onChange, page
         disabled={disabled}
         onChange={onChange}
         data-page-key={pageKey}
+        aria-label={name}
         className="h-4 w-4 shrink-0 cursor-pointer accent-brand-cyan"
       />
       {label}
@@ -218,11 +220,14 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
   const initial = () => new Set(bulk.currentKey ? [bulk.currentKey] : [])
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(initial)
+  // Exporting, then combining: the whole run, during which nothing else can start and Cancel is the way out.
   const [progress, setProgress] = useState<string | null>(null)
-  // Per page, for the selection last exported. Failed ones are offered for a retry.
+  // Per page, for the selection last exported. Failed ones are offered for a retry; cleared once downloaded.
   const [results, setResults] = useState<Map<string, PageResult> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // The ranges the run started with: a retry keeps them even if the page has moved on since.
+  const rangesRef = useRef<BulkRanges>(bulk)
   const running = progress !== null
 
   // Leaving the page cancels an export in flight.
@@ -258,43 +263,55 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
     setError(null)
   }
 
-  /** Downloads the pages that exported, in list order: one as the server named it, several merged. */
-  async function finish(done: Map<string, PageResult>) {
-    const parts = chosen.flatMap((p) => { const r = done.get(p.key); return r?.ok ? [r] : [] })
+  /**
+   * Exports `pages` (all of the selection, or its failed pages again on a retry, merged into `prior`), then downloads the
+   * pages that exported, in list order, if all did or `downloadNow`: one as the server named it, several combined.
+   * Cancel stops either step and nothing downloads; a cancelled retry keeps `prior`.
+   */
+  async function run(pages: ExportPage[], prior: Map<string, PageResult>, downloadNow = false) {
+    const abort = new AbortController()
+    abortRef.current = abort
+    if (prior.size === 0) rangesRef.current = bulk
+    const ranges = rangesRef.current
+    setError(null)
+    let done = prior
     try {
+      if (pages.length > 0) {
+        const out = await runBulkExport(pages, (p, signal) => requestPdf(bulkRequest(p, ranges), signal), {
+          signal: abort.signal,
+          onProgress: (i, p) => setProgress(`Exporting ${i + 1} of ${pages.length}: ${pageName(p)}`),
+        })
+        done = new Map(prior)
+        for (const { page, result } of out) done.set(page.key, result)
+      }
+      setResults(done)
+      if (!downloadNow && ![...done.values()].every((r) => r.ok)) return
+      const parts = chosen.flatMap((p) => { const r = done.get(p.key); return r?.ok ? [r] : [] })
       if (parts.length === 1) {
         download(parts[0].pdf, parts[0].filename)
       } else {
-        const { mergePdfs } = await import('@/lib/export/merge-pdfs')
-        download(await mergePdfs(parts.map((r) => r.pdf)), bulkFilename(clientName, parts.length, new Date(), timeZone()))
+        setProgress(`Combining ${parts.length} pages…`)
+        let merged: Uint8Array
+        try {
+          const { mergePdfs } = await import('@/lib/export/merge-pdfs')
+          merged = await mergePdfs(parts.map((r) => r.pdf))
+        } catch {
+          setResults(null)
+          setError(COMBINE_FAILED)
+          return
+        }
+        if (abort.signal.aborted) throw abort.signal.reason
+        download(merged, bulkFilename(clientName, parts.length, new Date(), timeZone()))
       }
+      // Downloaded: the parts aren't needed any more.
+      setResults(null)
       setOpen(false)
     } catch {
-      setResults(null)
-      setError(COMBINE_FAILED)
-    }
-  }
-
-  async function run(pages: ExportPage[], prior: Map<string, PageResult>) {
-    const abort = new AbortController()
-    abortRef.current = abort
-    setError(null)
-    try {
-      const out = await runBulkExport(pages, (p, signal) => requestPdf(bulkRequest(p, bulk), signal), {
-        signal: abort.signal,
-        onProgress: (i, p) => setProgress(`Exporting ${i + 1} of ${pages.length}: ${pageName(p)}`),
-      })
-      const done = new Map(prior)
-      for (const { page, result } of out) done.set(page.key, result)
-      setProgress(null)
-      setResults(done)
-      if ([...done.values()].every((r) => r.ok)) await finish(done)
-    } catch {
-      // Cancelled: nothing downloads, the selection stays.
-      setProgress(null)
-      setResults(null)
+      // Cancelled: nothing downloads, the selection and any pages already exported stay.
+      setResults(prior.size > 0 ? prior : null)
     } finally {
-      abortRef.current = null
+      setProgress(null)
+      if (abortRef.current === abort) abortRef.current = null
     }
   }
 
@@ -322,11 +339,11 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
             const keys = g.pages.map((p) => p.key)
             const on = keys.filter((k) => selected.has(k)).length
             return (
-              <div key={g.title}>
+              <div key={g.title} role="group" aria-label={g.title}>
                 <Check label={g.title} checked={on === keys.length} indeterminate={on > 0} disabled={running} onChange={() => toggle(keys, on !== keys.length)} />
                 <div className="ml-4">
                   {g.pages.map((p) => (
-                    <Check key={p.key} label={p.label} pageKey={p.key} checked={selected.has(p.key)} disabled={running} onChange={() => toggle([p.key], !selected.has(p.key))} />
+                    <Check key={p.key} label={p.label} name={pageName(p)} pageKey={p.key} checked={selected.has(p.key)} disabled={running} onChange={() => toggle([p.key], !selected.has(p.key))} />
                   ))}
                 </div>
               </div>
@@ -334,14 +351,18 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
           })}
         </div>
         <div className="mt-2 space-y-2 border-t border-white/[0.06] px-2 pt-2">
-          {running ? (
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-text-muted" aria-live="polite">{progress}</p>
-              <button type="button" onClick={() => abortRef.current?.abort()} className="text-xs font-semibold text-white underline-offset-2 hover:underline">
-                Cancel
-              </button>
-            </div>
-          ) : failed.length > 0 ? (
+          {/* Mounted while the popover is open, so a screen reader announces the first message too. */}
+          <div className="flex items-center justify-between gap-2" aria-live="polite">
+            {running && (
+              <>
+                <p className="text-xs text-text-muted">{progress}</p>
+                <button type="button" onClick={() => abortRef.current?.abort()} className="text-xs font-semibold text-white underline-offset-2 hover:underline">
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+          {running ? null : failed.length > 0 ? (
             <>
               <ul role="alert" className="space-y-1 text-xs text-red-400">
                 {failed.map((p) => <li key={p.key}>{pageName(p)}: {reason(p)}</li>)}
@@ -351,7 +372,7 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
                   Try again
                 </button>
                 {okCount > 0 && (
-                  <button type="button" onClick={() => finish(results!)} className="rounded-full border border-white/[0.16] px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/[0.06]">
+                  <button type="button" onClick={() => run([], results!, true)} className="rounded-full border border-white/[0.16] px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/[0.06]">
                     Download the {okCount} that worked
                   </button>
                 )}
