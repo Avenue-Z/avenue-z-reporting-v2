@@ -6,6 +6,13 @@ import { assertCovers } from './freshness'
 /** Rebuilt by the same nightly as every other Google Ads mart; its newest day gates them all. */
 export const AW_FRESHNESS_TABLE = 'mart_googleads_campaign_performance'
 
+/**
+ * First day prod's Google Ads marts match raw. Before it, prod keeps the pre-2026-09-17-backfill
+ * history (with 5 accounts the backfill dropped, and without rows it added), so a range reaching
+ * earlier is served live. Warehouse: docs/notes/2026-10-13-dashboard-cutover-log.md.
+ */
+export const AW_HISTORY_FROM = '2026-04-01'
+
 /** Supermetrics AW field id → mart expression. Keys are the exact ids the dashboard requests. */
 const DIM_EXPR: Record<string, string> = {
   Date: 'cast(event_date as string)',
@@ -76,6 +83,9 @@ const readAwMartCached = cached('bigquery', 'readAwMart', readAwMartImpl, {
 /** Rows keyed exactly as awQuery's Supermetrics rows. Throws BqUnavailable when the mart cannot answer exactly. */
 export async function readAwMart(accountId: string, fields: string[], startDate: string, endDate: string): Promise<Record<string, string>[]> {
   pickAwMart(fields) // unsupported fields fail before any BigQuery call
+  if (startDate < AW_HISTORY_FROM) {
+    throw new BqUnavailable('unsupported', `range starts ${startDate}, before the marts' Google Ads history floor ${AW_HISTORY_FROM}`)
+  }
   await assertCovers(AW_FRESHNESS_TABLE, endDate)
   return readAwMartCached(accountId, fields, startDate, endDate)
 }

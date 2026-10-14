@@ -15,7 +15,9 @@ const slug = process.argv[2]
 if (!slug) throw new Error('usage: bq-shadow-compare.ts <client-slug>')
 process.env.BQ_CLIENTS = slug
 
-const RANGES = ['last_7_days', 'last_30_days', 'last_90_days', 'last_month', '2025-12-01,2026-01-31']
+// Ranges > 31 days exercise the ISO-week (Yearweekiso) path. None may start before AW_HISTORY_FROM
+// (2026-04-01), or the Google Ads checks fall back to live and read NOT RUN.
+const RANGES = ['last_7_days', 'last_30_days', 'last_90_days', 'last_month', '2026-04-01,2026-06-30']
 
 type Diff = { path: string; live: unknown; bq: unknown; kind: 'MISMATCH' | 'TIE' }
 
