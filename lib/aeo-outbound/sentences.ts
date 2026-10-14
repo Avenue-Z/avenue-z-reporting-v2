@@ -1,0 +1,196 @@
+// The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
+// methodology, written by code from a row's data so every number is Peec's. Glean writes only the opinion (§19.2).
+import { settingsUsedOf, type BrandMetric, type SnapshotData } from './metrics'
+import type { Bullet } from './slots'
+
+export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string }
+
+/** A displayed 1-decimal percent in a sentence: whole from 10 up (Ryan's "26%"), one decimal below 10 so a 1.3 and a
+ *  1.1 never both read "1%", and never rounded up to 100. Half up, from the value the page shows. */
+export function pctText(x: number): string {
+  if (x < 10) return `${x.toFixed(1)}%`
+  const whole = Math.round(x)
+  return whole === 100 && x < 100 ? `${x.toFixed(1)}%` : `${whole}%`
+}
+
+/** A count: digits under 1,000, then thousands or millions to one decimal, rounded half up in integer steps. */
+export function countText(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 999_950) return `${(Math.round(n / 100) / 10).toFixed(1)}K`
+  return `${(Math.round(n / 100_000) / 10).toFixed(1)}M`
+}
+
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth']
+export function ordinal(n: number): string {
+  if (n >= 1 && n <= 20) return ORDINALS[n - 1]
+  const teen = n % 100 >= 11 && n % 100 <= 13
+  const suffix = teen ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+  return `${n}${suffix}`
+}
+
+const WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+/** A brand count: a word up to ten, digits above. */
+const countWord = (n: number): string => (n >= 1 && n <= 10 ? WORDS[n - 1] : String(n))
+
+/** "A", "A and B", "A, B, and C" (Ryan's serial comma). */
+export function listText(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  if (items.length === 2) return `${items[0]} and ${items[1]}`
+  return `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`
+}
+
+/** A domain that starts a sentence gets a capital first letter, as Ryan wrote "Ualett.com". */
+const capital = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
+const points = (x: number): string => Math.abs(x).toFixed(1)
+const tenths = (a: number, b: number): number => Math.round((a - b) * 10) / 10
+const MAX_NAMED = 5
+
+/** At most five names, then "and k more". */
+const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${names.length - MAX_NAMED} more`] : names)
+
+export function dataSentences(d: SnapshotData): DataSentences {
+  const brand = d.brand
+  const own = d.own
+  const N = d.rankN
+  const noun = settingsUsedOf(d).rankAmong !== null ? 'compared' : 'tracked'
+  const solo = d.competitorsTracked === 0
+  const others = d.brands.filter((b) => !b.isOwn)
+  const noData = d.noDataBrands ?? []
+  const allZero = d.brands.every((b) => b.visibilityPct === 0)
+  const ownZero = own.visibilityPct === 0
+  const top = d.brands[0]
+  const topGroup = top ? d.brands.filter((b) => b.visibilityPct === top.visibilityPct) : []
+  const level = others.filter((b) => b.visibilityPct === own.visibilityPct)
+  // No-data brands rank at zero visibility, so they sit below the brand only when it is above zero.
+  const below = [...others.filter((b) => b.visibilityPct < own.visibilityPct).map((b) => b.name), ...(ownZero ? [] : noData)]
+  const sovOf = (b: BrandMetric) => (b.sovPct === null ? '' : ` / ${pctText(b.sovPct)} share of voice`)
+
+  function leaders(withRunnerUp: boolean): string {
+    if (topGroup.length >= 3) return `${listText(topGroup.map((b) => b.name))} lead at ${pctText(top.visibilityPct)} visibility.`
+    if (topGroup.length === 2) {
+      const [a, b] = topGroup
+      const sov = a.sovPct !== null && b.sovPct !== null ? `, with ${pctText(a.sovPct)} and ${pctText(b.sovPct)} share of voice` : ''
+      return `${a.name} and ${b.name} lead at ${pctText(top.visibilityPct)} visibility${sov}.`
+    }
+    const next = d.brands.find((b) => b.visibilityPct < top.visibilityPct)
+    const runner = withRunnerUp && next ? `, followed by ${next.name} at ${pctText(next.visibilityPct)}${next.sovPct === null ? '' : ` / ${pctText(next.sovPct)}`}` : ''
+    return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${sovOf(top)}${runner}.`
+  }
+
+  function context(): string {
+    if (solo) return 'No competitors are tracked in this Peec project.'
+    if (allZero) return 'Competitive context: No brand tracked shows visibility in this window.'
+    if (ownZero) return `Competitive context: ${leaders(false)} ${brand} has ${pctText(0)} visibility in this window.`
+    if (others.length === 0) {
+      const k = noData.length
+      return `Competitive context: ${brand} leads at ${pctText(own.visibilityPct)} visibility; ${k === 1 ? `the other brand ${noun} has` : `the other ${countWord(k)} brands ${noun} have`} no Peec data in this window.`
+    }
+    const ownLeads = topGroup.some((b) => b.isOwn)
+    let tail: string
+    if (!ownLeads && level.length) tail = `${brand} is level with ${listText(level.map((b) => b.name))}${below.length ? ` and ranks ahead of ${someNames(below)}` : ''}.`
+    else if (below.length) tail = `${brand} ranks ahead of ${someNames(below)}.`
+    else tail = ownLeads ? '' : `${brand} ranks last of the ${countWord(N)} brands ${noun}.`
+    return `Competitive context: ${leaders(true)}${tail ? ` ${tail}` : ''}`
+  }
+
+  function firstBox(): Bullet[] {
+    const out: Bullet[] = []
+    if (solo) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers.` })
+    else if (ownZero) out.push({ lead: 'Category position:', text: `${brand} shows ${pctText(0)} visibility among the ${countWord(N)} brands ${noun}.` })
+    else {
+      const strong = own.rank <= 3 && own.rank <= Math.ceil(N / 2) && own.visibilityPct * 2 >= top.visibilityPct
+      const sov = own.sovPct === null ? '' : ` and ${pctText(own.sovPct)} share of voice`
+      out.push({ lead: strong ? 'Strong category position:' : 'Category position:', text: `${brand} ranks ${ordinal(own.rank)} among the ${countWord(N)} brands ${noun}, with ${pctText(own.visibilityPct)} visibility${sov}.` })
+    }
+    const site = d.ownSites?.[0]
+    if (!site || site.retrievedChats <= 0) {
+      out.push({ lead: 'Own-site retrievals:', text: `${brand}'s own site was not retrieved in this window.` })
+      return out
+    }
+    const count = `${site.retrievedChats >= 1000 ? 'approximately ' : ''}${countText(site.retrievedChats)}`
+    const inTop = d.ownSiteRank !== null && d.ownSiteRank !== undefined && d.ownSiteRank <= 10
+    out.push(inTop
+      ? { lead: 'Present in the source ecosystem:', text: `${capital(site.domain)} appears among the top domains at ${count} retrievals.` }
+      : { lead: 'Own-site retrievals:', text: `${capital(site.domain)} appears in ${count} retrievals.` })
+    if (site.retrievedPct !== null) {
+      // One site's figure is never given to the whole brand (v1.1 §9): the brand only when it has exactly one own site.
+      const subject = d.ownSites!.length === 1 ? brand : capital(site.domain)
+      out.push({ lead: 'Source-use signal:', text: `${subject} is used as a source in ${pctText(site.retrievedPct)} of tracked answers.` })
+    }
+    return out
+  }
+
+  /** The share-of-voice part of a gap clause. `gap` points the same way as the visibility gap when positive (the rival
+   *  minus the brand when the brand trails, the brand minus #2 when it leads); zero matches; negative is the other way. */
+  const sovClause = (gap: number | null, behind: boolean): string => {
+    if (gap === null) return ''
+    if (gap === 0) return ' and matches it in share of voice'
+    if (gap > 0) return ` and ${points(gap)} points in share of voice`
+    return ` and ${behind ? 'leads' : 'trails'} it by ${points(gap)} points in share of voice`
+  }
+
+  function leadership(): Bullet | null {
+    if (solo) return null
+    if (allZero) return { lead: 'Leadership gap:', text: 'No brand tracked shows visibility in this window.' }
+    const gaps = d.leaderGaps
+    if (gaps.length) {
+      const [g1, g2] = gaps
+      let text = `${brand} trails ${g1.name} by ${points(g1.visibilityPoints)} percentage points in visibility${sovClause(g1.sovPoints, true)}`
+      if (g2) {
+        const respectively = g1.sovPoints !== null && g1.sovPoints > 0 && g2.sovPoints !== null && g2.sovPoints > 0
+        text += respectively
+          ? `; it trails ${g2.name} by ${points(g2.visibilityPoints)} and ${points(g2.sovPoints!)} points, respectively`
+          : `; it trails ${g2.name} by ${points(g2.visibilityPoints)} points in visibility${sovClause(g2.sovPoints, true)}`
+      }
+      return { lead: 'Leadership gap:', text: `${text}.` }
+    }
+    if (level.length) return { lead: 'Leadership position:', text: `${brand} is level with ${listText(level.map((b) => b.name))} at the top of the ${countWord(N)} brands ${noun}.` }
+    const second = d.brands.find((b) => !b.isOwn)
+    if (!second) return { lead: 'Leadership position:', text: `${brand} ranks first of the ${countWord(N)} brands ${noun}.` }
+    const sov = own.sovPct !== null && second.sovPct !== null ? tenths(own.sovPct, second.sovPct) : null
+    return { lead: 'Leadership position:', text: `${brand} leads ${second.name} by ${points(tenths(own.visibilityPct, second.visibilityPct))} percentage points in visibility${sovClause(sov, false)}.` }
+  }
+
+  function secondBox(): Bullet[] {
+    const out: Bullet[] = []
+    const lead = leadership()
+    if (lead) out.push(lead)
+    if (d.gapDomains.length) {
+      const items = d.gapDomains.map((g, i) => `${g.domain} at ${countText(g.retrievedChats)}${i === 0 ? ' retrievals' : ''}`)
+      out.push({ lead: 'Competitor domain gaps:', text: `The largest gaps include ${listText(items)}.` })
+    }
+    const mix = d.sourceMix
+    if (!mix.length) out.push({ lead: 'Source mix:', text: 'Peec reported no source types for this window.' })
+    else if (mix.length === 1) out.push({ lead: 'Source mix:', text: `The domain mix is all ${label(mix[0].label)} sources.` })
+    else {
+      const [t1, t2] = mix
+      const named = new Set([t1.label, t2.label])
+      const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l)).map((l) => [l, mix.find((m) => m.label === l)?.pct ?? 0] as const)
+      const tail = extras.length === 2
+        ? `; ${extras[0][0]} represents ${pctText(extras[0][1])} and ${extras[1][0]} ${pctText(extras[1][1])}`
+        : extras.length === 1 ? `; ${extras[0][0]} represents ${pctText(extras[0][1])}` : ''
+      out.push({
+        lead: extras.length === 2 ? 'Limited editorial and UGC presence:' : 'Source mix:',
+        text: `The domain mix is led by ${label(t1.label)} sources at ${pctText(t1.pct)} and ${label(t2.label)} sources at ${pctText(t2.pct)}${tail}.`,
+      })
+    }
+    return out
+  }
+
+  function methodology(): string {
+    const used = settingsUsedOf(d).methodologyStatesPromptsAndModels
+    const parts = [
+      used && d.promptCount !== null ? `${d.promptCount.toLocaleString('en-US')} prompts tracked` : null,
+      used && d.models.length ? `answers from ${listText(d.models)}` : null,
+    ].filter((p): p is string => p !== null)
+    const end = 'Results are directional and intended to identify areas for deeper analysis.'
+    const set = solo ? 'the brand alone' : `${countWord(N)} brands compared`
+    if (parts.length) return `Snapshot based on Peec AI data for ${d.windowLabel}: ${listText([set, ...parts])}. ${end}`
+    return `Snapshot based on Peec AI data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
+  }
+
+  return { context: context(), competitive_bullets: firstBox(), sources_bullets: secondBox(), methodology: methodology() }
+}
+
+/** The own-site slice reads "own-site" in a sentence; every other type as the donut shows it. */
+const label = (l: string): string => (l === 'You' ? 'own-site' : l)
