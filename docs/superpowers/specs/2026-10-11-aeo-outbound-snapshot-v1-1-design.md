@@ -1409,3 +1409,24 @@ without `sentences` gets exactly today's flags; `generate.test.ts` returns on th
 slots carry flags; the view route and approve pass `preparedDay`'s value; a no-competitor project yields 1 to 3 bullets
 per box and saves. Then the live dev check repeats the 2026-10-14 test, including the page's numbers against a raw Peec
 pull and the Back button with and without unsaved edits.
+
+### 19.11 Rulings during the build (Tasks 37 to 43 and their review)
+
+These refine §19.1, §19.3 and §19.10 where building or reviewing showed a case they left open; each has a test.
+- Two percents named in one sentence (leader and runner-up, the two leading source types) both keep one decimal when
+  their whole numbers would read the same but differ (15.4% and 14.6%, never 15% and 15%).
+- A tie at second names every brand there without share of voice ("followed by B and C at 20%"). When the brand
+  leads alone, its runner-up is named once and the rest follow as "{Brand} also ranks ahead of ...". At zero the context
+  names the leader and runner-up (never the brand) before "{Brand} has 0.0% visibility". The level and top-group lists
+  are capped at five like the ranks-ahead list, and "and {k} more" uses a count word. With no share of voice for the
+  leader, the runner-up's reads "/ {s}% share of voice". A leading "www." is dropped from an own domain in a sentence.
+- Grounding: a digit run touching a letter (H1, B2B) is not a number in a Glean field, and Peec's action titles are
+  removed before that scan. A "Peec recommends" line matches an action on a shared word of five letters or more that is
+  not a stop word. An edited code-written sentence is compared with Peec's own sentence for that path (a bullet matched
+  by its lead): any number or rank word not in Peec's sentence is `number_not_in_data` ("does not match Peec's number
+  in this sentence"); a bullet whose lead Ryan changed is checked against every Peec number as before.
+- "retrievals" stays as the word for `retrieved_chat_count`: spec 5a row 14 measured Ryan's own "approximately 2.0K
+  retrievals" as that field, exactly.
+- §19.7 A2 became the Back guard, so the frame's `dirty` message keeps carrying only its path (§19.10's "dirty value"
+  test does not apply). The frame posts its scroll position (at most every 200 ms) and scrolls to one the editor sends;
+  a position of 0 is not sent.
