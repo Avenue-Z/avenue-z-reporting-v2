@@ -228,7 +228,7 @@ test('a settings change never alters an existing draft: words and code-set field
   expect(m.save.mock.calls[0][2].page.section_1_title).toBe('Strengths')
 })
 
-test('with the contract kill switch on, a null body and a string revision still answer 400 and save nothing', async () => {
+test('with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6), a null body and a string revision answer 400 and save nothing', async () => {
   vi.stubEnv('CONTRACT_DISABLED', '1')
   for (const b of ['null', { path: 'headline', value: 'x', revision: '3' }]) {
     const res = await patch(b)

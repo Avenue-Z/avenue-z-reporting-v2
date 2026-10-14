@@ -9,13 +9,6 @@ import { PAGE_KEYS } from './slots'
 
 export interface ContractIssue { field: string; issue: string }
 export type ContractResult = { ok: true } | { ok: false; issues: ContractIssue[] }
-type Env = Record<string, string | undefined>
-
-/** CONTRACT_DISABLED set to anything but empty, 0 or false turns every check off. */
-export function contractsDisabled(env: Env = process.env): boolean {
-  const v = (env.CONTRACT_DISABLED ?? '').trim().toLowerCase()
-  return v !== '' && v !== '0' && v !== 'false'
-}
 
 /** A zod path as a field name: array indexes dropped, so 10,000 rows missing one field are one field. */
 const fieldOf = (path: readonly PropertyKey[]): string => path.filter((p): p is string => typeof p === 'string').join('.') || '(root)'
@@ -24,8 +17,7 @@ const fieldOf = (path: readonly PropertyKey[]): string => path.filter((p): p is 
  * Checks value against schema. Logs one line per distinct field and issue, with how many times it occurred, at info
  * (observe), warn (warn) or error (enforce), and never a value. Only enforce can fail.
  */
-export function checkContract(boundary: ContractBoundary, schema: z.ZodType, value: unknown, mode: ContractMode = CONTRACT_MODES[boundary], env: Env = process.env): ContractResult {
-  if (contractsDisabled(env)) return { ok: true }
+export function checkContract(boundary: ContractBoundary, schema: z.ZodType, value: unknown, mode: ContractMode = CONTRACT_MODES[boundary]): ContractResult {
   const parsed = schema.safeParse(value)
   if (parsed.success) return { ok: true }
   const counts = new Map<string, { field: string; issue: string; n: number }>()
@@ -44,18 +36,21 @@ export function checkContract(boundary: ContractBoundary, schema: z.ZodType, val
 const count = z.number().int().nonnegative().nullish()
 const ratio = z.number().min(0).max(1)
 
-/** Only the fields pull.ts reads. looseObject passes every other field through untouched. */
+/** Only the fields pull.ts reads. looseObject passes every other field through untouched. Spec v1.1 §19.6: every field a
+ *  number on the page depends on is enforced (measured on 6,000 live domain rows and 206 roster rows on 2026-10-14). */
 export const PEEC_CONTRACTS = {
   'peec.projects': { observe: z.array(z.looseObject({ id: z.union([z.string(), z.number()]), name: z.string().nullish(), status: z.string().nullish() })) },
-  'peec.brands': { observe: z.array(z.looseObject({ id: z.string(), name: z.string(), is_own: z.boolean(), domains: z.array(z.string()).nullish() })) },
+  // The roster decides the own brand, the competitors, the rank set and the own and roster domains.
+  'peec.brands': { enforce: z.array(z.looseObject({ id: z.string(), name: z.string(), is_own: z.boolean(), domains: z.array(z.string()).nullish() })), observe: z.unknown() },
   'peec.project_profile': {
     observe: z.looseObject({
       profile: z.looseObject({ industry: z.string().nullish(), target_markets: z.array(z.looseObject({ location: z.string().nullish() })).nullish() }).nullish(),
     }).nullable(),
   },
+  // The date decides the window the page states.
   'peec.domains_by_date': {
-    enforce: z.array(z.looseObject({ retrieved_chat_count: count })),
-    observe: z.array(z.looseObject({ domain: z.string(), date: z.string() })),
+    enforce: z.array(z.looseObject({ retrieved_chat_count: count, date: z.string().regex(/^\d{4}-\d{2}-\d{2}/) })),
+    observe: z.array(z.looseObject({ domain: z.string() })),
   },
   'peec.brands_report': {
     enforce: z.array(z.looseObject({ visibility: ratio, share_of_voice: ratio.nullish(), position: z.number().nonnegative().nullish() })),
@@ -66,9 +61,11 @@ export const PEEC_CONTRACTS = {
     observe: z.array(z.looseObject({ brand: z.looseObject({ id: z.string() }), model_channel: z.looseObject({ id: z.string() }).nullish() })),
   },
   'peec.model_channels': { observe: z.array(z.looseObject({ id: z.string(), description: z.string().nullish() })) },
+  // classification decides the source mix and the donut (Peec also sends custom names, so any non-empty string);
+  // mentioned_brands decides the competitor domain gaps (often an empty array).
   'peec.domains_report': {
-    enforce: z.array(z.looseObject({ retrieved_chat_count: count, retrieval_count: count, retrieved_percentage: ratio.nullish() })),
-    observe: z.array(z.looseObject({ domain: z.string(), classification: z.string().nullish(), mentioned_brands: z.array(z.looseObject({ id: z.string() })).nullish() })),
+    enforce: z.array(z.looseObject({ retrieved_chat_count: count, retrieval_count: count, retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
+    observe: z.array(z.looseObject({ domain: z.string() })),
   },
   'peec.actions': { observe: z.array(z.looseObject({ title: z.string().nullish(), impact: z.string().nullish(), type: z.string().nullish(), status: z.string().nullish() })) },
   'peec.prompts': { enforce: z.looseObject({ total_count: count }).nullable(), observe: z.unknown() },
@@ -78,13 +75,13 @@ export type PeecBoundary = keyof typeof PEEC_CONTRACTS
 /**
  * Checks one Peec response and returns it unchanged. Observed fields only log. An enforced field that breaks its rule
  * throws a PeecError whose message is "<boundary>.<field>" and whose code is contract_violation, so the generation
- * fails with that reason instead of publishing a wrong number.
+ * fails with that reason instead of publishing a wrong number. There is no off switch (spec v1.1 §19.6).
  */
-export function peecContract<T>(boundary: PeecBoundary, value: T, env: Env = process.env): T {
+export function peecContract<T>(boundary: PeecBoundary, value: T): T {
   const c: { observe: z.ZodType; enforce?: z.ZodType } = PEEC_CONTRACTS[boundary]
-  checkContract(boundary, c.observe, value, 'observe', env)
+  checkContract(boundary, c.observe, value, 'observe')
   if (c.enforce) {
-    const r = checkContract(boundary, c.enforce, value, CONTRACT_MODES[boundary], env)
+    const r = checkContract(boundary, c.enforce, value, CONTRACT_MODES[boundary])
     if (!r.ok) throw new PeecError(`${boundary}.${r.issues[0].field}`, false, false, 'contract_violation')
   }
   return value
@@ -105,7 +102,7 @@ export const GLEAN_SLOTS = z.looseObject({
 /** POST /api/aeo-outbound/generate. start and end are checked by checkRange (range.ts), which owns their messages. */
 export const GENERATE_BODY = z.looseObject({ projectId: z.string().min(1), rerunOf: z.string().regex(REPORT_ID_RE).nullish() })
 /** A save's writer (the editor queue's UUID) and seq (the item's send order), spec v1.1 18.4. The slots route's structural
- *  guard checks the same two schemas, so the rules hold even when CONTRACT_DISABLED turns the contract off. */
+ *  guard checks the same two schemas as well. */
 export const SAVE_WRITER = z.uuid()
 export const SAVE_SEQ = z.number().int().min(1).max(2147483647)
 /** PATCH /api/aeo-outbound/reports/{id}/slots. path and value are checked by slots.ts, which owns their messages.

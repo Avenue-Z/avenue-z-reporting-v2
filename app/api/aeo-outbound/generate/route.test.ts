@@ -252,7 +252,7 @@ test('progress steps are written unawaited for this row, and a failing write log
   expect(lines).toEqual(['[aeo-outbound] progress not recorded id=row-1 step=5 reason=57P01'])
 })
 
-test('with the contract kill switch on, a structurally bad body still answers 400 and inserts nothing', async () => {
+test('with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6), a structurally bad body answers 400 and inserts nothing', async () => {
   as('ryan@avenuez.com')
   vi.stubEnv('CONTRACT_DISABLED', '1')
   for (const b of ['null', '"x"', { projectId: 5 }, { projectId: '' }, { projectId: 'or_a', rerunOf: 'nope' }]) {

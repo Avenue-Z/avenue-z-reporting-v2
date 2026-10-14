@@ -48,7 +48,7 @@ test('a client role never triggers a settings read', async () => {
   expect(read).not.toHaveBeenCalled()
 })
 
-test('with the contract kill switch on, a string users list grants nothing by substring and the env floor holds', async () => {
+test('with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6), a string users list grants nothing by substring and the env floor holds', async () => {
   vi.stubEnv('CONTRACT_DISABLED', '1')
   const read = async () => row({ users: 'bob@avenuez.com', admins: { 0: 'x@avenuez.com' } })
   expect(await outboundAccess(staff('ob@avenuez.com'), ENV, read)).toEqual({ ok: false, admins: ['ryan@avenuez.com'] })

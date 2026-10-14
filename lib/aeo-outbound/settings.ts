@@ -62,7 +62,7 @@ export function resolveSettings(row: unknown): { settings: OutboundSettings; upd
   if (row === null || row === undefined) return { settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false }
   const at = (row as { updatedAt?: unknown }).updatedAt
   const updatedAt = at instanceof Date ? at.toISOString() : null
-  // This guard holds even under the CONTRACT_DISABLED kill switch, because users and admins decide access.
+  // Users and admins decide access, so a malformed list is refused before the full row contract runs.
   const refused = (['users', 'admins'] as const).filter((f) => !isAccessList((row as Record<string, unknown>)[f]))
   if (refused.length) {
     console.error(`[aeo-outbound] settings row refused field=${refused.join(',')}`)

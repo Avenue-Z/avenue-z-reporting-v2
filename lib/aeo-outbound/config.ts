@@ -37,12 +37,12 @@ export const MAX_LOOKBACK_DAYS = 400
 /** A brand shown above this visibility gets a notes-panel warning (spec §7): common-word names match unrelated answers. */
 export const IMPLAUSIBLE_VISIBILITY_PCT = 90
 
-/** Data contracts (spec v1.1 §10): the mode of each boundary's enforced fields. Every field a Peec boundary reads outside
- *  its enforced set is always observed. CONTRACT_DISABLED (any value but empty, 0 or false) turns every check off. */
+/** Data contracts (spec v1.1 §10, §19.6): the mode of each boundary's enforced fields. Every field a Peec boundary reads
+ *  outside its enforced set is always observed. There is no off switch. */
 export type ContractMode = 'observe' | 'warn' | 'enforce'
 export const CONTRACT_MODES = {
   'peec.projects': 'observe',
-  'peec.brands': 'observe',
+  'peec.brands': 'enforce',
   'peec.project_profile': 'observe',
   'peec.domains_by_date': 'enforce',
   'peec.brands_report': 'enforce',

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   } catch { /* bad request below */ }
   // v1.1 §10: the body is a contract; a violation keeps the v1.0 400 body.
   if (!checkContract('request.generate', GENERATE_BODY, body).ok) return NextResponse.json(BAD_REQUEST, { status: 400 })
-  // The structural guard runs even when CONTRACT_DISABLED turns the contract off, so a bad body is a 400, never a TypeError.
+  // A structural guard as well as the contract, so a bad body is a 400, never a TypeError.
   const projectId = body?.projectId
   const rerunOf = body?.rerunOf ?? null
   if (typeof projectId !== 'string' || !projectId || (rerunOf !== null && !(typeof rerunOf === 'string' && REPORT_ID_RE.test(rerunOf)))) {
