@@ -2,6 +2,7 @@
 
 **Feature under review:** PR #386 — `feat(export): bulk PDF export — pick pages from Export PDF, get one PDF`.
 **Diff range reviewed:** `2b86120..0589447` (`origin/dev` → PR head; nine commits, `f83a958`..`0589447`). No unrelated code.
+**Review fixes:** `0589447..be2a7f2` (Thomas's two round-1 minors, one commit; §6). Line anchors in §1–§4 are at `0589447`.
 **Spec / plan:** `docs/superpowers/specs/2026-10-14-bulk-pdf-export-design.md` (B1–B10) and
 `docs/superpowers/plans/2026-10-14-bulk-pdf-export.md`, both on branch `docs/pdf-export-all-reports-spec`.
 **Reviewers:** Paul, Thomas.
@@ -71,7 +72,9 @@
    - The file is named `<Client> – Report (<n> pages) – <yyyy-MM-dd>.pdf`, via `exportFilename` with the requester's
      timezone.
 4. **Cancel.** Cancel, or leaving the page, aborts the request in flight, or skips the download if the merge is
-   running. Nothing downloads, the selection stays, and on a retry the earlier successes stay too.
+   running. Nothing downloads and the selection stays. On a retry, the earlier successes stay too. On a first run, at
+   `0589447`, they did not: `prior` is empty and `runBulkExport` threw away its partial results, so the selection was
+   all that stayed (Thomas, #387). This is fixed in `be2a7f2` (§6, R1).
 5. **Ranges on retry.** A retry reuses the ranges its run started with.
 
 **Why the merge happens in the browser.** Each page stays one render inside the route's 60 s budget, and the combined
@@ -180,6 +183,29 @@ Tracked separately. None of these is applied in this review PR.
   for Renaissance) on staging. This is the highest-value check before stakeholder QA.
 - **Decide together:** **2** (whether staff should see hidden reports in bulk) and **3** (an overall time budget).
 - **Cleanup:** **4** (move `BulkPicker` to its own module).
+- **From Thomas's review (§6):** the per-user export concurrency limit (#332's follow-up, now more pressing), and
+  watching `pdf-lib`'s maintenance.
 
 None of these blocks the ship. Item 1 is the only one that could change behaviour, and it shares the single-page
 download path that is already in production.
+
+## §6 Review fixes
+
+Thomas reviewed #386 and #387 and approved both. He raised two minors on #386 and one clarification on #387 (folded into
+§1, step 4). Both minors are fixed in `be2a7f2`, each with tests.
+
+| # | Sev | Status | Location (at `0589447`) | Finding | Fix |
+|---|---|---|---|---|---|
+| R1 | ○ | CONFIRMED · fixed `be2a7f2` | `components/export-pdf-button.tsx:311` | A cancelled first run threw away the pages it had already exported. The likely Cancel is one stuck page late in a long run, which lost every finished render. | `runBulkExport` returns `{ results, cancelled }` with the pages it finished (a page cancelled mid-request is left out). The picker merges them into its results and lists the pages without a PDF ("Not exported: the export was cancelled."), with Try again (only those) and "Download the n that worked". Nothing downloads unless the person asks. |
+| R2 | ○ | CONFIRMED · fixed `be2a7f2` | `components/export-pdf-button.tsx:309` | The `catch` treated every throw as a cancel, so an error from `download()`, `bulkFilename` or a bug ended the run silently. | Cancels no longer throw (the runner returns them). Any other throw shows "The PDF couldn't be created. Try again." and keeps the pages already exported. |
+
+**Verification of the fixes:**
+- **Unit tests:** `vitest` passes 2746/2746.
+  - Runner: two cancel tests now check the returned partial results; a new test checks that a non-cancel error still rejects.
+  - Picker: three new tests. A first-run cancel lists the missing page, and Try again exports only it, giving pages 1, 2, 3 in order. A first-run cancel followed by "Download the 2 that worked" downloads pages 1 and 2. A throwing `createObjectURL` shows the error.
+- **Static checks:** `tsc`, `eslint` (branch files) and `check:rsc` are clean.
+- **Build and live run:** `next build` passes, and `e2e:export` on the local production build passes, 318/318 ok. The bulk part C is unchanged: 23 = 5 + 8 + 10, in sidebar order.
+
+**Thomas's unanchored notes, added to the follow-ups:**
+- `pdf-lib` 1.17.1 has had no release since 2022. It's MIT and browser-only, and it only reads PDFs our own route made, so the exposure is low, but it is unmaintained.
+- One click can now start up to 16 sequential server renders. That makes the per-user export concurrency limit (a follow-up since #332) more pressing, because two tabs can run two bulk exports at once.
