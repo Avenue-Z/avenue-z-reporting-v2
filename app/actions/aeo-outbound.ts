@@ -5,7 +5,7 @@ import { refresh } from 'next/cache'
 import { auth } from '@/auth'
 import { DECISIONS } from '@/lib/aeo-outbound/config'
 import { errorLabel } from '@/lib/aeo-outbound/log'
-import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
+import { preparedDay } from '@/lib/aeo-outbound/metrics'
 import { originAllowed } from '@/lib/aeo-outbound/permissions'
 import { outboundAccess } from '@/lib/aeo-outbound/access'
 import { cleanRecipient } from '@/lib/aeo-outbound/recipient'
@@ -59,7 +59,8 @@ export async function approveSnapshotAction(id: string, revision: number, recipi
     const slots = withDefaults(row.slots, row.data)
     if (DECISIONS.needsValidationBlocksApprove && needsValidationPaths(slots).length) return { ok: false, error: 'Fill in every "Needs validation" first.' } as Fail
     const now = new Date()
-    const html = renderSnapshotHtml(row.data, slots, 'final', fmtEasternDay(now))
+    // Spec v1.1 §19.8: the Prepared date never falls before the data window's last day.
+    const html = renderSnapshotHtml(row.data, slots, 'final', preparedDay(now, row.data.window.end))
     const write = (token: string) => approveQuery(id, revision, { html, token, recipient: who.value, by: email, now })
     let done
     try {

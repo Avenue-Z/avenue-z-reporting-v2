@@ -35,7 +35,8 @@ test('no settings row means the config.ts defaults and env users only', async ()
 
 test('a settings read failure falls back to the env list only and the defaults, with one log line', async () => {
   const fail = async () => { throw Object.assign(new Error('params ana@avenuez.com'), { code: '57P01' }) }
-  expect(await outboundAccess(staff('ana@avenuez.com'), ENV, fail)).toEqual({ ok: false, admins: ['ryan@avenuez.com'] })
+  // Spec v1.1 §19.7 (A3): with the settings unreadable, a refusal may be wrong, so it says unavailable and routes answer 503.
+  expect(await outboundAccess(staff('ana@avenuez.com'), ENV, fail)).toEqual({ ok: false, admins: ['ryan@avenuez.com'], unavailable: true })
   expect(await outboundAccess(staff('ryan@avenuez.com'), ENV, fail)).toMatchObject({ ok: true, admin: true, settings: SETTINGS_DEFAULTS, settingsReadFailed: true })
   const lines = vi.mocked(console.error).mock.calls.map((c) => c.map(String).join(' '))
   expect(lines).toEqual(['[aeo-outbound] settings read failed reason=57P01', '[aeo-outbound] settings read failed reason=57P01'])
@@ -58,4 +59,9 @@ test('with CONTRACT_DISABLED set (ignored since spec v1.1 §19.6), a string user
 test('with contracts on, a contract-breaking row listing a person does not let them in', async () => {
   const read = async () => row({ sectionTitles: ['Only one'] })
   expect(await outboundAccess(staff('ana@avenuez.com'), ENV, read)).toEqual({ ok: false, admins: ['ryan@avenuez.com'] })
+})
+
+test('spec v1.1 §19.7: a refusal with readable settings, or of a non-staff caller, is never unavailable', async () => {
+  expect(await outboundAccess(staff('ana@avenuez.com'), ENV, async () => row({ users: [] }))).toEqual({ ok: false, admins: ['boss@avenuez.com', 'ryan@avenuez.com'] })
+  expect(await outboundAccess(staff('ana@avenuez.com', 'CLIENT_VIEWER'), ENV, async () => { throw new Error('x') })).toEqual({ ok: false, admins: [] })
 })

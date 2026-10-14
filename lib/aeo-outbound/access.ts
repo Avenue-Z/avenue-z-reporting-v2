@@ -8,7 +8,7 @@ import { resolveSettings, SETTINGS_DEFAULTS, type OutboundSettings } from './set
 
 export type OutboundAccess =
   | { ok: true; email: string; admin: boolean; admins: string[]; settings: OutboundSettings; settingsUpdatedAt: string | null; settingsInvalid: boolean; settingsReadFailed: boolean }
-  | { ok: false; admins: string[] }
+  | { ok: false; admins: string[]; unavailable?: true }
 
 export async function outboundAccess(
   user: { role?: string | null; email?: string | null } | null | undefined,
@@ -35,6 +35,8 @@ export async function outboundAccess(
   const lists = readFailed ? { users: [] as string[], admins: [] as string[] } : settings
   const admins = [...new Set([...envUsers, ...lists.admins])].sort()
   const who = accessFor(user, envUsers, lists)
-  if (!who) return { ok: false, admins }
+  // Spec v1.1 §19.7 (A3): with the settings unreadable, a refusal may be wrong (a Settings user is not on the env list),
+  // so it says unavailable and the editor's routes answer 503, which the save queue retries.
+  if (!who) return readFailed ? { ok: false, admins, unavailable: true } : { ok: false, admins }
   return { ok: true, email: who.email, admin: who.admin, admins, settings, settingsUpdatedAt: updatedAt, settingsInvalid: invalid, settingsReadFailed: readFailed }
 }

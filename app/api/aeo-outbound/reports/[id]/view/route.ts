@@ -6,7 +6,7 @@ import { SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml } from '@/lib/aeo-outbou
 import { AIVX_SHARE_BLOCK } from '@/lib/aeo-outbound/aivx/share'
 import { REPORT_CSP } from '@/lib/aeo-outbound/sandbox'
 import { errorLabel } from '@/lib/aeo-outbound/log'
-import { fmtEasternDay } from '@/lib/aeo-outbound/metrics'
+import { preparedDay } from '@/lib/aeo-outbound/metrics'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +35,9 @@ function withoutShare(html: string, id: string): string {
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!(await outboundAccess(session?.user)).ok) return new Response('Forbidden', { status: 403 })
+  const access = await outboundAccess(session?.user)
+  // Spec v1.1 §19.7 (A3): unreadable settings are a retry, not a refusal.
+  if (!access.ok) return access.unavailable ? unavailable() : new Response('Forbidden', { status: 403 })
   const { id } = await ctx.params
   if (!isReportId(id)) return notFound()
   let row: Awaited<ReturnType<typeof getReport>>
@@ -53,7 +55,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return new Response(preview ? withoutShare(row.html, id) : row.html, { headers: HEADERS })
   }
   if (row.status !== 'draft' || !row.data || !row.slots) return notFound()
-  // Today's Eastern day, the date approving now would freeze (app/actions/aeo-outbound.ts), so the editor and its
-  // preview show the Prepared date the prospect will see (spec v1.1 §18.6).
-  return new Response(renderSnapshotHtml(row.data, row.slots, preview ? 'preview' : 'draft', fmtEasternDay(new Date())), { headers: HEADERS })
+  // The date approving now would freeze (app/actions/aeo-outbound.ts), so the editor and its preview show the Prepared date
+  // the prospect will see (spec v1.1 §18.6): today's Eastern day, or the window's last day when later (§19.8).
+  return new Response(renderSnapshotHtml(row.data, row.slots, preview ? 'preview' : 'draft', preparedDay(new Date(), row.data.window.end)), { headers: HEADERS })
 }

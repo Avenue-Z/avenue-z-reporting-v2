@@ -250,3 +250,23 @@ test("§18.6: a draft and its preview carry today's Eastern day as the Prepared 
     vi.useRealTimers()
   }
 })
+
+test('spec v1.1 §19.8: a window ending on the next UTC day (an evening pitch run) makes that day the Prepared date', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    // 02:00 UTC on Oct 10 is Oct 9 in New York; the data's last day is Oct 10 in UTC.
+    vi.setSystemTime(new Date('2026-10-10T02:00:00Z'))
+    const late = { ...DATA, window: { start: '2026-10-01', end: '2026-10-10' } }
+    m.getReport.mockResolvedValue(row({ data: late }))
+    expect(await (await get()).text()).toBe(renderSnapshotHtml(late, SLOTS, 'draft', 'Oct 10, 2026'))
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-only user, never 403', async () => {
+  const { readSettingsRow } = await import('@/lib/aeo-outbound/settings-store')
+  vi.mocked(readSettingsRow).mockRejectedValueOnce(new Error('connection reset'))
+  as('ana@avenuez.com')
+  expect((await get()).status).toBe(503)
+})

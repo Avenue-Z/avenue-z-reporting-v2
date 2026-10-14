@@ -409,3 +409,16 @@ test('an uppercase writer matches its own row: the route compares and stores the
   expect(m.save.mock.calls[0][1]).toBe(4)
   expect(m.save.mock.calls[0][5]).toEqual({ writer: W, seq: 2 })
 })
+
+test('spec v1.1 §19.7 (A3): a settings read failure answers 503 to a settings-only user, so the queue retries; an env user still saves', async () => {
+  m.readSettings.mockRejectedValue(new Error('connection reset'))
+  as('ana@avenuez.com')
+  const res = await patch({ path: 'headline', value: 'x', revision: 3 })
+  expect(res.status).toBe(503)
+  expect(m.save).not.toHaveBeenCalled()
+  // A foreign Origin is still refused, settings readable or not.
+  expect((await patch({ path: 'headline', value: 'x', revision: 3 }, ID, { origin: 'https://evil.example' })).status).toBe(403)
+  as('ryan@avenuez.com')
+  expect((await patch({ path: 'headline', value: 'x', revision: 3 })).status).toBe(200)
+  m.readSettings.mockReset()
+})
