@@ -24,3 +24,15 @@ test('a real refusal still shows no access', async () => {
   await page()
   expect(screen.getByText(/limited to the New Business team/)).toBeInTheDocument()
 })
+
+test('#396: a refusal or a missing snapshot renders no editor marker, so the page keeps the width cap', async () => {
+  m.access.mockResolvedValue({ ok: false, admins: [], reason: 'forbidden' })
+  const refused = await page()
+  expect(refused.container.querySelector('[data-aeo-editor]')).toBeNull()
+  cleanup()
+  m.access.mockResolvedValue({ ok: true, settings: {} })
+  m.getReport.mockResolvedValue(null)
+  const missing = await page()
+  expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
+  expect(missing.container.querySelector('[data-aeo-editor]')).toBeNull()
+})

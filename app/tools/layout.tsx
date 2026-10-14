@@ -20,7 +20,9 @@ export default async function ToolsLayout({
         <Sidebar user={session.user} />
       </Suspense>
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-7xl px-8 py-8">{children}</div>
+        {/* Spec 2026-10-14 editor space (#396): the report editor marks its root, and only there the 1280px cap and half
+            the bottom padding go, so the report fills the screen. Every other tools page is unchanged. */}
+        <div className="mx-auto max-w-7xl px-8 py-8 has-[[data-aeo-editor]]:max-w-none has-[[data-aeo-editor]]:pb-4">{children}</div>
       </main>
     </div>
   )

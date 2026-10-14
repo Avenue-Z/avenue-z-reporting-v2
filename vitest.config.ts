@@ -86,6 +86,7 @@ export default defineConfig({
       'lib/aeo-outbound/**/*.test.{ts,tsx}',
       'app/api/aeo-outbound/**/*.test.{ts,tsx}',
       'app/tools/new-business/**/*.test.{ts,tsx}',
+      'app/tools/layout.test.tsx',
       'app/snapshot/**/*.test.{ts,tsx}',
       'components/aeo-outbound/**/*.test.{ts,tsx}',
     ],
