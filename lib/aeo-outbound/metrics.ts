@@ -63,6 +63,13 @@ export interface SnapshotData {
   ownSites?: OwnSite[]
   /** Version 2: the settings this generation used. */
   settingsUsed?: SettingsUsed
+  /** Spec v1.1 §19.5: 1 on rows whose context, findings and methodology code wrote (sentences.ts). Absent on older rows,
+   *  whose Glean text and grounding stay exactly as they were. */
+  sentences?: 1
+  /** Spec v1.1 §19.5: 1 plus the domains with more retrieved chats than the most retrieved own site; null when none. */
+  ownSiteRank?: number | null
+  /** Spec v1.1 §19.5: the ranked roster brands with no Peec row (zero visibility), in rank order. */
+  noDataBrands?: string[]
 }
 
 /** Python's round(x, dp): correctly rounded from the exact binary value, ties to even (symmetric for negatives). */
@@ -87,9 +94,20 @@ export function fmtDay(iso: string): string {
   return `${MONTHS[m - 1]} ${d}, ${y}`
 }
 
+/** The US Eastern calendar day of an instant as 'YYYY-MM-DD'. */
+const easternIso = (d: Date): string => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+
 /** The US Eastern calendar day of an instant, formatted like fmtDay (spec §5 row 10). */
 export function fmtEasternDay(d: Date): string {
-  return fmtDay(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d))
+  return fmtDay(easternIso(d))
+}
+
+/** The Prepared date (spec v1.1 §19.8): the later of the Eastern day of `now` and the data window's last UTC day, so an
+ *  evening pitch run whose data sits on the next UTC day never shows a window ending after the Prepared date. */
+export function preparedDay(now: Date, windowEnd: string): string {
+  const today = easternIso(now)
+  const end = windowEnd.slice(0, 10)
+  return fmtDay(end > today ? end : today)
 }
 
 const TITLE: Record<string, string> = {
@@ -160,23 +178,23 @@ export function buildSnapshotData(
       note('high_visibility', `${b.name} shows ${b.visibilityPct.toFixed(1)}% AI visibility, which is unusually high. Check this brand's setup in Peec before sending: a name that is a common word can match unrelated answers.`)
     }
   }
+  const windowLabel = pull.window.start === pull.window.end ? fmtDay(pull.window.start) : `${fmtDay(pull.window.start)} to ${fmtDay(pull.window.end)}`
   if (pull.rangePicked && (pull.requested.start !== pull.window.start || pull.requested.end !== pull.window.end)) {
-    note('requested_range', `Requested ${pull.requested.start} to ${pull.requested.end}; Peec data covers ${pull.window.start} to ${pull.window.end}.`)
+    note('requested_range', `You asked for ${fmtDay(pull.requested.start)} to ${fmtDay(pull.requested.end)}. Peec has data for ${windowLabel}, so the report covers those days.`)
   }
 
-  // Spec 5a row 17: competitor minus own from the exact ratios, rounded once at the end. Every brand with a
-  // higher displayed visibility is listed, at least 0.1 points, so the gaps always agree with the rank card;
-  // a tied brand is never a leader (spec 18.1).
-  const ownEntry = byId.get(own.id)!
-  const leaderGaps = ranked
-    .filter((e) => e.hasRow && e.pct > own.visibilityPct)
+  // Spec v1.1 §19.4 (supersedes 5a row 17 and 18.1): competitor minus own from the printed 1-decimal values, in tenths,
+  // so a gap always equals the difference of the two numbers on the page, as in Ryan's example. Every brand with a
+  // higher displayed visibility is listed, so the gaps agree with the rank card; a tied brand is never a leader.
+  const tenths = (a: number, b: number) => Math.round((a - b) * 10) / 10
+  const leaderGaps = brands
+    .filter((b) => b.visibilityPct > own.visibilityPct)
     .map((rival) => ({
       name: rival.name,
-      visibilityPoints: Math.max(0.1, pyRound((rival.visibility - ownEntry.visibility) * 100, 1)),
-      sovPoints: typeof rival.share_of_voice === 'number' && typeof ownEntry.share_of_voice === 'number'
-        ? pyRound((rival.share_of_voice - ownEntry.share_of_voice) * 100, 1)
-        : null,
+      visibilityPoints: tenths(rival.visibilityPct, own.visibilityPct),
+      sovPoints: rival.sovPct !== null && own.sovPct !== null ? tenths(rival.sovPct, own.sovPct) : null,
     }))
+  const noDataBrands = ranked.filter((e) => !e.hasRow && e.id !== pull.ownBrand.id).map((e) => e.name)
 
   // v1.1 §9: each own domain keeps its own count and percentage; the sum is never paired with one domain's percentage.
   const ownDomains = (pull.ownBrand.domains ?? []).map(bare)
@@ -193,6 +211,8 @@ export function buildSnapshotData(
     .sort((a, b) => (b.retrievedChats - a.retrievedChats) || (a.domain < b.domain ? -1 : 1))
   const ownRetrievedChats = ownSites.reduce((s, x) => s + x.retrievedChats, 0)
   const ownRetrievedPct = ownSites.length === 1 ? ownSites[0].retrievedPct : null
+  const topOwn = ownSites[0]
+  const ownSiteRank = topOwn && topOwn.retrievedChats > 0 ? 1 + pull.domains.filter((r) => (r.retrieved_chat_count ?? 0) > topOwn.retrievedChats).length : null
   if (!ownRows.length) note('own_domains', "No retrievals of the brand's own site in this window.")
   if (ownRows.length > 1) note('own_domains', `The brand has ${ownRows.length} own domains with retrievals; each is listed with its own count and percentage.`)
 
@@ -233,7 +253,7 @@ export function buildSnapshotData(
     brand: pull.ownBrand.name,
     generatedAt,
     window: pull.window,
-    windowLabel: pull.window.start === pull.window.end ? fmtDay(pull.window.start) : `${fmtDay(pull.window.start)} to ${fmtDay(pull.window.end)}`,
+    windowLabel,
     category: pull.profile?.industry ?? null,
     market: pull.profile?.markets.length ? pull.profile.markets.join(', ') : null,
     brands,
@@ -254,6 +274,9 @@ export function buildSnapshotData(
     projectStatus: pull.project.status,
     ownSites,
     settingsUsed: { rankAmong: decisions.rankAmong, peecOpportunityRows: used.peecOpportunityRows, methodologyStatesPromptsAndModels: used.methodologyStatesPromptsAndModels, fixedNextStep: used.fixedNextStep },
+    sentences: 1,
+    ownSiteRank,
+    noDataBrands,
   }
 }
 

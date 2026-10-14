@@ -150,6 +150,10 @@ export const STORED_DATA = z.looseObject({
   gapDomains: z.array(z.looseObject({ domain: z.string(), retrievedChats: z.number() })),
   actions: z.array(z.looseObject({ title: z.string(), impact: z.string(), type: z.string() })),
   promptCount: z.number().nullable(), models: z.array(z.string()), notes: STORED_NOTES,
+  // Spec v1.1 §19.5: on rows generated with code-written sentences; absent on older rows.
+  sentences: z.literal(1).optional(),
+  ownSiteRank: z.number().int().min(1).nullable().optional(),
+  noDataBrands: z.array(z.string()).optional(),
 })
 const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })
 /** Stored slots: the copy keys always, the v1.1 keys when the row has them. */

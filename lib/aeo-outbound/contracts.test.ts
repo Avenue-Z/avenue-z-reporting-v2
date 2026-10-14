@@ -171,6 +171,17 @@ test('the stored contracts accept what metrics and slots write today, version 1 
   expect(checkContract('stored.slots', STORED_SLOTS, withDefaults(V1_SLOTS, v2), 'enforce', {})).toEqual({ ok: true })
 })
 
+test('stored data declares the spec v1.1 §19.5 fields: optional, and refused when the wrong shape', () => {
+  const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
+  expect([v2.sentences, v2.ownSiteRank, v2.noDataBrands]).toEqual([1, 1, []])
+  const { sentences: _s, ownSiteRank: _r, noDataBrands: _n, ...older } = v2
+  expect(checkContract('stored.data', STORED_DATA, older, 'enforce', {})).toEqual({ ok: true })
+  expect(checkContract('stored.data', STORED_DATA, { ...v2, ownSiteRank: null }, 'enforce', {})).toEqual({ ok: true })
+  for (const bad of [{ sentences: 2 }, { ownSiteRank: 0 }, { ownSiteRank: 1.5 }, { noDataBrands: [3] }]) {
+    expect(checkContract('stored.data', STORED_DATA, { ...v2, ...bad }, 'enforce', {}).ok).toBe(false)
+  }
+})
+
 test('the settings row refuses a whitespace-only or long-dash name, and accepts ordinary free text', () => {
   const row = { users: [], admins: [], sectionTitles: ['A', 'B'], fixedNextStep: null, rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'AEO Lens', series: 'AEO Lens Report', updatedAt: new Date('2026-10-10T09:00:00.000Z') }
   expect(SETTINGS_ROW.safeParse(row).success).toBe(true)
