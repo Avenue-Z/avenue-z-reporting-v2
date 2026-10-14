@@ -1255,7 +1255,11 @@ methodology }`, a pure function of the row's data. Generation puts its output in
 Formatting rules, used by every sentence:
 - **Percent in a sentence:** the 1-decimal value the page shows (`visibilityPct`, `sovPct`, `retrievedPct`,
   `sourceMix[].pct`) rounded half up to a whole number, so "15.1%" on the card reads "15%" in the sentence (Ryan's example).
-  KPI cards and charts keep one decimal (unchanged).
+  Below 10 it keeps its one decimal, and a value below 100 never reads "100%" (ruling during Task 38: whole numbers made
+  a 1.3% leader and a 1.1% brand both read "1%" while ranked apart, and 99.8% read "100%"). KPI cards and charts keep
+  one decimal (unchanged). "Strong category position" also needs at least half the leader's visibility (ruling during
+  Task 38: third of five at 1.1% against a 97.8% leader read "strong"). "respectively" is used only when both leaders'
+  share-of-voice gaps are positive, so it has two things to refer back to.
 - **Points:** one decimal, from the displayed values (§19.4), e.g. "10.9 percentage points".
 - **Counts:** under 1,000 as digits ("142"); otherwise thousands to one decimal, rounded half up in integer arithmetic
   (`Math.round(n / 100) / 10`, so 9,950 is "10.0K"), and from 999,950 millions the same way ("1.0M"). "approximately"
