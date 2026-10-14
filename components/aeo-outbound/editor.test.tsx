@@ -822,22 +822,31 @@ test('a draft refreshes its page data once when it opens, so the panel, brand an
 })
 
 test('the report load retries a 503 twice, after 1 and 2 seconds, before showing its error', async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true })
+  // A fully fake clock, stepped exactly, so the test does not depend on how busy the machine is.
+  vi.useFakeTimers()
   let n = 0
   viewAnswer = () => (++n <= 2 ? new Response('Unavailable', { status: 503 }) : new Response('<p>ok</p>'))
   const { container } = render(<OutboundEditor {...base} />)
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  expect(n).toBe(1)
   await act(() => vi.advanceTimersByTimeAsync(999))
   expect(n).toBe(1)
-  await act(() => vi.advanceTimersByTimeAsync(2001))
-  await waitFor(() => expect(frameIn(container)?.getAttribute('srcdoc')).toBe('<p>ok</p>'))
+  await act(() => vi.advanceTimersByTimeAsync(1))
+  expect(n).toBe(2)
+  await act(() => vi.advanceTimersByTimeAsync(1999))
+  expect(n).toBe(2)
+  await act(() => vi.advanceTimersByTimeAsync(1))
   expect(n).toBe(3)
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  expect(frameIn(container)?.getAttribute('srcdoc')).toBe('<p>ok</p>')
   cleanup()
   n = 0
   viewAnswer = () => { n++; return new Response('Unavailable', { status: 503 }) }
   render(<OutboundEditor {...base} />)
-  await act(() => vi.advanceTimersByTimeAsync(3500))
-  expect(await screen.findByText('Lost connection.')).toBeInTheDocument()
+  await act(() => vi.advanceTimersByTimeAsync(3000))
+  await act(() => vi.advanceTimersByTimeAsync(0))
   expect(n).toBe(3)
+  expect(screen.getByText('Lost connection.')).toBeInTheDocument()
 })
 
 test('a stopped queue makes the frame read-only, and Edit cannot hand it edit mode back', async () => {
