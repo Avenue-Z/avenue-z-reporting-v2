@@ -163,7 +163,7 @@ export const toolbarHeightVar = (h: number): string => `${Math.ceil(h)}px`
     const measure = () => rootEl.style.setProperty(TOOLBAR_HEIGHT_VAR, toolbarHeightVar(bar.getBoundingClientRect().height))
     measure()
     const watch = new ResizeObserver(measure)
-    watch.observe(bar)
+    watch.observe(bar, { box: 'border-box' })
     return () => watch.disconnect()
   }, [])
 ```

@@ -73,7 +73,7 @@ expanded:
   pixel and written as `<n>px`. It is read with `getBoundingClientRect().height` of the toolbar element
   (`editor.tsx:448`), never `contentRect` (which leaves out `py-3` and the border, about 25px short).
 - How T is kept: a layout effect, only when `typeof ResizeObserver !== 'undefined'`, measures the toolbar once and then
-  on every `ResizeObserver` callback, and writes the variable straight onto the editor's root element with
+  on every `ResizeObserver` callback (observing the toolbar's border box, `{ box: 'border-box' }`, so a padding or border change is seen too), and writes the variable straight onto the editor's root element with
   `style.setProperty`. No React state, so no extra render, and the write lands in the same frame as the resize (a
   `ResizeObserver` callback runs after layout and before paint), so the frame never lags the toolbar. The observer is
   disconnected on unmount. The root element has no `style` prop, so React never overwrites the variable; this must stay

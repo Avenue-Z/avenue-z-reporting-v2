@@ -962,15 +962,17 @@ test('#396: the frame and the loading box fill the screen under the toolbar, flo
 test('#396: the toolbar height follows the toolbar, measured as its border box, and stops being watched on unmount', async () => {
   let height = 51
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ height, width: 0, top: 0, left: 0, bottom: height, right: 0, x: 0, y: 0, toJSON: () => ({}) }))
-  const watchers: { cb: () => void; disconnect: ReturnType<typeof vi.fn> }[] = []
+  const watchers: { cb: () => void; disconnect: ReturnType<typeof vi.fn>; boxes: unknown[] }[] = []
   vi.stubGlobal('ResizeObserver', class {
-    cb: () => void; disconnect = vi.fn()
+    cb: () => void; disconnect = vi.fn(); boxes: unknown[] = []
     constructor(cb: () => void) { this.cb = cb; watchers.push(this) }
-    observe() {}
+    observe(_el: Element, opts?: { box?: string }) { this.boxes.push(opts?.box) }
     unobserve() {}
   })
   const { container, unmount } = await setup()
   expect(root(container).style.getPropertyValue('--aeo-toolbar-h')).toBe('51px')
+  // The border box, so a change to the toolbar's padding or border is seen too, not only its content.
+  expect(watchers.flatMap((w) => w.boxes)).toEqual(['border-box'])
   height = 75
   act(() => { for (const w of watchers) w.cb() })
   expect(root(container).style.getPropertyValue('--aeo-toolbar-h')).toBe('75px')

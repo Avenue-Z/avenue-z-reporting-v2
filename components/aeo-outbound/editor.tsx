@@ -299,7 +299,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
     const measure = () => rootEl.style.setProperty(TOOLBAR_HEIGHT_VAR, toolbarHeightVar(bar.getBoundingClientRect().height))
     measure()
     const watch = new ResizeObserver(measure)
-    watch.observe(bar)
+    watch.observe(bar, { box: 'border-box' })
     return () => watch.disconnect()
   }, [])
 
