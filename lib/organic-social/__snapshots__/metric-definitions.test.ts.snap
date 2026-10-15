@@ -55,7 +55,6 @@ exports[`the texts are the appendix, verbatim 1`] = `
       "netNewFollowers": "The net new number of people who have followed your account.",
       "profileViews": "The number of times your profile was viewed.",
       "shares": "The number of times your posts were shared.",
-      "videoViews": "The number of times your videos were viewed.",
     },
     "TWITTER": {
       "engagementRate": "The percentage of people who engaged with your posts after seeing them.",
