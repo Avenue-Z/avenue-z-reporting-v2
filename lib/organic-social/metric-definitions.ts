@@ -47,7 +47,7 @@ export const ORGANIC_SOCIAL_DEFINITIONS: Record<DashChannel, Record<string, stri
   TIKTOK: {
     followers: FOLLOWERS, netNewFollowers: NET_NEW, exposure: VIEWS,
     engagements: engagements('Organic Likes + Comments + Shares + Favorites.'),
-    engagementRate: ENGAGEMENT_RATE, profileViews: PROFILE_VIEWS, videoViews: VIDEO_VIEWS,
+    engagementRate: ENGAGEMENT_RATE, profileViews: PROFILE_VIEWS,
     likes: LIKES, comments: COMMENTS, shares: SHARES,
     favorites: 'The total number of times your posts have been added to favorites.',
     completionRate: 'The percentage of viewers that watched your videos to completion.',
