@@ -91,11 +91,11 @@ test('noData stays No data: a month Dash returned all null is returned untouched
   expect(applySheetToTiles(b, 'INSTAGRAM', '2026-09', '2026-08', { current: tab('INSTAGRAM', { 9: n(1) }, { 9: n(1) }), prior: null })).toBe(b)
 })
 
-test('TikTok Video Views reads Views, so it follows the sheet too', () => {
+test('TikTok Views follows the sheet, and no Video Views row repeats it', () => {
   const out = applySheetToTiles(built('TIKTOK'), 'TIKTOK', '2026-09', '2026-08', { current: tab('TIKTOK', {}, { 9: n(4321) }), prior: null })
   const rows = selectOutlineRows('TIKTOK', out, OUTLINE_DATA_ROWS.standard.TIKTOK!)
-  expect(rows.kpis.find((k) => k.key === 'videoViews')?.value).toBe(4321)
   expect(rows.kpis.find((k) => k.key === 'exposure')?.value).toBe(4321)
+  expect(rows.kpis.find((k) => k.key === 'videoViews')).toBeUndefined()
 })
 
 test('finishedMonthOnScreen with real clocks: the live month stays live until New York\'s midnight, summer and winter', () => {
