@@ -58,7 +58,7 @@ export const EDIT = 'Edit'
 export const DONE_EDITING = 'Done editing'
 export const EDIT_COPY = 'Edit a copy'
 export const EDIT_COPY_HINT = 'This report is frozen. Editing makes a new draft.'
-export const EDIT_BANNER = 'Editing. Click any outlined text to change it. Changes save automatically. Charts come from Peec: to change them, change the dates and Rerun.'
+export const EDIT_BANNER = "Editing. Click any outlined text to change it. Changes save automatically. Charts come from Peec and can't be edited. For other dates, start a new report from the main page."
 /** Rerun keeps the report's dates (generate route refuses new ones on a rerun), so other dates mean a new report. */
 export const LOCKED_CHART = "Charts come from Peec data and can't be edited. For other dates, start a new report from the main page."
 export const LOCKED_FIXED = 'This part is set automatically.'
