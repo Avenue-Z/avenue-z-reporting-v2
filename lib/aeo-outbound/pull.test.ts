@@ -305,3 +305,10 @@ test('a brands report row with no brand, or domain rows with no domain, fail as 
   const d = fakePeec({ ...base, '/reports/domains': (_u, x) => (x?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [noDomain, noDomain]) })
   await expect(pullSnapshot(d.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.domains_report.domain' })
 })
+
+test("2026-10-19: the pull records its own UTC day, which the same-day note compares with the window's last day", async () => {
+  const { client } = fakePeec(base)
+  expect((await pullSnapshot(client, 'or_a', NOW)).pulledDay).toBe('2026-10-08')
+  expect((await pullSnapshot(client, 'or_a', Date.parse('2026-10-08T23:59:59Z'))).pulledDay).toBe('2026-10-08')
+  expect((await pullSnapshot(client, 'or_a', Date.parse('2026-10-09T00:00:00Z'))).pulledDay).toBe('2026-10-09')
+})

@@ -22,6 +22,7 @@ export const LIVE_SHAPE_PULL: PeecPull = {
   requested: { start: '2026-09-20', end: '2026-09-26' },
   rangePicked: true,
   window: { start: '2026-09-20', end: '2026-09-21' },
+  pulledDay: '2026-09-22',
   brands: [
     { brand: { id: 'kw_lead', name: 'Carefinder' }, visibility: 0.977818853974122, share_of_voice: 0.9976087996174079, position: 1.0782122905027933 },
     { brand: { id: 'kw_run', name: 'Caringly' }, visibility: 0.012939001848428836, share_of_voice: 0.001275306870715766, position: 1.8571428571428572 },

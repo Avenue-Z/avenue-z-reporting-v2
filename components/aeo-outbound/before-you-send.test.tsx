@@ -46,3 +46,12 @@ test('the header has a Minimize button that calls onMinimize', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Minimize' }))
   expect(onMinimize).toHaveBeenCalledTimes(1)
 })
+
+test('2026-10-19 (Ryan): the same-day data note is a Check these item with its own Looks right tick, counted until ticked', () => {
+  const text = "This report includes Oct 19, 2026, the day it was generated, and Peec can still update that day's data. Rerun just before sending so the numbers match Peec."
+  render(<Harness notes={[{ kind: 'same_day_data', text }]} />)
+  expect(screen.getByText(text)).toBeInTheDocument()
+  expect(screen.getByTestId('count')).toHaveTextContent('1')
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Looks right' }))
+  expect(screen.getByTestId('count')).toHaveTextContent('0')
+})

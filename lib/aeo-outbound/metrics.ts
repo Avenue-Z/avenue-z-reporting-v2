@@ -187,6 +187,12 @@ export function buildSnapshotData(
   if (pull.rangePicked && (pull.requested.start !== pull.window.start || pull.requested.end !== pull.window.end)) {
     note('requested_range', `You asked for ${fmtDay(pull.requested.start)} to ${fmtDay(pull.requested.end)}. Peec has data for ${windowLabel}, so the report covers those days.`)
   }
+  // 2026-10-19 (Ryan): data on the pull's own UTC day can still change in Peec, which made a report differ from the
+  // dashboard; a Check these item asks for a Rerun before sending. The pull's instant decides, not generatedAt, which a
+  // run crossing midnight UTC could put on the next day.
+  if (pull.window.end === pull.pulledDay) {
+    note('same_day_data', `This report includes ${fmtDay(pull.window.end)}, the day it was generated, and Peec can still update that day's data. Rerun just before sending so the numbers match Peec.`)
+  }
 
   // Spec v1.1 §19.4 (supersedes 5a row 17 and 18.1): competitor minus own from the printed 1-decimal values, in tenths,
   // so a gap always equals the difference of the two numbers on the page, as in Ryan's example. Every brand with a

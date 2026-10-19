@@ -31,6 +31,7 @@ const PULL: PeecPull = {
   requested: { start: '2026-09-09', end: '2026-10-08' },
   rangePicked: true,
   window: { start: '2026-10-01', end: '2026-10-08' },
+  pulledDay: '2026-10-09',
   brands: [
     { brand: { id: 'kw_b', name: 'Beta' }, visibility: 0.185, share_of_voice: 0.169, position: 3.1 },
     { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.151, share_of_voice: 0.159, position: 3.06 },
@@ -465,4 +466,17 @@ test("2026-10-19 Peec parity: the source mix weights by usage_rate, as Peec's da
   const old = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z', { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' })
   expect(old.sourceMix.map((s) => [s.label, s.pct])).toEqual([['Competitor', 66.7], ['Editorial', 33.3]])
   expect(old.sourceMixWeight).toBe('retrieval_count')
+})
+
+test("2026-10-19 (Ryan): a report whose window ends on the pull's own UTC day says Peec can still update it, under Check these", () => {
+  const same = buildSnapshotData({ ...PULL, pulledDay: '2026-10-08' }, '2026-10-08T15:00:00Z')
+  const n = same.notes.filter((x) => typeof x !== 'string' && x.kind === 'same_day_data') as Note[]
+  expect(n).toEqual([{ kind: 'same_day_data', text: "This report includes Oct 8, 2026, the day it was generated, and Peec can still update that day's data. Rerun just before sending so the numbers match Peec." }])
+  // The pull's day decides, not generatedAt: a run whose pull fell on Oct 8 still warns when it finishes after midnight.
+  const late = buildSnapshotData({ ...PULL, pulledDay: '2026-10-08' }, '2026-10-09T00:01:00Z')
+  expect(late.notes.some((x) => typeof x !== 'string' && x.kind === 'same_day_data')).toBe(true)
+  for (const pulledDay of ['2026-10-09', '2026-11-30']) {
+    const later = buildSnapshotData({ ...PULL, pulledDay }, '2026-10-08T15:00:00Z')
+    expect(later.notes.some((x) => typeof x !== 'string' && x.kind === 'same_day_data'), pulledDay).toBe(false)
+  }
 })

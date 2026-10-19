@@ -180,7 +180,7 @@ const PULL: PeecPull = {
   ownBrand: { id: 'kw_own', name: 'Example Co', is_own: true, domains: ['example.com'] },
   profile: { industry: 'Fintech', markets: ['United States'] },
   requested: { start: '2026-09-09', end: '2026-10-08' }, rangePicked: true,
-  window: { start: '2026-10-01', end: '2026-10-08' },
+  window: { start: '2026-10-01', end: '2026-10-08' }, pulledDay: '2026-10-09',
   brands: [
     { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.151, share_of_voice: 0.159, position: 3.06 },
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },

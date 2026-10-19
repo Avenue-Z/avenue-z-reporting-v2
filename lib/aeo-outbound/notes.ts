@@ -6,7 +6,7 @@ export const NOTE_KINDS = [
   'high_visibility', 'missing_metric', 'no_competitors', 'no_data_brands',
   // Spec v1.1 §19.3: a number in a field Glean wrote, and a "Peec recommends" line Peec's actions don't back.
   'unchecked_number', 'peec_recommends',
-  'rank_basis', 'requested_range', 'project', 'peec_warning', 'own_domains', 'empty_source_mix', 'no_profile',
+  'rank_basis', 'requested_range', 'same_day_data', 'project', 'peec_warning', 'own_domains', 'empty_source_mix', 'no_profile',
 ] as const
 export type NoteKind = (typeof NOTE_KINDS)[number]
 /** path is the full slot path when the note is about one field (for example competitive_bullets.0.lead). */

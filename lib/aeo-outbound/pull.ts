@@ -4,7 +4,7 @@
 import { DECISIONS, MAX_WINDOW_DAYS, PITCH_STATUSES } from './config'
 import { peecContract } from './contracts'
 import { isPeecContractViolation, isPeecDeadline, isPeecRowCap, PeecClient, PeecError, rowsOf } from './peec'
-import { defaultRange, type DayRange } from './range'
+import { defaultRange, todayUtc, type DayRange } from './range'
 
 export interface PeecProject { id: string; name: string; status: string }
 export interface RosterBrand { id: string; name: string; is_own: boolean; domains?: string[] | null }
@@ -38,6 +38,8 @@ export interface PeecPull {
   rangePicked: boolean
   /** The days inside it that carry data. */
   window: { start: string; end: string }
+  /** 2026-10-19: the UTC day of the pull's own instant (nowMs). A window ending on it holds data Peec can still update. */
+  pulledDay: string
   brands: BrandReportRow[]
   domains: DomainRow[]
   actions: ActionRow[]
@@ -156,7 +158,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   }
 
   return {
-    project, roster, ownBrand: owned[0], profile, requested, rangePicked: range != null, window, brands, domains, actions,
+    project, roster, ownBrand: owned[0], profile, requested, rangePicked: range != null, window, pulledDay: todayUtc(nowMs), brands, domains, actions,
     promptCount: typeof prompts?.total_count === 'number' ? prompts.total_count : null,
     models,
     warnings,
