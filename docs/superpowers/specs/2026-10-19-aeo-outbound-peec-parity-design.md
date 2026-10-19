@@ -92,8 +92,12 @@ when a report includes today's data, **yes**.
 - UNVERIFIED: that only the current UTC day can still change in Peec (a day just ended might too, shortly after
   midnight UTC), and that Peec's `date` is UTC (the tool's own assumption, `range.ts:1`). The note states only what the
   evidence shows: the day's data can still update.
-- Text: `This report includes {fmtDay(window.end)}, the day it was generated, and Peec can still update that day's
-  data. Rerun just before sending so the numbers match Peec.`
+- Text (revised after Paul's #403 review): `This report includes {fmtDay(window.end)}, and Peec can still update that
+  day's data, so these numbers may change. Rerun later to pick up Peec's latest numbers{L}.` where {L} is `, or, to
+  leave that day out, start a new report that ends {fmtDay(the day before)}` only when `window.start < window.end`
+  (a one-day project has nothing before it). A rerun keeps the dates (`generate/route.ts:59-67`), so it can warn
+  again; the advice no longer promises otherwise. The day is the window's own, as the report's Data window prints it
+  (UTC, `metrics.ts:186`), not "the day it was generated", which a late-evening Eastern run would read as tomorrow.
 - A rerun is a new generation, so its own check runs again (`generate/route.ts:59-67`, verified live 2026-10-19).
 
 ## 5. What does not change

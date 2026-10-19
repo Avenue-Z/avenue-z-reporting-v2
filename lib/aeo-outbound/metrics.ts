@@ -188,10 +188,14 @@ export function buildSnapshotData(
     note('requested_range', `You asked for ${fmtDay(pull.requested.start)} to ${fmtDay(pull.requested.end)}. Peec has data for ${windowLabel}, so the report covers those days.`)
   }
   // 2026-10-19 (Ryan): data on the pull's own UTC day can still change in Peec, which made a report differ from the
-  // dashboard; a Check these item asks for a Rerun before sending. The pull's instant decides, not generatedAt, which a
-  // run crossing midnight UTC could put on the next day.
+  // dashboard. The pull's instant decides, not generatedAt, which a run crossing midnight UTC could put on the next day.
+  // Paul (#403): a rerun keeps the dates (generate route), so it can warn again; leaving the day out is offered only
+  // when the window has an earlier day with data, since a one-day project has nothing before it. The day is named as
+  // the report's Data window names it (UTC), not as "the day it was generated".
   if (pull.window.end === pull.pulledDay) {
-    note('same_day_data', `This report includes ${fmtDay(pull.window.end)}, the day it was generated, and Peec can still update that day's data. Rerun just before sending so the numbers match Peec.`)
+    const dayBefore = new Date(Date.parse(`${pull.window.end}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+    const leaveOut = pull.window.start < pull.window.end ? `, or, to leave that day out, start a new report that ends ${fmtDay(dayBefore)}` : ''
+    note('same_day_data', `This report includes ${fmtDay(pull.window.end)}, and Peec can still update that day's data, so these numbers may change. Rerun later to pick up Peec's latest numbers${leaveOut}.`)
   }
 
   // Spec v1.1 §19.4 (supersedes 5a row 17 and 18.1): competitor minus own from the printed 1-decimal values, in tenths,

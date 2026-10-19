@@ -471,7 +471,15 @@ test("2026-10-19 Peec parity: the source mix weights by usage_rate, as Peec's da
 test("2026-10-19 (Ryan): a report whose window ends on the pull's own UTC day says Peec can still update it, under Check these", () => {
   const same = buildSnapshotData({ ...PULL, pulledDay: '2026-10-08' }, '2026-10-08T15:00:00Z')
   const n = same.notes.filter((x) => typeof x !== 'string' && x.kind === 'same_day_data') as Note[]
-  expect(n).toEqual([{ kind: 'same_day_data', text: "This report includes Oct 8, 2026, the day it was generated, and Peec can still update that day's data. Rerun just before sending so the numbers match Peec." }])
+  // Paul (#403): the advice must be true. A rerun keeps the dates, so it can warn again; leaving the day out is offered
+  // only when the window has an earlier day with data. The day named is the window's own, as the report's Data window
+  // prints it (UTC), never "the day it was generated", which a late-evening Eastern run would read as tomorrow.
+  expect(n).toEqual([{ kind: 'same_day_data', text: "This report includes Oct 8, 2026, and Peec can still update that day's data, so these numbers may change. Rerun later to pick up Peec's latest numbers, or, to leave that day out, start a new report that ends Oct 7, 2026." }])
+  const oneDay = buildSnapshotData({ ...PULL, window: { start: '2026-10-08', end: '2026-10-08' }, pulledDay: '2026-10-08' }, '2026-10-08T15:00:00Z')
+  expect(oneDay.notes.filter((x) => typeof x !== 'string' && x.kind === 'same_day_data')).toEqual([{ kind: 'same_day_data', text: "This report includes Oct 8, 2026, and Peec can still update that day's data, so these numbers may change. Rerun later to pick up Peec's latest numbers." }])
+  // Across a month boundary the day before is computed on the calendar.
+  const firstDay = buildSnapshotData({ ...PULL, window: { start: '2026-09-28', end: '2026-10-01' }, pulledDay: '2026-10-01' }, '2026-10-01T15:00:00Z')
+  expect(texts(firstDay.notes).find((t) => t.startsWith('This report includes'))).toContain('start a new report that ends Sep 30, 2026.')
   // The pull's day decides, not generatedAt: a run whose pull fell on Oct 8 still warns when it finishes after midnight.
   const late = buildSnapshotData({ ...PULL, pulledDay: '2026-10-08' }, '2026-10-09T00:01:00Z')
   expect(late.notes.some((x) => typeof x !== 'string' && x.kind === 'same_day_data')).toBe(true)

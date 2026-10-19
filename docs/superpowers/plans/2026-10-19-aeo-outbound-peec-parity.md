@@ -22,8 +22,8 @@ MAJOR resolved by my decision: the four-part multi-day check in §8).
 - `sliceLabel(pct)`: `r = Math.round(pct)`; `r === 0` → `<1%`; `r === 100 && pct < 100` → `>99%`; else `${r}%`.
 - Donut trace: `textinfo: 'text'`, `text: mix.map((m) => sliceLabel(m.pct))`, hover `<b>%{label}</b><br>%{text}<extra></extra>`.
 - Data block line for a `usage_rate` row: `Source types by share of AI use (Peec's usage rate): …`; every other row unchanged.
-- Note kind `same_day_data`, text exactly: `This report includes ${fmtDay(window.end)}, the day it was generated, and Peec
-  can still update that day's data. Rerun just before sending so the numbers match Peec.`; written when
+- Note kind `same_day_data`, text exactly as spec §4 states it (revised after Paul's #403 review: no "the day it was
+  generated", and "Rerun later" with the leave-the-day-out option only for a multi-day window); written when
   `pull.window.end === pull.pulledDay`; `PeecPull.pulledDay` required, `todayUtc(nowMs)`.
 - `SENTENCES_VERSION` unchanged. No em or en dashes. Comments match the surrounding code.
 
