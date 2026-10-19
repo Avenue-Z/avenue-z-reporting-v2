@@ -482,7 +482,7 @@ test('a draft opens in Preview; ready gets the mode; Edit switches to edit mode 
   expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: false }, '*')
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   expect(post.mock.calls.slice(-2)).toEqual([[{ type: 'flush' }, '*'], [{ type: 'mode', edit: true }, '*']])
-  expect(screen.getByText('Editing. Click any outlined text to change it. Changes save automatically. Charts come from Peec: to change them, change the dates and Rerun.')).toBeInTheDocument()
+  expect(screen.getByText("Editing. Click any outlined text to change it. Changes save automatically. Charts come from Peec and can't be edited. For other dates, start a new report from the main page.")).toBeInTheDocument()
   await fromFrame(iframe, { type: 'ready' })
   expect(post).toHaveBeenLastCalledWith({ type: 'mode', edit: true }, '*')
   fireEvent.click(screen.getByRole('button', { name: 'Done editing' }))
