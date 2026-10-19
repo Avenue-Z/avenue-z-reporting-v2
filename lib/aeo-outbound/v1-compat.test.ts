@@ -40,7 +40,7 @@ const v11 = (html: string) => {
     expect(h.split(from)).toHaveLength(n + 1)
     return h.split(from).join(to)
   }
-  let out = html.split('Citations: %{value}').join('Retrievals: %{value}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script><script>${PAGE_JS}</script>`).split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
+  let out = html.split('Citations: %{value}').join('%{text}').split(aivx).join(`${aivx}<script>${HEADER_CLONE_JS}</script><script>${PAGE_JS}</script>`).split(V10_LOGO).join('<div class="aivx-brand">Avenue Z</div>')
   // v1.1 §17: the page stylesheet after AIVx's, the data-label on each opportunities cell, aeo-long on the long rank value.
   out = once(out, `<style>${AIVX_CSS}</style>`, `<style>${AIVX_CSS}</style><style>${PAGE_CSS}</style>`)
   out = once(out, '<tr><td>', '<tr><td data-label="Signal">', 3)
@@ -48,6 +48,9 @@ const v11 = (html: string) => {
   out = once(out, '</td><td>Investigate</td><td>PR / earned media', '</td><td data-label="Opportunity to explore">Investigate</td><td data-label="Likely workstream">PR / earned media')
   out = once(out, '</td><td>Test content</td><td>Content / AEO', '</td><td data-label="Opportunity to explore">Test content</td><td data-label="Likely workstream">Content / AEO')
   out = once(out, '<div class="kpi-value">#3 of 3 brands</div>', '<div class="kpi-value aeo-long">#3 of 3 brands</div>')
+  // 2026-10-19 (Ryan): the source donut labels each slice with the whole number of its stored pct (charts.ts sliceLabel), and
+  // its hover reads that label (above), where v1.0 printed Plotly's percent and the weight.
+  out = once(out, '"textinfo":"percent"', '"textinfo":"text","text":["54%","34%","9%","4%"]')
   // v1.1 §17.11: a sent report carries no Share button, so the golden's three share pieces are removed (button once, toast
   // and script once each, as one contiguous block).
   out = removeShare(out)

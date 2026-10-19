@@ -226,8 +226,8 @@ test('a link to a hash with no section is not prevented', () => {
 })
 
 // The donut (v1.1 §17.2): Plotly and matchMedia are stubs; the tests prove the calls.
-const MIX = [{ label: 'Reference', weight: 4.8 }, { label: 'Corporate', weight: 60.3 }, { label: 'You', weight: 34.9 }]
-function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; mix?: typeof MIX } = {}) {
+const MIX = [{ label: 'Reference', weight: 4.8, pct: 4.8 }, { label: 'Corporate', weight: 60.3, pct: 60.3 }, { label: 'You', weight: 34.9, pct: 34.9 }]
+function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; mix?: typeof MIX; text?: unknown } = {}) {
   const fig = sourceDonutFigure(over.mix ?? MIX)
   const react = vi.fn(over.react ?? (() => Promise.resolve()))
   const listeners: ((e: { matches: boolean }) => void)[] = []
@@ -237,33 +237,42 @@ function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: 
   const el = doc.getElementById('aeo-chart-sources') as unknown as { data?: unknown; layout?: unknown } & HTMLElement
   if (over.noEl) el.removeAttribute('id')
   else { el.data = JSON.parse(JSON.stringify(fig.data)); el.layout = JSON.parse(JSON.stringify(fig.layout)) }
+  if ('text' in over && !over.noEl) (el.data as Record<string, unknown>[])[0].text = over.text
   win = Object.assign(new EventTarget(), { matchMedia }, over.noPlotly ? {} : { Plotly: { react } })
   new Function('window', 'document', PAGE_JS)(win, doc)
   if (doc.readyState !== 'complete') win.dispatchEvent(new Event('load'))
   return { react, fig, mq, change: (matches: boolean) => listeners.forEach((f) => f({ matches })), matchMedia }
 }
 
-test('donut on a phone: one react call with percent text from 5%, percentages in the legend, and a customdata hover', () => {
+test("donut on a phone: one react call with the figure's own labels as slice text from 5% and in the legend, and a customdata hover", () => {
   const { react, fig, matchMedia } = bootDonut()
   expect(matchMedia).toHaveBeenCalledWith('(max-width: 900px)')
   expect(react).toHaveBeenCalledTimes(1)
   const [target, data, layout] = react.mock.calls[0] as unknown as [unknown, Record<string, unknown>[], unknown]
   expect(target).toBe(doc.getElementById('aeo-chart-sources'))
   const t = data[0]
-  expect(t.texttemplate).toEqual(['', '%{percent:.1%}', '%{percent:.1%}'])
-  expect(t.labels).toEqual(['Reference 4.8%', 'Corporate 60.3%', 'You 34.9%'])
+  expect(t.texttemplate).toEqual(['', '%{text}', '%{text}'])
+  expect(t.labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
   expect(t.customdata).toEqual(['Reference', 'Corporate', 'You'])
   expect(String(t.hovertemplate)).toContain('%{customdata}')
   expect(String(t.hovertemplate)).not.toContain('%{label}')
   expect(layout).toEqual(JSON.parse(JSON.stringify(fig.layout)))
 })
 
-test('donut on a phone: an exact tie rounds half to even, the same as the source-mix sentence (final review M5)', () => {
-  // 25 of 400 is exactly 6.25 and 375 of 400 exactly 93.75: the sentence's pyRound gives 6.2 and 93.8.
-  const { react } = bootDonut({ mix: [{ label: 'Corporate', weight: 375 }, { label: 'Editorial', weight: 25 }] })
+test('donut on a phone: the legend reads the desktop labels, so phone, desktop and the sentence agree (final review M5, 2026-10-19)', () => {
+  // 375 and 25 of 400 store as 93.8 and 6.2 (pyRound, half to even); the labels are their whole numbers.
+  const mix = [{ label: 'Corporate', weight: 375, pct: pyRound((375 / 400) * 100, 1) }, { label: 'Editorial', weight: 25, pct: pyRound((25 / 400) * 100, 1) }]
+  const { react, fig } = bootDonut({ mix })
   const t = (react.mock.calls[0] as unknown as [unknown, Record<string, unknown>[]])[1][0]
-  expect(t.labels).toEqual([`Corporate ${pyRound((375 / 400) * 100, 1).toFixed(1)}%`, `Editorial ${pyRound((25 / 400) * 100, 1).toFixed(1)}%`])
-  expect(t.labels).toEqual(['Corporate 93.8%', 'Editorial 6.2%'])
+  expect((fig.data[0] as { text: string[] }).text).toEqual(['94%', '6%'])
+  expect(t.labels).toEqual(['Corporate 94%', 'Editorial 6%'])
+})
+
+test('donut on a phone: a trace without its own labels, or with too few, is not redrawn', () => {
+  for (const text of [undefined, ['5%'], 'x']) {
+    const { react } = bootDonut({ text })
+    expect(react, JSON.stringify(text)).not.toHaveBeenCalled()
+  }
 })
 
 test('donut: when the query stops matching react gets the originals; matching again redraws', () => {
@@ -281,7 +290,7 @@ test('donut on a desktop width: no call at load; narrowing draws the phone figur
   expect(react).not.toHaveBeenCalled()
   change(true)
   expect(react).toHaveBeenCalledTimes(1)
-  expect(((react.mock.calls[0] as unknown[])[1] as Record<string, unknown>[])[0].labels).toEqual(['Reference 4.8%', 'Corporate 60.3%', 'You 34.9%'])
+  expect(((react.mock.calls[0] as unknown[])[1] as Record<string, unknown>[])[0].labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
   change(false)
   expect(react).toHaveBeenCalledTimes(2)
   expect((react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(fig.data)))

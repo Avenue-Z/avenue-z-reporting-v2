@@ -70,16 +70,27 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
   }
 }
 
-export function sourceDonutFigure(mix: { label: string; weight: number }[]): Figure {
+/** A slice's label (2026-10-19, Ryan: whole numbers, like Peec): the whole number of the stored one-decimal pct, rounded as
+ *  the source-mix sentence rounds it (sentences.ts pctText), so a slice never rounds differently on the chart and in the
+ *  sentence (which may keep one decimal: under 10%, or when two values in it read alike).
+ *  A stored slice always has a positive weight, so 0 reads "<1%"; the sentence never prints 100 for a value under 100. */
+export function sliceLabel(pct: number): string {
+  const r = Math.round(pct)
+  if (r === 0) return '<1%'
+  if (r === 100 && pct < 100) return '>99%'
+  return `${r}%`
+}
+
+export function sourceDonutFigure(mix: { label: string; weight: number; pct: number }[]): Figure {
   const colors = cycledDonutPalette(mix.length)
   return {
     data: [{
       type: 'pie', labels: mix.map((m) => stripTags(m.label)), values: mix.map((m) => m.weight), hole: 0.6,
       marker: { colors, line: { color: '#000000', width: 3 } },
-      textinfo: 'percent', textposition: 'auto', insidetextorientation: 'horizontal',
+      textinfo: 'text', text: mix.map((m) => sliceLabel(m.pct)), textposition: 'auto', insidetextorientation: 'horizontal',
       insidetextfont: { family: 'Avenir', size: 14, color: contrastTextColors(colors) },
       outsidetextfont: { family: 'Avenir', size: 14, color: '#FFFFFF' },
-      hovertemplate: '<b>%{label}</b><br>Retrievals: %{value}<extra></extra>',
+      hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
     }],
     layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 90, r: 90, t: 28, b: 64 } },
     config: CONFIG,
