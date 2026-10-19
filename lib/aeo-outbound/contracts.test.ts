@@ -82,7 +82,7 @@ test('NaN and a proportion above 1 are refused; absent or null share of voice an
 })
 
 test('counts are null or non-negative whole numbers; percentages are proportions', () => {
-  const r = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, retrieved_percentage: 0.1, mentioned_brands: [] }
+  const r = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, retrieved_percentage: 0.1, mentioned_brands: [] }
   expect(peecContract('peec.domains_report', [r, { ...r, retrieved_chat_count: null, retrieval_count: undefined, retrieved_percentage: null }])).toHaveLength(2)
   expect(() => peecContract('peec.domains_report', [{ ...r, retrieval_count: -1 }])).toThrow('peec.domains_report.retrieval_count')
   expect(() => peecContract('peec.domains_report', [{ ...r, retrieved_chat_count: 1.5 }])).toThrow('peec.domains_report.retrieved_chat_count')
@@ -94,7 +94,7 @@ test('counts are null or non-negative whole numbers; percentages are proportions
 test('spec v1.1 §19.6: the date, classification, mentioned brands and roster fields fail the run naming the field', () => {
   const day = { domain: 'a.example', date: '2026-10-05', retrieved_chat_count: 1 }
   for (const date of ['10/05/2026', 'Oct 5', '', undefined, null]) expect(() => peecContract('peec.domains_by_date', [day, { ...day, date }]), String(date)).toThrow('peec.domains_by_date.date')
-  const dom = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, mentioned_brands: [{ id: 'kw_a' }] }
+  const dom = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, mentioned_brands: [{ id: 'kw_a' }] }
   for (const classification of [null, undefined, '', 7]) expect(() => peecContract('peec.domains_report', [{ ...dom, classification }]), String(classification)).toThrow('peec.domains_report.classification')
   for (const mentioned_brands of [null, undefined, ['kw_a'], [{ id: 5 }], 'kw_a']) expect(() => peecContract('peec.domains_report', [{ ...dom, mentioned_brands }]), JSON.stringify(mentioned_brands)).toThrow('peec.domains_report.mentioned_brands')
   const brand = { id: 'kw_a', name: 'Alpha', is_own: false, domains: ['alpha.example'] }
@@ -113,7 +113,7 @@ test('spec v1.1 §19.6: the date, classification, mentioned brands and roster fi
 })
 
 test('spec v1.1 §19.6: the live shapes of 2026-10-14 pass: custom classifications, empty mentioned brands, null or absent roster domains', () => {
-  const dom = { domain: 'a.example', classification: 'Vendors & Platforms', retrieved_chat_count: 3, retrieval_count: 4, mentioned_brands: [] }
+  const dom = { domain: 'a.example', classification: 'Vendors & Platforms', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, mentioned_brands: [] }
   expect(peecContract('peec.domains_report', [dom, { ...dom, classification: 'CORPORATE', mentioned_brands: [{ id: 'kw_a' }] }])).toHaveLength(2)
   expect(peecContract('peec.domains_by_date', [{ domain: 'a.example', date: '2026-09-01', retrieved_chat_count: 0 }, { domain: 'b.example', date: '2026-09-01T00:00:00Z', retrieved_chat_count: 2 }])).toHaveLength(2)
   const brand = { id: 'kw_a', name: 'Alpha', is_own: true }
@@ -186,8 +186,8 @@ const PULL: PeecPull = {
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },
   ],
   domains: [
-    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
-    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, mentioned_brands: [{ id: 'kw_a' }] },
+    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
+    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, mentioned_brands: [{ id: 'kw_a' }] },
   ],
   actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
   promptCount: 100, models: ['ChatGPT UI'], warnings: [],
@@ -261,4 +261,21 @@ test('spec v1.1 §19.6: CONTRACT_DISABLED still set logs one warning that it is 
   ])
   vi.unstubAllEnvs()
   warn.mockRestore()
+})
+
+test('2026-10-19 Peec parity: usage_rate is enforced, a non-negative number that may exceed 1', () => {
+  const dom = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 0.3, mentioned_brands: [] }
+  expect(peecContract('peec.domains_report', [dom, { ...dom, domain: 'b.example', usage_rate: 1.4 }, { ...dom, domain: 'c.example', usage_rate: 0 }])).toHaveLength(3)
+  for (const usage_rate of [undefined, null, -0.1, '0.3', NaN, Infinity]) {
+    expect(() => peecContract('peec.domains_report', [{ ...dom, usage_rate }]), String(usage_rate)).toThrow('peec.domains_report.usage_rate')
+  }
+})
+
+test('2026-10-19 Peec parity: stored data records the source-mix weighting; absent on older rows, refused when unknown', () => {
+  const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
+  expect(v2.sourceMixWeight).toBe('usage_rate')
+  const { sourceMixWeight: _w, ...older } = v2
+  expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
+  for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce')).toEqual({ ok: true })
+  for (const w of ['bogus', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok).toBe(false)
 })

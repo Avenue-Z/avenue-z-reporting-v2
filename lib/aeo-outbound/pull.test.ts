@@ -40,7 +40,7 @@ const base: Record<string, Route> = {
   '/project-profile': () => ({ profile: { industry: 'Fintech', target_markets: [{ location: 'United States', market_size: 'National' }] } }),
   '/reports/domains': (_u, b) => (b?.dimensions
     ? [{ domain: 'example.com', date: '2026-10-05', retrieved_chat_count: 3 }, { domain: 'rival.com', date: '2026-10-07', retrieved_chat_count: 0 }, { domain: 'rival.com', date: '2026-10-06', retrieved_chat_count: 2 }]
-    : [{ domain: 'example.com', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 9, retrieved_percentage: 0.2, mentioned_brands: [{ id: 'kw_own' }] }]),
+    : [{ domain: 'example.com', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 9, usage_rate: 9, retrieved_percentage: 0.2, mentioned_brands: [{ id: 'kw_own' }] }]),
   '/reports/brands': (_u, b) => (b?.dimensions
     ? [{ brand: { id: 'kw_own' }, model_channel: { id: 'openai-0' }, visibility_total: 10 }, { brand: { id: 'kw_own' }, model_channel: { id: 'google-0' }, visibility_total: 0 }]
     : [{ brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.15, share_of_voice: 0.2, position: 3.1 }, { brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
@@ -87,7 +87,7 @@ test('refuses a customer project, an unknown project, and a roster without exact
 test('fails loud when no day carries data or retrievals are zero', async () => {
   const noDays = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [] : []) })
   await expect(pullSnapshot(noDays.client, 'or_a', NOW)).rejects.toThrow('has any Peec data')
-  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, mentioned_brands: [] }]) })
+  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, mentioned_brands: [] }]) })
   await expect(pullSnapshot(zero.client, 'or_a', NOW)).rejects.toThrow('zero retrievals')
 })
 
@@ -207,7 +207,7 @@ test('each guard fails with its code on the error object', async () => {
   expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) }).client, 'or_a', NOW))).toBe('own_brand_count')
   expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/domains': () => [] }).client, 'or_a', NOW))).toBe('no_data')
   expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]) }).client, 'or_a', NOW))).toBe('own_brand_no_row')
-  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, mentioned_brands: [] }]) })
+  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, mentioned_brands: [] }]) })
   expect(await codeOf(pullSnapshot(zero.client, 'or_a', NOW))).toBe('zero_retrievals')
   const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
   const cap = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, { maxRows: 3 })
@@ -301,7 +301,7 @@ test('a brands report row with no brand, or domain rows with no domain, fail as 
   const own = { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.2, share_of_voice: 0.2 }
   const b = fakePeec({ ...base, '/reports/brands': (_u, x) => (x?.dimensions ? [] : [own, { visibility: 0.1, share_of_voice: 0.1 }]) })
   await expect(pullSnapshot(b.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.brands_report.brand' })
-  const noDomain = { classification: 'OTHER', retrieved_chat_count: 3, retrieval_count: 3, mentioned_brands: [] }
+  const noDomain = { classification: 'OTHER', retrieved_chat_count: 3, retrieval_count: 3, usage_rate: 3, mentioned_brands: [] }
   const d = fakePeec({ ...base, '/reports/domains': (_u, x) => (x?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [noDomain, noDomain]) })
   await expect(pullSnapshot(d.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.domains_report.domain' })
 })

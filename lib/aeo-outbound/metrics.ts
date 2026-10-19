@@ -70,6 +70,9 @@ export interface SnapshotData {
   ownSiteRank?: number | null
   /** Spec v1.1 §19.5: the ranked roster brands with no Peec row (zero visibility), in rank order. */
   noDataBrands?: string[]
+  /** 2026-10-19 Peec parity: the source-mix weighting this row was generated with. Absent on older rows, which weighted
+   *  by retrieval_count; prompt.ts keeps their Data line as it was. */
+  sourceMixWeight?: MetricDecisions['sourceMixWeight']
 }
 
 /** Python's round(x, dp): correctly rounded from the exact binary value, ties to even (symmetric for negatives). */
@@ -270,6 +273,7 @@ export function buildSnapshotData(
     ownRetrievedChats,
     ownRetrievedPct,
     sourceMix,
+    sourceMixWeight: decisions.sourceMixWeight,
     gapDomains,
     actions: pull.actions.map((a) => ({ title: String(a.title ?? ''), impact: String(a.impact ?? ''), type: String(a.type ?? '') })).filter((a) => a.title).slice(0, 10),
     promptCount: pull.promptCount,

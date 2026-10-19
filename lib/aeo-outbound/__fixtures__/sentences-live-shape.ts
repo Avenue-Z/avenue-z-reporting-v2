@@ -12,7 +12,7 @@ const roster = [
   { id: 'kw_pet', name: 'Petalcare', is_own: false, domains: ['petalcare.example'] },
 ]
 const row = (domain: string, classification: string, chats: number, retrievals: number, mentioned: string[], pct?: number) =>
-  ({ domain, classification, retrieved_chat_count: chats, retrieval_count: retrievals, mentioned_brands: mentioned.map((id) => ({ id })), ...(pct !== undefined ? { retrieved_percentage: pct } : {}) })
+  ({ domain, classification, retrieved_chat_count: chats, retrieval_count: retrievals, usage_rate: retrievals, mentioned_brands: mentioned.map((id) => ({ id })), ...(pct !== undefined ? { retrieved_percentage: pct } : {}) })
 
 export const LIVE_SHAPE_PULL: PeecPull = {
   project: { id: 'or_synthetic', name: 'Example Senior Living (PITCH)', status: 'PITCH_ENDED' },

@@ -22,6 +22,8 @@ export interface DomainRow {
   retrieved_chat_count?: number | null
   retrieval_count?: number | null
   retrieved_percentage?: number | null
+  /** Enforced by the contract (2026-10-19): the per-domain weight Peec's Domain types chart sums. */
+  usage_rate: number
   mentioned_brands: { id: string }[]
 }
 export interface ActionRow { id: string; title?: string | null; impact?: string | null; type?: string | null; status?: string | null }

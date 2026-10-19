@@ -75,7 +75,7 @@ export const PEEC_CONTRACTS = {
   // classification decides the source mix and the donut (Peec also sends custom names, so any non-empty string);
   // mentioned_brands decides the competitor domain gaps (often an empty array); the domain is printed in the sentences.
   'peec.domains_report': {
-    enforce: z.array(z.looseObject({ domain: z.string().min(1), retrieved_chat_count: count, retrieval_count: count, retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
+    enforce: z.array(z.looseObject({ domain: z.string().min(1), retrieved_chat_count: count, retrieval_count: count, usage_rate: z.number().min(0), retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
     observe: z.unknown(),
   },
   'peec.actions': { observe: z.array(z.looseObject({ title: z.string().nullish(), impact: z.string().nullish(), type: z.string().nullish(), status: z.string().nullish() })) },
@@ -160,6 +160,8 @@ export const STORED_DATA = z.looseObject({
   sentences: z.number().int().min(1).optional(),
   ownSiteRank: z.number().int().min(1).nullable().optional(),
   noDataBrands: z.array(z.string()).optional(),
+  // 2026-10-19 Peec parity: the source-mix weighting a row was generated with; absent on older rows (retrieval_count).
+  sourceMixWeight: z.enum(['retrieval_count', 'retrieved_chat_count', 'usage_rate']).optional(),
 })
 const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })
 /** Stored slots: the copy keys always, the v1.1 keys when the row has them. */

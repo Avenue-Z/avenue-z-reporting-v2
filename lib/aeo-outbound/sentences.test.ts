@@ -18,7 +18,7 @@ const brandPull = (rows: [string, string, number, number | null][], extra: Parti
     roster,
     ownBrand: roster.find((r) => r.is_own)!,
     brands: rows.map(([id, name, v, s]) => ({ brand: { id, name }, visibility: v, share_of_voice: s, position: 2 })),
-    domains: [{ domain: 'own.example', classification: 'OWN', retrieved_chat_count: 50, retrieval_count: 60, retrieved_percentage: 0.25, mentioned_brands: [] }, { domain: 'paper.example', classification: 'EDITORIAL', retrieved_chat_count: 40, retrieval_count: 40, mentioned_brands: [] }],
+    domains: [{ domain: 'own.example', classification: 'OWN', retrieved_chat_count: 50, retrieval_count: 60, usage_rate: 60, retrieved_percentage: 0.25, mentioned_brands: [] }, { domain: 'paper.example', classification: 'EDITORIAL', retrieved_chat_count: 40, retrieval_count: 40, usage_rate: 40, mentioned_brands: [] }],
     ...extra,
   }
 }
@@ -116,8 +116,8 @@ test('rankAmong cuts the set: "compared" in context and bullets', () => {
 
 test('own site: outside the top ten, approximately for thousands, none retrieved, several own sites, a missing percentage', () => {
   const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-  const big = (n: number) => Array.from({ length: n }, (_, i) => ({ domain: `big${i}.example`, classification: 'EDITORIAL', retrieved_chat_count: 5000, retrieval_count: 1, mentioned_brands: [] }))
-  const own = (chats: number, pct: number | null = 0.3) => ({ domain: 'own.example', classification: 'OWN', retrieved_chat_count: chats, retrieval_count: 9, ...(pct === null ? {} : { retrieved_percentage: pct }), mentioned_brands: [] })
+  const big = (n: number) => Array.from({ length: n }, (_, i) => ({ domain: `big${i}.example`, classification: 'EDITORIAL', retrieved_chat_count: 5000, retrieval_count: 1, usage_rate: 1, mentioned_brands: [] }))
+  const own = (chats: number, pct: number | null = 0.3) => ({ domain: 'own.example', classification: 'OWN', retrieved_chat_count: chats, retrieval_count: 9, usage_rate: 9, ...(pct === null ? {} : { retrieved_percentage: pct }), mentioned_brands: [] })
   expect(sent({ ...base, domains: [own(1949), ...big(10)] }).competitive_bullets[1]).toEqual({ lead: 'Own-site retrievals:', text: 'Own.example appears in approximately 1.9K retrievals.' })
   expect(sent({ ...base, domains: [own(1949), ...big(9)] }).competitive_bullets[1]).toEqual({ lead: 'Present in the source ecosystem:', text: 'Own.example appears among the top domains at approximately 1.9K retrievals.' })
   const none = sent({ ...base, domains: big(2) })
@@ -125,7 +125,7 @@ test('own site: outside the top ten, approximately for thousands, none retrieved
   const zero = sent({ ...base, domains: [own(0), ...big(2)] })
   expect(zero.competitive_bullets.slice(1)).toEqual([{ lead: 'Own-site retrievals:', text: "Own's own site was not retrieved in this window." }])
   expect(sent({ ...base, domains: [own(40, null), ...big(2)] }).competitive_bullets).toHaveLength(2)
-  const two = { ...base, ownBrand: { ...base.ownBrand, domains: ['own.example', 'shop.own.example'] }, domains: [own(40, 0.3), { domain: 'shop.own.example', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 5, retrieved_percentage: 0.02, mentioned_brands: [] }] }
+  const two = { ...base, ownBrand: { ...base.ownBrand, domains: ['own.example', 'shop.own.example'] }, domains: [own(40, 0.3), { domain: 'shop.own.example', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 5, usage_rate: 5, retrieved_percentage: 0.02, mentioned_brands: [] }] }
   expect(sent(two).competitive_bullets[2]).toEqual({ lead: 'Source-use signal:', text: 'Own.example is used as a source in 30% of tracked answers.' })
 })
 
@@ -148,7 +148,7 @@ test('leadership: the brand first, level at the top, alone with data, negative a
 
 test('competitor domain gaps: none, one, two, thousands', () => {
   const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-  const gap = (domain: string, chats: number) => ({ domain, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, mentioned_brands: [{ id: 'a' }] })
+  const gap = (domain: string, chats: number) => ({ domain, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'a' }] })
   const leads = (domains: PeecPull['domains']) => sent({ ...base, domains: [...base.domains, ...domains] }).sources_bullets.map((b) => b.lead)
   expect(leads([])).toEqual(['Leadership gap:', 'Source mix:'])
   expect(sent({ ...base, domains: [...base.domains, gap('one.example', 12)] }).sources_bullets[1].text).toBe('The largest gaps include one.example at 12 retrievals.')
@@ -158,7 +158,7 @@ test('competitor domain gaps: none, one, two, thousands', () => {
 test('source mix: Editorial or UGC in the top two, one type only, empty, the own-site slice, a custom type', () => {
   const mixOf = (rows: [string, number][]) => {
     const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-    return sent({ ...base, domains: rows.map(([classification, w], i) => ({ domain: `d${i}.example`, classification, retrieved_chat_count: 1, retrieval_count: w, mentioned_brands: [] })) }).sources_bullets.at(-1)
+    return sent({ ...base, domains: rows.map(([classification, w], i) => ({ domain: `d${i}.example`, classification, retrieved_chat_count: 1, retrieval_count: w, usage_rate: w, mentioned_brands: [] })) }).sources_bullets.at(-1)
   }
   expect(mixOf([['EDITORIAL', 50], ['CORPORATE', 30], ['UGC', 20]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is led by Editorial sources at 50% and Corporate sources at 30%; UGC represents 20%.' })
   expect(mixOf([['CORPORATE', 100]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is all Corporate sources.' })
@@ -195,7 +195,7 @@ test('every box has 1 to 3 bullets in every edge case above', () => {
 // Fix round after the Tasks 37 to 40 review.
 test('whole percents that would collide in one sentence keep one decimal', () => {
   expect(sent(brandPull([['a', 'A', 0.154, 0.2], ['own', 'Own', 0.146, 0.19], ['b', 'B', 0.05, 0.05]])).context).toBe('Competitive context: A leads at 15.4% visibility / 20% share of voice, followed by Own at 14.6% / 19%. Own ranks ahead of B.')
-  const mix = sent({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: [['CORPORATE', 454], ['INSTITUTIONAL', 446], ['EDITORIAL', 100]].map(([classification, w], i) => ({ domain: `d${i}.example`, classification: String(classification), retrieved_chat_count: 1, retrieval_count: Number(w), mentioned_brands: [] })) }).sources_bullets.at(-1)
+  const mix = sent({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: [['CORPORATE', 454], ['INSTITUTIONAL', 446], ['EDITORIAL', 100]].map(([classification, w], i) => ({ domain: `d${i}.example`, classification: String(classification), retrieved_chat_count: 1, retrieval_count: Number(w), usage_rate: Number(w), mentioned_brands: [] })) }).sources_bullets.at(-1)
   // Editorial at 10% is not limited (Paul's review of #388, C4), so the heading is the plain one.
   expect(mix).toEqual({ lead: 'Source mix:', text: 'The domain mix is led by Corporate sources at 45.4% and Institutional sources at 44.6%; Editorial represents 10% and UGC 0.0%.' })
 })
@@ -220,7 +220,7 @@ test('long level and top lists are capped like the ranks-ahead list', () => {
 
 test('a www. own domain reads without it, capitalised', () => {
   const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-  const s = sent({ ...base, domains: [{ domain: 'www.own.example', classification: 'OWN', retrieved_chat_count: 40, retrieval_count: 40, retrieved_percentage: 0.2, mentioned_brands: [] }] })
+  const s = sent({ ...base, domains: [{ domain: 'www.own.example', classification: 'OWN', retrieved_chat_count: 40, retrieval_count: 40, usage_rate: 40, retrieved_percentage: 0.2, mentioned_brands: [] }] })
   expect(s.competitive_bullets[1].text).toBe('Own.example appears among the top domains at 40 retrievals.')
 })
 
@@ -228,6 +228,6 @@ test('a www. own domain reads without it, capitalised', () => {
 test('a tie at second and the source-mix tail keep one decimal where whole numbers would read equal', () => {
   expect(sent(brandPull([['a', 'A', 0.154, 0.2], ['b', 'B', 0.146, 0.1], ['c', 'C', 0.146, 0.1], ['own', 'Own', 0.05, 0.05]])).context).toBe('Competitive context: A leads at 15.4% visibility / 20% share of voice, followed by B and C at 14.6%. Own ranks last of the four brands tracked.')
   const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-  const mix = (rows: [string, number][]) => sent({ ...base, domains: rows.map(([classification, w], i) => ({ domain: `d${i}.example`, classification, retrieved_chat_count: 1, retrieval_count: w, mentioned_brands: [] })) }).sources_bullets.at(-1)?.text
+  const mix = (rows: [string, number][]) => sent({ ...base, domains: rows.map(([classification, w], i) => ({ domain: `d${i}.example`, classification, retrieved_chat_count: 1, retrieval_count: w, usage_rate: w, mentioned_brands: [] })) }).sources_bullets.at(-1)?.text
   expect(mix([['CORPORATE', 500], ['INSTITUTIONAL', 260], ['EDITORIAL', 124], ['UGC', 116]])).toBe('The domain mix is led by Corporate sources at 50% and Institutional sources at 26%; Editorial represents 12.4% and UGC 11.6%.')
 })
