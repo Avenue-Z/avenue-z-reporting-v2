@@ -121,6 +121,7 @@ when a report includes today's data, **yes**.
 | One classification only | one slice labeled `100%`; sentence unchanged ("all … sources") |
 | A slice whose stored pct rounds to 0 | label `<1%` |
 | A slice whose stored pct rounds to 100 beside a positive one (99.6 and 0.4) | `>99%` and `<1%` |
+| Stored 100.0 beside 0.0 (weights 99,960 and 40) | `100%` and `<1%`, as the sentence prints 100% |
 | Stored 18.5 from an exact 18.46 | chart `19%`, sentence `19%` (Peec would show 18) |
 | Phone width (900px and under) | slice text from the figure's `text` from 5% up; legend `Label N%` from the same text |
 | Window ends before the generation day (finished pitch) | no same-day note |
@@ -136,7 +137,7 @@ when a report includes today's data, **yes**.
    the two orders differ, PocketGuard's Competitor and Editorial).
 3. `DECISIONS.sourceMixWeight` is `'usage_rate'`.
 4. Donut: `sliceLabel` for 18.5 (`19%`, the sentence's rounding of the stored value; 1846 of 10000 is stored as
-   18.5), 0.0 and 0.4 (`<1%`), 99.6 beside 0.4 (`>99%`), a single 100 (`100%`); the figure has `textinfo: 'text'`,
+   18.5), 0.0 and 0.4 (`<1%`), 99.6 (`>99%`), 100.0 (`100%`, alone or beside a 0.0); the figure has `textinfo: 'text'`,
    `text` from `sliceLabel` and the new hover. The AIVx golden test
    (`charts.test.ts:21-30`) states these as deliberate differences, as it does the hover today.
 5. Older-row rendering (`v1-compat.test.ts:43`) gains the donut difference as one more listed replacement; the v1
