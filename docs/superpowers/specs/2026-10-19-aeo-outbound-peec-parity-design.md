@@ -53,10 +53,13 @@ when a report includes today's data, **yes**.
 
 - **One rounding source:** each slice's label is the whole number of the same stored one-decimal `pct` the sentence
   reads (`metrics.ts:231`), rounded the way the sentence rounds it (`sentences.ts:13-17`, `Math.round`), so chart and
-  sentence never disagree (the repo's rule, `render.ts:136-139`, "final review M5"). Exact rule, one pure exported
-  function `sliceLabel(pct, anyOtherPositive)` in `charts.ts`: a slice whose rounded value is 0 reads `<1%`; one whose
-  rounded value is 100 while another slice is positive reads `>99%` (the sentence never prints 100 then either,
-  `sentences.ts:16`); a single slice reads `100%`; otherwise `${Math.round(pct)}%`. Cost: when an exact share sits
+  sentence read the same value (the repo's rule that chart and sentence agree, `render.ts:137-140`; pinned as "final
+  review M5" in `render.frame.test.ts:261`). Exact rule, one pure exported function `sliceLabel(pct)` in `charts.ts`,
+  with `r = Math.round(pct)`: `r === 0` reads `<1%` (a stored slice always has a positive weight, `metrics.ts:223`);
+  `r === 100 && pct < 100` reads `>99%` (the sentence prints that value with a decimal, `sentences.ts:16`, never 100);
+  otherwise `${r}%`, so a stored 100.0 reads `100%`, as the sentence does. The sentence can still print one decimal
+  where the chart prints a whole number: under 10% (Ryan's format) and when two values in one sentence read alike
+  (`pctAll`, `sentences.ts:57-60`); both are the same stored value, rounded (D1, decided). Cost: when an exact share sits
   just under a half (18.46 stored as 18.5), the chart reads 19 where Peec, rounding the exact share, would read 18;
   accepted for a page that agrees with itself.
 - `sourceDonutFigure` (`charts.ts:73-87`) takes `{ label, weight, pct }` (render passes `data.sourceMix`, which has
@@ -64,10 +67,12 @@ when a report includes today's data, **yes**.
   `textinfo: 'percent'`.
 - Hover: `Retrievals: %{value}` (`charts.ts:82`) is no longer true for a usage-rate row (its value is a sum of rates).
   It becomes `<b>%{label}</b><br>%{text}<extra></extra>`, true for every row.
-- **Phone width:** the page script redraws the donut at 900px and under (`render.ts:154-158`, `PAGE_JS`): slice text
-  `%{percent:.1%}` from 5% up, legend labels with a one-decimal half-even percent. It changes to read the figure's own
-  `text`: slice text `%{text}` from 5% up (blank below, as today), legend `label + ' ' + text[i]`. The hover rewrite
-  to `%{customdata}` is unchanged. Approved pages keep the script frozen in their HTML.
+- **Phone width:** the page script redraws the donut at 900px and under (`render.ts:157-160`, `apply` in `PAGE_JS`):
+  slice text `%{percent:.1%}` from 5% up, legend labels with a one-decimal half-even percent (`r1`, `:154`). It changes
+  to read the figure's own `text`: slice text `%{text}` where the exact share `v/total` is 5% or more (the threshold
+  as today; blank below), legend `label + ' ' + text[i]`. If the trace has no `text` array of the same length as its
+  values, the script does not redraw (the desktop figure stays). `r1` and the half-even comment (`render.ts:137-140`)
+  go. The hover rewrite to `%{customdata}` is unchanged. Approved pages keep the script frozen in their HTML.
 - Whole numbers may not sum to 100 (Peec's own: 99 on PocketGuard).
 - **Sentences are unchanged** (Ryan's format: one decimal under 10%), so a slice under 10% can read "8.4%" in a
   sentence and "8%" on the chart (the same value, rounded). Decision D1 below.
@@ -155,14 +160,18 @@ when a report includes today's data, **yes**.
 `make check`. In the browser on the branch (dev database):
 - Generate PocketGuard: the donut against Peec's dashboard at the same time; the hover reads the share; Before you send
   shows the same-day note with a Looks right tick (if its data is still on the generation day).
-- **Multi-day check before merge:** generate a project with more than one day of data (A Place for Mom (PITCH), Sep 20
-  to 21) and compare the donut with a dashboard screenshot of the same window that I take. If it does not match, stop:
-  the switch is not proven.
+- **Multi-day check before merge (decided 2026-10-19):** a project with more than one day of data (A Place for Mom
+  (PITCH), Sep 20 to 21), with my dashboard screenshot of its Domain types on "All time". Pass only if all four hold:
+  (1) each `usage_rate` share at one decimal (the stored `pct`, the Data block) rounds to the dashboard's whole number;
+  (2) the `retrieval_count` split does **not** round to the dashboard on every slice (so the check can tell the two
+  apart; if it cannot on this project, use another); (3) sum of `usage_rate` x the window's chats matches the
+  dashboard's "Total retrievals"; (4) the window is the project's full data. Any failure stops the merge.
 - Phone width (375px): slice text and legend read the whole-number labels.
 - A slice under 0.5% renders `<1%` as text (any dev draft with one, or a figure probe in the page).
 - An older dev draft still renders, with whole-number labels on its old weights.
 
 ## 9. Decisions for Thomas
 
-- **D1:** the chart shows whole numbers (Ryan's yes); the sentences keep his example's format (one decimal under 10%).
-  Recommended: keep, since the format came from his example. Alternative: whole numbers in the source-mix sentence too.
+- **D1, decided 2026-10-19 (keep):** the chart shows whole numbers (Ryan's yes); the sentences keep his example's format
+  (one decimal under 10%, and `pctAll`'s extra decimal), so a sentence can read "8.4%" where the chart reads "8%".
+- **Multi-day check, decided 2026-10-19:** the four-part pass rule in §8 (round 2 MAJOR).
