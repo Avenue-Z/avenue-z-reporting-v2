@@ -24,15 +24,25 @@ when a report includes today's data, **yes**.
 ## 2. Change A: the source chart weights by `usage_rate`
 
 - `DECISIONS.sourceMixWeight` (`config.ts:13`) becomes `'usage_rate'`; its type gains `'usage_rate'`; its comment states
-  the 2026-10-19 finding. `buildSnapshotData` already reads the field named there (`metrics.ts:222`), so no logic
-  changes in `metrics.ts`.
+  the 2026-10-19 finding. `buildSnapshotData` already reads the field named there (`metrics.ts:222`), so the weighting
+  itself needs no new logic in `metrics.ts`.
+- New rows record the weighting they used: `SnapshotData` gains an optional `sourceMixWeight` (the stored-data contract
+  is a `looseObject`, `contracts.ts:146`, so older rows without it stay valid). `buildSnapshotData` sets it from
+  `decisions.sourceMixWeight`.
 - `DomainRow` (`pull.ts:19-26`) gains `usage_rate: number`.
 - The domains contract (`contracts.ts:77-78`, `peec.domains_report`, enforce) gains `usage_rate: z.number().min(0)`
-  (finite, non-negative; not `ratio`, because it exceeds 1). Measured 2026-10-19 on 11 pitch projects' full windows:
-  16,835 of 16,835 rows carry a finite `usage_rate`, none negative, max 1.399. A missing or broken value fails the run
-  with a named contract violation, like every other enforced field (no off switch, my rule).
-- The Glean Data block line (`prompt.ts:56`) says "Source types by share of retrievals"; it becomes "Source types by
-  share of AI use (Peec's usage rate)". Glean writes no numbers (#388); this keeps its context accurate.
+  (finite, non-negative; not `ratio`, because it exceeds 1). Measured 2026-10-19 on the first 12 projects Peec lists
+  (11 pulled, 1 had no data), full windows: 16,835 of 16,835 rows carry a finite `usage_rate`, none negative, max
+  1.399 (findings doc, "usage_rate presence"). A missing or broken value fails the run with a named contract
+  violation, like every other enforced field (no off switch, my rule).
+- The Glean Data block line (`prompt.ts:56`) says "Source types by share of retrievals". On a row whose
+  `sourceMixWeight` is `'usage_rate'` it reads "Source types by share of AI use (Peec's usage rate)"; every other row
+  keeps today's line, so a v1 row keeps every v1 line (`prompt.ts:32`, pinned by `v1-compat.test.ts:14-16` against
+  `__fixtures__/v1-row.ts:63`) and grounding, which rebuilds the Data block on every save
+  (`reports/[id]/slots/route.ts:80,98`), never calls an older row's retrieval shares a usage rate.
+- **Evidence scope:** both dashboard matches are PocketGuard over a one-day window. That Peec's dashboard uses
+  `usage_rate` over multi-day windows too is UNVERIFIED; §8 checks it on a multi-day project before merge. What
+  `usage_rate` is exactly is UNVERIFIED (findings doc); the report uses Peec's value as given, like visibility.
 - Effects, all intended: `sourceMix[].pct` (`metrics.ts:231`) is now the usage-rate share, so the "Source mix" sentence
   (`sentences.ts:186-206`) and its "Limited editorial and UGC presence" rule (`:202`, under 10% each) read the new
   shares with unchanged wording and rounding. `SENTENCES_VERSION` (`config.ts:34`) is **not** bumped: it guards
@@ -41,16 +51,28 @@ when a report includes today's data, **yes**.
 
 ## 3. Change B: whole-number labels on the donut
 
-- `sourceDonutFigure` (`charts.ts:73-87`) labels each slice with text computed in code from the exact share,
-  `weight / total`, not from the stored one-decimal `pct` (so no double rounding): `Math.round(share * 100)` then `%`; a
-  slice with a positive weight that rounds to 0 reads `<1%`. The trace uses `textinfo: 'text'` and `text: [...]`
-  instead of `textinfo: 'percent'`.
-- Hover: `Retrievals: %{value}` (`charts.ts:82`) is no longer true (the value is a sum of rates). It becomes
-  `<b>%{label}</b><br>%{text} of sources<extra></extra>`.
-- Whole numbers may not sum to 100 (Peec's own: 99 on PocketGuard). Ties at exactly .5 round up; Peec's tie rule is
-  UNVERIFIED (no dashboard value sat on a tie).
-- **Sentences are unchanged** (Ryan's format, `sentences.ts:13-17`: one decimal under 10%), so a slice under 10% can
-  read "8.4%" in a sentence and "8%" on the chart. Decision D1 below.
+- **One rounding source:** each slice's label is the whole number of the same stored one-decimal `pct` the sentence
+  reads (`metrics.ts:231`), rounded the way the sentence rounds it (`sentences.ts:13-17`, `Math.round`), so chart and
+  sentence never disagree (the repo's rule, `render.ts:136-139`, "final review M5"). Exact rule, one pure exported
+  function `sliceLabel(pct, anyOtherPositive)` in `charts.ts`: a slice whose rounded value is 0 reads `<1%`; one whose
+  rounded value is 100 while another slice is positive reads `>99%` (the sentence never prints 100 then either,
+  `sentences.ts:16`); a single slice reads `100%`; otherwise `${Math.round(pct)}%`. Cost: when an exact share sits
+  just under a half (18.46 stored as 18.5), the chart reads 19 where Peec, rounding the exact share, would read 18;
+  accepted for a page that agrees with itself.
+- `sourceDonutFigure` (`charts.ts:73-87`) takes `{ label, weight, pct }` (render passes `data.sourceMix`, which has
+  all three, `render.ts:270`) and sets `textinfo: 'text'` with `text` from `sliceLabel`, instead of
+  `textinfo: 'percent'`.
+- Hover: `Retrievals: %{value}` (`charts.ts:82`) is no longer true for a usage-rate row (its value is a sum of rates).
+  It becomes `<b>%{label}</b><br>%{text}<extra></extra>`, true for every row.
+- **Phone width:** the page script redraws the donut at 900px and under (`render.ts:154-158`, `PAGE_JS`): slice text
+  `%{percent:.1%}` from 5% up, legend labels with a one-decimal half-even percent. It changes to read the figure's own
+  `text`: slice text `%{text}` from 5% up (blank below, as today), legend `label + ' ' + text[i]`. The hover rewrite
+  to `%{customdata}` is unchanged. Approved pages keep the script frozen in their HTML.
+- Whole numbers may not sum to 100 (Peec's own: 99 on PocketGuard).
+- **Sentences are unchanged** (Ryan's format: one decimal under 10%), so a slice under 10% can read "8.4%" in a
+  sentence and "8%" on the chart (the same value, rounded). Decision D1 below.
+- Plotly behaviour (`textinfo: 'text'` with a `text` array, `%{text}` in a pie hover and texttemplate, a literal
+  `<1%`) is UNVERIFIABLE BY READING (Plotly 3.5.0 loads from the CDN, `render.ts:330`); §8 checks it in a browser.
 
 ## 4. Change C: a same-day data warning
 
@@ -58,8 +80,13 @@ when a report includes today's data, **yes**.
   under "Check these" with its own "Looks right" tick, like `requested_range`. Approve is not blocked by it (only
   `needs_validation` blocks, `editor.tsx:333`).
 - Condition, in `buildSnapshotData` beside `requested_range` (`metrics.ts:184-186`): the window's last day equals the
-  UTC day of `generatedAt` (`pull.window.end === generatedAt.slice(0, 10)`), both UTC as everywhere else
-  (`range.ts:1,9`). No new input: `generatedAt` is already passed (`generate.ts:51`).
+  UTC day of the pull itself. `pullSnapshot` already receives that instant (`pull.ts:66`, `nowMs`, used for the default
+  range at `:86`); `PeecPull` gains `pulledDay: todayUtc(nowMs)` (`range.ts:9`), and the check is
+  `pull.window.end === pull.pulledDay`. Not `generatedAt` (`generate.ts:50-51`), a later instant that can fall on the
+  next UTC day for a run crossing midnight (deadline 270s, `config.ts:35`).
+- UNVERIFIED: that only the current UTC day can still change in Peec (a day just ended might too, shortly after
+  midnight UTC), and that Peec's `date` is UTC (the tool's own assumption, `range.ts:1`). The note states only what the
+  evidence shows: the day's data can still update.
 - Text: `This report includes {fmtDay(window.end)}, the day it was generated, and Peec can still update that day's
   data. Rerun just before sending so the numbers match Peec.`
 - A rerun is a new generation, so its own check runs again (`generate/route.ts:59-67`, verified live 2026-10-19).
@@ -73,6 +100,11 @@ when a report includes today's data, **yes**.
   (notes are written at generation).
 - KPIs, rank, own-site retrievals (already `retrieved_chat_count`, which matches the dashboard's domain list), gaps,
   windows, models: unchanged.
+- **Rollout hazard, accepted:** stored notes are validated against `NOTE_KINDS` (`contracts.ts:144,158`, enforced in
+  `store.ts:22`). A build without `same_day_data` (another branch's local server on the shared dev database, or a
+  revert of this change) reads a row carrying it as unreadable, and its draft view as not found
+  (`reports/[id]/view/route.ts:50`); the editor offers Rerun on an unreadable draft. Staging and production only gain
+  such rows after this build deploys there. I accept this rather than split the kind into its own PR.
 
 ## 6. Edge cases
 
@@ -82,7 +114,10 @@ when a report includes today's data, **yes**.
 | `usage_rate` above 1 | accepted (measured up to 1.399) |
 | Every `usage_rate` is 0 | empty source mix and the existing `empty_source_mix` note (`metrics.ts:232`) |
 | One classification only | one slice labeled `100%`; sentence unchanged ("all … sources") |
-| A slice under 0.5% | label `<1%` |
+| A slice whose stored pct rounds to 0 | label `<1%` |
+| A slice whose stored pct rounds to 100 beside a positive one (99.6 and 0.4) | `>99%` and `<1%` |
+| Stored 18.5 from an exact 18.46 | chart `19%`, sentence `19%` (Peec would show 18) |
+| Phone width (900px and under) | slice text from the figure's `text` from 5% up; legend `Label N%` from the same text |
 | Window ends before the generation day (finished pitch) | no same-day note |
 | Window ends on the generation day | `same_day_data` note under Check these |
 | Evening Eastern run whose data sits on the next UTC day | same UTC comparison; the note names that UTC day |
@@ -95,20 +130,37 @@ when a report includes today's data, **yes**.
 2. Metrics: with `sourceMixWeight: 'usage_rate'`, slices follow `usage_rate`, not `retrieval_count` (a fixture where
    the two orders differ, PocketGuard's Competitor and Editorial).
 3. `DECISIONS.sourceMixWeight` is `'usage_rate'`.
-4. Donut: `text` is the whole-number share from exact weights (a case where the 1-decimal pct would round differently,
-   e.g. weights giving 18.45%); `<1%` for a tiny slice; `textinfo: 'text'`; the new hover. The AIVx golden test
+4. Donut: `sliceLabel` for 18.5 (`19%`, the sentence's rounding of the stored value; 1846 of 10000 is stored as
+   18.5), 0.0 and 0.4 (`<1%`), 99.6 beside 0.4 (`>99%`), a single 100 (`100%`); the figure has `textinfo: 'text'`,
+   `text` from `sliceLabel` and the new hover. The AIVx golden test
    (`charts.test.ts:21-30`) states these as deliberate differences, as it does the hover today.
-5. Older-row rendering (`v1-compat.test.ts:43`) gains the donut difference as one more listed replacement.
+5. Older-row rendering (`v1-compat.test.ts:43`) gains the donut difference as one more listed replacement; the v1
+   Data block (`v1-compat.test.ts:14-16`) is unchanged.
+5b. Phone: `render.frame.test.ts:245-267` change to the new rule (slice text `%{text}` from 5%, legend from `text`).
+   The half-even tie test becomes moot for the legend (it reads the stored-pct label) and is replaced by one pinning
+   that the phone legend equals the desktop labels.
 6. Notes: `same_day_data` is a Check these item; generation on the window's last day writes it with the text above;
    one day later writes none.
-7. Prompt: the Data block line reads the new wording.
-8. Every existing test passes, with fixtures given `usage_rate` where the contract now needs it.
+7. Prompt: a row with `sourceMixWeight: 'usage_rate'` gets the new line; a row without it keeps today's.
+7b. `buildSnapshotData` sets `sourceMixWeight`; `pull.pulledDay` is the UTC day of the pull's `nowMs`.
+8. Every existing test passes. Fixture fallout to fix deliberately (typed `DomainRow` and the enforced contract):
+   `metrics.test.ts:40-44`, `__fixtures__/sentences-live-shape.ts:15`, `contracts.test.ts:85-86,97,116,189`,
+   `generate.test.ts:46` (and `:232`, whose `zero_retrievals` would become `contract_violation` without `usage_rate`),
+   `pull.test.ts:43,304`, the sentences and grounding tests. Tests that assert `retrieval_count` behaviour
+   (`metrics.test.ts:67-70,228-232,416`) are pinned to an explicit `sourceMixWeight: 'retrieval_count'`, and fixture
+   `usage_rate` values are chosen so the two weightings give different orders where it matters.
 
 ## 8. Verification beyond tests
 
-`make check`. In the browser on the branch (dev database), generate PocketGuard: the donut reads 37, 19, 17, 9, 8, 4, 3,
-2 against my dashboard screenshot (or today's live values), the hover reads the share, and Before you send shows the
-same-day note with a Looks right tick. An older dev draft still renders.
+`make check`. In the browser on the branch (dev database):
+- Generate PocketGuard: the donut against Peec's dashboard at the same time; the hover reads the share; Before you send
+  shows the same-day note with a Looks right tick (if its data is still on the generation day).
+- **Multi-day check before merge:** generate a project with more than one day of data (A Place for Mom (PITCH), Sep 20
+  to 21) and compare the donut with a dashboard screenshot of the same window that I take. If it does not match, stop:
+  the switch is not proven.
+- Phone width (375px): slice text and legend read the whole-number labels.
+- A slice under 0.5% renders `<1%` as text (any dev draft with one, or a figure probe in the page).
+- An older dev draft still renders, with whole-number labels on its old weights.
 
 ## 9. Decisions for Thomas
 
