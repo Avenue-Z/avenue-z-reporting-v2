@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { SENTENCES_VERSION } from './config'
 import { groundingFlags } from './grounding'
 import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData } from './metrics'
@@ -287,7 +288,7 @@ const flagsFor = (d: SnapshotData, over: Partial<Slots> = {}) => groundingFlags(
 
 test('spec v1.1 §19.3: a new row with code-written sentences and number-free opinion carries no flags', () => {
   const d = newRow()
-  expect(d.sentences).toBe(1)
+  expect(d.sentences).toBe(SENTENCES_VERSION)
   expect(flagsFor(d)).toEqual([])
 })
 

@@ -70,24 +70,26 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
   }
 }
 
-/** A slice's label (2026-10-19, Ryan: whole numbers, like Peec): the whole number of the stored one-decimal pct, rounded as
- *  the source-mix sentence rounds it (sentences.ts pctText), so a slice never rounds differently on the chart and in the
- *  sentence (which may keep one decimal: under 10%, or when two values in it read alike).
- *  A stored slice always has a positive weight, so 0 reads "<1%"; the sentence never prints 100 for a value under 100. */
-export function sliceLabel(pct: number): string {
-  const r = Math.round(pct)
+/** A slice's label (2026-10-19, Ryan: whole numbers, like Peec): the whole number of its exact share (weight over total),
+ *  as Peec's dashboard rounds it and as the source-mix sentence rounds its whole numbers (sentences.ts sharePctAll), so a
+ *  slice never rounds differently on the chart and in the sentence (which may keep one decimal: under 10%, or when two
+ *  values in it read alike). Amended 2026-10-20: the stored one-decimal pct rounded twice (24.46 stored 24.5 read 25).
+ *  A stored slice always has a positive weight, so 0 reads "<1%"; a share under 100 never reads 100. */
+export function sliceLabel(exact: number): string {
+  const r = Math.round(exact)
   if (r === 0) return '<1%'
-  if (r === 100 && pct < 100) return '>99%'
+  if (r === 100 && exact < 100) return '>99%'
   return `${r}%`
 }
 
 export function sourceDonutFigure(mix: { label: string; weight: number; pct: number }[]): Figure {
   const colors = cycledDonutPalette(mix.length)
+  const total = mix.reduce((s, m) => s + m.weight, 0)
   return {
     data: [{
       type: 'pie', labels: mix.map((m) => stripTags(m.label)), values: mix.map((m) => m.weight), hole: 0.6,
       marker: { colors, line: { color: '#000000', width: 3 } },
-      textinfo: 'text', text: mix.map((m) => sliceLabel(m.pct)), textposition: 'auto', insidetextorientation: 'horizontal',
+      textinfo: 'text', text: mix.map((m) => sliceLabel(total ? (m.weight / total) * 100 : 0)), textposition: 'auto', insidetextorientation: 'horizontal',
       insidetextfont: { family: 'Avenir', size: 14, color: contrastTextColors(colors) },
       outsidetextfont: { family: 'Avenir', size: 14, color: '#FFFFFF' },
       hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
