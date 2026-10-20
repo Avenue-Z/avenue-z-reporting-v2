@@ -180,3 +180,27 @@ when a report includes today's data, **yes**.
 - **D1, decided 2026-10-19 (keep):** the chart shows whole numbers (Ryan's yes); the sentences keep his example's format
   (one decimal under 10%, and `pctAll`'s extra decimal), so a sentence can read "8.4%" where the chart reads "8%".
 - **Multi-day check, decided 2026-10-19:** the four-part pass rule in §8 (round 2 MAJOR).
+
+## 10. Amendment, 2026-10-20: whole numbers from the exact share (my decision after the staging QA)
+
+**Why.** §3 rounded each slice's whole number from the stored one-decimal `pct`, accepting a rare one-point difference
+from Peec. On staging (2026-10-20) it happened: Peec reclassified a domain on A Place for Mom overnight, Corporate's
+exact share became 24.4636%, stored 24.5, so the chart read 25% where Peec's dashboard (rounding the exact share) reads
+24% (`aeo-outbound-audit-notes` `drafts/2026-10-20-staging-promotion-and-qa.md`, run 2). Matching Peec is the point of
+Ryan's feedback, so the trade is reversed.
+
+**Rule.** Every whole-number source share, on the chart and in the source-mix sentence, is `Math.round(exact)` where
+`exact = weight / Σ weight × 100` over the row's stored `sourceMix` (weights are stored on every row, old and new, so
+no new field). Where a value keeps one decimal (under 10%, Ryan's format, or `pctAll`'s tie rule), the decimal stays
+the stored `pct` exactly as today. Which branch applies (decimal or whole) is decided on the stored `pct`, as today.
+- `sliceLabel(exact)`: `r = Math.round(exact)`; `r === 0` → `<1%`; `r === 100 && exact < 100` → `>99%`; else `${r}%`.
+- The source-mix sentence (`sentences.ts:186-206`) formats its shares the same way; every other sentence keeps
+  `pctText` unchanged.
+- Chart and sentence still never round a slice differently: both use `Math.round(exact)` for whole numbers.
+- `SENTENCES_VERSION` (`config.ts:35`) becomes 2: the rounding changed, so an older row's code-written sentences are not
+  compared word for word with today's (`grounding.ts:151`).
+- Ties at exactly .5 round up (Peec's tie rule is UNVERIFIED; no dashboard value sat on one).
+
+**Tests (first):** `sliceLabel(24.4636)` = `24%`; a figure whose weights give an exact 24.46 (stored 24.5) reads `24%`;
+the same mix's sentence reads 24%; an under-10% value still reads its stored decimal; `SENTENCES_VERSION === 2`; the
+golden, phone and v1 tests keep passing (their shares round the same either way).
