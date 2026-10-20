@@ -141,3 +141,9 @@ test('Q5: with 0 Peec rows the prompt says nothing about actions; Q3: the catego
   expect(p).not.toContain('at most 0')
   expect(p).toContain('- category: a short, specific category for the brand based on the data, at most 80 characters.\n')
 })
+
+test('2026-10-19 Peec parity: a usage-rate row names its source shares so; any other row keeps the v1 line', () => {
+  expect(dataBlock({ ...D, sourceMixWeight: 'usage_rate' } as SnapshotData)).toContain("Source types by share of AI use (Peec's usage rate): Corporate 45.0")
+  expect(dataBlock({ ...D, sourceMixWeight: 'usage_rate' } as SnapshotData)).not.toContain('Source types by share of retrievals')
+  for (const w of [undefined, 'retrieval_count']) expect(dataBlock({ ...D, sourceMixWeight: w } as unknown as SnapshotData)).toContain('Source types by share of retrievals: Corporate 45.0')
+})

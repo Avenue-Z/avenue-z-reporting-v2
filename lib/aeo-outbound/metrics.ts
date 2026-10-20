@@ -70,6 +70,9 @@ export interface SnapshotData {
   ownSiteRank?: number | null
   /** Spec v1.1 §19.5: the ranked roster brands with no Peec row (zero visibility), in rank order. */
   noDataBrands?: string[]
+  /** 2026-10-19 Peec parity: the source-mix weighting this row was generated with. Absent on older rows, which weighted
+   *  by retrieval_count; prompt.ts keeps their Data line as it was. */
+  sourceMixWeight?: MetricDecisions['sourceMixWeight']
 }
 
 /** Python's round(x, dp): correctly rounded from the exact binary value, ties to even (symmetric for negatives). */
@@ -184,6 +187,16 @@ export function buildSnapshotData(
   if (pull.rangePicked && (pull.requested.start !== pull.window.start || pull.requested.end !== pull.window.end)) {
     note('requested_range', `You asked for ${fmtDay(pull.requested.start)} to ${fmtDay(pull.requested.end)}. Peec has data for ${windowLabel}, so the report covers those days.`)
   }
+  // 2026-10-19 (Ryan): data on the pull's own UTC day can still change in Peec, which made a report differ from the
+  // dashboard. The pull's instant decides, not generatedAt, which a run crossing midnight UTC could put on the next day.
+  // Paul (#403): a rerun keeps the dates (generate route), so it can warn again; leaving the day out is offered only
+  // when the window has an earlier day with data, since a one-day project has nothing before it. The day is named as
+  // the report's Data window names it (UTC), not as "the day it was generated".
+  if (pull.window.end === pull.pulledDay) {
+    const dayBefore = new Date(Date.parse(`${pull.window.end}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+    const leaveOut = pull.window.start < pull.window.end ? `, or, to leave that day out, start a new report that ends ${fmtDay(dayBefore)}` : ''
+    note('same_day_data', `This report includes ${fmtDay(pull.window.end)}, and Peec can still update that day's data, so these numbers may change. Rerun later to pick up Peec's latest numbers${leaveOut}.`)
+  }
 
   // Spec v1.1 §19.4 (supersedes 5a row 17 and 18.1): competitor minus own from the printed 1-decimal values, in tenths,
   // so a gap always equals the difference of the two numbers on the page, as in Ryan's example. Every brand with a
@@ -270,6 +283,7 @@ export function buildSnapshotData(
     ownRetrievedChats,
     ownRetrievedPct,
     sourceMix,
+    sourceMixWeight: decisions.sourceMixWeight,
     gapDomains,
     actions: pull.actions.map((a) => ({ title: String(a.title ?? ''), impact: String(a.impact ?? ''), type: String(a.type ?? '') })).filter((a) => a.title).slice(0, 10),
     promptCount: pull.promptCount,
