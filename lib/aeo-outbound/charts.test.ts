@@ -29,7 +29,7 @@ for (const name of ['sources_8_types', 'sources_3_types']) {
     // Deliberate differences from AIVx (2026-10-19, Ryan): whole-number labels from the stored pct, and a hover that
     // reads the label, since a usage-rate weight is not a count.
     expect(ours.data[0].textinfo).toBe('text')
-    expect(ours.data[0].text).toEqual(mix.map((m) => sliceLabel(m.pct)))
+    expect(ours.data[0].text).toEqual(mix.map((m) => sliceLabel((m.weight / total) * 100)))
     expect(ours.data[0].hovertemplate).toBe('<b>%{label}</b><br>%{text}<extra></extra>')
     expect(gold.data[0].textinfo).toBe('percent')
     for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].textinfo; delete f.data[0].text }
@@ -72,8 +72,10 @@ test('a version 1 row with the own brand ranked 12th gets it as the 10th bar, ex
   expect(y.filter((n) => n === 'Brand11')).toHaveLength(1)
 })
 
-test('2026-10-19 (Ryan): a slice reads the whole number of its stored pct, rounded as the source-mix sentence rounds it', () => {
-  // 1846 of 10000 is an exact 18.46, stored as 18.5: the sentence prints 19%, so the chart does too.
+test('2026-10-19 (Ryan), amended 2026-10-20: a slice reads the whole number of its exact share, as Peec and the source-mix sentence do', () => {
+  // 2026-10-20 amendment: the whole number of the exact share, as Peec shows it. An exact 24.4636 (stored 24.5) reads 24%.
+  expect(sliceLabel(24.4636)).toBe('24%')
+  expect(sliceLabel(18.46)).toBe('18%')
   expect(sliceLabel(18.5)).toBe('19%')
   expect(sliceLabel(37.4)).toBe('37%')
   expect(sliceLabel(99.4)).toBe('99%')
@@ -90,4 +92,9 @@ test('2026-10-19 (Ryan): the donut labels each slice with sliceLabel, not Plotly
   const fig = sourceDonutFigure([{ label: 'Corporate', weight: 0.9, pct: 69.2 }, { label: 'Competitor', weight: 0.4, pct: 30.8 }])
   const t = plain(fig).data[0]
   expect([t.textinfo, t.text, t.hovertemplate]).toEqual(['text', ['69%', '31%'], '<b>%{label}</b><br>%{text}<extra></extra>'])
+})
+
+test('2026-10-20 amendment: the donut labels each slice from its exact share, so a stored 24.5 from an exact 24.46 reads 24%', () => {
+  const t = plain(sourceDonutFigure([{ label: 'Institutional', weight: 7554, pct: 75.5 }, { label: 'Corporate', weight: 2446, pct: 24.5 }])).data[0]
+  expect(t.text).toEqual(['76%', '24%'])
 })

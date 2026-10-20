@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
 import { z } from 'zod'
-import { CONTRACT_MODES } from './config'
+import { CONTRACT_MODES, SENTENCES_VERSION } from './config'
 import { checkContract, GENERATE_BODY, GLEAN_SLOTS, PEEC_CONTRACTS, peecContract, SETTINGS_ROW, SLOTS_BODY } from './contracts'
 import { PeecError } from './peec'
 import { STORED_DATA, STORED_SLOTS } from './contracts'
@@ -203,7 +203,7 @@ test('the stored contracts accept what metrics and slots write today, version 1 
 
 test('stored data declares the spec v1.1 §19.5 fields: optional, and refused when the wrong shape', () => {
   const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
-  expect([v2.sentences, v2.ownSiteRank, v2.noDataBrands]).toEqual([1, 1, []])
+  expect([v2.sentences, v2.ownSiteRank, v2.noDataBrands]).toEqual([SENTENCES_VERSION, 1, []])
   const { sentences: _s, ownSiteRank: _r, noDataBrands: _n, ...older } = v2
   expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
   expect(checkContract('stored.data', STORED_DATA, { ...v2, ownSiteRank: null }, 'enforce')).toEqual({ ok: true })

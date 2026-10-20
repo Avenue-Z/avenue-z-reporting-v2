@@ -31,8 +31,9 @@ export const DECISIONS = {
 export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 /** Spec v1.1 §19.5, §19.11: the version of the code-written sentences (sentences.ts). Bump it whenever their wording or
- *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. */
-export const SENTENCES_VERSION = 1
+ *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. Version 2
+ *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). */
+export const SENTENCES_VERSION = 2
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
 /** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */

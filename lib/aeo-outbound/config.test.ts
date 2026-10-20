@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { DECISIONS } from './config'
+import { DECISIONS, SENTENCES_VERSION } from './config'
 
 test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
   expect(DECISIONS.sectionTitles).toEqual(['Category data', 'Competitive visibility'])
@@ -16,4 +16,8 @@ test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
 
 test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Peec's Domain types chart sums", () => {
   expect(DECISIONS.sourceMixWeight).toBe('usage_rate')
+})
+
+test('2026-10-20 amendment: the code-written sentences are version 2, since the source-mix rounding changed', () => {
+  expect(SENTENCES_VERSION).toBe(2)
 })

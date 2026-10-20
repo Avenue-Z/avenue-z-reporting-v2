@@ -231,3 +231,15 @@ test('a tie at second and the source-mix tail keep one decimal where whole numbe
   const mix = (rows: [string, number][]) => sent({ ...base, domains: rows.map(([classification, w], i) => ({ domain: `d${i}.example`, classification, retrieved_chat_count: 1, retrieval_count: w, usage_rate: w, mentioned_brands: [] })) }).sources_bullets.at(-1)?.text
   expect(mix([['CORPORATE', 500], ['INSTITUTIONAL', 260], ['EDITORIAL', 124], ['UGC', 116]])).toBe('The domain mix is led by Corporate sources at 50% and Institutional sources at 26%; Editorial represents 12.4% and UGC 11.6%.')
 })
+
+test('2026-10-20 amendment: a source-mix whole number rounds the exact share, as Peec does, not the stored one decimal', () => {
+  const mixOf = (rows: [string, number][]) => {
+    const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
+    return sent({ ...base, domains: rows.map(([classification, w], i) => ({ domain: `d${i}.example`, classification, retrieved_chat_count: 1, retrieval_count: w, usage_rate: w, mentioned_brands: [] })) }).sources_bullets.at(-1)
+  }
+  // Corporate's exact share is 24.46 (stored 24.5): Peec shows 24, so the sentence says 24, not 25. UGC keeps its stored
+  // decimal (5.5) under 10%, Ryan's format, unchanged.
+  expect(mixOf([['INSTITUTIONAL', 6000], ['CORPORATE', 2446], ['EDITORIAL', 1000], ['UGC', 554]])).toEqual({
+    lead: 'Source mix:', text: 'The domain mix is led by Institutional sources at 60% and Corporate sources at 24%; Editorial represents 10% and UGC 5.5%.',
+  })
+})
