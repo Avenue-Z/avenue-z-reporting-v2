@@ -31,17 +31,18 @@ const PULL: PeecPull = {
   requested: { start: '2026-09-09', end: '2026-10-08' },
   rangePicked: true,
   window: { start: '2026-10-01', end: '2026-10-08' },
+  pulledDay: '2026-10-09',
   brands: [
     { brand: { id: 'kw_b', name: 'Beta' }, visibility: 0.185, share_of_voice: 0.169, position: 3.1 },
     { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.151, share_of_voice: 0.159, position: 3.06 },
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },
   ],
   domains: [
-    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
-    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, mentioned_brands: [{ id: 'kw_a' }] },
-    { domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 900, retrieval_count: 1000, mentioned_brands: [{ id: 'kw_own' }, { id: 'kw_a' }] },
-    { domain: 'forum.com', classification: 'UGC', retrieved_chat_count: 300, retrieval_count: 400, mentioned_brands: [{ id: 'kw_b' }] },
-    { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, mentioned_brands: [] },
+    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
+    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, mentioned_brands: [{ id: 'kw_a' }] },
+    { domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 900, retrieval_count: 1000, usage_rate: 1000, mentioned_brands: [{ id: 'kw_own' }, { id: 'kw_a' }] },
+    { domain: 'forum.com', classification: 'UGC', retrieved_chat_count: 300, retrieval_count: 400, usage_rate: 400, mentioned_brands: [{ id: 'kw_b' }] },
+    { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, usage_rate: 0, mentioned_brands: [] },
   ],
   actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
   promptCount: 100,
@@ -65,7 +66,8 @@ test('ranks by visibility then id, and builds the KPIs his way', () => {
 })
 
 test('source mix weights by retrieval_count, drops zero weights, sorts by weight then label', () => {
-  const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z')
+  // Pinned to the pre-2026-10-19 weighting by name: its fixture rows carry the same value in usage_rate, so the default would pass too.
+  const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z', { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' })
   expect(d.sourceMix.map((s) => [s.label, s.weight])).toEqual([['Competitor', 5902], ['You', 3698], ['Editorial', 1000], ['UGC', 400]])
   expect(d.sourceMix.reduce((t, s) => t + s.weight, 0)).toBe(11000)
 })
@@ -105,9 +107,9 @@ test('no profile: category and market are null with a note', () => {
   expect(texts(d.notes).join(' ')).toContain('no project profile')
 })
 
-const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' }
+const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' }
 
-test('two arguments read DECISIONS, whose defaults are every brand, site gaps on, retrieval_count', () => {
+test('two arguments read DECISIONS, whose defaults are every brand, site gaps on, usage_rate (2026-10-19)', () => {
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')).toEqual(buildSnapshotData(PULL, '2026-10-08T15:00:00Z', DEFAULTS))
   expect(texts(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes)).toContain('Rank is by visibility among the 3 brands tracked in Peec.')
 })
@@ -182,7 +184,7 @@ test('new rows carry sentences: 1 (spec v1.1 §19.5)', () => {
 
 test('ownSiteRank: 1 plus the domains with more retrieved chats than the top own site, ties not counted, null with none', () => {
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').ownSiteRank).toBe(1)
-  const more = (n: number, chats: number) => Array.from({ length: n }, (_, i) => ({ domain: `big${i}.org`, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, mentioned_brands: [] }))
+  const more = (n: number, chats: number) => Array.from({ length: n }, (_, i) => ({ domain: `big${i}.org`, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [] }))
   expect(buildSnapshotData({ ...PULL, domains: [...PULL.domains, ...more(11, 5000)] }, '2026-10-08T15:00:00Z').ownSiteRank).toBe(12)
   expect(buildSnapshotData({ ...PULL, domains: [...PULL.domains, ...more(3, 1989)] }, '2026-10-08T15:00:00Z').ownSiteRank).toBe(1)
   expect(buildSnapshotData({ ...PULL, domains: PULL.domains.filter((r) => r.domain !== 'example.com') }, '2026-10-08T15:00:00Z').ownSiteRank).toBeNull()
@@ -212,7 +214,7 @@ test('leader gap share of voice is null when either side has none', () => {
 
 test('more than one own domain: each is listed with its own count and percentage, and the sum is never paired with one percentage', () => {
   const own = { ...PULL.ownBrand, domains: ['example.com', 'shop.example.com'] }
-  const domains = [...PULL.domains, { domain: 'shop.example.com', classification: 'OWN', retrieved_chat_count: 11, retrieval_count: 20, retrieved_percentage: 0.01, mentioned_brands: [] }]
+  const domains = [...PULL.domains, { domain: 'shop.example.com', classification: 'OWN', retrieved_chat_count: 11, retrieval_count: 20, usage_rate: 20, retrieved_percentage: 0.01, mentioned_brands: [] }]
   const d = buildSnapshotData({ ...PULL, ownBrand: own, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownSites).toEqual([{ domain: 'example.com', retrievedChats: 1989, retrievedPct: 22.4 }, { domain: 'shop.example.com', retrievedChats: 11, retrievedPct: 1 }])
   expect(d.ownRetrievedChats).toBe(2000)
@@ -225,7 +227,7 @@ test('one own domain adds no own-domains note', () => {
 })
 
 test('an empty source mix says so in a note', () => {
-  const domains = PULL.domains.map((r) => ({ ...r, retrieval_count: 0 }))
+  const domains = PULL.domains.map((r) => ({ ...r, retrieval_count: 0, usage_rate: 0 }))
   const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
   expect(d.sourceMix).toEqual([])
   expect(texts(d.notes)).toContain('Peec reported no source weights for this window, so the source mix is empty.')
@@ -233,12 +235,12 @@ test('an empty source mix says so in a note', () => {
 })
 
 test('competitor gap domains are capped at 4, the top by retrieved chats', () => {
-  const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'EDITORIAL', retrieved_chat_count: 100 * n, retrieval_count: 1, mentioned_brands: [{ id: 'kw_a' }] })
+  const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'EDITORIAL', retrieved_chat_count: 100 * n, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'kw_a' }] })
   const d = buildSnapshotData({ ...PULL, domains: [...PULL.domains.filter((r) => r.domain === 'example.com'), ...[1, 2, 3, 4, 5].map(gap)] }, '2026-10-08T15:00:00Z')
   expect(d.gapDomains.map((g) => g.domain)).toEqual(['gap5.com', 'gap4.com', 'gap3.com', 'gap2.com'])
 })
 
-const gapRow = (domain: string, classification: string, chats = 100) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, mentioned_brands: [{ id: 'kw_a' }] })
+const gapRow = (domain: string, classification: string, chats = 100) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'kw_a' }] })
 
 test('gap sites leave out COMPETITOR and OWN rows, roster domains whatever their classification, and their subdomains', () => {
   const domains = [
@@ -413,7 +415,7 @@ test('the kind of the remaining notes is pinned: no_competitors, high_visibility
   const solo: PeecPull = { ...PULL, roster: [PULL.ownBrand], brands: [PULL.brands[1]] }
   expect(buildSnapshotData(solo, '2026-10-08T15:00:00Z').notes).toContainEqual(expect.objectContaining({ kind: 'no_competitors', text: 'No competitors tracked in this Peec project' }))
   expect(withVis(0.2, ['Ace', 0.9051]).notes).toContainEqual(expect.objectContaining({ kind: 'high_visibility', text: WARN('Ace', '90.5') }))
-  const empty = buildSnapshotData({ ...PULL, domains: PULL.domains.map((r) => ({ ...r, retrieval_count: 0 })) }, '2026-10-08T15:00:00Z')
+  const empty = buildSnapshotData({ ...PULL, domains: PULL.domains.map((r) => ({ ...r, retrieval_count: 0, usage_rate: 0 })) }, '2026-10-08T15:00:00Z')
   expect(empty.notes).toContainEqual(expect.objectContaining({ kind: 'empty_source_mix', text: 'Peec reported no source weights for this window, so the source mix is empty.' }))
   const none = buildSnapshotData({ ...PULL, domains: PULL.domains.filter((r) => r.domain !== 'example.com') }, '2026-10-08T15:00:00Z')
   expect(none.notes).toContainEqual(expect.objectContaining({ kind: 'own_domains', text: "No retrievals of the brand's own site in this window." }))
@@ -427,7 +429,7 @@ test('date and time in US Eastern, for the hub and the open list', () => {
 test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row; a lookalike domain is not', () => {
   const ownBrand = { ...PULL.ownBrand, domains: ['Brand.com', ''] }
   const roster = [ownBrand, ...PULL.roster.slice(1)]
-  const row = (domain: string, classification: string, chats: number) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, retrieved_percentage: chats / 1000, mentioned_brands: [] })
+  const row = (domain: string, classification: string, chats: number) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, retrieved_percentage: chats / 1000, mentioned_brands: [] })
   const domains = [row('brand.com', 'EDITORIAL', 100), row('blog.brand.com', 'EDITORIAL', 40), row('other.com', 'OWN', 7), row('notbrand.com', 'EDITORIAL', 900)]
   const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownSites).toEqual([
@@ -445,9 +447,44 @@ test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row
 test('an empty own domain matches nothing, so a brand with only that has no own rows', () => {
   const ownBrand = { ...PULL.ownBrand, domains: [''] }
   const roster = [ownBrand, ...PULL.roster.slice(1)]
-  const domains = [{ domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 9, retrieval_count: 1, mentioned_brands: [] }]
+  const domains = [{ domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 9, retrieval_count: 1, usage_rate: 1, mentioned_brands: [] }]
   const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownRetrievedChats).toBe(0)
   expect(d.ownSites).toEqual([])
   expect(texts(d.notes)).toContain("No retrievals of the brand's own site in this window.")
+})
+
+test("2026-10-19 Peec parity: the source mix weights by usage_rate, as Peec's dashboard does, and the row records it", () => {
+  // PocketGuard's shape: by retrieval_count Competitor leads Editorial; by usage_rate Editorial leads.
+  const domains = [
+    { domain: 'cnbc.com', classification: 'EDITORIAL', retrieved_chat_count: 10, retrieval_count: 100, usage_rate: 0.9, mentioned_brands: [] },
+    { domain: 'rival.com', classification: 'COMPETITOR', retrieved_chat_count: 10, retrieval_count: 200, usage_rate: 0.4, mentioned_brands: [] },
+  ]
+  const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
+  expect(d.sourceMix.map((s) => [s.label, s.pct])).toEqual([['Editorial', 69.2], ['Competitor', 30.8]])
+  expect(d.sourceMixWeight).toBe('usage_rate')
+  const old = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z', { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' })
+  expect(old.sourceMix.map((s) => [s.label, s.pct])).toEqual([['Competitor', 66.7], ['Editorial', 33.3]])
+  expect(old.sourceMixWeight).toBe('retrieval_count')
+})
+
+test("2026-10-19 (Ryan): a report whose window ends on the pull's own UTC day says Peec can still update it, under Check these", () => {
+  const same = buildSnapshotData({ ...PULL, pulledDay: '2026-10-08' }, '2026-10-08T15:00:00Z')
+  const n = same.notes.filter((x) => typeof x !== 'string' && x.kind === 'same_day_data') as Note[]
+  // Paul (#403): the advice must be true. A rerun keeps the dates, so it can warn again; leaving the day out is offered
+  // only when the window has an earlier day with data. The day named is the window's own, as the report's Data window
+  // prints it (UTC), never "the day it was generated", which a late-evening Eastern run would read as tomorrow.
+  expect(n).toEqual([{ kind: 'same_day_data', text: "This report includes Oct 8, 2026, and Peec can still update that day's data, so these numbers may change. Rerun later to pick up Peec's latest numbers, or, to leave that day out, start a new report that ends Oct 7, 2026." }])
+  const oneDay = buildSnapshotData({ ...PULL, window: { start: '2026-10-08', end: '2026-10-08' }, pulledDay: '2026-10-08' }, '2026-10-08T15:00:00Z')
+  expect(oneDay.notes.filter((x) => typeof x !== 'string' && x.kind === 'same_day_data')).toEqual([{ kind: 'same_day_data', text: "This report includes Oct 8, 2026, and Peec can still update that day's data, so these numbers may change. Rerun later to pick up Peec's latest numbers." }])
+  // Across a month boundary the day before is computed on the calendar.
+  const firstDay = buildSnapshotData({ ...PULL, window: { start: '2026-09-28', end: '2026-10-01' }, pulledDay: '2026-10-01' }, '2026-10-01T15:00:00Z')
+  expect(texts(firstDay.notes).find((t) => t.startsWith('This report includes'))).toContain('start a new report that ends Sep 30, 2026.')
+  // The pull's day decides, not generatedAt: a run whose pull fell on Oct 8 still warns when it finishes after midnight.
+  const late = buildSnapshotData({ ...PULL, pulledDay: '2026-10-08' }, '2026-10-09T00:01:00Z')
+  expect(late.notes.some((x) => typeof x !== 'string' && x.kind === 'same_day_data')).toBe(true)
+  for (const pulledDay of ['2026-10-09', '2026-11-30']) {
+    const later = buildSnapshotData({ ...PULL, pulledDay }, '2026-10-08T15:00:00Z')
+    expect(later.notes.some((x) => typeof x !== 'string' && x.kind === 'same_day_data'), pulledDay).toBe(false)
+  }
 })

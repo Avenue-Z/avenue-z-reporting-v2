@@ -13,3 +13,7 @@ test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
   expect(DECISIONS.pitchOnly).toBe(true)
   expect(DECISIONS.showAivxName).toBe(false)
 })
+
+test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Peec's Domain types chart sums", () => {
+  expect(DECISIONS.sourceMixWeight).toBe('usage_rate')
+})

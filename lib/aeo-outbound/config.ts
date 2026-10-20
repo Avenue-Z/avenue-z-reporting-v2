@@ -8,9 +8,10 @@ export const DECISIONS = {
   rankAmong: null as number | null,
   /** Q4: list the sites where competitors appear and the brand does not, ranked by AI answers that used them. */
   competitorSiteGaps: true as boolean,
-  /** The source-mix weighting (my call, not Ryan's): retrieval_count matches Peec's dashboard within 1 point;
-   *  retrieved_chat_count is AIVx's method. */
-  sourceMixWeight: 'retrieval_count' as 'retrieval_count' | 'retrieved_chat_count',
+  /** The source-mix weighting. usage_rate is the field Peec's dashboard sums for its Domain types chart: on 2026-10-19
+   *  it reproduced every slice and the Total retrievals on PocketGuard, which retrieval_count missed by up to 1.7
+   *  points (Ryan's yes, 2026-10-19). retrieved_chat_count is AIVx's method. */
+  sourceMixWeight: 'usage_rate' as 'retrieval_count' | 'retrieved_chat_count' | 'usage_rate',
   /** Q3 (Ryan, 2026-10-12: yes): Glean writes a more specific category instead of using Peec's `industry` (spec v1.1 §16.1). */
   writeSpecificCategory: true as boolean,
   /** Q5 (Ryan, 2026-10-12: only when relevant): at most this many of the three opportunities may come from Peec actions, never forced (spec v1.1 §16.1). */

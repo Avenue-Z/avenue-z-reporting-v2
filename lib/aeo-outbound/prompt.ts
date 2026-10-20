@@ -53,7 +53,7 @@ export function dataBlock(d: SnapshotData): string {
     `Brands by AI visibility (rank, name, visibility, share of voice): ${listed.map((b) => `${noRivals ? '' : `#${b.rank} `}${one(b.name)} ${p1(b.visibilityPct)}${showSov && b.sovPct !== null ? ` / ${p1(b.sovPct)}` : ''}`).join('; ') || 'none'}`,
     `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${points(g.visibilityPoints)} points${typeof g.sovPoints === 'number' && g.sovPoints > 0 ? `, ${points(g.sovPoints)} points` : ''}`).join('; ') || 'none'}`,
     ownLine,
-    `Source types by share of retrievals: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
+    `Source types by share of ${d.sourceMixWeight === 'usage_rate' ? "AI use (Peec's usage rate)" : 'retrievals'}: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
     `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
     `Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ') || 'none'}`,
   ]

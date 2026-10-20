@@ -43,7 +43,7 @@ const base: Record<string, Route> = {
   '/project-profile': () => ({ profile: { industry: 'Fintech', target_markets: [{ location: 'United States', market_size: 'National' }] } }),
   '/reports/domains': (_u, b) => (b?.dimensions
     ? [{ domain: 'example.com', date: '2026-10-05', retrieved_chat_count: 3 }, { domain: 'rival.com', date: '2026-10-07', retrieved_chat_count: 0 }, { domain: 'rival.com', date: '2026-10-06', retrieved_chat_count: 2 }]
-    : [{ domain: 'example.com', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 9, retrieved_percentage: 0.2, mentioned_brands: [{ id: 'kw_own' }] }]),
+    : [{ domain: 'example.com', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 9, usage_rate: 9, retrieved_percentage: 0.2, mentioned_brands: [{ id: 'kw_own' }] }]),
   '/reports/brands': (_u, b) => (b?.dimensions
     ? [{ brand: { id: 'kw_own' }, model_channel: { id: 'openai-0' }, visibility_total: 10 }, { brand: { id: 'kw_own' }, model_channel: { id: 'google-0' }, visibility_total: 0 }]
     : [{ brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.15, share_of_voice: 0.2, position: 3.1 }, { brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
@@ -229,7 +229,7 @@ test('every failure carries its code', async () => {
   expect(await codeOf(run({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) }))).toBe('own_brand_count')
   expect(await codeOf(run({ ...base, '/reports/domains': () => [] }, { start: '2026-09-01', end: '2026-09-07' }))).toBe('no_data')
   expect(await codeOf(run({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3 }]) }))).toBe('own_brand_no_row')
-  expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, mentioned_brands: [] }]) }))).toBe('zero_retrievals')
+  expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, mentioned_brands: [] }]) }))).toBe('zero_retrievals')
   const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
   expect(await codeOf(run({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, null, { maxRows: 3 }))).toBe('history_too_long')
   expect(await codeOf(run(timeoutRoutes))).toBe('history_too_long')

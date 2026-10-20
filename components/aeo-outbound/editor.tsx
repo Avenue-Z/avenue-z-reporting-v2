@@ -2,7 +2,7 @@
 // The snapshot editor (spec §9a, §10; v1.1 §2, §4, §6, §7, §11). The report runs in a sandboxed srcdoc iframe that opens
 // in Preview; Edit puts the frame in edit mode by message, never by reloading it. The frame never saves anything: it
 // posts dirty, edit and structure here, and this page owns the one SaveQueue that PATCHes the slots route.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
@@ -18,6 +18,7 @@ import { BeforeYouSend, openCount, type AboutInfo } from './before-you-send'
 import { ConfirmDialog } from './confirm-dialog'
 import { CopyLink } from './copy-link'
 import { failureText } from './failure-text'
+import { EDITOR_MARKER, FRAME_HEIGHT, FRAME_MIN_HEIGHT, TOOLBAR_HEIGHT_VAR, toolbarHeightVar } from './frame-height'
 import { requestGenerate } from './generate-client'
 import { StatusPill } from './hub'
 import {
@@ -82,6 +83,8 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const { id, projectId } = props
   const router = useRouter()
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
   const queueRef = useRef<SaveQueue | null>(null)
   const modeRef = useRef<Mode>('preview')
   // Spec v1.1 18.12: set on a structure 200, which reloads the page; until the new frame says ready, the old frame (whose
@@ -285,6 +288,22 @@ export function OutboundEditor(props: OutboundEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Spec 2026-10-14 editor space §4.2: the frame fills the screen under the toolbar, whose height changes (it wraps, the
+  // edit banner, a rerun's checklist). The height goes straight onto the root as a CSS variable, with
+  // no state, so it lands before the next paint. Never set --aeo-toolbar-h through React's style prop: React 19 sets and
+  // clears only the keys of the style objects it is given, so any other style prop leaves the variable alone (Paul, #399).
+  // Runs once: the root and the toolbar render in every status.
+  useLayoutEffect(() => {
+    const rootEl = rootRef.current
+    const bar = toolbarRef.current
+    if (!rootEl || !bar || typeof ResizeObserver === 'undefined') return
+    const measure = () => rootEl.style.setProperty(TOOLBAR_HEIGHT_VAR, toolbarHeightVar(bar.getBoundingClientRect().height))
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(bar, { box: 'border-box' })
+    return () => watch.disconnect()
+  }, [])
+
   useEffect(() => {
     if (!locked) return
     const t = setTimeout(() => setLocked(null), LOCKED_MS)
@@ -444,8 +463,8 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const notClassifiedCount = props.opens.length < OPENS_SHOWN ? Math.max(0, props.openCount - props.opens.length) : 0
 
   return (
-    <div>
-      <div className="sticky top-0 z-20 -mx-8 -mt-8 mb-4 border-b border-white/[0.06] bg-black px-8 py-3">
+    <div ref={rootRef} {...{ [EDITOR_MARKER]: '' }} className="pb-4">
+      <div ref={toolbarRef} className="sticky top-0 z-20 -mx-8 -mt-8 mb-4 border-b border-white/[0.06] bg-black px-8 py-3">
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/tools/new-business" onClick={(e) => { if (unsaved) { e.preventDefault(); setDialog({ kind: 'leave', then: () => router.push('/tools/new-business') }) } }} className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-white">
             <ArrowLeft className="h-4 w-4" aria-hidden />Back
@@ -493,7 +512,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
           )}
         </div>
         {status === 'draft' && mode === 'edit' && <p role="status" className="mt-2 text-xs text-[#60FFEA]">{EDIT_BANNER}</p>}
-        {locked && <p role="status" className="mt-2 text-xs text-[#FFFC60]">{locked.text}</p>}
+        {/* Floats just under the toolbar, out of its flow: it shows for 3s per click, and in the flow it would resize the
+            measured toolbar, and the report with it, twice each time (Paul, #399 review). */}
+        {locked && <p role="status" className="absolute left-8 top-full mt-2 max-w-xl rounded-md border border-white/[0.08] bg-bg-surface px-3 py-1.5 text-xs text-[#FFFC60] shadow-lg">{locked.text}</p>}
       </div>
 
       {status === 'generating' && (
@@ -513,8 +534,8 @@ export function OutboundEditor(props: OutboundEditorProps) {
             </p>
           )}
           {/* Spec v1.1 §19.7: mounted only with its report, a new element per load, so no load adds a history entry. */}
-          {html !== null && <iframe key={loads} ref={iframeRef} title={brand} sandbox={REPORT_SANDBOX} srcDoc={html} className="w-full rounded-lg bg-black" style={{ height: 'calc(100vh - 140px)' }} />}
-          {html === null && !viewError && <div className="flex items-center justify-center rounded-lg bg-black text-sm text-text-muted" style={{ height: 'calc(100vh - 140px)' }}>{LOADING_REPORT}</div>}
+          {html !== null && <iframe key={loads} ref={iframeRef} title={brand} sandbox={REPORT_SANDBOX} srcDoc={html} className="w-full rounded-lg bg-black" style={{ height: FRAME_HEIGHT, minHeight: FRAME_MIN_HEIGHT }} />}
+          {html === null && !viewError && <div className="flex items-center justify-center rounded-lg bg-black text-sm text-text-muted" style={{ height: FRAME_HEIGHT, minHeight: FRAME_MIN_HEIGHT }}>{LOADING_REPORT}</div>}
           {panelOpen && (
             <BeforeYouSend
               needsValidation={needsValidation} notes={notes} titles={titles} about={props.about} ticks={ticks} ownTicks={ownTicks} highlight={highlight}
