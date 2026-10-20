@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { SENTENCES_VERSION } from './config'
 import vectors from './round.vectors.json'
 import { buildSnapshotData, fmtDay, fmtEasternDateTime, fmtEasternDay, preparedDay, pyRound, titleClassification, V1_SETTINGS_USED } from './metrics'
 import type { MetricDecisions } from './metrics'
@@ -178,8 +179,8 @@ test('every gap in the fixture equals the printed difference to the tenth', () =
   }
 })
 
-test('new rows carry sentences: 1 (spec v1.1 §19.5)', () => {
-  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').sentences).toBe(1)
+test('new rows carry the current SENTENCES_VERSION (spec v1.1 §19.5; 2 since 2026-10-20)', () => {
+  expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').sentences).toBe(SENTENCES_VERSION)
 })
 
 test('ownSiteRank: 1 plus the domains with more retrieved chats than the top own site, ties not counted, null with none', () => {

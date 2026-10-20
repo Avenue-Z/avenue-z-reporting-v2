@@ -59,6 +59,19 @@ function pctAll(values: number[]): string[] {
   return values.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && values[j] !== v) ? `${v.toFixed(1)}%` : text[i]))
 }
 
+/** A source share, as pctAll prints it, except that a whole number rounds the exact share (weight over total), as Peec's
+ *  dashboard and the donut (charts.ts sliceLabel) do, not the stored one-decimal pct (spec amendment 2026-10-20). The
+ *  choice of decimal or whole, and every decimal printed, stay on the stored pct, so Ryan's format is unchanged. */
+function sharePctAll(items: { pct: number; exact: number }[]): string[] {
+  const one = ({ pct, exact }: { pct: number; exact: number }) => {
+    if (pct < 10) return `${pct.toFixed(1)}%`
+    const whole = Math.round(exact)
+    return whole === 100 && pct < 100 ? `${pct.toFixed(1)}%` : `${whole}%`
+  }
+  const text = items.map(one)
+  return items.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && items[j].pct !== v.pct) ? `${v.pct.toFixed(1)}%` : text[i]))
+}
+
 export function dataSentences(d: SnapshotData): DataSentences {
   const brand = d.brand
   const own = d.own
@@ -192,8 +205,11 @@ export function dataSentences(d: SnapshotData): DataSentences {
       const [t1, t2] = mix
       const named = new Set([t1.label, t2.label])
       const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l)).map((l) => [l, mix.find((m) => m.label === l)?.pct ?? 0] as const)
-      // Every percent in this one sentence is read together, so no two values ranked apart read the same.
-      const [p1, p2, ...pe] = pctAll([t1.pct, t2.pct, ...extras.map(([, v]) => v)])
+      // Every percent in this one sentence is read together, so no two values ranked apart read the same. Whole numbers
+      // round the exact share, as the donut does (spec amendment 2026-10-20).
+      const total = mix.reduce((s, m) => s + m.weight, 0)
+      const share = (l: string) => { const m = mix.find((x) => x.label === l); return { pct: m?.pct ?? 0, exact: m && total ? (m.weight / total) * 100 : 0 } }
+      const [p1, p2, ...pe] = sharePctAll([share(t1.label), share(t2.label), ...extras.map(([l]) => share(l))])
       const tail = extras.length === 2
         ? `; ${extras[0][0]} represents ${pe[0]} and ${extras[1][0]} ${pe[1]}`
         : extras.length === 1 ? `; ${extras[0][0]} represents ${pe[0]}` : ''
