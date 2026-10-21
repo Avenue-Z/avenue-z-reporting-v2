@@ -77,10 +77,16 @@ the sources AI drew on in this snapshot".)
 | Content | `You` | "{Brand}'s own {site makes / sites make} up {x} of the domain mix in this window." | "... under 0.1% ..." | "{Brand}'s own {site doesn't / sites don't} appear in the domain mix for this window." |
 | Technical | `Competitor` | "Competitors' own websites make up {x} of the domain mix in this window." | "... under 0.1% ..." | "Competitors' own websites don't appear in the domain mix for this window." |
 
-- **Own site follows Peec's classification** (review round 1, M2): the Content share is the `You` slice, Peec's OWN
-  class, exactly what the donut shows. The first findings box counts a wider set (OWN or a domain match,
-  `metrics.ts:215-222`), so a misclassified own subdomain counts there and not here; the line and the donut always
-  agree. The same holds for `Competitor` against the gap filter (`metrics.ts:254`).
+- **Own site counts as the first findings box counts it** (decision D3 (a), Thomas, 2026-10-21): a row is the brand's
+  own when Peec classifies it OWN or its domain is an own domain or a subdomain of one (`ownRows`, `metrics.ts:215-222`).
+  `buildSnapshotData` stores the sum of those rows' mix weight (`decisions.sourceMixWeight`, rows with weight above 0,
+  the same filter as `metrics.ts:235-236`) as a new data field `ownMixWeight` (a number, 0 when none); the Content share
+  is `ownMixWeight` over the mix total (the sum of `sourceMix` weights). So the page never denies an own site the box
+  shows. It can read above the donut's "You" slice when Peec files an own subdomain under another type; accepted.
+  `STORED_DATA` (`contracts.ts:146`, a loose object) declares `ownMixWeight: z.number().min(0).optional()`; older rows
+  lack it and are never pillar rows. "Absent" for Content means `ownMixWeight` is 0.
+- `Competitor` is the COMPETITOR class only: a roster competitor's site that Peec classifies CORPORATE is in neither
+  the Technical share nor the gaps (`metrics.ts:254`).
 - `{Brand}` is `d.brand`, as every code sentence names it. "sites" when `d.ownDomains.length > 1`, else "site".
 - An empty mix (`metrics.ts:245`) gives all three the line "Peec reported no source types for this window.", the
   source-mix bullet's own words (`sentences.ts:200`).
@@ -173,6 +179,8 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 | `editor.test.tsx` | The `pillars` prop reaches the save-error label |
 
 ## 7. Decisions for Thomas
+
+**Decided (Thomas, 2026-10-21):** D2 remove the setting from the form; D3 (a); D4 the new wording; D1 after the trial.
 
 - **D1. Card look.** Three cards in AIVx's cluster style (gradient pillar name, muted description, white data line).
   The scratch trial renders it with PocketGuard's numbers for you, and Ryan if you want, before the plan.
