@@ -223,6 +223,23 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   const t2 = p.section_2_title
   const brand = esc(s.brand)
   const chartMark = attr('data-locked', 'chart')
+  // Round 3 (Ryan, 2026-10-21): the Opportunities page can be turned off per report. Off, its menu item and section are
+  // not written and Methodology moves up to 04; on, every byte is as before.
+  const oppsShown = s.opportunities_page !== 'hidden'
+  const methodNum = oppsShown ? '05' : '04'
+  const oppsNav = oppsShown ? `\n    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>` : ''
+  const oppsSection = oppsShown ? `
+<section id="opportunities" class="section">
+  <div class="section-label">${fixed('04 / ')}${wrap('page.opps_label', p.opps_label)}</div>
+  ${slot('h2', 'page.opps_title', p.opps_title, 'section-title')}
+  <div class="leaderboard-wrap">
+    <table class="leaderboard">
+      <thead><tr>${slot('th', 'page.opps_col_1', p.opps_col_1)}${slot('th', 'page.opps_col_2', p.opps_col_2)}${slot('th', 'page.opps_col_3', p.opps_col_3)}</tr></thead>
+      <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal, '', label(p.opps_col_1))}${slot('td', `opportunities.${i}.opportunity`, o.opportunity, '', label(p.opps_col_2))}${slot('td', `opportunities.${i}.workstream`, o.workstream, '', label(p.opps_col_3))}</tr>`).join('')}</tbody>
+    </table>
+  </div>
+  ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}
+</section>` : ''
 
   const sidebar = `
 <nav class="sidebar">
@@ -236,9 +253,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   <nav class="sidebar-nav">
     <a href="#headline"><span class="nav-num"${fixedMark}>01</span> ${mirror('page.headline_label', p.headline_label, false, true)}</a>
     <a href="#category-data"><span class="nav-num"${fixedMark}>02</span> ${mirror('page.section_1_title', t1, false, true)}</a>
-    <a href="#competitive-visibility"><span class="nav-num"${fixedMark}>03</span> ${mirror('page.section_2_title', t2, false, true)}</a>
-    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>
-    <a href="#methodology"><span class="nav-num"${fixedMark}>05</span> ${wrap('page.method_nav', p.method_nav)}</a>
+    <a href="#competitive-visibility"><span class="nav-num"${fixedMark}>03</span> ${mirror('page.section_2_title', t2, false, true)}</a>${oppsNav}
+    <a href="#methodology"><span class="nav-num"${fixedMark}>${methodNum}</span> ${wrap('page.method_nav', p.method_nav)}</a>
   </nav>
   <div class="sidebar-footer">
     ${slot('a', 'page.sidebar_link', p.sidebar_link, '', ' href="https://avenuez.com" target="_blank" rel="noopener"')}
@@ -283,20 +299,9 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
     ${slot('div', 'page.why_title', p.why_title, '', ' style="font-size:18px;font-weight:900;color:var(--white);margin-bottom:12px"')}
     ${slot('p', 'why', s.why, '', ' style="font-size:15px;color:rgba(255,255,255,0.75);line-height:1.75;margin:0"')}
   </div>
-</section>
-<section id="opportunities" class="section">
-  <div class="section-label">${fixed('04 / ')}${wrap('page.opps_label', p.opps_label)}</div>
-  ${slot('h2', 'page.opps_title', p.opps_title, 'section-title')}
-  <div class="leaderboard-wrap">
-    <table class="leaderboard">
-      <thead><tr>${slot('th', 'page.opps_col_1', p.opps_col_1)}${slot('th', 'page.opps_col_2', p.opps_col_2)}${slot('th', 'page.opps_col_3', p.opps_col_3)}</tr></thead>
-      <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal, '', label(p.opps_col_1))}${slot('td', `opportunities.${i}.opportunity`, o.opportunity, '', label(p.opps_col_2))}${slot('td', `opportunities.${i}.workstream`, o.workstream, '', label(p.opps_col_3))}</tr>`).join('')}</tbody>
-    </table>
-  </div>
-  ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}
-</section>
+</section>${oppsSection}
 <section id="methodology" class="section">
-  <div class="section-label">${fixed('05 / ')}${mirror('page.method_nav', p.method_nav)}</div>
+  <div class="section-label">${fixed(`${methodNum} / `)}${mirror('page.method_nav', p.method_nav)}</div>
   ${slot('h2', 'page.method_title', p.method_title, 'section-title')}
   <div class="method-note"><div>${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)}</div><div>${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div></div>
 </section>

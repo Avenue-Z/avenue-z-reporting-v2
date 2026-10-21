@@ -599,3 +599,29 @@ test('the headline signal gets the phone side padding, once per mode, inside the
   expect(PAGE_CSS.indexOf(rule)).toBeLessThan(desktopAt)
   for (const mode of ['draft', 'preview', 'final'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'x').split(rule).length - 1, mode).toBe(1)
 })
+
+const HIDDEN: Slots = { ...SLOTS, opportunities_page: 'hidden' }
+test('Opportunities page off (Ryan, round 3): no section, no menu item, Methodology is 04, Why it matters stays, in every mode', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, HIDDEN, mode, 'Oct 8, 2026')
+    const doc = parse(h)
+    expect(doc.getElementById('opportunities'), mode).toBeNull()
+    expect(doc.querySelector('a[href="#opportunities"]'), mode).toBeNull()
+    expect([...doc.querySelectorAll('.sidebar-nav .nav-num')].map((e) => e.textContent), mode).toEqual(['01', '02', '03', '04'])
+    expect(doc.querySelector('#methodology .section-label')!.textContent, mode).toMatch(/^04 \/ /)
+    expect(doc.querySelector('.rec-global-bottom-line'), mode).not.toBeNull()
+    expect(h, mode).not.toContain('class="leaderboard"')
+  }
+})
+
+test('Opportunities page on, stored or by default, renders the same bytes', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) expect(renderSnapshotHtml(DATA, { ...SLOTS, opportunities_page: 'shown' }, mode, 'x')).toBe(renderSnapshotHtml(DATA, SLOTS, mode, 'x'))
+})
+
+test('hidden: the fixed marks, the slots and the menu copies follow the page (spec §9 m9)', () => {
+  const doc = parse(renderSnapshotHtml(DATA, HIDDEN, 'draft', 'Oct 8, 2026'))
+  expect([...doc.querySelectorAll('[data-locked="fixed"]')].map((e) => e.textContent)).toEqual(['01', '02', '03', '04', '02 / ', '03 / ', '04 / ', 'Oct 8, 2026'])
+  const paths = [...doc.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
+  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(HIDDEN, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
+  expect([...doc.querySelectorAll('[data-mirror-edit]')].map((e) => e.getAttribute('data-mirror'))).toEqual(['page.headline_label', 'page.section_1_title', 'page.section_2_title'])
+})
