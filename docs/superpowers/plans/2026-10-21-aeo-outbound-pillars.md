@@ -51,7 +51,7 @@ test('the three pillars (Ryan, round 3): the slide names in its order, descripti
     'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.',
   ])
   expect(PILLARS_TITLE).toBe('The pillars of AI search')
-  for (const p of PILLARS) expect(`${p.name} ${p.description}`).not.toMatch(/[0-9–—]/)
+  for (const p of PILLARS) expect(`${p.name} ${p.description}`).not.toMatch(/[0-9\u2013\u2014]/)
   expect(SENTENCES_VERSION).toBe(2)
 })
 ```
