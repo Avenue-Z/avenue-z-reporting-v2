@@ -71,6 +71,21 @@ test('an unlock shows on the next read: a deleted row reads as none, and its rec
   expect(await readLock('c1', 'k')).toEqual({ response: { data: 'recaptured' } })
 })
 
+test('CACHE_DISABLE=1 bypasses the cache, as for every other cached fetch', async () => {
+  vi.stubEnv('CACHE_DISABLE', '1')
+  vi.resetModules()
+  try {
+    const { readLock: uncachedRead } = await import('./response-lock-store')
+    row = { id: 'r1', response: { data: 1 } }
+    await uncachedRead('c1', 'k')
+    await uncachedRead('c1', 'k')
+    expect(responseReads()).toBe(2)
+  } finally {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  }
+})
+
 test('writeLock returns what it inserted', async () => {
   insertReturns([{ response: { data: 2 } }])
   expect(await writeLock('c1', 'k', '2026-09-30', { data: 2 })).toEqual({ data: 2 })

@@ -1,7 +1,7 @@
 // The store behind lock every number: one row per (client, exact request) of a locked month.
 // Written once, then served forever. Only clients with reportingMonths reach it.
 import { and, eq } from 'drizzle-orm'
-import { unstable_cache } from 'next/cache'
+import { cached } from '@/lib/cache'
 import { db } from '@/lib/db/client'
 import { dashResponseLocks } from '@/lib/db/schema'
 
@@ -17,8 +17,9 @@ async function selectResponse(id: string): Promise<{ response: unknown } | null>
  *  id, so a cached answer can never be the wrong one. Only the small id lookup goes to Neon every
  *  time. That lookup is what keeps a miss out of the cache: a cached miss would sit in front of the
  *  answer captured right after it, and nothing can replace it early (a capture runs during a
- *  render, where Next refuses revalidateTag). */
-const cachedSelectResponse = unstable_cache(selectResponse, ['dash-response-lock', 'v2'], { revalidate: 86400 })
+ *  render, where Next refuses revalidateTag). Through cached(), so CACHE_DISABLE=1 turns it off and
+ *  each read logs its PERF line. Health-critical by default: a failed read is an error card. */
+const cachedSelectResponse = cached('neon', 'dashResponseLock', selectResponse, { version: 'v2', ttlSeconds: 86400 })
 
 export async function readLock(clientId: string, requestKey: string): Promise<{ response: unknown } | null> {
   const rows = await db.select({ id: dashResponseLocks.id }).from(dashResponseLocks)
