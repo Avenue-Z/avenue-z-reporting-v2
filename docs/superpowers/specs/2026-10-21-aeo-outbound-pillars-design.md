@@ -177,6 +177,13 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 - **D1. Card look.** Three cards in AIVx's cluster style (gradient pillar name, muted description, white data line).
   The scratch trial renders it with PocketGuard's numbers for you, and Ryan if you want, before the plan.
 - **D2. Remove the dead setting from the Settings form** (P9), or leave it showing. I'd remove it: it would do nothing.
+- **D3. What counts as the brand's own site in the Content line** (review round 2, M1). (a) Peec's OWN class or a
+  domain match, as the first findings box counts it: the share is the usage weight of those rows over the mix total,
+  the page never denies a site it shows elsewhere, and it can read above the donut's "You" slice when Peec misclassifies
+  a subdomain. (b) The `You` slice, as the donut shows it, with a different absent line when the box shows own
+  retrievals. (c) The `You` slice as drafted, accepting the rare clash. Recommended: (a).
+- **D4. Wording** changed in round 1 from the draft Thomas approved: "of the domain mix in this window" in place of
+  "of the sources AI drew on in this snapshot" (P3).
 
 ## 8. Not touched
 
@@ -201,4 +208,20 @@ database, AIVx files, the hub, the share and snapshot routes.
 - m8: `DataSentences` is `sentences.ts:6`; `v1-compat.test.ts:14-16` pins a version-1 row's Data block only; the Data
   block keeps Peec's actions line (`prompt.ts:58`), now read by no field, to keep it unchanged; PocketGuard's exact
   stored values are unverified (read from its staging donut only).
+
+## 10. Review round 2 (changed lines only): one MAJOR open for Thomas, minors carried to the plan
+
+- **Open MAJOR (r2-M1):** with the `You` slice rule, an own subdomain that Peec classifies CORPORATE shows in the first
+  findings box ("Blog.brand.com appears in 300 retrievals", `sentences.ts:149-151`, from `ownRows`, `metrics.ts:218-221`)
+  while the Content line says the brand's own site doesn't appear. Decision for Thomas, see §7 D3.
+- r2-m1: names and descriptions fall through to the allowed-numbers check (`grounding.ts:241`) like any non-Glean field,
+  plus the domain, date and dash checks.
+- r2-m2: deliberate test edits also include `contracts.test.ts:159`, `:167`, `:245-246` (opportunities no longer in
+  `GLEAN_SLOTS`).
+- r2-m3: code sentences say "in this window" or "for this window" (`sentences.ts:144`, `:200`); the rest don't name it.
+- r2-m4: the `SENTENCES_VERSION` comments (`config.ts:33-35`, `metrics.ts:66`) name `pillars(d)` too, so a later pillar
+  wording change bumps the version.
+- r2-m5: "sites" when `new Set(d.ownDomains.filter(Boolean)).size > 1` (§9 m2's rule; it replaces P3's).
+- r2-m6: a roster competitor's site that Peec classifies CORPORATE is in neither the Technical share nor the gaps
+  (`metrics.ts:254`).
 
