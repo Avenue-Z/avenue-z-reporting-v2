@@ -34,7 +34,7 @@
 
 **Files:**
 - Modify: `lib/aeo-outbound/config.ts` (after `PAGE_WORDS_V1`, which closes at `:101`), `lib/aeo-outbound/slots.ts:5`, `:75-78`
-- Test: `lib/aeo-outbound/slots.test.ts:3`, `:139-141`
+- Test: `lib/aeo-outbound/slots.test.ts:3`, `:139-141`; `lib/aeo-outbound/render.test.ts:5` and a new test after `:101`
 
 **Interfaces:**
 - Produces: `HEADLINE_LABEL = 'Executive Summary'` (config). Nothing later consumes it.
@@ -59,10 +59,26 @@ test('a new row takes the section titles and wordmark from settings, "Executive 
 
 The test at `:130` (`withDefaults` fills `headline_label: 'Headline signal'` on a row from before v1.1) stays as is: it pins that older rows keep the old word.
 
+In `lib/aeo-outbound/render.test.ts`, line 5 becomes `import { pageDefaults, slotEntries, withDefaults } from './slots'`, and after the test ending at `:101` add (final review m1: the word reaches both places it shows):
+
+```ts
+test('round 3: a new row reads Executive Summary in menu item 01 and as the headline section label', () => {
+  const page = pageDefaults({ sectionTitles: ['Category data', 'Competitive visibility'], sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
+  const h = renderSnapshotHtml(DATA, { ...SLOTS, page }, 'final', 'Oct 9, 2026')
+  expect(h).toContain('<a href="#headline"><span class="nav-num">01</span> Executive Summary</a>')
+  expect(h).toContain('<div class="exec-label">Executive Summary</div>')
+  expect(h).not.toContain('Headline signal')
+})
+```
+
+(AIVx's stylesheet already holds a `/* ── Executive Summary` comment, so the test asserts the two elements, not the bare words. Both strings were measured on a final render before writing this plan.)
+
+**Merging with #412.** #412 edits the same three places (`slots.ts:5`, the `pageDefaults` return, `slots.test.ts:139-141`). Whichever merges second keeps both: the import holds `HEADLINE_LABEL` and `PILLARS_TITLE`; `pageDefaults` returns `{ ...V1_WORDS, headline_label: HEADLINE_LABEL, section_1_title: ..., section_2_title: ..., sidebar_wordmark: ..., series: ..., opps_title: PILLARS_TITLE }`; the test expects both words.
+
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `perl -e 'alarm 120; exec @ARGV' -- npx vitest run lib/aeo-outbound/slots.test.ts`
-Expected: FAIL. `HEADLINE_LABEL` is not exported, so the new test fails (`expected undefined to be 'Executive Summary'`); every other test passes.
+Run: `perl -e 'alarm 120; exec @ARGV' -- npx vitest run lib/aeo-outbound/slots.test.ts lib/aeo-outbound/render.test.ts`
+Expected: FAIL. `HEADLINE_LABEL` is not exported, so the slots test fails (`expected undefined to be 'Executive Summary'`), and the render test fails (the page says "Headline signal"); every other test passes.
 
 - [ ] **Step 3: Implement**
 
@@ -92,14 +108,14 @@ export function pageDefaults(s: { sectionTitles: readonly string[]; sidebarWordm
 
 - [ ] **Step 4: Run it to verify it passes**
 
-Run: `perl -e 'alarm 120; exec @ARGV' -- npx vitest run lib/aeo-outbound/slots.test.ts lib/aeo-outbound/v1-compat.test.ts lib/aeo-outbound/config.test.ts`
-Expected: PASS, every test in the three files.
+Run: `perl -e 'alarm 120; exec @ARGV' -- npx vitest run lib/aeo-outbound/slots.test.ts lib/aeo-outbound/render.test.ts lib/aeo-outbound/v1-compat.test.ts lib/aeo-outbound/config.test.ts`
+Expected: PASS, every test in the four files.
 
 - [ ] **Step 5: Commit and push**
 
 ```bash
 git status --porcelain
-git add lib/aeo-outbound/config.ts lib/aeo-outbound/slots.ts lib/aeo-outbound/slots.test.ts
+git add lib/aeo-outbound/config.ts lib/aeo-outbound/slots.ts lib/aeo-outbound/slots.test.ts lib/aeo-outbound/render.test.ts
 git commit -m "New reports label the headline section Executive Summary (Ryan, round 3)
 
 Older rows keep their stored word, or Headline signal from PAGE_WORDS_V1.
