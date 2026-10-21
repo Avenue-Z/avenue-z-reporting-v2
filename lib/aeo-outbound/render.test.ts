@@ -388,6 +388,13 @@ const METHOD_RULES = [
   '#methodology .method-note>div+div{margin-top:14px}',
   '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
 ]
+/** Round 3 (Ryan, 2026-10-21): the pillar cards, one column by default, after the Methodology rules. */
+const PILLAR_RULES = [
+  '.aeo-pillars{display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px}',
+  '.aeo-pillar{display:flex;flex-direction:column;padding:24px}',
+  '.aeo-pillar-desc{font-size:14px;line-height:1.6;color:rgba(255,255,255,0.6);margin:10px 0 18px}',
+  '.aeo-pillar-line{margin:auto 0 0;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);font-size:16px;line-height:1.5;font-weight:600;color:#fff}',
+]
 /** v1.1 §17.15: Opportunities laid out like Ryan's table, in its own desktop block after the phone block, verbatim and in order. */
 const DESKTOP_OPEN = '@media (min-width: 901px){'
 const DESKTOP_RULES = [
@@ -401,6 +408,7 @@ const DESKTOP_RULES = [
   '#opportunities .leaderboard tbody tr:nth-child(even) td{background:rgba(255,255,255,0.035)}',
   '#opportunities .leaderboard tbody tr:hover{background:none}',
   '#opportunities .chart-takeaway{border-top:none;padding:16px 0 0;margin:0;color:rgba(255,255,255,0.6)}',
+  '#opportunities .aeo-pillars{grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}',
 ]
 const outsideRules = () => PAGE_CSS.slice(0, PAGE_CSS.indexOf('@media (max-width: 900px){')).split('\n').filter(Boolean)
 
@@ -410,7 +418,7 @@ test('every PAGE_CSS rule except aeo-long, the chart spacing rules sits inside t
   expect(at).toBeGreaterThan(-1)
   expect(PAGE_CSS.endsWith('}')).toBe(true)
   const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
-  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES, ...METHOD_RULES])
+  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES, ...METHOD_RULES, ...PILLAR_RULES])
   const desktopAt = PAGE_CSS.indexOf(DESKTOP_OPEN)
   expect(desktopAt).toBeGreaterThan(at)
   expect(PAGE_CSS.slice(desktopAt - 2, desktopAt)).toBe('}\n')
@@ -481,7 +489,7 @@ test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final
 
 test('Methodology rules (v1.1 §17.14): verbatim, in order, after the chart-wrap rule, outside the phone query, once per mode', () => {
   const out = outsideRules()
-  expect(out.slice(-3)).toEqual(METHOD_RULES)
+  expect(out.slice(-3 - PILLAR_RULES.length, -PILLAR_RULES.length)).toEqual(METHOD_RULES)
   expect(out.indexOf(METHOD_RULES[0]!)).toBe(out.indexOf(CHART_SPACING_RULES[CHART_SPACING_RULES.length - 1]!) + 1)
   for (const mode of ['draft', 'preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
@@ -598,4 +606,27 @@ test('the headline signal gets the phone side padding, once per mode, inside the
   expect(PAGE_CSS.indexOf(rule)).toBeGreaterThan(phoneAt)
   expect(PAGE_CSS.indexOf(rule)).toBeLessThan(desktopAt)
   for (const mode of ['draft', 'preview', 'final'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'x').split(rule).length - 1, mode).toBe(1)
+})
+
+const PILLAR_SLOTS: Slots = { ...SLOTS, opportunities_layout: 'pillars', opportunities: [0, 1, 2].map((i) => ({ workstream: `Pillar ${i}`, opportunity: `About ${i}`, signal: `Line ${i}` })) }
+test('pillar layout (Ryan, round 3): three cards in order, name, description and line as slots, no table or footnote, every mode', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const doc = parse(renderSnapshotHtml(DATA, PILLAR_SLOTS, mode, 'x'))
+    const cards = [...doc.querySelectorAll('#opportunities .aeo-pillars > .cluster-card.aeo-pillar')]
+    expect(cards.map((c) => [c.querySelector('.cluster-name')!.textContent, c.querySelector('.aeo-pillar-desc')!.textContent, c.querySelector('.aeo-pillar-line')!.textContent]), mode).toEqual([0, 1, 2].map((i) => [`Pillar ${i}`, `About ${i}`, `Line ${i}`]))
+    expect(doc.querySelector('#opportunities table'), mode).toBeNull()
+    expect(doc.querySelector('#opportunities .chart-takeaway'), mode).toBeNull()
+    expect(doc.querySelector('#opportunities h2.section-title'), mode).not.toBeNull()
+  }
+  const draft = parse(renderSnapshotHtml(DATA, PILLAR_SLOTS, 'draft', 'x'))
+  expect([...draft.querySelectorAll('#opportunities [data-slot]')].map((e) => e.getAttribute('data-slot'))).toEqual(['page.opps_label', 'page.opps_title', ...[0, 1, 2].flatMap((i) => [`opportunities.${i}.workstream`, `opportunities.${i}.opportunity`, `opportunities.${i}.signal`])])
+  const paths = [...draft.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
+  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(PILLAR_SLOTS, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
+})
+
+test('pillar rules: verbatim after the Methodology rules, the 3-column rule in the desktop block, each once per mode', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    for (const r of PILLAR_RULES) expect(h.split(r).length - 1, `${mode} ${r.slice(0, 40)}`).toBe(1)
+  }
 })
