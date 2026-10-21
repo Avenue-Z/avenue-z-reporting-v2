@@ -133,8 +133,8 @@ export const adminsLine = (admins: string[]): string => (admins.length ? `Admins
 export const USERS_HELP = 'One @avenuez.com email per line. People in AEO_OUTBOUND_USERS can always use the tool.'
 export const ADMINS_HELP = 'Admins can change these settings. People in AEO_OUTBOUND_USERS are always admins.'
 export const alwaysAdmins = (emails: string[]): string => (emails.length ? `Always admins: ${emails.join(', ')}.` : '')
-export const FIRST_SECTION = 'First section title'
-export const SECOND_SECTION = 'Second section title'
+export const FIRST_SECTION = 'Sources section title'
+export const SECOND_SECTION = 'Visibility section title'
 export const NEXT_WRITTEN = 'Written for each report'
 export const NEXT_FIXED = 'The same sentence on every report'
 export const NEXT_SENTENCE = 'Next-step sentence'

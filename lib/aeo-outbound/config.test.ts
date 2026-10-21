@@ -1,8 +1,9 @@
 import { expect, test } from 'vitest'
-import { DECISIONS, SENTENCES_VERSION } from './config'
+import { DECISIONS, PAGE_WORDS_V1, SENTENCES_VERSION } from './config'
 
 test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
-  expect(DECISIONS.sectionTitles).toEqual(['Category data', 'Competitive visibility'])
+  expect(DECISIONS.sectionTitles).toEqual(['Cited Sources', 'Competitive Visibility'])
+  expect([PAGE_WORDS_V1.section_1_title, PAGE_WORDS_V1.section_2_title]).toEqual(['Category data', 'Competitive visibility'])
   expect(DECISIONS.rankAmong).toBeNull()
   expect(DECISIONS.writeSpecificCategory).toBe(true)
   expect(DECISIONS.competitorSiteGaps).toBe(true)

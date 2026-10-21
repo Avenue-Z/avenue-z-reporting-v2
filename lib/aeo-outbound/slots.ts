@@ -1,7 +1,7 @@
-// The editable copy (spec §6, §9a; v1.1 §3). competitive_bullets holds the first data section (strengths) and
-// sources_bullets the second (gaps), as spec §5 rows 5-6 say. v1.1 makes every visible word a slot: brand,
-// window_label, kpis and the page words. A row from before v1.1 lacks those keys; withDefaults fills them from the row's
-// own data and the v1.0 words, never from live settings, so a settings change never alters an existing row.
+// The editable copy (spec §6, §9a; v1.1 §3). competitive_bullets holds the sources section's box (beside the Domain Types
+// donut) and sources_bullets the competitive visibility section's (beside the bars), whatever their order on the page.
+// v1.1 makes every visible word a slot: brand, window_label, kpis and the page words. A row from before v1.1 lacks those
+// keys; withDefaults fills them from the row's own data and the v1.0 words, never from live settings, so a settings change never alters an existing row.
 import { NEEDS_VALIDATION, PAGE_WORDS_V1 } from './config'
 import type { Kpi } from './metrics'
 

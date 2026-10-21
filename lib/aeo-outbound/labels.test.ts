@@ -22,6 +22,13 @@ test('the label map names each field in plain words, a bullet by its current sec
   expect(fieldLabel('brand', T)).toBe('Brand name')
 })
 
+test('round 3: the section and chart fields are named by their content, since new rows swap their order', () => {
+  expect(fieldLabel('page.section_1_title', T)).toBe('Sources section title')
+  expect(fieldLabel('page.section_2_title', T)).toBe('Visibility section title')
+  expect(fieldLabel('page.chart_1_title', T)).toBe('Domain types chart title')
+  expect(fieldLabel('page.chart_2_title', T)).toBe('Visibility chart title')
+})
+
 test('every editable path has a label that is not the path itself', () => {
   for (const [p] of slotEntries(FULL)) expect(fieldLabel(p, T), p).not.toBe(p)
 })

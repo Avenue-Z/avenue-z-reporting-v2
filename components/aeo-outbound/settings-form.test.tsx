@@ -31,7 +31,7 @@ test('the form shows the current settings, the env admins and the note', () => {
   expect(screen.getByText('Changes apply to snapshots generated from now on. Existing drafts and sent links keep their words.')).toBeInTheDocument()
   expect(screen.getByLabelText('Who can use the tool')).toHaveValue('ana@avenuez.com')
   expect(screen.getByText('Always admins: ryan@avenuez.com.')).toBeInTheDocument()
-  expect(screen.getByLabelText('First section title')).toHaveValue('Category data')
+  expect(screen.getByLabelText('Sources section title')).toHaveValue('Cited Sources')
   expect(screen.getByLabelText('The same sentence on every report')).toBeChecked()
   expect(screen.getByLabelText('Next-step sentence')).toHaveValue('A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.')
   expect(screen.getByLabelText('Every brand tracked in Peec')).toBeChecked()
@@ -47,7 +47,7 @@ test('the form shows the current settings, the env admins and the note', () => {
 test('Save sends the form and the loaded time, then says Saved and carries the new time into the next save', async () => {
   save.mockResolvedValueOnce({ ok: true, updatedAt: '2026-10-11T12:00:00.000Z' }).mockResolvedValueOnce({ ok: true, updatedAt: '2026-10-11T12:05:00.000Z' })
   render(<SettingsForm {...base} />)
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Strengths' } })
   fireEvent.click(screen.getByLabelText('The same sentence on every report'))
   fireEvent.change(screen.getByLabelText('Next-step sentence'), { target: { value: 'Book a working session.' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
@@ -105,7 +105,7 @@ test('the bar has Back to New Business and Save settings, and the four cards com
 
 test('with an unsaved change Back asks; Stay keeps the page and Leave pushes', () => {
   render(<SettingsForm {...base} />)
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Strengths' } })
   expect(backStopped()).toBe(true)
   expect(screen.getByRole('dialog')).toHaveTextContent('You have unsaved edits. Leave anyway?')
   fireEvent.click(screen.getByRole('button', { name: 'Stay' }))
@@ -119,29 +119,29 @@ test('with an unsaved change Back asks; Stay keeps the page and Leave pushes', (
 test('an unchanged form, or a change put back, does not stop Back', () => {
   render(<SettingsForm {...base} />)
   expect(backStopped()).toBe(false)
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Category data' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Strengths' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Cited Sources' } })
   expect(backStopped()).toBe(false)
 })
 
 test('after a save Back is not stopped, and a further edit makes it ask again', async () => {
   save.mockResolvedValueOnce({ ok: true, updatedAt: '2026-10-11T12:00:00.000Z' })
   render(<SettingsForm {...base} />)
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Strengths' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
   // Waiting for "Saved" is not enough: the save resolves outside act, so React can show it a task before the effect that
   // drops the guard's click listener runs (CI run 38607387769). Awaiting the save inside act runs that effect too.
   await act(() => save.mock.results[0].value)
   expect(screen.getByText('Saved')).toBeInTheDocument()
   expect(backStopped()).toBe(false)
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths 2' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Strengths 2' } })
   expect(backStopped()).toBe(true)
 })
 
 test('a failed save leaves the form unsaved', async () => {
   save.mockResolvedValueOnce({ ok: false, error: 'invalid', fieldErrors: {} })
   render(<SettingsForm {...base} />)
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Strengths' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
   await waitFor(() => expect(save).toHaveBeenCalled())
   expect(backStopped()).toBe(true)
@@ -152,7 +152,7 @@ test('beforeunload is registered only while the form is unsaved', () => {
   const count = () => add.mock.calls.filter(([t]) => t === 'beforeunload').length
   render(<SettingsForm {...base} />)
   expect(count()).toBe(0)
-  fireEvent.change(screen.getByLabelText('First section title'), { target: { value: 'Strengths' } })
+  fireEvent.change(screen.getByLabelText('Sources section title'), { target: { value: 'Strengths' } })
   expect(count()).toBe(1)
   const e = new Event('beforeunload', { cancelable: true })
   window.dispatchEvent(e)
