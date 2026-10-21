@@ -16,9 +16,8 @@ will give the tool more direction") still waits on Q1 and is not here.
 
 **Order.** The menu lists `#category-data` as 02 and `#competitive-visibility` as 03 (`render.ts:238-239`). The page
 writes the sections in the same order, each with a fixed number prefix (`render.ts:265-280`: `fixed('02 / ')`,
-`fixed('03 / ')`). `#category-data` holds the `competitive_bullets` box and the Domain Types donut (`chart_1_title`,
-`:270-271`); `#competitive-visibility` holds the `sources_bullets` box and the visibility bars (`chart_2_title`,
-`:278-279`). The titles are `t1 = p.section_1_title` and `t2 = p.section_2_title` (`render.ts:222-223`).
+`fixed('03 / ')`). `#category-data` holds the `competitive_bullets` box (`:269`) and the Domain Types donut (`chart_1_title`, `:270`);
+`#competitive-visibility` holds the `sources_bullets` box (`:277`) and the visibility bars (`chart_2_title`, `:278`). The titles are `t1 = p.section_1_title` and `t2 = p.section_2_title` (`render.ts:222-223`).
 
 **Titles.** A new row's page words come from `pageDefaults` (`slots.ts:76-78`, called at `generate.ts:101`), which
 takes `section_1_title` and `section_2_title` from the generation settings. Those are the saved settings row, or, with
@@ -33,7 +32,8 @@ title", "Second chart title" (`labels.ts:11-13`). A bullet's label uses `titles[
 `titles[1]` for `sources_bullets` (`labels.ts:26`), so it already follows the box, not the position.
 
 **Scroll highlight.** AIVx's scroll spy picks the last `.section[id]` whose top is at or above 120px
-(`aivx/js.ts`, "Active nav state on scroll"): position, not DOM order. `render.frame.test.ts:323-370` exercises it.
+(`aivx/js.ts:2`, "Active nav state on scroll"). It walks the sections in DOM order and keeps the last one high enough,
+so it follows the page as long as DOM order is visual order, which O1 keeps. `render.frame.test.ts:323-370` exercises it.
 
 **Unverified.** Whether staging and production have a saved settings row, and which titles it holds: `.env.local` has no
 `DATABASE_URL`, so I could not read either database.
@@ -45,7 +45,10 @@ title", "Second chart title" (`labels.ts:11-13`). A bullet's label uses `titles[
 reading the row), set by `generate.ts` on every new row next to `pageDefaults` (`:101`). With the marker:
 - the menu lists `#competitive-visibility` as 02, then `#category-data` as 03;
 - the page writes `#competitive-visibility` (prefix "02 / ") before `#category-data` (prefix "03 / ");
-- each section keeps its own id, title slot, bullet box, chart and CSS; only the order and the two numbers move.
+- each section keeps its own id, title slot, bullet box, chart and CSS; only the order and the two numbers move;
+- every menu item after the two data items (04 Opportunities, 05 Methodology) stays after both, whichever comes second.
+  #411 appends its Opportunities link to the end of the `#competitive-visibility` menu line (its `render.ts:256`,
+  `${oppsNav}`), so the merge must attach it after the pair, not to that line (review round 1, MAJOR 1).
 Without the marker the page is byte-identical to today, so drafts in flight and rows from before v1.1 keep their order.
 Approved reports are frozen HTML and never change.
 
@@ -81,11 +84,11 @@ in the source ecosystem", "Source-use signal"); that is what Q1 regroups.
 | Row with the marker | 02 Competitive Visibility, 03 Cited Sources, in menu and page |
 | Row without the marker (any older row) | Byte-identical to today |
 | Row from before v1.1 | Byte-identical; titles from the frozen `PAGE_WORDS_V1` literals |
-| Marker with any other value | Refused by `STORED_SLOTS` (`z.literal`), like the pillars marker |
+| Marker with any other value | Refused by `STORED_SLOTS` (`z.literal`, as unmerged #412 does for its marker); see §8 r1-3 for what refusal does |
 | Salesperson edits a section title | Saved on that row as today; the order does not change |
 | Settings row saved with old titles | New rows still say "Category data"; order still swaps (O3) |
 | Scroll highlight on a marker row | Follows position, as today; pinned by a frame test |
-| Opportunities toggle (#411) or pillars (#412) on the same row | Independent: they touch the Opportunities section and the menu line after 03 |
+| Opportunities toggle (#411) or pillars (#412) on the same row | Order of 02 and 03 independent of both; the Opportunities link (shown or hidden) always follows 03 (O1). Pinned by a marker plus hidden-page menu test in whichever of this PR and #411 merges second |
 
 ## 6. Tests (written first)
 
@@ -96,12 +99,29 @@ in the source ecosystem", "Source-use signal"); that is what Q1 regroups.
 | `render.frame.test.ts` | Marker row: clicking 02 marks `#competitive-visibility` active in preview |
 | `contracts.test.ts` | `section_order` accepts `'visibility_first'`, rejects another value, absent is fine |
 | `generate.test.ts` | A generated row carries the marker |
+| `slots.test.ts` | A text edit (`applySlotPatch`) and a bullet add and remove (`applyStructure`) on a marker row, read through `withDefaults`, keep `section_order`; a row without it gains none (review round 1, MAJOR 2: every save takes this path, `slots/route.ts:76`, `:88`, `:100`) |
 | `config.test.ts` | `DECISIONS.sectionTitles` is Ryan's names; `PAGE_WORDS_V1` titles stay the v1.0 words |
 | `settings.test.ts` | `SETTINGS_DEFAULTS.sectionTitles` follows `DECISIONS` |
 | `labels.test.ts`, settings form test | The four content labels |
 
 ## 7. Overlaps
 
-#411 and #412 also edit `render.ts` near the menu, `slots.ts` (`Slots`), `contracts.ts` (`STORED_SLOTS`) and
+#411 and #412 also edit `render.ts` near the menu (for #411, the Opportunities link: see O1), `slots.ts` (`Slots`), `contracts.ts` (`STORED_SLOTS`) and
 `generate.ts:101-102` (pillars sets its marker there). Each is an addition beside another; whichever merges second keeps
 both. #413 edits `pageDefaults`, not touched here.
+
+## 8. Review round 1: minors carried to the plan
+
+- r1-3: a `section_order` value this build does not know makes the row unreadable (`store.ts:22`, `page.tsx:34`, 409 on
+  save, `slots/route.ts:71-73`), as for any contract failure. Accepted: one value exists, written only by code.
+- r1-4: on marker rows Before you send, Needs validation and Approve's first highlighted item keep storage order
+  (`slots.ts:137`, `:146`, `editor.tsx:350`), so a Cited Sources bullet is listed before a Competitive Visibility one;
+  Settings keeps Sources first (`settings-form.tsx:100`, `:104`). Accepted; the labels name the section (O4).
+- r1-5: the frame test uses a marker row whose stubbed tops follow its DOM order (Competitive Visibility above Cited
+  Sources) and expects `#competitive-visibility` active on scroll; a click test alone proves nothing about order.
+- r1-6: the render tests assert marker order in final, draft and preview; in draft, the editable menu copies list
+  `page.section_2_title` before `page.section_1_title` (counterpart of `render.test.ts:222`).
+- r1-8: "Competitive Visibility" recased on my decision (Ryan's casing, 2026-10-21); the PR says so.
+- r1-9: more overlaps: #412 changes `fieldLabel`'s signature in `labels.ts`; #411 edits `messages.ts` and
+  `render.frame.test.ts`.
+- r1-10: the `slots.ts:1-2` comment ("first data section ... second") is reworded by content, as `config.ts:4` is.
