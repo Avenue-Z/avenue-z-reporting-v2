@@ -467,3 +467,37 @@ test('the exact sentence check runs only for rows written by the current sentenc
   // It is still a new row: a number in Glean's words is still an unchecked_number item.
   expect(groundingFlags({ ...edited, why: 'It rose 4.4%.' }, d, dataBlock(d)).filter((n) => n.path === 'why').map((n) => n.kind)).toEqual(['unchecked_number'])
 })
+
+// Round 3 (Ryan, 2026-10-21): a pillar row is the opinion fields plus the code-written pillars and the marker.
+const pillarSlots = (d: SnapshotData, over: Partial<Slots> = {}): Slots => ({ ...slotsFor(d), opportunities: dataSentences(d).opportunities, opportunities_layout: 'pillars', ...over })
+const pillarFlags = (d: SnapshotData, over: Partial<Slots> = {}) => groundingFlags(pillarSlots(d, over), d, dataBlock(d))
+
+test('pillar rows: fresh lines carry no flags; an edited number is checked against its own sentence; no Peec-recommends check', () => {
+  const d = newRow()
+  expect(pillarFlags(d)).toEqual([])
+  const lines = dataSentences(d).opportunities
+  const edited = lines.map((o, i) => (i === 0 ? { ...o, signal: o.signal.replace(/\d+(?:\.\d)?%/, '55%') } : o))
+  expect(edited[0].signal).not.toBe(lines[0].signal)
+  expect(pillarFlags(d, { opportunities: edited })).toEqual([{ kind: 'number_not_in_data', path: 'opportunities.0.signal', text: '"55%" does not match Peec\'s number in this sentence' }])
+  const recommends = lines.map((o, i) => (i === 2 ? { ...o, signal: 'Peec recommends unblocking AI crawlers.' } : o))
+  expect(pillarFlags(d, { opportunities: recommends }).some((n) => n.kind === 'peec_recommends')).toBe(false)
+})
+
+test('pillar rows: a brand named like a domain raises no domain flag on its own pillar line', () => {
+  const own = LIVE_SHAPE_PULL.ownBrand
+  const n = 'Seniorcare.com'
+  const pull: PeecPull = {
+    ...LIVE_SHAPE_PULL,
+    ownBrand: { ...own, name: n },
+    roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === own.id ? { ...b, name: n } : b)),
+    brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === own.id ? { ...b, brand: { ...b.brand, name: n } } : b)),
+  }
+  const d = newRow(pull)
+  expect(pillarFlags(d).filter((f) => f.path?.startsWith('opportunities.'))).toEqual([])
+})
+
+test('a table row is checked as before: its opportunities are Glean\'s', () => {
+  const d = newRow()
+  const opps = [0, 1, 2].map(() => ({ signal: 'Grew 40%', opportunity: 'Explore it', workstream: 'Content' }))
+  expect(flagsFor(d, { opportunities: opps }).some((n) => n.kind === 'unchecked_number' && n.path === 'opportunities.0.signal')).toBe(true)
+})

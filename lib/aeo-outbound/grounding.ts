@@ -149,14 +149,19 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // Allowed numbers come from today's sentences on any new row; the word-for-word check needs the row's own version.
   const sentences: DataSentences | null = sentencesRow ? dataSentences(d) : null
   const sameVersion = d.sentences === SENTENCES_VERSION
+  // Round 3 (pillars spec P7): on a pillar row the data line is a code sentence and no opportunity field is Glean's.
+  // Table rows are checked exactly as before.
+  const pillarRow = full.opportunities_layout === 'pillars'
+  const pillarLine = (path: string): boolean => pillarRow && /^opportunities\.\d\.signal$/.test(path)
   if (sentences) {
     const s = sentences
-    const sentenceText = stripNames([s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | '))
+    const sentenceText = stripNames([s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text]), ...(pillarRow ? s.opportunities.map((o) => o.signal) : [])].join(' | '))
     for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
   }
   const fixedNext = settingsUsedOf(d).fixedNextStep
   /** A field Glean wrote (v1.1 §19.3): the category only while it is not Peec's value, next_step only with no fixed sentence. */
   const gleanWrote = (path: string): boolean => {
+    if (pillarRow && path.startsWith('opportunities.')) return false
     if (/^(?:headline|summary|why|opportunities\.\d\.(?:signal|opportunity|workstream))$/.test(path)) return true
     if (path === 'category') return cleanValue(full.category) !== cleanValue(d.category ?? NEEDS_VALIDATION)
     return path === 'next_step' && fixedNext === null
@@ -171,6 +176,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (!sentences) return undefined
     if (path === 'context') return sentences.context
     if (path === 'methodology') return sentences.methodology
+    const line = pillarLine(path) ? /^opportunities\.(\d)\.signal$/.exec(path) : null
+    if (line) return sentences.opportunities[Number(line[1])]?.signal
     const m = /^(competitive_bullets|sources_bullets)\.(\d)\.(lead|text)$/.exec(path)
     if (!m) return undefined
     const key = m[1] as 'competitive_bullets' | 'sources_bullets'
@@ -211,9 +218,9 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed. Peec's
       // domains go first and in any case, so a brand that starts its own domain ("Giggle", "Gigglefinance.com") cannot
       // leave half a domain behind (final review I2).
-      const domainText = sentencesRow && isCodeSentencePath(path) ? stripBrandNames(withoutDomains(value)) : value
+      const domainText = sentencesRow && (isCodeSentencePath(path) || pillarLine(path)) ? stripBrandNames(withoutDomains(value)) : value
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
-      const ref = sameVersion && isCodeSentencePath(path) ? peecSentence(path) : undefined
+      const ref = sameVersion && (isCodeSentencePath(path) || pillarLine(path)) ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
         // Peec's own action titles (an "H1 heading") are not Glean's numbers.
         let words = text
@@ -242,7 +249,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       }
       for (const m of datesOutsideWindow(text, d.window)) add('date_not_in_window', path, `"${m}" is outside the data window (${d.windowLabel})`)
     }
-    if (sentencesRow && /^opportunities\.\d\.signal$/.test(path) && /peec\s+recommend/i.test(value)) {
+    if (sentencesRow && !pillarRow && /^opportunities\.\d\.signal$/.test(path) && /peec\s+recommend/i.test(value)) {
       const words = keyWords(value)
       const actionWords = d.actions.map((a) => keyWords(a.title))
       if (!d.actions.length) add('peec_recommends', path, 'Peec has no recommended actions for this project.')
