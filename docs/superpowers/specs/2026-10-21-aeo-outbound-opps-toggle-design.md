@@ -155,3 +155,19 @@ snapshot routes, AIVx files, the charts.
   keeps `opportunities.*` pending, dirty and bad entries.
 - m11: "Looks right" ticks are keyed `kind|path|text` (`before-you-send.tsx:15`) and are kept across hide and show; the
   `brand_changed` note's text embeds its count (`grounding.ts:253-255`), so its tick resets when hiding changes the count.
+
+## 10. Minor findings carried to the plan (review round 2, no BLOCKER or MAJOR)
+
+- r2-1 (must do, it can lock the editor): the click re-checks the queue's live state, `q.state.dirty || q.state.saving
+  || q.state.stopped || q.state.structuring`, as `onApprove` does (`editor.tsx:360`, `:368`), not only `structuring`:
+  React's `save` can lag a frame `dirty` message (`editor.tsx:273`), and a hide queued behind a refused opportunity cell
+  would leave a `bad` entry nobody can see or fix. Test: a click while `q.state.dirty` is true but not yet rendered sends
+  nothing.
+- r2-2: post the mode message through `toFrame` (`editor.tsx:156`), a no-op when there is no frame.
+- r2-3: disabled also while `html === null` (no view loaded yet), so a click cannot carry a stale revision before
+  `adopt` (`save-queue.ts:109`).
+- r2-4: the two-tabs row needs its precondition: tab A saves anything, then tab B, opened earlier, toggles: 409.
+- r2-5: m5's citation is `slots/route.ts:76` (filled by `withDefaults`) then `:101` (stored).
+- r2-6: editor tests add: two clicks in one `act()` send one PATCH; the click posts mode `edit:false`; the title
+  equals Approve's when disabled for a refused field or a stop.
+
