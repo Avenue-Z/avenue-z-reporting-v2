@@ -60,6 +60,14 @@ const v11 = (html: string) => {
     '<section id="methodology" class="section">\n  <div class="method-note"><strong>Methodology:</strong> <span>Peec data from Oct 1, 2026 to Oct 8, 2026 across 3 brands and 100 prompts. Results are directional.</span> <strong>Next step:</strong> <span>A full AEO audit.</span></div>',
     '<section id="methodology" class="section">\n  <div class="section-label">05 / Methodology</div>\n  <h2 class="section-title">Methodology and next step</h2>\n  <div class="method-note"><div><strong>Methodology:</strong> <span>Peec data from Oct 1, 2026 to Oct 8, 2026 across 3 brands and 100 prompts. Results are directional.</span></div><div><strong>Next step:</strong> <span>A full AEO audit.</span></div></div>',
   )
+  // 2026-10-21 (Ryan, round 3, spec 2026-10-21-aeo-outbound-charts-design.md C1 and C2): the bar chart's plot area is
+  // black and its top margin 8px. The grey value also appears in the donut's layout, so the anchor runs to the bar's height.
+  out = once(
+    out,
+    '"plot_bgcolor":"#1a1a1a","font":{"family":"Avenir, sans-serif","color":"#FFFFFF","size":13},"hoverlabel":{"bgcolor":"#272727","bordercolor":"rgba(255,255,255,0.1)","font":{"family":"Avenir","color":"#FFFFFF","size":13}},"height":420,"xaxis"',
+    '"plot_bgcolor":"#000000","font":{"family":"Avenir, sans-serif","color":"#FFFFFF","size":13},"hoverlabel":{"bgcolor":"#272727","bordercolor":"rgba(255,255,255,0.1)","font":{"family":"Avenir","color":"#FFFFFF","size":13}},"height":420,"xaxis"',
+  )
+  out = once(out, '"bargap":0.38}', '"bargap":0.38,"margin":{"t":8}}')
   return out
 }
 // The footer description and disclaimer are one slot value each now, rendered on one line where v1.0 wrapped them over

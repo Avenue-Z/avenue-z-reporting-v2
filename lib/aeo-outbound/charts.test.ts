@@ -8,14 +8,21 @@ const C = goldens.cases as unknown as Record<string, Case>
 const plain = (x: unknown) => JSON.parse(JSON.stringify(x))
 
 for (const name of ['visibility_bar_12', 'visibility_bar_4']) {
-  test(`${name}: identical to AIVx's bar except the visibility hover, % labels and unclipped labels`, () => {
+  test(`${name}: identical to AIVx's bar except the visibility hover, % labels, unclipped labels, black plot area and 8px top margin`, () => {
     const lb = (C[name].input.leaderboard as { brand: string; citation_count: number }[])
     const ours = plain(visibilityBarFigure(lb.map((b) => ({ name: b.brand, visibilityPct: b.citation_count }))))
     const gold = plain(C[name].figure)
     expect(ours.data[0].hovertemplate).toBe('<b>%{y}</b><br>Visibility: %{x}%<extra></extra>')
     expect(ours.data[0].text).toEqual(ours.data[0].x.map((v: number) => `${v.toFixed(1)}%`))
     expect(ours.data[0].cliponaxis).toBe(false)
-    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].text; delete f.data[0].cliponaxis }
+    // Round 3 (Ryan, 2026-10-21): no grey behind the bars, and the bars start right under the chart title.
+    expect(ours.layout.plot_bgcolor).toBe('#000000')
+    expect(gold.layout.plot_bgcolor).toBe('#1a1a1a')
+    expect(ours.layout.margin).toEqual({ t: 8 })
+    expect(gold.layout.margin).toBeUndefined()
+    const keys = Object.keys(ours.layout)
+    expect(keys[keys.length - 1]).toBe('margin')
+    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].text; delete f.data[0].cliponaxis; delete f.layout.plot_bgcolor; delete f.layout.margin }
     expect(ours).toEqual(gold)
   })
 }

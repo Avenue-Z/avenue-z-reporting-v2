@@ -61,10 +61,15 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
     }],
     layout: {
       template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE,
+      // Round 3 (Ryan, 2026-10-21): a black plot area in place of PLOTLY_BASE's grey (this key keeps its place in the
+      // JSON), and an 8px top margin in place of Plotly's default 100, so the bars start right under the chart title.
+      // Left, right and bottom keep Plotly's defaults.
+      plot_bgcolor: '#000000',
       height: Math.max(420, top10.length * 38),
       xaxis: { title: { text: '' }, gridcolor: 'rgba(255,255,255,0.06)', showgrid: true, zeroline: false, tickfont: { color: '#A6A6A6', size: 11 } },
       yaxis: { title: { text: '' }, showgrid: false, tickfont: { color: '#FFFFFF', size: 12, family: 'Avenir' } },
       bargap: 0.38,
+      margin: { t: 8 },
     },
     config: CONFIG,
   }
