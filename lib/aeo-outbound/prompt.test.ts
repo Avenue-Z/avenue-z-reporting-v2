@@ -104,6 +104,12 @@ test('version 2: gap points always print one decimal, and only the 5 nearest bra
     'Gap to each brand ranked above (visibility points, share of voice points): BrandD 12.0 points; BrandE 11.0 points; BrandF 7.0 points; BrandG 3.4 points; BrandH 1.0 points, 1.0 points')
 })
 
+test('round 3: a version 2 row says the gaps are competitors\' own sites; a version 1 row keeps its words', () => {
+  expect(line(D2, 'Competitor domain gaps')).toBe("Competitor domain gaps (competitors' own sites where the brand does not appear, by answers that used them): alpha.com 1,250")
+  expect(line({ ...D2, gapDomains: [] } as unknown as SnapshotData, 'Competitor domain gaps')).toBe("Competitor domain gaps (competitors' own sites where the brand does not appear, by answers that used them): none")
+  expect(line(D, 'Competitor domain gaps')).toBe('Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): alpha.com 1,250')
+})
+
 test('version 2: the own brand is always in the brands line, in place of the fifth', () => {
   const many = Array.from({ length: 7 }, (_, i) => ({ id: `b${i}`, name: `Brand${String.fromCharCode(65 + i)}`, isOwn: i === 6, visibilityPct: 50 - i, sovPct: null, position: null, rank: i + 1 }))
   expect(line({ ...D2, brands: many } as unknown as SnapshotData, 'Brands by AI visibility')).toBe(
