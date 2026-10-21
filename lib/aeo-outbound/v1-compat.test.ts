@@ -68,6 +68,12 @@ const v11 = (html: string) => {
     '"plot_bgcolor":"#000000","font":{"family":"Avenir, sans-serif","color":"#FFFFFF","size":13},"hoverlabel":{"bgcolor":"#272727","bordercolor":"rgba(255,255,255,0.1)","font":{"family":"Avenir","color":"#FFFFFF","size":13}},"height":420,"xaxis"',
   )
   out = once(out, '"bargap":0.38}', '"bargap":0.38,"margin":{"t":8}}')
+  // 2026-10-21 (Ryan, round 3, spec C4): the donut's legend is two columns, with 24px sides so they fit.
+  out = once(
+    out,
+    '"xanchor":"center","yanchor":"top"},"height":420,"margin":{"l":90,"r":90,"t":28,"b":64}',
+    '"xanchor":"center","yanchor":"top","entrywidth":0.5,"entrywidthmode":"fraction"},"height":420,"margin":{"l":24,"r":24,"t":28,"b":64}',
+  )
   return out
 }
 // The footer description and disclaimer are one slot value each now, rendered on one line where v1.0 wrapped them over

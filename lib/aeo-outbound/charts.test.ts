@@ -27,7 +27,7 @@ for (const name of ['visibility_bar_12', 'visibility_bar_4']) {
   })
 }
 for (const name of ['sources_8_types', 'sources_3_types']) {
-  test(`${name}: identical to AIVx's content-source donut except the whole-number labels and their hover`, () => {
+  test(`${name}: identical to AIVx's content-source donut except the whole-number labels, their hover, two legend columns and 24px sides`, () => {
     const eb = C[name].input.earned_breakdown as Record<string, { count: number }>
     const total = Object.values(eb).reduce((s, v) => s + v.count, 0)
     const mix = Object.entries(eb).map(([label, v]) => ({ label, weight: v.count, pct: pyRound((v.count / total) * 100, 1) }))
@@ -39,7 +39,17 @@ for (const name of ['sources_8_types', 'sources_3_types']) {
     expect(ours.data[0].text).toEqual(mix.map((m) => sliceLabel((m.weight / total) * 100)))
     expect(ours.data[0].hovertemplate).toBe('<b>%{label}</b><br>%{text}<extra></extra>')
     expect(gold.data[0].textinfo).toBe('percent')
-    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].textinfo; delete f.data[0].text }
+    // Round 3 (Ryan, 2026-10-21): two legend columns, appended after yanchor, and 24px sides so they fit. The grey
+    // plot_bgcolor stays on the donut: only the bar chart's changed.
+    expect(Object.keys(ours.layout.legend).slice(-3)).toEqual(['yanchor', 'entrywidth', 'entrywidthmode'])
+    expect(ours.layout.legend.entrywidth).toBe(0.5)
+    expect(ours.layout.legend.entrywidthmode).toBe('fraction')
+    expect(ours.layout.margin).toEqual({ l: 24, r: 24, t: 28, b: 64 })
+    expect(gold.layout.margin).toEqual({ l: 90, r: 90, t: 28, b: 64 })
+    expect(ours.layout.plot_bgcolor).toBe('#1a1a1a')
+    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].textinfo; delete f.data[0].text; delete f.layout.margin }
+    delete ours.layout.legend.entrywidth
+    delete ours.layout.legend.entrywidthmode
     expect(ours).toEqual(gold)
   })
 }

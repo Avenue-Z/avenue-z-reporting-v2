@@ -38,8 +38,9 @@ function cycledDonutPalette(n: number): string[] {
   }
   return out
 }
-/** agent.py:2477-2487 */
-const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top' })
+/** agent.py:2477-2487, plus two equal columns (round 3, Ryan, 2026-10-21): each entry is half the plot area's width.
+ *  PAGE_JS falls back to Plotly's flowing legend wherever a name would run into the next column (render.ts). */
+const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top', entrywidth: 0.5, entrywidthmode: 'fraction' })
 
 export function visibilityBarFigure(brands: { name: string; visibilityPct: number; isOwn?: boolean }[]): Figure {
   let top10 = [...brands.slice(0, 20)].sort((a, b) => b.visibilityPct - a.visibilityPct).slice(0, 10)
@@ -99,7 +100,8 @@ export function sourceDonutFigure(mix: { label: string; weight: number; pct: num
       outsidetextfont: { family: 'Avenir', size: 14, color: '#FFFFFF' },
       hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
     }],
-    layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 90, r: 90, t: 28, b: 64 } },
+    // Sides of 24px (AIVx: 90) so two legend columns fit at the editor's width (round 3, spec C4).
+    layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 24, r: 24, t: 28, b: 64 } },
     config: CONFIG,
   }
 }
