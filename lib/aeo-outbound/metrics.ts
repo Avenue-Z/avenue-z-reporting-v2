@@ -244,16 +244,24 @@ export function buildSnapshotData(
     .map(([label, weight]) => ({ label, weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 }))
   if (!sourceMix.length) note('empty_source_mix', 'Peec reported no source weights for this window, so the source mix is empty.')
 
-  const competitorIds = new Set(pull.roster.filter((b) => !b.is_own).map((b) => b.id))
-  const rosterDomains = pull.roster.flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
-  const isRosterSite = (domain: string) => { const d = bare(domain); return rosterDomains.some((rd) => d === rd || d.endsWith(`.${rd}`)) }
-  const gapDomains = !decisions.competitorSiteGaps ? [] : pull.domains
+  // Round 3 (Ryan, 2026-10-21: "Only include competitor domains"): the gaps are the own sites of the competitors the
+  // report compares (keptIds), where the brand does not appear. A site is a compared competitor's when its domain is one
+  // of that competitor's roster domains or a subdomain of one, or Peec classifies it COMPETITOR and it mentions a
+  // compared competitor. The brand's own site never counts (own wins), nor does a site of a competitor cut by rankAmong
+  // (spec 2026-10-21 E2, D1, D3, D4 (a)). With no competitors tracked the report names no outside brand, so it lists none.
+  const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
+  const keptSites = rosterSites((id) => keptIds.has(id))
+  const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !keptIds.has(id))
+  const within = (d: string, sites: string[]) => sites.some((s) => d === s || d.endsWith(`.${s}`))
+  const gapDomains = !decisions.competitorSiteGaps || competitorsTracked === 0 ? [] : pull.domains
     .filter((r) => {
       // A domain no answer retrieved is not a gap worth naming (final review M3).
       if ((r.retrieved_chat_count ?? 0) <= 0) return false
-      if (r.classification === 'COMPETITOR' || r.classification === 'OWN' || isRosterSite(r.domain)) return false
+      const d = bare(r.domain)
+      if (r.classification === 'OWN' || within(d, ownMatch) || within(d, cutSites)) return false
       const ids = new Set(r.mentioned_brands.map((m) => m.id))
-      return !ids.has(pull.ownBrand.id) && [...ids].some((id) => competitorIds.has(id))
+      if (ids.has(pull.ownBrand.id)) return false
+      return within(d, keptSites) || (r.classification === 'COMPETITOR' && [...ids].some((id) => keptIds.has(id)))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))
     .slice(0, 4)

@@ -73,9 +73,9 @@ test('source mix weights by retrieval_count, drops zero weights, sorts by weight
   expect(d.sourceMix.reduce((t, s) => t + s.weight, 0)).toBe(11000)
 })
 
-test('competitor gap domains: own brand absent, a competitor present, ranked by retrieved chats', () => {
+test('competitor gap domains: a compared competitor\'s own site where the brand is absent, ranked by retrieved chats (Ryan, round 3)', () => {
   const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z')
-  expect(d.gapDomains).toEqual([{ domain: 'forum.com', retrievedChats: 300 }])
+  expect(d.gapDomains).toEqual([{ domain: 'alpha.com', retrievedChats: 1250 }])
 })
 
 test('own site with no rows: zero chats, null percent, and a note', () => {
@@ -236,28 +236,66 @@ test('an empty source mix says so in a note', () => {
 })
 
 test('competitor gap domains are capped at 4, the top by retrieved chats', () => {
-  const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'EDITORIAL', retrieved_chat_count: 100 * n, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'kw_a' }] })
+  const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'COMPETITOR', retrieved_chat_count: 100 * n, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'kw_a' }] })
   const d = buildSnapshotData({ ...PULL, domains: [...PULL.domains.filter((r) => r.domain === 'example.com'), ...[1, 2, 3, 4, 5].map(gap)] }, '2026-10-08T15:00:00Z')
   expect(d.gapDomains.map((g) => g.domain)).toEqual(['gap5.com', 'gap4.com', 'gap3.com', 'gap2.com'])
 })
 
-const gapRow = (domain: string, classification: string, chats = 100) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'kw_a' }] })
+const gapRow = (domain: string, classification: string, chats = 100, mentioned = ['kw_a']) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: mentioned.map((id) => ({ id })) })
+const gapsOf = (p: PeecPull, decisions?: MetricDecisions) => buildSnapshotData(p, '2026-10-08T15:00:00Z', decisions).gapDomains.map((g) => g.domain)
 
-test('gap sites leave out COMPETITOR and OWN rows, roster domains whatever their classification, and their subdomains', () => {
+test('a competitor site counts by its roster domain or a subdomain, whatever its class and mentions; a third-party site never does', () => {
   const domains = [
-    gapRow('rival-site.com', 'COMPETITOR'),
-    gapRow('mine.com', 'OWN'),
-    gapRow('www.beta.com', 'EDITORIAL'),
-    gapRow('shop.alpha.com', 'EDITORIAL'),
-    gapRow('notalpha.com', 'EDITORIAL', 50),
-    gapRow('open.com', 'EDITORIAL', 40),
+    gapRow('www.beta.com', 'CORPORATE', 90, []),
+    gapRow('shop.alpha.com', 'EDITORIAL', 80, []),
+    gapRow('notalpha.com', 'EDITORIAL', 70),
+    gapRow('rival-site.com', 'COMPETITOR', 60),
+    gapRow('forum.com', 'UGC', 50),
   ]
-  const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
-  expect(d.gapDomains.map((g) => g.domain)).toEqual(['notalpha.com', 'open.com'])
+  expect(gapsOf({ ...PULL, domains })).toEqual(['www.beta.com', 'shop.alpha.com', 'rival-site.com'])
+})
+
+test('a roster domain matches with or without www. on either side, and a blank roster entry matches nothing', () => {
+  const roster = PULL.roster.map((b) => (b.id === 'kw_b' ? { ...b, domains: ['www.beta.com', ' '] } : b))
+  const domains = [gapRow('beta.com', 'CORPORATE', 90, []), gapRow('trailing.com.', 'CORPORATE', 80, [])]
+  expect(gapsOf({ ...PULL, roster, domains })).toEqual(['beta.com'])
+})
+
+test('the brand\'s own site never counts, and own wins when a competitor\'s roster shares its domain', () => {
+  const roster = PULL.roster.map((b) => (b.id === 'kw_a' ? { ...b, domains: ['alpha.com', 'example.com'] } : b))
+  const domains = [gapRow('mine.com', 'OWN'), gapRow('blog.example.com', 'COMPETITOR', 90), gapRow('help.example.com', 'CORPORATE', 80, []), gapRow('alpha.com', 'COMPETITOR', 50)]
+  expect(gapsOf({ ...PULL, roster, domains })).toEqual(['alpha.com'])
+})
+
+test('a competitor site that mentions the brand is never a gap (decision D1)', () => {
+  const domains = [gapRow('alpha.com', 'COMPETITOR', 100, ['kw_a', 'kw_own']), gapRow('beta.com', 'CORPORATE', 90, ['kw_own']), gapRow('compare.alpha.com', 'COMPETITOR', 10)]
+  expect(gapsOf({ ...PULL, domains })).toEqual(['compare.alpha.com'])
+})
+
+test('a COMPETITOR site off every compared competitor\'s roster domains needs one in its mentions; a roster site with none still counts (decision D3)', () => {
+  const domains = [gapRow('rival-site.com', 'COMPETITOR', 100, []), gapRow('other.com', 'COMPETITOR', 90, ['kw_x']), gapRow('alpha.com', 'CORPORATE', 10, [])]
+  expect(gapsOf({ ...PULL, domains })).toEqual(['alpha.com'])
+})
+
+test('a compared brand with no roster row is matched by Peec\'s class only (spec §10 r2-3)', () => {
+  const brands = [...PULL.brands, { brand: { id: 'kw_c', name: 'Gamma' }, visibility: 0.05, share_of_voice: 0.05, position: 4 }]
+  const domains = [gapRow('gamma.com', 'COMPETITOR', 100, ['kw_c']), gapRow('gamma-news.com', 'EDITORIAL', 90, ['kw_c'])]
+  expect(gapsOf({ ...PULL, brands, domains })).toEqual(['gamma.com'])
+})
+
+test('a competitor cut by rankAmong never counts, even on a COMPETITOR page that mentions a compared one (decision D4 (a))', () => {
+  const domains = [gapRow('beta.com', 'CORPORATE', 100, []), gapRow('compare.beta.com', 'COMPETITOR', 90), gapRow('beta-vs.com', 'COMPETITOR', 80, ['kw_b']), gapRow('alpha.com', 'COMPETITOR', 70)]
+  // rankAmong 2 keeps the brand and Alpha (26.1%); Beta (18.5%) is cut.
+  expect(gapsOf({ ...PULL, domains }, { rankAmong: 2, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' })).toEqual(['alpha.com'])
+})
+
+test('with no competitors tracked no site is listed, even a COMPETITOR site naming a brand Peec still reports', () => {
+  const brands = [PULL.brands[1], { brand: { id: 'kw_s', name: 'Strayco' }, visibility: 0.3, share_of_voice: 0.2, position: 2 }]
+  expect(gapsOf({ ...PULL, roster: [PULL.roster[0]], brands, domains: [gapRow('stray.com', 'COMPETITOR', 100, ['kw_s'])] })).toEqual([])
 })
 
 test('a domain with no retrieved chats is never a gap, so a sentence cannot list one "at 0" (final review M3)', () => {
-  const domains = [gapRow('open.com', 'EDITORIAL', 40), gapRow('zero.com', 'EDITORIAL', 0), { ...gapRow('none.com', 'EDITORIAL'), retrieved_chat_count: null }]
+  const domains = [gapRow('open.com', 'COMPETITOR', 40), gapRow('zero.com', 'COMPETITOR', 0), { ...gapRow('none.com', 'COMPETITOR'), retrieved_chat_count: null }]
   const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
   expect(d.gapDomains).toEqual([{ domain: 'open.com', retrievedChats: 40 }])
 })

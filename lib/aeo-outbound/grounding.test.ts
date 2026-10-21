@@ -292,6 +292,15 @@ test('spec v1.1 §19.3: a new row with code-written sentences and number-free op
   expect(flagsFor(d)).toEqual([])
 })
 
+test('round 3: a Glean field naming a listed competitor site is not flagged; on an older row whose list does not hold it, it still is', () => {
+  const d = newRow()
+  expect(d.gapDomains.map((g) => g.domain)).toEqual(['caringly.example', 'rival-landing.example'])
+  const why = 'Answers lean on caringly.example for the category.'
+  expect(flagsFor(d, { why })).toEqual([])
+  const older = { ...d, gapDomains: [{ domain: 'health-institute.gov', retrievedChats: 115 }] }
+  expect(flagsFor(older, { why }).map((n) => `${n.kind} ${n.path}: ${n.text}`)).toEqual(['domain_not_in_data why: "caringly.example" is not a domain in the Peec data'])
+})
+
 test('unchecked_number: every digit run and number word in a Glean field, names removed, ordinals not flagged', () => {
   const d = newRow()
   const f = flagsFor(d, { headline: 'Example Senior Living ranks third, two places behind', summary: 'It holds 1.1% of answers.', why: 'Its visibility doubled.' })

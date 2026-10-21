@@ -33,7 +33,7 @@ test('the live-shape fixture gives every sentence in Ryan\'s format, with Peec\'
   ])
   expect(s.sources_bullets).toEqual([
     { lead: 'Leadership gap:', text: 'Example Senior Living trails Carefinder by 96.7 percentage points in visibility and 99.7 points in share of voice; it trails Caringly by 0.2 points in visibility and matches it in share of voice.' },
-    { lead: 'Competitor domain gaps:', text: 'The largest gaps include health-institute.gov at 115 retrievals, medicare-info.gov at 90, retiree-benefits.gov at 60, and seniornews.example at 55.' },
+    { lead: 'Competitor domain gaps:', text: 'The largest gaps include caringly.example at 8 retrievals and rival-landing.example at 5.' },
     { lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by Institutional sources at 62% and Corporate sources at 22%; Editorial represents 2.7% and UGC 3.7%.' },
   ])
   expect(s.methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026: five brands compared, 104 prompts tracked, and answers from Google AI Overview, Gemini UI, and ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
@@ -146,13 +146,14 @@ test('leadership: the brand first, level at the top, alone with data, negative a
   expect(lb([['a', 'A', 0.5, 0.4], ['own', 'Own', 0.2, 0.2]])).toEqual({ lead: 'Leadership gap:', text: 'Own trails A by 30.0 percentage points in visibility and 20.0 points in share of voice.' })
 })
 
-test('competitor domain gaps: none, one, two, thousands', () => {
+test('competitor domain gaps: none, one, two, thousands; a competitor\'s roster site with no mentions counts', () => {
   const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-  const gap = (domain: string, chats: number) => ({ domain, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'a' }] })
+  const gap = (domain: string, chats: number) => ({ domain, classification: 'COMPETITOR', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'a' }] })
   const leads = (domains: PeecPull['domains']) => sent({ ...base, domains: [...base.domains, ...domains] }).sources_bullets.map((b) => b.lead)
   expect(leads([])).toEqual(['Leadership gap:', 'Source mix:'])
   expect(sent({ ...base, domains: [...base.domains, gap('one.example', 12)] }).sources_bullets[1].text).toBe('The largest gaps include one.example at 12 retrievals.')
   expect(sent({ ...base, domains: [...base.domains, gap('one.example', 1200), gap('two.example', 9)] }).sources_bullets[1].text).toBe('The largest gaps include one.example at 1.2K retrievals and two.example at 9.')
+  expect(sent({ ...base, domains: [...base.domains, { ...gap('a.example', 30), classification: 'CORPORATE', mentioned_brands: [] }] }).sources_bullets[1].text).toBe('The largest gaps include a.example at 30 retrievals.')
 })
 
 test('source mix: Editorial or UGC in the top two, one type only, empty, the own-site slice, a custom type', () => {
