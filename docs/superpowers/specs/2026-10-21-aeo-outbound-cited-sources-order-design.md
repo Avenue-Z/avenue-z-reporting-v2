@@ -96,7 +96,7 @@ in the source ecosystem", "Source-use signal"); that is what Q1 regroups.
 |---|---|
 | `render.test.ts` | Marker row: the full menu sequence in order, 01 `#headline`, 02 `#competitive-visibility`, 03 `#category-data`, 04 `#opportunities`, 05 `#methodology`, each with its number; section order by index; each id keeps its own bullet box and chart; "02 / " on Competitive Visibility. No-marker row: today's order (existing `:93-97` unchanged) |
 | `v1-compat.test.ts` | Unchanged and passing |
-| `render.frame.test.ts` | Marker row: clicking 02 marks `#competitive-visibility` active in preview |
+| `render.frame.test.ts` | Marker row: on scroll, with tops in the marker row's page order, the highlight follows that order (§8 r1-5: a click activates by href, so it proves nothing about order) |
 | `contracts.test.ts` | `section_order` accepts `'visibility_first'`, rejects another value, absent is fine |
 | `generate.test.ts` | A generated row carries the marker |
 | `slots.test.ts` | A text edit (`applySlotPatch`) and a bullet add and remove (`applyStructure`) on a marker row, read through `withDefaults`, keep `section_order`; a row without it gains none (review round 1, MAJOR 2: every save takes this path, `app/api/aeo-outbound/reports/[id]/slots/route.ts:76`, `:89`, `:101`) |
