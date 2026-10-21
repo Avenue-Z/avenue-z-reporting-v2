@@ -94,11 +94,12 @@ export const PAGE_CSS = [
   '.kpi-value.aeo-long{font-size:24px;line-height:1.15}',
   'html{color-scheme:dark}',
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
-  // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box and the figure
-  // below its title sits centred in it. The figures themselves are untouched.
+  // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box. The donut sits
+  // centred below its title; the bar chart starts right under its title (round 3, Ryan, 2026-10-21). No rule here
+  // sizes a figure.
   '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
-  '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
+  '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
   '#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}',
