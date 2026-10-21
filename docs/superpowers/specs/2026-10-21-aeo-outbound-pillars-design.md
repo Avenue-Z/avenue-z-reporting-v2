@@ -53,7 +53,10 @@ opportunity: description, signal: data line }`, so `STORED_SLOTS` (exactly three
 read a new row. Each field stays an editable slot through the existing paths (`slots.ts:46`).
 
 **P3. Code writes the pillars.** `sentences.ts` adds `pillars(d)` and `dataSentences` returns it as `opportunities`.
-`SENTENCES_VERSION` becomes 3. Names and descriptions are constants in `config.ts` (`PILLARS`):
+`SENTENCES_VERSION` stays 2 (review round 1, M1): no existing sentence's wording or rounding changes (`config.ts:33-35`),
+a bump would switch off the word-for-word check on every version-2 draft in flight (`grounding.ts:151`, `:216`), and
+pillar rows are told apart by the P1 marker, not the version. Names and descriptions are constants in `config.ts`
+(`PILLARS`):
 
 | # | Name | Description |
 |---|---|---|
@@ -61,16 +64,23 @@ read a new row. Each field stays an editable slot through the existing paths (`s
 | 1 | Content and Creative | Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask. |
 | 2 | Technical Optimizations | Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs. |
 
-Data lines, from `d.sourceMix`. The share of a slice prints with `sharePctAll([{ pct, exact }])` (`sentences.ts:65`),
-`exact` being its weight over the mix total, exactly as the source-mix bullet prints it. "Sources AI drew on in this
-snapshot" names the donut's whole.
+Data lines, from `d.sourceMix`. The share of a slice prints with the source-mix bullet's rounding rule,
+`sharePctAll` (`sentences.ts:65`), with `exact` its weight over the mix total. The whole is "the domain mix in this
+window": the number is a usage-weighted share of the donut (`metrics.ts:233-244`), not a count of sources, and the
+source-mix bullet on the same page already says "The domain mix is led by" (`sentences.ts:221`) and every code
+sentence says "in this window" (`sentences.ts:144`, `:200`). (Review round 1, M3; this replaces the draft wording "of
+the sources AI drew on in this snapshot".)
 
 | Pillar | Slice | Present, share prints | Present, `pct` 0 | Absent |
 |---|---|---|---|---|
-| Earned | `Editorial` | "Editorial sites make up {x} of the sources AI drew on in this snapshot." | "Editorial sites make up under 0.1% of the sources AI drew on in this snapshot." | "Editorial sites don't appear among the sources AI drew on in this snapshot." |
-| Content | `You` | "{Brand}'s own {site makes / sites make} up {x} of the sources AI drew on in this snapshot." | "... under 0.1% ..." | "{Brand}'s own {site doesn't / sites don't} appear among the sources AI drew on in this snapshot." |
-| Technical | `Competitor` | "Competitors' own websites make up {x} of the sources AI drew on in this snapshot." | "... under 0.1% ..." | "Competitors' own websites don't appear among the sources AI drew on in this snapshot." |
+| Earned | `Editorial` | "Editorial sites make up {x} of the domain mix in this window." | "Editorial sites make up under 0.1% of the domain mix in this window." | "Editorial sites don't appear in the domain mix for this window." |
+| Content | `You` | "{Brand}'s own {site makes / sites make} up {x} of the domain mix in this window." | "... under 0.1% ..." | "{Brand}'s own {site doesn't / sites don't} appear in the domain mix for this window." |
+| Technical | `Competitor` | "Competitors' own websites make up {x} of the domain mix in this window." | "... under 0.1% ..." | "Competitors' own websites don't appear in the domain mix for this window." |
 
+- **Own site follows Peec's classification** (review round 1, M2): the Content share is the `You` slice, Peec's OWN
+  class, exactly what the donut shows. The first findings box counts a wider set (OWN or a domain match,
+  `metrics.ts:215-222`), so a misclassified own subdomain counts there and not here; the line and the donut always
+  agree. The same holds for `Competitor` against the gap filter (`metrics.ts:254`).
 - `{Brand}` is `d.brand`, as every code sentence names it. "sites" when `d.ownDomains.length > 1`, else "site".
 - An empty mix (`metrics.ts:245`) gives all three the line "Peec reported no source types for this window.", the
   source-mix bullet's own words (`sentences.ts:200`).
@@ -79,7 +89,8 @@ snapshot" names the donut's whole.
 - PocketGuard's staging draft (`4e160c91`) reads Editorial 19%, own site 4.x%, Competitor 17% (its donut: 19%, 4%, 17%).
 
 **P4. Glean no longer writes opportunities.** The prompt drops its `opportunities` line, the Peec-actions clause with it
-(`prompt.ts:84`). `GLEAN_SLOTS.opportunities` becomes optional. `FixedSlots` gains `opportunities?` and
+(`prompt.ts:84`). The `opportunities` key is removed from `GLEAN_SLOTS` (`contracts.ts:109`), so the loose object
+ignores whatever Glean sends there, as it ignores the boxes (review round 1, M5). `FixedSlots` gains `opportunities?` and
 `validateGeneratedSlots` takes them from `fixed` when given, with no count check on the reply (the pattern of the boxes,
 `slots.ts:171-176`). Generation sets `opportunities_layout: 'pillars'` on the new row (`generate.ts:101`). `codeSetPath`
 counts every `opportunities.N.*` path as code-set, so a flag there never asks Glean to retry. The Data block is
@@ -98,10 +109,18 @@ case), set in `pageDefaults` (`slots.ts:76-78`), never in `PAGE_WORDS_V1`. `opps
 shown in the pillar layout, so `slotEntries` (`slots.ts:135-143`) leaves them out for a pillar row: they are not
 checked and never block Approve. No `PAGE_KEYS` change. The menu item stays "Opportunities".
 
-**P7. Grounding.** On a pillar row the three opportunity fields are not Glean's (`gleanWrote` false). The data line is
-a code sentence: an edited one is checked word for word against today's `pillars(d)` when the row's version is current
-(as the boxes are, `grounding.ts:170-180`, `:216-239`), and every number of the pillar sentences is allowed
-(`grounding.ts:152-156`). Names and descriptions carry no numbers.
+**P7. Grounding.** All of it keyed on `pillarRow = full.opportunities_layout === 'pillars'`, inside `groundingFlags`
+(review round 1, M4); `isCodeSentencePath` (`sentences.ts:9`) stays unchanged, so table rows are checked exactly as
+today:
+- `gleanWrote` (`grounding.ts:159-163`) is false for `opportunities.N.*` when `pillarRow`.
+- The "Peec recommends" check (`grounding.ts:245-250`) is skipped when `pillarRow`.
+- `opportunities.N.signal` is treated as a code-sentence path only when `pillarRow`: brand names are stripped before
+  its domain scan (`grounding.ts:214`) and, when `sameVersion`, it is compared word for word (`:216`) with
+  `pillars(d)[N].signal`, matched by index N (`peecSentence`, `:170-180`).
+- The pillar sentences' numbers join `allowed` (`grounding.ts:152-156`) only when `pillarRow`.
+- Names and descriptions (`.workstream`, `.opportunity`) carry no numbers; they get only the domain, date and dash checks.
+- `codeSetPath` (`generate.ts:32-35`) counts `opportunities.N.*` as code-set; it is used only at generation, where every
+  row is a pillar row.
 
 **P8. Labels.** `fieldLabel(path, titles, pillars = false)`: on a pillar row "Pillar N, name", "Pillar N, description",
 "Pillar N, data line". The editor gets a prop `pillars` (from `page.tsx`: `full?.opportunities_layout === 'pillars'`)
@@ -119,8 +138,8 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 - **Rollout:** an older build reading a pillar row shows it in the old table under the old headers (name, description
   and line in the Signal, Opportunity and Workstream columns). PR previews share the dev database (`ENGINEERS.md:501`):
   QA only on builds with this change.
-- **Other round-3 PRs:** the toggle (#411) moves this section into a constant, and the bullets PR will also bump
-  `SENTENCES_VERSION`. Whichever merges second resolves the overlap; each PR stands alone off dev.
+- **Other round-3 PRs:** the toggle (#411) moves this section into a constant. Whichever merges second resolves the
+  overlap; each PR stands alone off dev. This PR no longer bumps `SENTENCES_VERSION`.
 
 ## 5. Edge cases
 
@@ -141,12 +160,12 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 | File | Proves |
 |---|---|
 | `sentences.test.ts` | Every row of the P3 table and the empty-mix, no-competitor and two-domain cases; shares print as the source-mix bullet prints them |
-| `config.test.ts` | `SENTENCES_VERSION` is 3; `PILLARS` names and descriptions verbatim |
+| `config.test.ts` | `SENTENCES_VERSION` still 2; `PILLARS` names and descriptions verbatim |
 | `slots.test.ts` | `validateGeneratedSlots` takes fixed opportunities with no reply count; `pageDefaults` sets the pillar title; `slotEntries` leaves out `opps_col_1..3` and `opps_takeaway` on a pillar row only |
-| `contracts.test.ts` | `GLEAN_SLOTS` accepts a reply with no opportunities; `STORED_SLOTS` accepts the marker absent or `'pillars'` and nothing else |
+| `contracts.test.ts` | `GLEAN_SLOTS` accepts a reply with no opportunities and one with two malformed ones; `STORED_SLOTS` accepts the marker absent or `'pillars'` and nothing else |
 | `prompt.test.ts` | The prompt asks for no opportunities and names no Peec-actions rule; the Data block is unchanged |
 | `generate.test.ts` | A generated row has the marker, the three pillar rows from code, and the pillar title |
-| `grounding.test.ts` | A fresh pillar row has no flags; an edited data line number is flagged against its sentence; a table row's opportunities are checked as before |
+| `grounding.test.ts` | A fresh pillar row has no flags, a domain-shaped brand included; an edited data line number is flagged against its sentence; a pillar row skips "Peec recommends"; a table row's opportunities are checked as before, with the same allowed numbers; an own domain classified CORPORATE gives a Content line that agrees with the donut |
 | `render.test.ts` | Pillar row: three cards in order with name, description and line as slots, no table, no footnote, every mode; table row: unchanged |
 | `v1-compat.test.ts` | Passes unchanged |
 | `labels.test.ts` | Pillar labels; every `slotEntries` path labeled on both layouts |
@@ -163,3 +182,23 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 
 The Data block, the other code sentences, the boxes, the charts, the toggle, `PAGE_KEYS`, the settings contract and
 database, AIVx files, the hub, the share and snapshot routes.
+
+## 9. Minor findings carried to the plan (review round 1)
+
+- m1: print the three shares in one `sharePctAll` call over the present slices, so two pillars never read alike when
+  their values differ; a card may still print a whole number where the bullet prints a decimal ("19%" vs "19.4%")
+  because the bullet disambiguates across its own items. Say "the bullet's rounding rule", not "exactly as".
+- m2: "sites" when `new Set(d.ownDomains.filter(Boolean)).size > 1`.
+- m3: empty mix wins over no competitors; no competitors tracked but a `Competitor` slice present prints the slice line.
+  Test both.
+- m4: "{Brand}'s" for a name ending in s ("Dickies's") as `sentences.ts:144` does today; a custom Peec class named
+  "Editorial" or "You" merges into that slice as in the source-mix bullet. Accepted.
+- m5: deliberate test edits: `generate.test.ts:374` (`codeSetPath('opportunities.0.signal')` becomes true),
+  `render.test.ts:573`, `:577`, `:579` (the media blocks), `before-you-send.test.tsx` (pillar labels).
+- m6: §4 "byte for byte" applies to the table section; the shared stylesheet gains the pillar rules on every page.
+- m7: an older build that saves a pillar draft stores `unchecked_number` notes on its data lines; a new build shows them
+  until the next save.
+- m8: `DataSentences` is `sentences.ts:6`; `v1-compat.test.ts:14-16` pins a version-1 row's Data block only; the Data
+  block keeps Peec's actions line (`prompt.ts:58`), now read by no field, to keep it unchanged; PocketGuard's exact
+  stored values are unverified (read from its staging donut only).
+
