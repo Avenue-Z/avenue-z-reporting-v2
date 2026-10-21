@@ -60,7 +60,7 @@ pillar rows are told apart by the P1 marker, not the version. Names and descript
 
 | # | Name | Description |
 |---|---|---|
-| 0 | Earned & Affiliate Media | Quality citations from trusted media publications are a key factor in determining the credibility and authority of information. |
+| 0 | Earned & Affiliate Media | Quality Citations from Trusted Media Publications are a key factor in determining the credibility and authority of information. |
 | 1 | Content and Creative | Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask. |
 | 2 | Technical Optimizations | Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs. |
 
@@ -85,8 +85,9 @@ the sources AI drew on in this snapshot".)
   shows. It can read above the donut's "You" slice when Peec files an own subdomain under another type; accepted.
   `STORED_DATA` (`contracts.ts:146`, a loose object) declares `ownMixWeight: z.number().min(0).optional()`; older rows
   lack it and are never pillar rows. "Absent" for Content means `ownMixWeight` is 0.
-- `Competitor` is the COMPETITOR class only: a roster competitor's site that Peec classifies CORPORATE is in neither
-  the Technical share nor the gaps (`metrics.ts:254`).
+- `Competitor` is the COMPETITOR class only: a roster competitor's site that Peec classifies CORPORATE is not in the
+  Technical share. Since #413 the gaps list does include it (roster domain match). I decided on 2026-10-21 that the
+  Technical line stays the donut's Competitor slice, so the number always equals the slice on the same page.
 - `{Brand}` is `d.brand`, as every code sentence names it. "sites" when `d.ownDomains.length > 1`, else "site".
 - An empty mix (`metrics.ts:245`) gives all three the line "Peec reported no source types for this window.", the
   source-mix bullet's own words (`sentences.ts:200`).
@@ -110,8 +111,8 @@ per row in order: the name (`opportunities.N.workstream`, AIVx's `.cluster-name`
 AIVx's `.cluster-card` (`aivx/css.ts`); no AIVx file changes. Without the marker the section is byte-identical to
 today.
 
-**P6. Page words.** New rows' `page.opps_title` defaults to "The pillars of AI search" (the slide's title, sentence
-case), set in `pageDefaults` (`slots.ts:76-78`), never in `PAGE_WORDS_V1`. `opps_col_1..3` and `opps_takeaway` are not
+**P6. Page words.** New rows' `page.opps_title` defaults to "The Pillars of AI Search" (the slide's title in its
+own casing; my decision 2026-10-21, after a fresh-eyes review found the sentence case drifted from the slide), set in `pageDefaults` (`slots.ts:76-78`), never in `PAGE_WORDS_V1`. `opps_col_1..3` and `opps_takeaway` are not
 shown in the pillar layout, so `slotEntries` (`slots.ts:135-143`) leaves them out for a pillar row: they are not
 checked and never block Approve. No `PAGE_KEYS` change. The menu item stays "Opportunities".
 

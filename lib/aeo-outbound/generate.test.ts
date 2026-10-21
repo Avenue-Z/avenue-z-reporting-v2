@@ -380,7 +380,7 @@ test('pillars (Ryan, round 3): a generated row carries the marker, the code-writ
   expect(r.slots.opportunities_layout).toBe('pillars')
   expect(r.slots.opportunities).toEqual(dataSentences(r.data).opportunities)
   expect(r.slots.opportunities.map((o) => o.workstream)).toEqual(['Earned & Affiliate Media', 'Content and Creative', 'Technical Optimizations'])
-  expect(r.slots.page.opps_title).toBe('The pillars of AI search')
+  expect(r.slots.page.opps_title).toBe('The Pillars of AI Search')
   const { opportunities: _o, ...noOpps } = JSON.parse(GOOD)
   const r2 = await generateSnapshot('or_a', deps(vi.fn(async () => reply(JSON.stringify(noOpps)))))
   expect(r2.ok).toBe(true)

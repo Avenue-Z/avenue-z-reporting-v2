@@ -38,12 +38,13 @@ export const SENTENCES_VERSION = 2
  *  page of every new report with one data line each (sentences.ts pillars). The Content description completes the
  *  slide's sentence, which is cut off after "LLMs for". */
 export const PILLARS = [
-  { name: 'Earned & Affiliate Media', description: 'Quality citations from trusted media publications are a key factor in determining the credibility and authority of information.' },
+  { name: 'Earned & Affiliate Media', description: 'Quality Citations from Trusted Media Publications are a key factor in determining the credibility and authority of information.' },
   { name: 'Content and Creative', description: 'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.' },
   { name: 'Technical Optimizations', description: 'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.' },
 ] as const
-/** The Opportunities page title on a new report: the slide's title, in sentence case. */
-export const PILLARS_TITLE = 'The pillars of AI search'
+/** The Opportunities page title on a new report: the slide's title, in its own casing (my decision, 2026-10-21: Ryan's
+ *  client-facing copy keeps the slide's case, as with "Executive Summary"). */
+export const PILLARS_TITLE = 'The Pillars of AI Search'
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
 /** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */
