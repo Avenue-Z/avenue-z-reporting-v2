@@ -935,12 +935,14 @@ From the review of the lock every number build. None blocks the October set.
 
   **The manual way out, as far as reading the code gets us.** Delete that client's rows for the
   month from `dash_response_locks` (`lib/db/schema.ts:421`: keyed by `client_id` + `request_key`,
-  with `period_end` the column to filter the month on), then let the next render or the next lock
-  sweep capture it again. Two things make that plausible rather than hopeful: `readLock`
-  (`lib/organic-social/response-lock-store.ts`) is a plain database select with no persistent cache
-  wrapper, so a deleted row is gone on the very next render; and the re-capture goes through the
-  uncached capture client (`lib/organic-social/base.ts`), so the replacement numbers come from Dash
-  now rather than from whatever Next's data cache still holds.
+  with `period_end` the column to filter the month on), then **purge Vercel's Data Cache**
+  (Project Settings → Data Cache), then let the next render capture it again. The lock sweep only
+  runs from a month's lock day through two days after (`lib/organic-social/lock-sweep.ts`), so
+  outside that window the re-capture is the next view, logged as a late lock. The purge is needed
+  because `readLock` (`lib/organic-social/response-lock-store.ts`) keeps each stored answer in
+  Next's data cache for a day; without it a deleted row keeps showing for up to 24 hours. The
+  re-capture goes through the uncached capture client (`lib/organic-social/base.ts`), so the
+  replacement numbers come from Dash now rather than from whatever Next's data cache still holds.
 
   **Unverified, and it is Paul's open question:** none of that has been executed end to end against
   a real deployment, so it is not known whether anything else in front of the page keeps serving
