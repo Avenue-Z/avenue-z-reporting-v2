@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { DECISIONS, SENTENCES_VERSION } from './config'
+import { DECISIONS, PILLARS, PILLARS_TITLE, SENTENCES_VERSION } from './config'
 
 test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
   expect(DECISIONS.sectionTitles).toEqual(['Category data', 'Competitive visibility'])
@@ -19,5 +19,17 @@ test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Pe
 })
 
 test('2026-10-20 amendment: the code-written sentences are version 2, since the source-mix rounding changed', () => {
+  expect(SENTENCES_VERSION).toBe(2)
+})
+
+test('the three pillars (Ryan, round 3): the slide names in its order, descriptions verbatim, the title in sentence case', () => {
+  expect(PILLARS.map((p) => p.name)).toEqual(['Earned & Affiliate Media', 'Content and Creative', 'Technical Optimizations'])
+  expect(PILLARS.map((p) => p.description)).toEqual([
+    'Quality citations from trusted media publications are a key factor in determining the credibility and authority of information.',
+    'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.',
+    'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.',
+  ])
+  expect(PILLARS_TITLE).toBe('The pillars of AI search')
+  for (const p of PILLARS) expect(`${p.name} ${p.description}`).not.toMatch(/[0-9\u2013\u2014]/)
   expect(SENTENCES_VERSION).toBe(2)
 })

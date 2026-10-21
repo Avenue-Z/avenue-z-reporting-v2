@@ -279,3 +279,8 @@ test('2026-10-19 Peec parity: stored data records the source-mix weighting; abse
   for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce')).toEqual({ ok: true })
   for (const w of ['bogus', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok).toBe(false)
 })
+
+test('stored data: ownMixWeight is absent or a number of at least 0 (pillars)', () => {
+  for (const v of [undefined, 0, 12.5]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ...(v === undefined ? {} : { ownMixWeight: v }) }, 'enforce')).toEqual({ ok: true })
+  for (const v of [-1, '3', null]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ownMixWeight: v }, 'enforce').ok).toBe(false)
+})
