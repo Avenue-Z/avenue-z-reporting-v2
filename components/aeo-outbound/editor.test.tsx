@@ -47,7 +47,7 @@ const views = () => fetchMock.mock.calls.filter(([u]) => u.includes('/view')).ma
 type Props = Parameters<typeof OutboundEditor>[0]
 const base: Props = {
   id: ID, brand: 'Acme', linkBrand: null, shareOrigin: null, projectId: 'p1', status: 'draft', revision: 4,
-  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], token: null, error: null, errorCode: null, recipient: null,
+  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], pillars: false, token: null, error: null, errorCode: null, recipient: null,
   sectionTitles: ['Category data', 'Competitive visibility'], about: null, opens: [], openCount: 0,
   needsValidationBlocksApprove: true, unreadable: false, progressStep: 0, createdAt: '2026-10-08T15:00:00.000Z',
 }
@@ -1004,4 +1004,12 @@ test('#396 (Paul, #399): the 3s locked message floats just under the toolbar, ou
   expect(message.parentElement).toBe(root(container).firstElementChild)
   expect(message.className.split(' ')).toEqual(expect.arrayContaining(['absolute', 'top-full']))
   expect(message).toHaveAttribute('role', 'status')
+})
+
+test('on a pillar row a refused opportunity field is named as a pillar (Ryan, round 3)', async () => {
+  patch = async () => json(400, { error: 'Keep this under 1000 characters.' })
+  const { iframe } = await setup({ pillars: true })
+  await fromFrame(iframe, { type: 'dirty', path: 'opportunities.0.signal' })
+  await fromFrame(iframe, { type: 'edit', path: 'opportunities.0.signal', value: 'x' })
+  expect(await screen.findByText('Pillar 1, data line: Keep this under 1000 characters.')).toBeInTheDocument()
 })

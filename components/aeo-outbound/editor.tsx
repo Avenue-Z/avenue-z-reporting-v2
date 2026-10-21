@@ -48,6 +48,8 @@ export interface OutboundEditorProps {
   revision: number
   notes: StoredNote[]
   needsValidation: string[]
+  /** Round 3: the draft's Opportunities page shows the pillars, so its fields are labeled as pillars. */
+  pillars: boolean
   token: string | null
   error: string | null
   errorCode: string | null
@@ -338,7 +340,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const refusedField = save && !save.stopped && save.error && save.error !== RETRY_MESSAGE ? save.badPaths.at(-1) : undefined
   const approveTitle = !busySaving ? undefined
     : save?.stopped ? save.error ?? FLUSH_WAIT
-      : refusedField ? `${fieldLabel(refusedField, titles)}: ${save!.error}`
+      : refusedField ? `${fieldLabel(refusedField, titles, props.pillars)}: ${save!.error}`
         : FLUSH_WAIT
 
   async function onApprove() {
@@ -455,7 +457,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   if (status === 'draft' && save && !save.stopped) {
     if (save.error) {
       const field = save.error !== RETRY_MESSAGE ? save.badPaths.at(-1) : undefined
-      saveText = field ? `${fieldLabel(field, titles)}: ${save.error}` : save.error
+      saveText = field ? `${fieldLabel(field, titles, props.pillars)}: ${save.error}` : save.error
     } else if (save.saving || save.dirty || save.structuring) saveText = 'Saving…'
     else if (save.revision !== openedRevision) saveText = 'Saved'
   }
@@ -538,7 +540,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
           {html === null && !viewError && <div className="flex items-center justify-center rounded-lg bg-black text-sm text-text-muted" style={{ height: FRAME_HEIGHT, minHeight: FRAME_MIN_HEIGHT }}>{LOADING_REPORT}</div>}
           {panelOpen && (
             <BeforeYouSend
-              needsValidation={needsValidation} notes={notes} titles={titles} about={props.about} ticks={ticks} ownTicks={ownTicks} highlight={highlight}
+              needsValidation={needsValidation} notes={notes} titles={titles} pillars={props.pillars} about={props.about} ticks={ticks} ownTicks={ownTicks} highlight={highlight}
               onTick={(key) => setTicks((t) => { const n = new Set(t); if (n.has(key)) n.delete(key); else n.add(key); return n })}
               onOwnTick={(i) => setOwnTicks((t) => { const n = new Set(t); if (n.has(i)) n.delete(i); else n.add(i); return n })}
               onGoTo={goTo} onMinimize={() => setPanelOpen(false)}
