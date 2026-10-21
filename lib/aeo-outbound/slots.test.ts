@@ -136,8 +136,8 @@ test('every page key has a v1.0 default, and no default carries a number', () =>
   for (const v of Object.values(PAGE_WORDS_V1)) expect(v).not.toMatch(/\d/)
 })
 
-test('a new row takes the section titles and wordmark from settings and every other word from v1.0', () => {
-  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report' })
+test('a new row takes the section titles and wordmark from settings, the pillar title, and every other word from v1.0', () => {
+  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report', opps_title: 'The pillars of AI search' })
 })
 
 test('every new path saves within its limit: 120 for page words, KPIs, brand and window label, 1,000 for the footer description and disclaimer', () => {
@@ -218,4 +218,22 @@ test('method_title is a page word with its default, and an old row without it ge
   const r = applySlotPatch(full, 'page.method_title', 'How we measured')
   expect(r.ok && r.slots.page.method_title).toBe('How we measured')
   expect(limitFor('page.method_title')).toBe(120)
+})
+
+test('pillars: fixed opportunities replace the reply\'s with no count check (Ryan, round 3)', () => {
+  const pillars = [0, 1, 2].map((i) => ({ signal: `line ${i}`, opportunity: `desc ${i}`, workstream: `name ${i}` }))
+  // The other code-written fields too, as generation passes them (generate.ts fixed), so only the opportunities differ.
+  const fixed = { category: 'c', market: 'm', next_step: 'N', context: 'C', methodology: 'M', competitive_bullets: [{ lead: 'L', text: 'T' }], sources_bullets: [{ lead: 'L', text: 'T' }], opportunities: pillars }
+  const r = validateGeneratedSlots({ headline: 'H', summary: 'S', why: 'W' }, fixed)
+  expect(r.ok && r.slots.opportunities).toEqual(pillars)
+  const r2 = validateGeneratedSlots({ ...MODEL, opportunities: MODEL.opportunities.slice(0, 2) }, fixed)
+  expect(r2.ok && r2.slots.opportunities).toEqual(pillars)
+})
+
+test('a pillar row leaves the table words out of slotEntries; a table row keeps them', () => {
+  const words = ['page.opps_col_1', 'page.opps_col_2', 'page.opps_col_3', 'page.opps_takeaway']
+  const table = slotEntries(S).map(([p]) => p)
+  const pillar = slotEntries({ ...S, opportunities_layout: 'pillars' }).map(([p]) => p)
+  for (const w of words) { expect(table).toContain(w); expect(pillar).not.toContain(w) }
+  expect(table.filter((p) => !pillar.includes(p)).sort()).toEqual([...words].sort())
 })
