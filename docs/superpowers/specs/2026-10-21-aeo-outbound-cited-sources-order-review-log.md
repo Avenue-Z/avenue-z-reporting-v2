@@ -13,3 +13,6 @@
   `#category-data`, 04 `#opportunities`, 05 `#methodology`) and hidden (04 Methodology right after 03), in whichever
   of this PR and #411 merges second. **Not applied: a round-2 MAJOR goes to Thomas as a decision.**
 - Minors (citation and wording corrections): applied.
+
+**Decision (Thomas, 2026-10-21):** apply the round-2 MAJOR fix. §5 and §6 now require the full menu sequence on a marker
+row, page shown in this PR, page hidden in whichever of this PR and #411 merges second.

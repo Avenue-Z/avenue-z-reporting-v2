@@ -88,13 +88,13 @@ in the source ecosystem", "Source-use signal"); that is what Q1 regroups.
 | Salesperson edits a section title | Saved on that row as today; the order does not change |
 | Settings row saved with old titles | New rows still say "Category data"; order still swaps (O3) |
 | Scroll highlight on a marker row | Follows position, as today; pinned by a frame test |
-| Opportunities toggle (#411) or pillars (#412) on the same row | Order of 02 and 03 independent of both; the Opportunities link (shown or hidden) always follows 03 (O1). Pinned by a marker plus hidden-page menu test in whichever of this PR and #411 merges second |
+| Opportunities toggle (#411) or pillars (#412) on the same row | Order of 02 and 03 independent of both; the Opportunities link (shown or hidden) always follows 03 (O1). Pinned by a marker-row test of the full menu sequence, page shown (01, 02 `#competitive-visibility`, 03 `#category-data`, 04 `#opportunities`, 05 `#methodology`) and page hidden (04 Methodology right after 03); this PR tests the shown sequence (dev has no toggle), and whichever of this PR and #411 merges second adds the hidden case (review round 2, my decision 2026-10-21) |
 
 ## 6. Tests (written first)
 
 | File | Proves |
 |---|---|
-| `render.test.ts` | Marker row: menu order and numbers; section order by index; each id keeps its own bullet box and chart; "02 / " on Competitive Visibility. No-marker row: today's order (existing `:93-97` unchanged) |
+| `render.test.ts` | Marker row: the full menu sequence in order, 01 `#headline`, 02 `#competitive-visibility`, 03 `#category-data`, 04 `#opportunities`, 05 `#methodology`, each with its number; section order by index; each id keeps its own bullet box and chart; "02 / " on Competitive Visibility. No-marker row: today's order (existing `:93-97` unchanged) |
 | `v1-compat.test.ts` | Unchanged and passing |
 | `render.frame.test.ts` | Marker row: clicking 02 marks `#competitive-visibility` active in preview |
 | `contracts.test.ts` | `section_order` accepts `'visibility_first'`, rejects another value, absent is fine |
