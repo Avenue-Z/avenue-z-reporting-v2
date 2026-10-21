@@ -99,3 +99,6 @@ export const PAGE_WORDS_V1 = {
   sidebar_link: 'avenuez.com ↗',
   method_title: 'Methodology and next step',
 }
+/** Round 3 (Ryan, 2026-10-21): the headline section's label and menu item 01 on a new report. A row from before keeps
+ *  its stored word, or "Headline signal" from PAGE_WORDS_V1. */
+export const HEADLINE_LABEL = 'Executive Summary'

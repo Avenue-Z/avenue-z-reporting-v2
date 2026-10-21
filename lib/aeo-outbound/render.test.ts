@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { AIVX_CSS } from './aivx/css'
 import { EDITOR_STYLE, FRAME_SCRIPT_JS, HEADER_CLONE_JS, PAGE_CSS, PAGE_JS, SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml, showsPowered } from './render'
 import { AIVX_JS } from './aivx/js'
-import { slotEntries, withDefaults } from './slots'
+import { pageDefaults, slotEntries, withDefaults } from './slots'
 import { AIVX_SHARE_BLOCK } from './aivx/share'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
@@ -97,6 +97,14 @@ test('sections, nav ids and roster bolding', () => {
   expect(h).toContain('<section id="competitive-visibility" class="section">')
   expect(h).toContain('<strong>Alpha</strong> leads <strong>Example &lt;Co&gt; &amp; &quot;Sons&quot;</strong>.')
   expect(h).toContain('These are opportunity hypotheses for discussion, not a full roadmap.')
+})
+
+test('round 3: a new row reads Executive Summary in menu item 01 and as the headline section label', () => {
+  const page = pageDefaults({ sectionTitles: ['Category data', 'Competitive visibility'], sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
+  const h = renderSnapshotHtml(DATA, { ...SLOTS, page }, 'final', 'Oct 9, 2026')
+  expect(h).toContain('<a href="#headline"><span class="nav-num">01</span> Executive Summary</a>')
+  expect(h).toContain('<div class="exec-label">Executive Summary</div>')
+  expect(h).not.toContain('Headline signal')
 })
 
 test('a short brand name is bolded only as a whole word', () => {

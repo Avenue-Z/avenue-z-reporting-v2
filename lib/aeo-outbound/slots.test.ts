@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, MAX_BULLETS, MIN_BULLETS, needsValidationPaths, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
-import { PAGE_WORDS_V1 } from './config'
+import { HEADLINE_LABEL, PAGE_WORDS_V1 } from './config'
 
 const S0: Slots = {
   category: 'Fintech', market: 'United States', headline: 'H', summary: 'S', context: 'C',
@@ -136,8 +136,10 @@ test('every page key has a v1.0 default, and no default carries a number', () =>
   for (const v of Object.values(PAGE_WORDS_V1)) expect(v).not.toMatch(/\d/)
 })
 
-test('a new row takes the section titles and wordmark from settings and every other word from v1.0', () => {
-  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report' })
+test('a new row takes the section titles and wordmark from settings, "Executive Summary" as its headline label (Ryan, round 3), and every other word from v1.0', () => {
+  expect(HEADLINE_LABEL).toBe('Executive Summary')
+  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, headline_label: 'Executive Summary', section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report' })
+  expect(PAGE_WORDS_V1.headline_label).toBe('Headline signal')
 })
 
 test('every new path saves within its limit: 120 for page words, KPIs, brand and window label, 1,000 for the footer description and disclaimer', () => {
