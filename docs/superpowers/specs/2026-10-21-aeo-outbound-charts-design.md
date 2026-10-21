@@ -168,6 +168,11 @@ two do not fit.
   is worse. Alternatives, each needing its own trial: a smaller legend font, or wrapping long names (a wrap trial on
   2026-10-21 still overlapped at 15 entries and cut the legend off at 14 characters).
 
+**Decided (Thomas, 2026-10-21):** D1 keep the grid lines, D2 8px, D3 accept the fallback. The round 2 findings F1 to
+F8 (review log) are accepted as written and carried into the plan. The trial
+(`docs/findings/2026-10-21-aeo-outbound-charts-trial.md`) confirmed C5 with them, plus one refinement: the
+`document.fonts.ready` check is registered only when `document.fonts.status === 'loading'` at init.
+
 ## 8a. Minor findings carried to the plan (review round 1)
 
 - m1: `render.test.ts:470` pins the old centring rule; it changes with C3. Update the comments at `render.ts:97-98`
