@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, MAX_BULLETS, MIN_BULLETS, needsValidationPaths, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
+import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, MAX_BULLETS, MIN_BULLETS, needsValidationPaths, OPPS_PAGE_KEYS, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
 import { PAGE_WORDS_V1 } from './config'
 
 const S0: Slots = {
@@ -218,4 +218,33 @@ test('method_title is a page word with its default, and an old row without it ge
   const r = applySlotPatch(full, 'page.method_title', 'How we measured')
   expect(r.ok && r.slots.page.method_title).toBe('How we measured')
   expect(limitFor('page.method_title')).toBe(120)
+})
+
+test('Opportunities page switch: absent reads shown; hide and show are structural, repeatable and need text (Ryan, round 3)', () => {
+  expect(S.opportunities_page).toBe('shown')
+  expect(withDefaults({ ...S0, opportunities_page: 'hidden' }, DATA_STUB).opportunities_page).toBe('hidden')
+  for (const p of ['opportunities_page.hide', 'opportunities_page.show']) expect(isStructuralPath(p)).toBe(true)
+  for (const p of ['opportunities.hide', 'opportunities_page', 'opportunities_page.toggle', 'opportunities_page.0.remove']) expect(isStructuralPath(p)).toBe(false)
+  const hidden = applyStructure(S, 'opportunities_page.hide', 'structure')
+  expect(hidden.ok && hidden.slots.opportunities_page).toBe('hidden')
+  expect(hidden.ok && hidden.slots.opportunities).toEqual(S.opportunities)
+  const again = hidden.ok ? applyStructure(hidden.slots, 'opportunities_page.hide', 'structure') : null
+  expect(again?.ok && again.slots).toEqual(hidden.ok && hidden.slots)
+  const shown = hidden.ok ? applyStructure(hidden.slots, 'opportunities_page.show', 'structure') : null
+  expect(shown?.ok && shown.slots).toEqual(S)
+  expect(applyStructure(S, 'opportunities_page.hide', '')).toEqual({ ok: false, error: "This field can't be empty." })
+  expect(S.opportunities_page).toBe('shown')
+})
+
+const HIDDEN_PATHS = [...[0, 1, 2].flatMap((i) => ['signal', 'opportunity', 'workstream'].map((k) => `opportunities.${i}.${k}`)), ...OPPS_PAGE_KEYS.map((k) => `page.${k}`)]
+test('a hidden Opportunities page leaves exactly its 15 paths out of slotEntries, so Needs validation there no longer blocks', () => {
+  expect(OPPS_PAGE_KEYS).toEqual(['opps_label', 'opps_title', 'opps_col_1', 'opps_col_2', 'opps_col_3', 'opps_takeaway'])
+  const marked = { ...S, opportunities: S.opportunities.map(() => ({ signal: 'Needs validation', opportunity: 'o', workstream: 'w' })), page: { ...S.page, opps_title: 'Needs validation' } }
+  expect(needsValidationPaths(marked)).toEqual(['opportunities.0.signal', 'opportunities.1.signal', 'opportunities.2.signal', 'page.opps_title'])
+  const hidden = { ...marked, opportunities_page: 'hidden' as const }
+  expect(needsValidationPaths(hidden)).toEqual([])
+  const shownPaths = slotEntries(marked).map(([p]) => p)
+  const hiddenPaths = slotEntries(hidden).map(([p]) => p)
+  expect(shownPaths.filter((p) => !hiddenPaths.includes(p)).sort()).toEqual([...HIDDEN_PATHS].sort())
+  expect(hiddenPaths.every((p) => shownPaths.includes(p))).toBe(true)
 })

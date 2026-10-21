@@ -34,9 +34,11 @@ export interface Slots {
   window_label?: string
   kpis?: Kpi[]
   page?: Partial<PageWords>
+  /** Round 3 (Ryan, 2026-10-21): the Opportunities page per report. Absent reads shown, so every older row is unchanged. */
+  opportunities_page?: 'shown' | 'hidden'
 }
 /** Every key present: what saves, grounding and render work on. */
-export type FullSlots = Omit<Slots, 'brand' | 'window_label' | 'kpis' | 'page'> & { brand: string; window_label: string; kpis: Kpi[]; page: PageWords }
+export type FullSlots = Omit<Slots, 'brand' | 'window_label' | 'kpis' | 'page' | 'opportunities_page'> & { brand: string; window_label: string; kpis: Kpi[]; page: PageWords; opportunities_page: 'shown' | 'hidden' }
 
 export const MAX_VALUE = 1000
 export const MAX_LEAD = 80
@@ -47,8 +49,14 @@ const PATH = new RegExp(`^(?:(category|market|headline|summary|context|why|metho
 // Spec v1.1 18.12: in a draft each findings box holds 1 to 6 bullets (Glean still writes 2 or 3).
 export const MIN_BULLETS = 1
 export const MAX_BULLETS = 6
-const STRUCTURE = /^(competitive_bullets|sources_bullets)\.(?:add|([0-5])\.remove)$/
+const STRUCTURE = /^(?:(competitive_bullets|sources_bullets)\.(?:add|([0-5])\.remove)|opportunities_page\.(hide|show))$/
 export const isStructuralPath = (path: string): boolean => STRUCTURE.test(path)
+/** Round 3: turn the Opportunities page off or on. The first segment is no prefix of any text path, so the save queue's
+ *  structural cleanup (save-queue.ts) drops nothing else. */
+export const OPPS_HIDE = 'opportunities_page.hide'
+export const OPPS_SHOW = 'opportunities_page.show'
+/** The page words that sit on the Opportunities page, left out of slotEntries while it is hidden. */
+export const OPPS_PAGE_KEYS = ['opps_label', 'opps_title', 'opps_col_1', 'opps_col_2', 'opps_col_3', 'opps_takeaway'] as const satisfies readonly PageKey[]
 export const STRUCTURE_ERRORS = { full: 'A list can have at most six bullets.', min: 'A list needs at least one bullet.' } as const
 
 export function cleanValue(v: string): string {
@@ -77,10 +85,11 @@ export function pageDefaults(s: { sectionTitles: readonly string[]; sidebarWordm
   return { ...V1_WORDS, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series }
 }
 
-/** Every key filled. Missing keys read the row's own data (brand, window label, KPIs) and the v1.0 words. Never mutates. */
+/** Every key filled. Missing keys read the row's own data (brand, window label, KPIs), the v1.0 words, and a shown
+ *  Opportunities page. Never mutates. */
 export function withDefaults(s: Slots, d: { brand: string; windowLabel: string; kpis: Kpi[] }): FullSlots {
-  const { brand, window_label, kpis, page, ...copy } = structuredClone(s)
-  return { ...copy, brand: brand ?? d.brand, window_label: window_label ?? d.windowLabel, kpis: kpis ?? structuredClone(d.kpis), page: { ...V1_WORDS, ...(page ?? {}) } }
+  const { brand, window_label, kpis, page, opportunities_page, ...copy } = structuredClone(s)
+  return { ...copy, brand: brand ?? d.brand, window_label: window_label ?? d.windowLabel, kpis: kpis ?? structuredClone(d.kpis), page: { ...V1_WORDS, ...(page ?? {}) }, opportunities_page: opportunities_page === 'hidden' ? 'hidden' : 'shown' }
 }
 
 export function applySlotPatch(slots: FullSlots, path: string, raw: unknown): { ok: true; slots: FullSlots } | { ok: false; error: string } {
@@ -109,15 +118,20 @@ export function applySlotPatch(slots: FullSlots, path: string, raw: unknown): { 
   return { ok: true, slots: next }
 }
 
-/** Add a bullet to a list shorter than MAX_BULLETS, or remove one from a list longer than MIN_BULLETS (v1.1 §3, 18.12).
- *  A remove checks its index first: one at or past the end is unknown field. value is the literal "structure": ignored,
- *  but it must be non-empty text, so the §9a rule holds for every PATCH. */
+/** Add a bullet to a list shorter than MAX_BULLETS, or remove one from a list longer than MIN_BULLETS (v1.1 §3, 18.12),
+ *  or turn the Opportunities page off or on (round 3; setting it to the state it has is a no-op). A remove checks its
+ *  index first: one at or past the end is unknown field. value is the literal "structure": ignored, but it must be
+ *  non-empty text, so the §9a rule holds for every PATCH. */
 export function applyStructure(slots: FullSlots, path: string, raw: unknown): { ok: true; slots: FullSlots } | { ok: false; error: string } {
   const m = STRUCTURE.exec(path)
   if (!m) return { ok: false, error: 'unknown field' }
   const checked = checkValue(raw, MAX_VALUE)
   if (!checked.ok) return checked
   const next: FullSlots = structuredClone(slots)
+  if (m[3]) {
+    next.opportunities_page = m[3] === 'hide' ? 'hidden' : 'shown'
+    return { ok: true, slots: next }
+  }
   const list = next[m[1] as 'competitive_bullets' | 'sources_bullets']
   if (m[2] === undefined) {
     if (list.length >= MAX_BULLETS) return { ok: false, error: STRUCTURE_ERRORS.full }
@@ -131,14 +145,17 @@ export function applyStructure(slots: FullSlots, path: string, raw: unknown): { 
   return { ok: true, slots: next }
 }
 
-/** Every [path, value] in page order: the copy as v1.0 listed it, then brand, window label, KPIs and page words. */
+/** Every [path, value] on the page, in page order: the copy as v1.0 listed it, then brand, window label, KPIs and page
+ *  words. A hidden Opportunities page leaves out its rows and its six page words (round 3). */
 export function slotEntries(s: FullSlots): [string, string][] {
+  const shown = s.opportunities_page !== 'hidden'
   const out: [string, string][] = SCALARS.map((k) => [k, s[k]])
   for (const list of ['competitive_bullets', 'sources_bullets'] as const) s[list].forEach((b, i) => { out.push([`${list}.${i}.lead`, b.lead], [`${list}.${i}.text`, b.text]) })
-  s.opportunities.forEach((o, i) => { out.push([`opportunities.${i}.signal`, o.signal], [`opportunities.${i}.opportunity`, o.opportunity], [`opportunities.${i}.workstream`, o.workstream]) })
+  if (shown) s.opportunities.forEach((o, i) => { out.push([`opportunities.${i}.signal`, o.signal], [`opportunities.${i}.opportunity`, o.opportunity], [`opportunities.${i}.workstream`, o.workstream]) })
   out.push(['brand', s.brand], ['window_label', s.window_label])
   s.kpis.forEach((k, i) => { out.push([`kpis.${i}.label`, k.label], [`kpis.${i}.value`, k.value]) })
-  for (const k of PAGE_KEYS) out.push([`page.${k}`, s.page[k]])
+  const skip: readonly string[] = shown ? [] : OPPS_PAGE_KEYS
+  for (const k of PAGE_KEYS) if (!skip.includes(k)) out.push([`page.${k}`, s.page[k]])
   return out
 }
 

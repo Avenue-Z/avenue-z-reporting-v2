@@ -279,3 +279,8 @@ test('2026-10-19 Peec parity: stored data records the source-mix weighting; abse
   for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce')).toEqual({ ok: true })
   for (const w of ['bogus', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok).toBe(false)
 })
+
+test('stored slots: opportunities_page is absent, shown or hidden; anything else breaks the contract (Ryan, round 3)', () => {
+  for (const v of [undefined, 'shown', 'hidden']) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, ...(v ? { opportunities_page: v } : {}) }, 'enforce')).toEqual({ ok: true })
+  for (const v of ['off', true, null, 1]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, opportunities_page: v }, 'enforce').ok).toBe(false)
+})

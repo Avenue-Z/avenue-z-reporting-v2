@@ -46,3 +46,7 @@ test('bullet 6 is labelled, for its lead, text and Remove, in both boxes (spec v
   const six = withDefaults({ ...S0, sources_bullets: Array.from({ length: 6 }, () => ({ lead: 'a', text: 'b' })) }, { brand: 'B', windowLabel: 'W', kpis: [] })
   for (const [p] of slotEntries(six)) expect(fieldLabel(p, T), p).not.toBe(p)
 })
+
+test('every editable path of a hidden Opportunities page still has a label', () => {
+  for (const [p] of slotEntries({ ...FULL, opportunities_page: 'hidden' })) expect(fieldLabel(p, T), p).not.toBe(p)
+})

@@ -467,3 +467,10 @@ test('the exact sentence check runs only for rows written by the current sentenc
   // It is still a new row: a number in Glean's words is still an unchecked_number item.
   expect(groundingFlags({ ...edited, why: 'It rose 4.4%.' }, d, dataBlock(d)).filter((n) => n.path === 'why').map((n) => n.kind)).toEqual(['unchecked_number'])
 })
+
+test('a hidden Opportunities page is not checked: its numbers flag nothing until it is shown again (Ryan, round 3)', () => {
+  const d = newRow()
+  const opps = [0, 1, 2].map((i) => ({ signal: `Grew 40% in quarter ${i}`, opportunity: 'Explore it', workstream: 'Content' }))
+  expect(flagsFor(d, { opportunities: opps }).some((n) => n.path?.startsWith('opportunities.'))).toBe(true)
+  expect(flagsFor(d, { opportunities: opps, opportunities_page: 'hidden' })).toEqual([])
+})
