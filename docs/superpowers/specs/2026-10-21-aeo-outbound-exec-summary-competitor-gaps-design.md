@@ -104,6 +104,14 @@ whichever merges second resolves the overlap.
 - **D1.** Keep "the brand isn't mentioned there" (a true gap, Ryan's heading; empty on 2 of 33) or list competitor
   sites regardless (empty on 1 of 33). Recommended: keep it.
 - **D2.** "Executive Summary" in Ryan's casing (my earlier call, approved), editable per report.
+- **D3 (review round 2, MAJOR 1).** The edge row "A COMPETITOR-classified site that mentions no kept competitor | Never
+  counts" contradicts E2: a kept competitor's own homepage (roster domain) counts whatever its class or mentions, and
+  `mentioned_brands` is often empty (`contracts.ts:76`). Proposed: reword the row to "off every kept competitor's roster
+  domains", and test both (roster row with empty mentions counts; the same row off the roster never counts).
+- **D4 (review round 2, MAJOR 2).** A competitor cut by `rankAmong` could still be listed through the class path (a
+  COMPETITOR-classed comparison page that mentions a kept brand). (a) Add to E2 "and not a non-kept competitor's roster
+  domain or subdomain", as own wins; (b) let such pages count. Recommended (a). `rankAmong` is null today (every
+  competitor kept), so this only matters if the setting is used.
 
 ## 8. Deliberate parity changes and not touched
 
@@ -129,4 +137,13 @@ Not touched:
   current setting) every roster competitor is kept.
 - m8: a grounding test that a new row's Glean field naming a listed competitor domain is not flagged, and an older row's
   flags are unchanged.
+
+## 10. Review round 2 (changed lines only): two MAJORs to Thomas (D3, D4), minors to the plan
+
+- r2-3: a kept id with no roster row (from the brands report, `metrics.ts:141-142`, `:147`) has no roster domains and
+  can only match by Peec's class; test a non-roster kept brand mentioned on a COMPETITOR row.
+- r2-4: an older draft's Data block is re-read on every slot save (`slots/route.ts:80`, `:98`); the test that its flags
+  are unchanged moves into §6's grounding row.
+- r2-5: §8's mechanism: competitor domains are allowed because they are in `gapDomains` (`grounding.ts:131`), not
+  because of the Data block.
 
