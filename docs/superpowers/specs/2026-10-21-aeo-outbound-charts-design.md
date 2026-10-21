@@ -94,12 +94,32 @@ name at every width. Measured clearance between a name and the next column (nega
 | 309 | | 1 |
 | 324 | | 9 |
 
-A custom name such as "Retailers & Marketplaces" overlaps at the editor's width. So `PAGE_JS` checks the drawn legend:
-after the page loads, after each donut redraw it makes (phone or desktop), and 150ms after each window resize, it
-reads each legend entry's text box. If any text ends within 2px of the next column's start, or past the figure's
-right edge, it redraws the donut once with `legend.entrywidth` and `legend.entrywidthmode` removed: today's flowing
-legend, which never overlaps. On the next resize it tries two columns again. Where `.legend .traces` is missing (no
-Plotly, no donut) it does nothing.
+A custom name such as "Retailers & Marketplaces" overlaps at the editor's width. So `PAGE_JS` checks the drawn legend
+and falls back. Precisely (review round 1, M1 to M4):
+
+- **State.** `cur = {d, l}` is the figure the script last asked for: `orig` on desktop, the phone figure on a phone
+  (set by `apply()`, `render.ts:157-160`). `fallen` is true after a fallback, cleared by the resize retry and by
+  `apply()`.
+- **Check, `fits()`.** Entries are `el.querySelectorAll('.legend .traces')`; each entry's text is its `.legendtext`.
+  Both are measured with `getBoundingClientRect()`. Fewer than 2 entries: fits. Column starts are the distinct `left`
+  values of the entry rects. For each entry the limit is the smallest column start greater than its own `left`, else
+  `el.getBoundingClientRect().right`. It overlaps when `text.right > limit - 2`.
+- **When it runs.** In `init()` before the existing `matchMedia` guard (`render.ts:161`), so desktop gets checked too;
+  after each `apply()` draw resolves; after the resize retry's draw resolves; once on `document.fonts.ready` when
+  `document.fonts` exists (Avenir is a swapped webfont, `aivx/css.ts`). Never after the fallback draw and never after
+  `restore()`.
+- **Fallback.** When `fits()` is false and `fallen` is false: `draw(copy(cur.d), l)` where `l` is `copy(cur.l)` with
+  `legend.entrywidth` and `legend.entrywidthmode` deleted, then `fallen = true`. At most one fallback per check, so it
+  cannot loop. It goes through the existing `draw()`, so a rejected fallback falls into the existing one-shot
+  `restore()`. The result is the flowing legend (today's behaviour, with C4's 24px sides). Phone labels and the
+  customdata hover survive, since `cur.d` is the phone figure there.
+- **Resize retry.** One `resize` listener, debounced: `clearTimeout`, then the global `setTimeout`, 150ms after the
+  last event. It acts only when `el.clientWidth` differs from its value at the last check (iOS fires `resize` when its
+  toolbar collapses without a width change). It then redraws `copy(cur.d), copy(cur.l)` (two columns), clears
+  `fallen`, and checks after that draw resolves.
+- **Environment.** Uses only `el`, `document`, the global `setTimeout` and `clearTimeout`, and
+  `window.addEventListener`. The frame tests run `PAGE_JS` against a bare `EventTarget` window
+  (`render.frame.test.ts:241-242`).
 
 ## 5. Who sees it
 
@@ -118,7 +138,7 @@ Plotly, no donut) it does nothing.
 | `charts.test.ts` new | `PLOTLY_BASE` still has `plot_bgcolor: '#1a1a1a'` and the donut layout has no `plot_bgcolor` override (the change is the bar's alone) |
 | `v1-compat.test.ts` `v11()` | Three new deliberate differences, each with `once()`: the bar's `plot_bgcolor` value, the bar's `margin` key, the donut's legend keys and side margins. Every other byte of the v1.0 page unchanged |
 | `render.test.ts` `CHART_SPACING_RULES` (`:371-383`) | Rule 4 is the donut-only centring rule, verbatim; the spacing tests at `:454-461` still pass (no rule names a chart id, no sizing on chart-wrap) |
-| `render.frame.test.ts` new | With stubbed legend boxes that overlap: one extra `react` call whose layout has no `entrywidth` keys. Boxes that fit: no extra call. No legend nodes: no extra call. A resize after a fallback redraws with two columns first. Existing donut tests (`:247-315`) unchanged |
+| `render.frame.test.ts` new (C5, `getBoundingClientRect` stubbed on `.traces` and `.legendtext`) | Overlapping boxes on desktop: one extra `react`, layout without the two legend keys, data equal to `orig`. On a phone: the fallback keeps "Reference 5%" labels and customdata. Boxes that still overlap after the fallback: exactly one extra `react`. A rejected fallback: the existing single `restore()` and nothing more. Fitting boxes, or no legend nodes: no extra call. Five resizes within 100ms: one redraw. A resize with unchanged `clientWidth`: no call. A resize after a fallback: two-column redraw, then the check. Crossing 900px (`change`): the check runs after `apply()`'s draw. Existing donut tests (`:247-315`) unchanged |
 
 Browser check after the build (staging preview, not saved): at 1440, 1105, 1000 and 375px, bar title-to-plot gap at
 most 8px plus the figure's top edge, black plot area, donut two columns with no overlap, or the flowing legend where
@@ -142,6 +162,24 @@ two do not fit.
 - **D1. Grid lines on the bar chart:** keep the faint vertical lines (proposed; Ryan named only the grey), or remove
   them (`showgrid: false`, one more key).
 - **D2. Top margin 8px:** proposed. Measured clear of every label at 1105px. Any value from 0 to about 20 reads the same.
+- **D3. Custom-name projects keep a flowing legend at narrow widths.** Projects whose Peec setup has long custom
+  categories (seen on 2026-10-21: Protein & Performance AIVx, GLP-1 & Peptides AIVx, PE Firms (Blue Owl)) fall back
+  to the flowing legend at the editor's width, so Ryan sees no change there. Proposed: accept, since overlapping text
+  is worse. Alternatives, each needing its own trial: a smaller legend font, or wrapping long names (a wrap trial on
+  2026-10-21 still overlapped at 15 entries and cut the legend off at 14 characters).
+
+## 8a. Minor findings carried to the plan (review round 1)
+
+- m1: `render.test.ts:470` pins the old centring rule; it changes with C3. Update the comments at `render.ts:97-98`
+  and `render.test.ts:368-370`.
+- m2: the v1-compat anchor for the bar's `plot_bgcolor` must include context to be unique (the value occurs twice in
+  `v1-0-final.html`).
+- m3: the two legend keys are appended after `yanchor`, `entrywidth` first.
+- m4: `PLOTLY_BASE` is not exported (`charts.ts:12`); test the donut's `plot_bgcolor` instead.
+- m6: covered in C5 (`document.fonts.ready`).
+- m7: covered in C5 (environment).
+- m8: browser check adds a draft with several slices under 5% at 1105px and 375px, and a custom-name draft at 1105px.
+- m9: covered in §6.
 
 ## 9. Not touched
 
