@@ -46,7 +46,7 @@ reading the row), set by `generate.ts` on every new row next to `pageDefaults` (
 - the menu lists `#competitive-visibility` as 02, then `#category-data` as 03;
 - the page writes `#competitive-visibility` (prefix "02 / ") before `#category-data` (prefix "03 / ");
 - each section keeps its own id, title slot, bullet box, chart and CSS; only the order and the two numbers move;
-- every menu item after the two data items (04 Opportunities, 05 Methodology) stays after both, whichever comes second.
+- every menu item after the two data items (Opportunities and Methodology, numbered as #411 sets them) stays after both, whichever comes second.
   #411 appends its Opportunities link to the end of the `#competitive-visibility` menu line (its `render.ts:256`,
   `${oppsNav}`), so the merge must attach it after the pair, not to that line (review round 1, MAJOR 1).
 Without the marker the page is byte-identical to today, so drafts in flight and rows from before v1.1 keep their order.
@@ -99,7 +99,7 @@ in the source ecosystem", "Source-use signal"); that is what Q1 regroups.
 | `render.frame.test.ts` | Marker row: clicking 02 marks `#competitive-visibility` active in preview |
 | `contracts.test.ts` | `section_order` accepts `'visibility_first'`, rejects another value, absent is fine |
 | `generate.test.ts` | A generated row carries the marker |
-| `slots.test.ts` | A text edit (`applySlotPatch`) and a bullet add and remove (`applyStructure`) on a marker row, read through `withDefaults`, keep `section_order`; a row without it gains none (review round 1, MAJOR 2: every save takes this path, `slots/route.ts:76`, `:88`, `:100`) |
+| `slots.test.ts` | A text edit (`applySlotPatch`) and a bullet add and remove (`applyStructure`) on a marker row, read through `withDefaults`, keep `section_order`; a row without it gains none (review round 1, MAJOR 2: every save takes this path, `app/api/aeo-outbound/reports/[id]/slots/route.ts:76`, `:89`, `:101`) |
 | `config.test.ts` | `DECISIONS.sectionTitles` is Ryan's names; `PAGE_WORDS_V1` titles stay the v1.0 words |
 | `settings.test.ts` | `SETTINGS_DEFAULTS.sectionTitles` follows `DECISIONS` |
 | `labels.test.ts`, settings form test | The four content labels |
@@ -112,7 +112,7 @@ both. #413 edits `pageDefaults`, not touched here.
 
 ## 8. Review round 1: minors carried to the plan
 
-- r1-3: a `section_order` value this build does not know makes the row unreadable (`store.ts:22`, `page.tsx:34`, 409 on
+- r1-3: a `section_order` value this build does not know makes the row unreadable (`store.ts:22`, `app/tools/new-business/[reportId]/page.tsx:34`, 409 on
   save, `slots/route.ts:71-73`), as for any contract failure. Accepted: one value exists, written only by code.
 - r1-4: on marker rows Before you send, Needs validation and Approve's first highlighted item keep storage order
   (`slots.ts:137`, `:146`, `editor.tsx:350`), so a Cited Sources bullet is listed before a Competitive Visibility one;
