@@ -52,13 +52,23 @@ today). Setting it to the state it already has is a 200 with unchanged slots. Th
 is no prefix of any text path (text paths start `opportunities.`), so the queue's prefix cleanup
 (`save-queue.ts:166-171`) drops nothing else.
 
-**S3. The control.** In the editor toolbar, for a draft that is readable (the same condition as Approve,
-`editor.tsx:495`), a toggle button with `aria-pressed`: "Opportunities page: on" when shown, "Opportunities page: off"
-when hidden. A click calls `queueRef.current.structure(path)` with the opposite path and puts the frame in read-only
-mode, as a bullet click does (`editor.tsx:280-282`). It is disabled while a structural item is queued or in flight
-(`save.structuring`), while the queue is stopped, and while Approve is busy. It works in Preview and in Edit mode. The
-initial state comes from a new prop `opportunitiesHidden` (`page.tsx` passes `full?.opportunities_page === 'hidden'`);
-after a 200 on either path the editor sets it from the path, and the existing structural branch reloads the frame.
+**S3. The control.** In the editor toolbar (`role="toolbar"`, `editor.tsx:483`), right before Approve, for a draft
+that is readable (the same condition as Approve, `editor.tsx:495`), a button whose text is "Opportunities page: on"
+when shown and "Opportunities page: off" when hidden (no `aria-pressed`: the text carries the state). It is hidden while
+a rerun's checklist replaces the toolbar (`editor.tsx:482`), as every toolbar button is.
+- **Click.** Re-checks `queueRef.current?.state.structuring` and returns if set (as the frame path does,
+  `editor.tsx:280`), posts `{type:'mode',edit:false}` to the frame, then calls `queueRef.current.structure(path)` with
+  the opposite path (`editor.tsx:281-282`). It works in Preview and in Edit mode.
+- **Disabled** whenever Approve is disabled for saving or busy: `busySaving || busy` (`editor.tsx:334-335`). That
+  covers no queue yet, an unsaved or in-flight edit (`dirty` from the frame's first keystroke, `render.ts:59`), an
+  outstanding refused field (`dirty` includes `bad`, `save-queue.ts:68`), a stopped queue and a structural item. So a
+  text edit always lands before the toggle, and a refused opportunity cell must be fixed before the page can be hidden
+  (review round 1, M1). Its `title` is Approve's (`approveTitle`, `editor.tsx:339-342`).
+- **State.** A new prop `opportunitiesHidden` (`page.tsx` passes `full?.opportunities_page === 'hidden'`) seeds it.
+  It is re-seeded in the same `sync` block as notes and titles, under the same `older` guard (`editor.tsx:124-131`),
+  so a refresh after another tab's change shows the stored state (M3). After a 200 on either path the editor sets it
+  from the path, and the existing structural branch reloads the frame (`editor.tsx:221-226`). A 400 or 409 leaves it
+  unchanged.
 
 **S4. Render.** When `opportunities_page === 'hidden'`, in every mode:
 - menu item 04 (`render.ts:240`) and the `#opportunities` section (`render.ts:287-297`) are not written;
@@ -74,8 +84,8 @@ and the brand-name count ignores the hidden table. The stored text is kept, so t
 what was there. Every save, the toggle included, recomputes notes and needsValidation (`slots/route.ts:98`, `:105`),
 so the panel and Approve follow at once.
 
-**S6. Labels.** `fieldLabel('opportunities_page.hide')` reads "Opportunities page, turn off" and `.show` "Opportunities
-page, turn on", for the save-error text.
+**S6. (Removed, review round 1, M4.)** A refused structural item never enters `bad` (`save-queue.ts:180-184`), so no
+label for these paths is ever shown; none is added.
 
 ## 4. Copies, reruns, generation
 
@@ -98,13 +108,14 @@ page, turn on", for the save-error text.
 |---|---|
 | Old row, no key | Shown; byte-identical render |
 | Hide, then show | Original text and order intact |
-| Hide while a text edit is unsaved | The queue sends the edit first, then the toggle (`save-queue.ts:151`) |
+| Hide while a text edit is unsaved or refused | The button is disabled until the edit is saved or fixed (S3) |
 | Two clicks quickly | The second is ignored while the first is structuring |
 | Hide on a row whose opportunities hold "Needs validation" | Approve unblocks; turning back on blocks again |
 | Hide, then Approve | The frozen page has no Opportunities section and Methodology is 04 |
 | Edit a copy of a hidden report | The copy starts hidden |
 | Rerun of a hidden report | Starts shown |
-| Toggle to the current state (two tabs) | 200, nothing changes |
+| Two tabs: the second tab toggles | 409 stale (`slots/route.ts:92-95`); its queue stops with "This snapshot changed. Reload." (`save-queue.ts:193-195`); after reload the button shows the stored state |
+| Same-state path with a current revision (button state stale) | 200, slots unchanged, revision +1, button set from the path |
 | A stored value other than the two words | The row breaks `STORED_SLOTS` and reads unreadable (`store.ts:21-24`), as any malformed slot does today; nothing writes one |
 
 ## 7. Tests (written first)
@@ -117,11 +128,30 @@ page, turn on", for the save-error text.
 | `v1-compat.test.ts` | Unchanged and passing: a version 1 row renders as before |
 | `grounding.test.ts` | A hidden opportunity with an unchecked number gives no flag; shown, it does |
 | `slots/route.test.ts` | A toggle PATCH returns 200 with slots and the recomputed needsValidation; a stale revision is 409 as for bullets |
-| `labels.test.ts` | Labels for the two paths; every `slotEntries` path still has a label |
-| `editor.test.tsx` | The button shows the state from the prop, sends the opposite path, is disabled while structuring, flips after a 200, and is absent on a sent or unreadable report |
+| `labels.test.ts` | Every `slotEntries` path still has a label, shown and hidden |
+| `editor.test.tsx` | The button shows the state from the prop, sends the opposite path, is disabled while saving, dirty, refused, stopped or structuring, ignores a second click before re-render, flips after a 200 and not after a 400 or 409, re-seeds on newer props and not on older ones, and is absent on a sent or unreadable report |
 | `app/actions/aeo-outbound.test.ts` | Approve of a hidden report whose opportunities say "Needs validation" succeeds, and its HTML has no Opportunities section |
 
 ## 8. Not touched
 
 The prompt, the reply contract, generation, the opportunities' shape, `PAGE_KEYS`, settings, the hub, the share and
 snapshot routes, AIVx files, the charts.
+
+## 9. Minor findings carried to the plan (review round 1)
+
+- m5: generation and every save store `'shown'` explicitly via `withDefaults` (`generate.ts:101`, `slots/route.ts:101`);
+  only rows untouched since before this build lack the key. Same outcome as §4 says.
+- m6: PR previews point at the dev Neon project (`ENGINEERS.md:501`), so dev, staging and previews can share a
+  database; an old build keeps the key on save (`slots.ts:82-83`) but renders and approves the section. QA only on
+  builds that carry this change.
+- m7: covered in S3 (label, placement, disabled, double click).
+- m8: the hidden paths are exactly `opportunities.{0,1,2}.{signal,opportunity,workstream}` and `page.opps_label`,
+  `page.opps_title`, `page.opps_col_1`, `page.opps_col_2`, `page.opps_col_3`, `page.opps_takeaway`.
+- m9: hidden variants of `render.test.ts:207` (fixed marks `['01','02','03','04','02 / ','03 / ','04 / ', date]`),
+  `:216` (every slot path equals `slotEntries`, both states), `:218` and `:222` (no `page.opps_label` mirror; three menu
+  copies).
+- m10: `render.frame.test.ts` bootSpy on a hidden page (04 Methodology is the only active link at the bottom; header
+  clone and AIVx sort are no-ops with no `.leaderboard`), and `save-queue.test.ts`: an `opportunities_page.*` 200
+  keeps `opportunities.*` pending, dirty and bad entries.
+- m11: "Looks right" ticks are keyed `kind|path|text` (`before-you-send.tsx:15`) and are kept across hide and show; the
+  `brand_changed` note's text embeds its count (`grounding.ts:253-255`), so its tick resets when hiding changes the count.
