@@ -276,6 +276,7 @@ test('a generated row stores every key: brand, window label and KPIs from its da
   expect(r.slots.window_label).toBe(r.data.windowLabel)
   expect(r.slots.kpis).toEqual(r.data.kpis)
   expect(r.slots.page).toMatchObject({ section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report' })
+  expect(r.slots.section_order).toBe('visibility_first')
 })
 
 test('a flag on a page word Glean cannot fix costs no second attempt, and is still a stored note', async () => {

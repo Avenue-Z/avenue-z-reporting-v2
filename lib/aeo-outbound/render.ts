@@ -223,6 +223,31 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   const t2 = p.section_2_title
   const brand = esc(s.brand)
   const chartMark = attr('data-locked', 'chart')
+  // Round 3 (Ryan, 2026-10-21): a row generated since the swap shows Competitive Visibility (02) before Cited Sources (03).
+  // Each section keeps its id, title, bullet box and chart, and the menu items after them stay after both. A row without
+  // the marker is byte-identical to before.
+  const visFirst = s.section_order === 'visibility_first'
+  const [n1, n2] = visFirst ? ['03', '02'] : ['02', '03']
+  const nav1 = `<a href="#category-data"><span class="nav-num"${fixedMark}>${n1}</span> ${mirror('page.section_1_title', t1, false, true)}</a>`
+  const nav2 = `<a href="#competitive-visibility"><span class="nav-num"${fixedMark}>${n2}</span> ${mirror('page.section_2_title', t2, false, true)}</a>`
+  const section1 = `<section id="category-data" class="section">
+  <div class="section-label">${fixed(`${n1} / `)}${mirror('page.section_1_title', t1)}</div>
+  ${slot('h2', 'page.section_1_title', t1, 'section-title')}
+  <div class="two-col" style="margin-top:16px;align-items:stretch">
+    <div><div class="insight-box">${bullets('competitive_bullets')}</div></div>
+    <div><div class="chart-wrap">${slot('div', 'page.chart_1_title', p.chart_1_title, 'chart-title')}${embedFigure('aeo-chart-sources', sourceDonutFigure(data.sourceMix), chartMark)}</div></div>
+  </div>
+</section>`
+  const section2 = `<section id="competitive-visibility" class="section">
+  <div class="section-label">${fixed(`${n2} / `)}${mirror('page.section_2_title', t2)}</div>
+  ${slot('h2', 'page.section_2_title', t2, 'section-title')}
+  <div class="two-col" style="margin-top:16px;align-items:stretch">
+    <div><div class="insight-box">${bullets('sources_bullets')}</div></div>
+    <div><div class="chart-wrap">${slot('div', 'page.chart_2_title', p.chart_2_title, 'chart-title')}${embedFigure('aeo-chart-visibility', visibilityBarFigure(shownBrands), chartMark)}</div></div>
+  </div>
+</section>`
+  const [firstNav, secondNav] = visFirst ? [nav2, nav1] : [nav1, nav2]
+  const [firstSection, secondSection] = visFirst ? [section2, section1] : [section1, section2]
 
   const sidebar = `
 <nav class="sidebar">
@@ -235,8 +260,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   </div>
   <nav class="sidebar-nav">
     <a href="#headline"><span class="nav-num"${fixedMark}>01</span> ${mirror('page.headline_label', p.headline_label, false, true)}</a>
-    <a href="#category-data"><span class="nav-num"${fixedMark}>02</span> ${mirror('page.section_1_title', t1, false, true)}</a>
-    <a href="#competitive-visibility"><span class="nav-num"${fixedMark}>03</span> ${mirror('page.section_2_title', t2, false, true)}</a>
+    ${firstNav}
+    ${secondNav}
     <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>
     <a href="#methodology"><span class="nav-num"${fixedMark}>05</span> ${wrap('page.method_nav', p.method_nav)}</a>
   </nav>
@@ -262,22 +287,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   ${kpiStrip}${kpiCards}</div>
   ${data.competitorsTracked > 0 ? slot('div', 'context', s.context, 'insight-box', '', bolded(s.context)) : ''}
 </section>
-<section id="category-data" class="section">
-  <div class="section-label">${fixed('02 / ')}${mirror('page.section_1_title', t1)}</div>
-  ${slot('h2', 'page.section_1_title', t1, 'section-title')}
-  <div class="two-col" style="margin-top:16px;align-items:stretch">
-    <div><div class="insight-box">${bullets('competitive_bullets')}</div></div>
-    <div><div class="chart-wrap">${slot('div', 'page.chart_1_title', p.chart_1_title, 'chart-title')}${embedFigure('aeo-chart-sources', sourceDonutFigure(data.sourceMix), chartMark)}</div></div>
-  </div>
-</section>
-<section id="competitive-visibility" class="section">
-  <div class="section-label">${fixed('03 / ')}${mirror('page.section_2_title', t2)}</div>
-  ${slot('h2', 'page.section_2_title', t2, 'section-title')}
-  <div class="two-col" style="margin-top:16px;align-items:stretch">
-    <div><div class="insight-box">${bullets('sources_bullets')}</div></div>
-    <div><div class="chart-wrap">${slot('div', 'page.chart_2_title', p.chart_2_title, 'chart-title')}${embedFigure('aeo-chart-visibility', visibilityBarFigure(shownBrands), chartMark)}</div></div>
-  </div>
-</section>
+${firstSection}
+${secondSection}
 <section class="section">
   <div class="rec-global-bottom-line">
     ${slot('div', 'page.why_title', p.why_title, '', ' style="font-size:18px;font-weight:900;color:var(--white);margin-bottom:12px"')}

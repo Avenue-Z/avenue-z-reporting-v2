@@ -170,6 +170,19 @@ test('add and remove keep every list at one to six bullets; a new bullet says Ne
   expect(STRUCTURE_ERRORS).toEqual({ full: 'A list can have at most six bullets.', min: 'A list needs at least one bullet.' })
 })
 
+test('round 3: every save keeps the page-order marker, and a row without it never gains one', () => {
+  const marked = withDefaults({ ...S0, section_order: 'visibility_first' }, DATA_STUB)
+  expect(marked.section_order).toBe('visibility_first')
+  const edited = applySlotPatch(marked, 'headline', 'New headline')
+  expect(edited.ok && edited.slots.section_order).toBe('visibility_first')
+  const added = applyStructure(marked, 'sources_bullets.add', 'structure')
+  expect(added.ok && added.slots.section_order).toBe('visibility_first')
+  const removed = added.ok ? applyStructure(added.slots, 'sources_bullets.0.remove', 'structure') : null
+  expect(removed?.ok && removed.slots.section_order).toBe('visibility_first')
+  const plain = applySlotPatch(S, 'headline', 'New headline')
+  expect(plain.ok && 'section_order' in plain.slots).toBe(false)
+})
+
 const withList = (n: number) => ({ ...S, sources_bullets: Array.from({ length: n }, (_, i) => ({ lead: `G${i}`, text: `U${i}` })) })
 
 test('add at 5 gives 6; add at 6 is refused as at most six (spec v1.1 18.12)', () => {

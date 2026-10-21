@@ -34,6 +34,8 @@ export interface Slots {
   window_label?: string
   kpis?: Kpi[]
   page?: Partial<PageWords>
+  /** Round 3 (Ryan, 2026-10-21): every row generated since the page swap; absent reads today's order (Cited Sources first). */
+  section_order?: 'visibility_first'
 }
 /** Every key present: what saves, grounding and render work on. */
 export type FullSlots = Omit<Slots, 'brand' | 'window_label' | 'kpis' | 'page'> & { brand: string; window_label: string; kpis: Kpi[]; page: PageWords }

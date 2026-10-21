@@ -173,4 +173,6 @@ export const STORED_SLOTS = z.looseObject({
   methodology: z.string(), next_step: z.string(),
   brand: z.string().optional(), window_label: z.string().optional(), kpis: z.array(storedKpi).optional(),
   page: z.partialRecord(z.enum(PAGE_KEYS), z.string()).optional(),
+  // Round 3 (Ryan, 2026-10-21): the page-order marker; absent reads today's order.
+  section_order: z.literal('visibility_first').optional(),
 })
