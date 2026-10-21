@@ -52,6 +52,8 @@ keep the word stored on them; approved reports never change.
     entries skipped, or Peec classifies it `COMPETITOR` and its `mentioned_brands` include a kept competitor;
   - it is not the brand's own site: not classified `OWN` and not an own domain or subdomain (`ownMatch`,
     `metrics.ts:217-221`); own wins over competitor;
+  - it is not a non-kept competitor's own site: not a roster domain or subdomain of a competitor outside `keptIds`
+    (decision D4 (a)); a kept id with no roster row has no roster domains and can match only by Peec's class (§10 r2-3);
   - its `mentioned_brands` do not include the own brand (decision D1: it stays a gap, as Ryan's heading says).
 - Top 4 by `retrieved_chat_count`, ties by domain, as today (`:258`). `DECISIONS.competitorSiteGaps` still switches it
   off; its comment (`config.ts:9`) and the `contracts.ts:76` comment are updated. `competitorIds` (`metrics.ts:247`)
@@ -83,8 +85,9 @@ whichever merges second resolves the overlap.
 | A COMPETITOR-classified site off the roster that mentions a kept competitor | Counts |
 | The brand's own subdomain classified COMPETITOR | Never counts (own match wins) |
 | No competitors tracked | Always empty, as today |
-| A competitor cut by `rankAmong` | Its sites never count |
-| A COMPETITOR-classified site that mentions no kept competitor | Never counts |
+| A competitor cut by `rankAmong` | Its own sites never count, even classified COMPETITOR and mentioning a kept brand (D4 (a)) |
+| A kept competitor's own site (roster domain), whatever its class, with empty `mentioned_brands` | Counts |
+| A COMPETITOR-classified site off every kept competitor's roster domains that mentions no kept competitor | Never counts (decision D3) |
 | Competitor site with retrieved chats 0 or null | Never counts (unchanged) |
 | A row made before this ships | Its stored list and bullet unchanged; a version 2 row's Data line changes only in its bracketed words, which grounding never reads (E3) |
 
@@ -112,6 +115,9 @@ whichever merges second resolves the overlap.
   COMPETITOR-classed comparison page that mentions a kept brand). (a) Add to E2 "and not a non-kept competitor's roster
   domain or subdomain", as own wins; (b) let such pages count. Recommended (a). `rankAmong` is null today (every
   competitor kept), so this only matters if the setting is used.
+
+**Decided (Thomas, 2026-10-21):** D1 keep the gap condition; D2 "Executive Summary"; D3 the row reworded as above;
+D4 (a).
 
 ## 8. Deliberate parity changes and not touched
 
