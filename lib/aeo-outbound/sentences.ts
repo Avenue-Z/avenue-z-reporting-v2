@@ -348,7 +348,9 @@ function write(d: SnapshotData) {
     // The two of the (up to) two brands above and two below that are closest in visibility; ties go to the higher-ranked,
     // and they are named in rank order (blind scorecard, spec 2026-10-22 S3: A Place for Mom's nearest peers are both below).
     const candidates = [...d.brands.slice(Math.max(0, i - 2), i), ...d.brands.slice(i + 1, i + 3)]
-    const near = [...candidates].sort((a, b) => Math.abs(a.visibilityPct - own.visibilityPct) - Math.abs(b.visibilityPct - own.visibilityPct) || d.brands.indexOf(a) - d.brands.indexOf(b)).slice(0, 2)
+    // Distances in whole tenths, the precision the page prints, so equal distances tie whatever floating point says.
+    const gap = (b: { visibilityPct: number }) => Math.abs(Math.round(b.visibilityPct * 10) - Math.round(own.visibilityPct * 10))
+    const near = [...candidates].sort((a, b) => gap(a) - gap(b) || d.brands.indexOf(a) - d.brands.indexOf(b)).slice(0, 2)
     const peers = near.sort((a, b) => d.brands.indexOf(a) - d.brands.indexOf(b))
     const values = [own.visibilityPct, ...peers.map((b) => b.visibilityPct)]
     const x = tenths(Math.max(...values), Math.min(...values))

@@ -446,6 +446,9 @@ test('peer cluster takes the two closest brands; the top-three average includes 
   const apfm = cv([['care', 'Care', 0.986, 0.9], ['own', 'Own', 0.031, 0.003], ['caring', 'Caring', 0.022, 0.002], ['petunia', 'Petunia', 0, 0]])
   expect(apfm).toContain('Own is 31.5 percentage points below the top-three average visibility of 34.6%.')
   expect(apfm).toContain('Own sits within a 3.1-point visibility range alongside Caring and Petunia.')
+  // Equal distances in tenths are ties, whatever floating point says (adversarial review): Golf and Lima at 0.9 each.
+  const float = cv([['alpha', 'Alpha', 0.9, 0.3], ['golf', 'Golf', 0.795, 0.2], ['lima', 'Lima', 0.795, 0.2], ['own', 'Own', 0.786, 0.2], ['charlie', 'Charlie', 0.777, 0.1], ['zulu', 'Zulu', 0.1, 0.1]])
+  expect(float).toContain('Own sits within a 0.9-point visibility range alongside Golf and Lima.')
   // Ties in closeness go to the higher-ranked brand.
   const tie = cv([['a', 'A', 0.6, 0.3], ['b', 'B', 0.52, 0.2], ['own', 'Own', 0.5, 0.2], ['c', 'C', 0.48, 0.1], ['d', 'D', 0.2, 0.1]])
   expect(tie).toContain('Own sits within a 4.0-point visibility range alongside B and C.')

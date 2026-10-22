@@ -35,7 +35,12 @@ with data the bullet is left out, so the average is never just the prospect and 
 **S5. Source-type mix keeps both Editorial and UGC** when neither is in the top two (A Place for Mom names four types).
 Not changed, my call: the earned pillar leans on Editorial. Recorded so it is not re-raised.
 
-`SENTENCES_VERSION` stays 3, for the same reason as #420 (the tool is not on `main`).
+`SENTENCES_VERSION` stays 3, for the same reason as #420 (the tool is not on `main`). Accepted cost (adversarial
+review): a version 3 draft written before this change, if edited, is checked against today's sentences, so its old
+"approximately 1.4K", top-two average or nearest-neighbour peers can show a flag. Those drafts are only today's
+test reports on staging and dev; Ryan's own staging drafts are older rows with the version 2 boxes and are unaffected.
+Peer distances compare in whole tenths, the precision printed, so equal distances tie (adversarial review). The gaps
+bullet keeps "1.4K retrievals" (Ryan gave no template for it).
 
 ## 2. Edge cases
 
