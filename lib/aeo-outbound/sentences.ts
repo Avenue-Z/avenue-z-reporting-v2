@@ -238,7 +238,7 @@ export function dataSentences(d: SnapshotData): DataSentences {
     return `Snapshot based on Peec AI data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
   }
 
-  /** Round 3 (Ryan, 2026-10-21; pillars spec P3): one data line per pillar from the domain mix. */
+  /** Round 3 (Ryan, 2026-10-21; pillars spec P3): one data line per pillar from the source shares. */
   function pillars(): Opportunity[] {
     const none = 'Peec reported no source types for this window.'
     const lines = d.sourceMix.length ? pillarLines() : [none, none, none]
@@ -255,8 +255,9 @@ export function dataSentences(d: SnapshotData): DataSentences {
     const shown = [editorial, own, competitor].filter((x): x is { weight: number; pct: number } => !!x)
     const texts = sharePctAll(shown.map((x) => ({ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 })))
     const share = (x: { weight: number; pct: number }) => (x.pct === 0 ? 'under 0.1%' : texts[shown.indexOf(x)])
-    const tail = 'of the domain mix in this window.'
-    const missing = 'in the domain mix for this window.'
+    // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
+    const tail = 'of citations in this window.'
+    const missing = 'among citations in this window.'
     const plural = new Set(d.ownDomains.filter(Boolean)).size > 1
     const ownSubject = `${brand}'s own ${plural ? 'sites' : 'site'}`
     return [

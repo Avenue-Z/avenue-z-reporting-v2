@@ -74,9 +74,9 @@ the sources AI drew on in this snapshot".)
 
 | Pillar | Slice | Present, share prints | Present, `pct` 0 | Absent |
 |---|---|---|---|---|
-| Earned | `Editorial` | "Editorial sites make up {x} of the domain mix in this window." | "Editorial sites make up under 0.1% of the domain mix in this window." | "Editorial sites don't appear in the domain mix for this window." |
-| Content | `ownMixWeight` (D3 (a)) | "{Brand}'s own {site makes / sites make} up {x} of the domain mix in this window." | "... under 0.1% ..." | "{Brand}'s own {site doesn't / sites don't} appear in the domain mix for this window." |
-| Technical | `Competitor` | "Competitors' own websites make up {x} of the domain mix in this window." | "... under 0.1% ..." | "Competitors' own websites don't appear in the domain mix for this window." |
+| Earned | `Editorial` | "Editorial sites make up {x} of citations in this window." | "Editorial sites make up under 0.1% of citations in this window." | "Editorial sites don't appear among citations in this window." |
+| Content | `ownMixWeight` (D3 (a)) | "{Brand}'s own {site makes / sites make} up {x} of citations in this window." | "... under 0.1% ..." | "{Brand}'s own {site doesn't / sites don't} appear among citations in this window." |
+| Technical | `Competitor` | "Competitors' own websites make up {x} of citations in this window." | "... under 0.1% ..." | "Competitors' own websites don't appear among citations in this window." |
 
 - **Own site counts as the first findings box counts it** (my decision D3 (a), 2026-10-21): a row is the brand's
   own when Peec classifies it OWN or its domain is an own domain or a subdomain of one (`ownRows`, `metrics.ts:215-222`).
@@ -195,6 +195,8 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
   retrievals. (c) The `You` slice as drafted, accepting the rare clash. Recommended: (a).
 - **D4. Wording** changed in round 1 from the draft I approved: "of the domain mix in this window" in place of
   "of the sources AI drew on in this snapshot" (P3).
+  Changed again on 2026-10-22 to "of citations in this window" ("among citations" when absent), Ryan's word in his
+  answer on the findings bullets (bullets spec D2); `SENTENCES_VERSION` 3.
 
 ## 8. Not touched
 

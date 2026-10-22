@@ -18,8 +18,8 @@ test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Pe
   expect(DECISIONS.sourceMixWeight).toBe('usage_rate')
 })
 
-test('2026-10-20 amendment: the code-written sentences are version 2, since the source-mix rounding changed', () => {
-  expect(SENTENCES_VERSION).toBe(2)
+test('2026-10-22: the code-written sentences are version 3, since the pillar lines say "citations", Ryan\'s word', () => {
+  expect(SENTENCES_VERSION).toBe(3)
 })
 
 test('the three pillars (Ryan, round 3): the slide names in its order, descriptions and title in the slide\'s own casing', () => {
@@ -31,5 +31,5 @@ test('the three pillars (Ryan, round 3): the slide names in its order, descripti
   ])
   expect(PILLARS_TITLE).toBe('The Pillars of AI Search')
   for (const p of PILLARS) expect(`${p.name} ${p.description}`).not.toMatch(/[0-9\u2013\u2014]/)
-  expect(SENTENCES_VERSION).toBe(2)
+  expect(SENTENCES_VERSION).toBe(3)
 })
