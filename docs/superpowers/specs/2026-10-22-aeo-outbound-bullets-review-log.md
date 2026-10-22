@@ -21,3 +21,6 @@ me as a decision.**
   multi-word, no match and a lowercase brand; D5 decided on the stored pct with the 100 guard; the average in integer
   tenths; B2 intro excepts D3; `ownSiteRank` read by the version 2 writer; two citations; the rename note counting a
   domain that now carries the brand's casing.
+
+**My decision (2026-10-22):** apply both round-2 MAJOR fixes (B3 below this PR's version; one own-domain rule for every
+sentence). The round-2 MINORs were applied in the same targeted edits.
