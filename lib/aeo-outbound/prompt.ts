@@ -54,8 +54,9 @@ export function dataBlock(d: SnapshotData): string {
     `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${points(g.visibilityPoints)} points${typeof g.sovPoints === 'number' && g.sovPoints > 0 ? `, ${points(g.sovPoints)} points` : ''}`).join('; ') || 'none'}`,
     ownLine,
     `Source types by share of ${d.sourceMixWeight === 'usage_rate' ? "AI use (Peec's usage rate)" : 'retrievals'}: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
-    `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
-    `Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ') || 'none'}`,
+    `Competitor domain gaps (${v2 ? "competitors' own sites where the brand does not appear" : 'sites where competitors appear and the brand does not'}, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
+    // Round 3 (Paul, #415 review): new rows store no actions, so the line is only for an older row that stored some.
+    ...(d.actions.length ? [`Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ')}`] : []),
   ]
   if (settingsUsedOf(d).methodologyStatesPromptsAndModels) lines.push(`Prompts tracked: ${d.promptCount ?? 'not reported'}`, `AI models covered: ${d.models.map(one).join(', ') || 'not reported'}`)
   return lines.join('\n')
@@ -63,7 +64,6 @@ export function dataBlock(d: SnapshotData): string {
 
 export function buildPrompt(d: SnapshotData, violations: string[]): string {
   const used = settingsUsedOf(d)
-  const peecRows = used.peecOpportunityRows
   return `You write a client-facing one-page AI Visibility Snapshot for a prospect brand.
 
 Use ONLY the Data section below. Do not search company documents, Slack, email or any other source. If something is not in the Data section, leave it out.
@@ -81,7 +81,6 @@ Write these fields:
 - headline: one short headline about the brand's own most decision-relevant signal. The brand is the subject; never make a competitor the subject.
 - summary: one sentence stating that signal, with competitive context when the data supports it.
 - why: one compact paragraph connecting the pattern to consideration and category discovery, without claiming causality.
-- opportunities: exactly 3 items, each { "signal", "opportunity", "workstream" }. Each connects a data signal to something to explore. Workstreams such as Content / AEO, PR / earned media, Technical AEO / SEO.${peecRows > 0 ? ` If the Peec recommended actions list is not "none", you may base at most ${peecRows} of the 3 on those actions, and only where an action fits the data. Never force one. An opportunity based on an action has a signal that starts with "Peec recommends".` : ''}
 ${used.fixedNextStep === null ? '- next_step: one sentence on a next step, such as a full AEO audit.\n' : ''}${DECISIONS.writeSpecificCategory ? '- category: a short, specific category for the brand based on the data, at most 80 characters.\n' : ''}
 Output strictly valid JSON with exactly these keys and no markdown fences or commentary.${violations.length ? `\n\nIMPORTANT: A previous attempt had these problems: ${violations.join(' | ')}. Do not repeat them.` : ''}
 

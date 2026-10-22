@@ -47,7 +47,7 @@ const views = () => fetchMock.mock.calls.filter(([u]) => u.includes('/view')).ma
 type Props = Parameters<typeof OutboundEditor>[0]
 const base: Props = {
   id: ID, brand: 'Acme', linkBrand: null, shareOrigin: null, projectId: 'p1', status: 'draft', revision: 4,
-  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], token: null, error: null, errorCode: null, recipient: null,
+  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], opportunitiesHidden: false, pillars: false, token: null, error: null, errorCode: null, recipient: null,
   sectionTitles: ['Category data', 'Competitive visibility'], about: null, opens: [], openCount: 0,
   needsValidationBlocksApprove: true, unreadable: false, progressStep: 0, createdAt: '2026-10-08T15:00:00.000Z',
 }
@@ -1004,4 +1004,104 @@ test('#396 (Paul, #399): the 3s locked message floats just under the toolbar, ou
   expect(message.parentElement).toBe(root(container).firstElementChild)
   expect(message.className.split(' ')).toEqual(expect.arrayContaining(['absolute', 'top-full']))
   expect(message).toHaveAttribute('role', 'status')
+})
+
+// Round 3 (Ryan, 2026-10-21): the Opportunities page switch in the toolbar.
+const oppsBtn = () => screen.getByRole('button', { name: /^Opportunities page: (on|off)$/ })
+const structurePaths = () => patches().map(([, init]) => JSON.parse(String(init?.body)) as { path: string }).map((b) => b.path).filter((p) => p.startsWith('opportunities_page.'))
+
+test('the Opportunities page button shows the stored state, and is absent on a sent or unreadable report', async () => {
+  await setup()
+  expect(oppsBtn()).toHaveTextContent('Opportunities page: on')
+  cleanup()
+  await setup({ opportunitiesHidden: true })
+  expect(oppsBtn()).toHaveTextContent('Opportunities page: off')
+  cleanup()
+  await setup({ status: 'live', token: 'AAAAAAAAAAAAAAAAAAAAAAAA' })
+  expect(screen.queryByRole('button', { name: /^Opportunities page/ })).toBeNull()
+  cleanup()
+  render(<OutboundEditor {...base} unreadable />)
+  expect(screen.queryByRole('button', { name: /^Opportunities page/ })).toBeNull()
+})
+
+test('it is disabled until the report has loaded', () => {
+  render(<OutboundEditor {...base} />)
+  expect(oppsBtn()).toBeDisabled()
+})
+
+test('a click makes the frame read-only, sends the opposite path as a structure, flips after the 200 and reloads the frame', async () => {
+  const { iframe } = await setup()
+  const post = vi.spyOn(iframe.contentWindow!, 'postMessage')
+  patch = async () => json(200, { revision: 5, notes: [], needsValidation: [], slots: {} })
+  fireEvent.click(oppsBtn())
+  expect(post).toHaveBeenCalledWith({ type: 'mode', edit: false }, '*')
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  expect(JSON.parse(String(patches()[0][1]?.body))).toEqual({ path: 'opportunities_page.hide', value: 'structure', revision: 4, writer: expect.stringMatching(UUID), seq: 1 })
+  await waitFor(() => expect(oppsBtn()).toHaveTextContent('Opportunities page: off'))
+  await waitFor(() => expect(views()).toHaveLength(2))
+})
+
+test('the button keeps its state after a 400 or a 409', async () => {
+  patch = async () => json(400, { error: 'unknown field' })
+  await setup()
+  fireEvent.click(oppsBtn())
+  await waitFor(() => expect(patches()).toHaveLength(1))
+  expect(oppsBtn()).toHaveTextContent('Opportunities page: on')
+  cleanup(); fetchMock.mockClear()
+  patch = async () => json(409, { error: 'stale', revision: 9 })
+  await setup()
+  fireEvent.click(oppsBtn())
+  expect(await screen.findByText('This snapshot changed. Reload.')).toBeInTheDocument()
+  expect(oppsBtn()).toHaveTextContent('Opportunities page: on')
+  expect(oppsBtn()).toBeDisabled()
+})
+
+test('a refused opportunity cell keeps the switch disabled until it is fixed (spec S3, review round 1 M1)', async () => {
+  patch = async () => json(400, { error: 'Keep this under 1000 characters.' })
+  const { iframe } = await setup()
+  await fromFrame(iframe, { type: 'dirty', path: 'opportunities.0.signal' })
+  await fromFrame(iframe, { type: 'edit', path: 'opportunities.0.signal', value: 'x' })
+  await screen.findByText(/Keep this under 1000 characters/)
+  expect(oppsBtn()).toBeDisabled()
+  expect(oppsBtn().getAttribute('title')).toBe(approveBtn().getAttribute('title'))
+})
+
+test("disabled while an edit is unsaved, with Approve's title; a click that lands before that renders sends nothing (spec r2-1)", async () => {
+  const { iframe } = await setup()
+  act(() => {
+    window.dispatchEvent(new MessageEvent('message', { data: { type: 'dirty', path: 'why' }, source: iframe.contentWindow }))
+    oppsBtn().click()
+  })
+  expect(oppsBtn()).toBeDisabled()
+  expect(oppsBtn().getAttribute('title')).toBe(approveBtn().getAttribute('title'))
+  await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
+  expect(structurePaths()).toEqual([])
+})
+
+test('two clicks before a re-render send one PATCH', async () => {
+  patch = async () => json(200, { revision: 5, notes: [], needsValidation: [], slots: {} })
+  await setup()
+  act(() => { oppsBtn().click(); oppsBtn().click() })
+  await waitFor(() => expect(structurePaths()).toHaveLength(1))
+  await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
+  expect(structurePaths()).toEqual(['opportunities_page.hide'])
+})
+
+test('the button re-seeds from newer props, never from props older than a save it made', async () => {
+  patch = async () => json(200, { revision: 7, notes: [], needsValidation: [] })
+  const { iframe, rerender } = await setup()
+  await fromFrame(iframe, { type: 'edit', path: 'headline', value: 'H' })
+  await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
+  rerender(<OutboundEditor {...base} revision={5} opportunitiesHidden />)
+  expect(oppsBtn()).toHaveTextContent('Opportunities page: on')
+  rerender(<OutboundEditor {...base} revision={8} opportunitiesHidden />)
+  expect(oppsBtn()).toHaveTextContent('Opportunities page: off')
+})
+
+test('on a pillar row a refused opportunity field is named as a pillar (Ryan, round 3)', async () => {
+  patch = async () => json(400, { error: 'Keep this under 1000 characters.' })
+  const { iframe } = await setup({ pillars: true })
+  await fromFrame(iframe, { type: 'dirty', path: 'opportunities.0.signal' })
+  await fromFrame(iframe, { type: 'edit', path: 'opportunities.0.signal', value: 'x' })
+  expect(await screen.findByText('Pillar 1, data line: Keep this under 1000 characters.')).toBeInTheDocument()
 })

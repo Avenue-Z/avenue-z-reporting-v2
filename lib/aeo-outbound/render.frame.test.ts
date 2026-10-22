@@ -227,7 +227,7 @@ test('a link to a hash with no section is not prevented', () => {
 
 // The donut (v1.1 §17.2): Plotly and matchMedia are stubs; the tests prove the calls.
 const MIX = [{ label: 'Reference', weight: 4.8, pct: 4.8 }, { label: 'Corporate', weight: 60.3, pct: 60.3 }, { label: 'You', weight: 34.9, pct: 34.9 }]
-function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; mix?: typeof MIX; text?: unknown } = {}) {
+function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; noMatchMedia?: boolean; mix?: typeof MIX; text?: unknown; before?: (el: HTMLElement) => void } = {}) {
   const fig = sourceDonutFigure(over.mix ?? MIX)
   const react = vi.fn(over.react ?? (() => Promise.resolve()))
   const listeners: ((e: { matches: boolean }) => void)[] = []
@@ -238,7 +238,8 @@ function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: 
   if (over.noEl) el.removeAttribute('id')
   else { el.data = JSON.parse(JSON.stringify(fig.data)); el.layout = JSON.parse(JSON.stringify(fig.layout)) }
   if ('text' in over && !over.noEl) (el.data as Record<string, unknown>[])[0].text = over.text
-  win = Object.assign(new EventTarget(), { matchMedia }, over.noPlotly ? {} : { Plotly: { react } })
+  if (!over.noEl) over.before?.(el)
+  win = Object.assign(new EventTarget(), over.noMatchMedia ? {} : { matchMedia }, over.noPlotly ? {} : { Plotly: { react } })
   new Function('window', 'document', PAGE_JS)(win, doc)
   if (doc.readyState !== 'complete') win.dispatchEvent(new Event('load'))
   return { react, fig, mq, change: (matches: boolean) => listeners.forEach((f) => f({ matches })), matchMedia }
@@ -318,14 +319,170 @@ test('donut: no Plotly or no element means no throw and no call', () => {
   expect(none.react).not.toHaveBeenCalled()
 })
 
+// The legend check (spec 2026-10-21 C5): Plotly's legend nodes are stand-ins whose boxes the test sets.
+type Box = [left: number, textRight: number, top?: number]
+const rect = (left: number, right: number, top = 0) => ({ left, right, top, bottom: top + 10, width: right - left, height: 10, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+function setLegend(el: HTMLElement, boxes: Box[], right = 300, width = 300) {
+  el.querySelector('.legend')?.remove()
+  const d = el.ownerDocument
+  const lg = d.createElement('div'); lg.className = 'legend'
+  for (const [left, textRight, top = 0] of boxes) {
+    const tr = d.createElement('div'); tr.className = 'traces'; tr.getBoundingClientRect = () => rect(left, left + 20, top)
+    const tx = d.createElement('div'); tx.className = 'legendtext'; tx.getBoundingClientRect = () => rect(left + 20, textRight, top)
+    tr.appendChild(tx); lg.appendChild(tr)
+  }
+  el.appendChild(lg)
+  el.getBoundingClientRect = () => rect(0, right)
+  Object.defineProperty(el, 'clientWidth', { configurable: true, value: width })
+}
+const FITS: Box[] = [[0, 100], [150, 250], [0, 90], [150, 240]]
+const OVERLAPS: Box[] = [[0, 160], [150, 250]]
+type Call = [unknown, Record<string, unknown>[], { legend?: { entrywidth?: number; entrywidthmode?: string } }]
+const callsOf = (react: { mock: { calls: unknown[] } }) => react.mock.calls as Call[]
+const flowing = (layout: Record<string, unknown>) => { const l = JSON.parse(JSON.stringify(layout)); delete l.legend.entrywidth; delete l.legend.entrywidthmode; return l }
+const flush = () => vi.advanceTimersByTimeAsync(0)
+
+test('legend on a desktop width: names that fit draw nothing; names that overlap redraw once, flowing, with the same data', async () => {
+  const fits = bootDonut({ matches: false, before: (el) => setLegend(el, FITS) })
+  await flush()
+  expect(fits.react).not.toHaveBeenCalled()
+  const over = bootDonut({ matches: false, before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(over.react).toHaveBeenCalledTimes(1)
+  const [target, data, layout] = callsOf(over.react)[0]
+  expect(target).toBe(doc.getElementById('aeo-chart-sources'))
+  expect(data).toEqual(JSON.parse(JSON.stringify(over.fig.data)))
+  expect(layout).toEqual(flowing(over.fig.layout))
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(over.react).toHaveBeenCalledTimes(1)
+})
+
+// Paul, #410 review: with an odd count the last name sits alone in its row, so only a name to its right in the same row
+// (or the chart's edge) limits it. Measured in Plotly 3.5.0 (2026-10-22): seven slices, the last one long, fell back.
+test('legend: a long last name alone in its row fits; the same name with a neighbour to its right falls back', async () => {
+  const alone = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 220, 20]]) })
+  await flush()
+  expect(alone.react).not.toHaveBeenCalled()
+  const beside = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 220, 20], [150, 200, 20]]) })
+  await flush()
+  expect(beside.react).toHaveBeenCalledTimes(1)
+  const past = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 320, 20]]) })
+  await flush()
+  expect(past.react).toHaveBeenCalledTimes(1)
+})
+
+test('legend: with no matchMedia the desktop check still runs once and falls back where names overlap', async () => {
+  const { react, fig } = bootDonut({ noMatchMedia: true, before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2]).toEqual(flowing(fig.layout))
+})
+
+test('legend: one source type has nothing to overlap, so nothing is redrawn', async () => {
+  const one = bootDonut({ matches: false, mix: [{ label: 'Corporate', weight: 1, pct: 100 }], before: (el) => setLegend(el, [[0, 400]]) })
+  await flush()
+  expect(one.react).not.toHaveBeenCalled()
+})
+
+test('legend on a phone: the check runs after the phone draw, and the fallback keeps the phone labels and hover, once', async () => {
+  const { react, fig } = bootDonut({ before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(2)
+  expect(callsOf(react)[0][2].legend?.entrywidth).toBe(0.5)
+  const [, data, layout] = callsOf(react)[1]
+  expect(data[0].labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
+  expect(data[0].customdata).toEqual(['Reference', 'Corporate', 'You'])
+  expect(layout).toEqual(flowing(fig.layout))
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(react).toHaveBeenCalledTimes(2)
+})
+
+test('legend: a rejected fallback restores the originals once; a rejected phone draw restores once and never checks', async () => {
+  const desk = bootDonut({ matches: false, react: () => Promise.reject(new Error('x')), before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(desk.react).toHaveBeenCalledTimes(2)
+  expect(callsOf(desk.react)[1][1]).toEqual(JSON.parse(JSON.stringify(desk.fig.data)))
+  expect(callsOf(desk.react)[1][2]).toEqual(JSON.parse(JSON.stringify(desk.fig.layout)))
+  const phone = bootDonut({ react: () => Promise.reject(new Error('x')), before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(phone.react).toHaveBeenCalledTimes(2)
+  expect(callsOf(phone.react)[1][1]).toEqual(JSON.parse(JSON.stringify(phone.fig.data)))
+})
+
+test('legend: resizes retry two columns once, 150ms after the last, and only when the width changed', async () => {
+  let el!: HTMLElement
+  const { react } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, OVERLAPS, 300, 300) } })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(1)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(200)
+  expect(react).toHaveBeenCalledTimes(1)
+  setLegend(el, FITS, 400, 400)
+  for (let i = 0; i < 5; i++) { win.dispatchEvent(new Event('resize')); await vi.advanceTimersByTimeAsync(20) }
+  expect(react).toHaveBeenCalledTimes(1)
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(2)
+  expect(callsOf(react)[1][2].legend?.entrywidth).toBe(0.5)
+  await flush()
+  expect(react).toHaveBeenCalledTimes(2)
+})
+
+test('legend: a resize that makes two columns overlap falls back once', async () => {
+  let el!: HTMLElement
+  const { react, fig } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, FITS, 400, 400) } })
+  await flush()
+  expect(react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS, 300, 300)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2]).toEqual(flowing(fig.layout))
+})
+
+test('legend: crossing to a phone width checks after the phone draw', async () => {
+  let el!: HTMLElement
+  const { react, change } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, FITS) } })
+  await flush()
+  expect(react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS)
+  change(true)
+  await flush()
+  expect(react).toHaveBeenCalledTimes(2)
+  expect(callsOf(react)[1][1][0].labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
+  expect(callsOf(react)[1][2].legend?.entrywidth).toBeUndefined()
+})
+
+test('legend: a font still loading re-checks when it arrives; a loaded font adds no check', async () => {
+  let el!: HTMLElement
+  let arrive!: () => void
+  const loading = bootDonut({ matches: false, before: (e) => {
+    el = e; setLegend(e, FITS)
+    Object.defineProperty(e.ownerDocument, 'fonts', { configurable: true, value: { status: 'loading', ready: new Promise<void>((r) => { arrive = r }) } })
+  } })
+  await flush()
+  expect(loading.react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS)
+  arrive()
+  await flush()
+  expect(loading.react).toHaveBeenCalledTimes(1)
+  const loaded = bootDonut({ matches: false, before: (e) => {
+    el = e; setLegend(e, FITS)
+    Object.defineProperty(e.ownerDocument, 'fonts', { configurable: true, value: { status: 'loaded', ready: Promise.resolve() } })
+  } })
+  setLegend(el, OVERLAPS)
+  await flush()
+  expect(loaded.react).not.toHaveBeenCalled()
+})
+
 // The menu highlights 05 at the bottom of the page (v1.1 §17.12). AIVx's real scroll-spy runs first, then PAGE_JS, as in
 // the page. getBoundingClientRect is stubbed so the sections sit where the test says; the scroll metrics are stubbed too.
 const SECTION_IDS = ['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology']
-function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean }) {
-  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, mode, 'Oct 8, 2026'), 'text/html')
+function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean; hidden?: boolean }) {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, o.hidden ? { ...V1_SLOTS, opportunities_page: 'hidden' as const } : V1_SLOTS, mode, 'Oct 8, 2026'), 'text/html')
   if (o.edit) doc.querySelector('[data-slot]')!.setAttribute('contenteditable', 'true')
-  const tops = o.tops ?? [-900, -600, 0, 400, 700]
-  SECTION_IDS.forEach((id, i) => {
+  const ids = o.hidden ? SECTION_IDS.filter((id) => id !== 'opportunities') : SECTION_IDS
+  const tops = o.tops ?? (o.hidden ? [-900, -600, 0, 400] : [-900, -600, 0, 400, 700])
+  ids.forEach((id, i) => {
     const el = doc.getElementById(id)!
     el.classList.add('section')
     el.getBoundingClientRect = () => ({ top: tops[i] }) as DOMRect
@@ -505,4 +662,11 @@ test('scrolling posts the frame\'s position at most every 200 ms, and a scroll m
   expect(scrollTo).toHaveBeenCalledTimes(1)
   fromParent({ type: 'scroll', y: 50 }, null)
   expect(scrollTo).toHaveBeenCalledTimes(1)
+})
+
+test('hidden Opportunities page: the page scripts run, and at the bottom only the 04 Methodology link is active', () => {
+  bootSpy('final', { bottom: true, hidden: true })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#methodology'])
+  expect(doc.querySelector('a[href="#methodology"] .nav-num')!.textContent).toBe('04')
 })

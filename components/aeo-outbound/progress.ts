@@ -2,8 +2,9 @@
 // Usually 35 to 45 seconds (measured: 34.7 s in the dev run, 35.8 s and 40.6 s in the trials).
 import { GENERATION_DEADLINE_MS } from '@/lib/aeo-outbound/config'
 
-/** The eight rows, each the progress_step it stands for: pull.ts reports 1 to 6 and 8, generate.ts 9 (WRITING_STEP)
- *  and 10 (SECOND_ATTEMPT_STEP, shown on the last row). There is no step 7. */
+/** The seven rows, each the progress_step it stands for: pull.ts reports 1 to 6, generate.ts 9 (WRITING_STEP) and 10
+ *  (SECOND_ATTEMPT_STEP, shown on the last row). There is no step 7, and no step 8 since the pull stopped reading Peec's
+ *  actions (Paul, #415 review); a row left at 8 by an older build shows step 6. */
 export const PROGRESS_STEPS = [
   { step: 1, label: 'Finding the project in Peec' },
   { step: 2, label: 'Reading the brands tracked' },
@@ -11,7 +12,6 @@ export const PROGRESS_STEPS = [
   { step: 4, label: 'Finding the days with data' },
   { step: 5, label: 'Loading brand visibility and AI models' },
   { step: 6, label: 'Loading the sources AI used' },
-  { step: 8, label: "Loading Peec's recommendations" },
   { step: 9, label: 'Writing the copy' },
 ] as const
 export const SECOND_ATTEMPT_LABEL = 'Writing the copy, second attempt'
@@ -37,7 +37,8 @@ export const isSlow = (elapsedMs: number): boolean => elapsedMs >= SLOW_AFTER_MS
 /** The checklist for a progress_step. Below 1 (or not a number): every row waiting, "Starting". 10 and above: the last row, second attempt. */
 export function progressView(step: number): ProgressView {
   const s = Number.isFinite(step) ? step : 0
-  const at = Math.min(s, 9)
+  // The current row is the last one at or below the step, so a step with no row of its own shows the one before it.
+  const at = [...PROGRESS_STEPS].reverse().find((r) => r.step <= Math.min(s, 9))?.step ?? 0
   const rows = PROGRESS_STEPS.map((r) => ({
     label: r.step === 9 && s >= 10 ? SECOND_ATTEMPT_LABEL : r.label,
     state: (s < 1 ? 'waiting' : r.step < at ? 'done' : r.step === at ? 'current' : 'waiting') as RowState,

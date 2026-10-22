@@ -50,6 +50,12 @@ export interface SnapshotData {
   ownRetrievedChats: number
   /** The own site's percentage when exactly one own domain has retrievals (version 2), else null. */
   ownRetrievedPct: number | null
+  /** Round 3 (pillars D3 (a)): the source-mix weight of the brand's own rows (OWN class or own-domain match, weight above
+   *  0), the Content pillar's share. Absent on older rows, which are never pillar rows. */
+  ownMixWeight?: number
+  /** Paul, #415 review: the same own rows' weight by the source type Peec files them under (the donut's labels), so a
+   *  pillar line takes the brand's own site out of the Editorial and Competitor shares. Absent on older rows. */
+  ownMixByType?: Record<string, number>
   sourceMix: SourceSlice[]
   gapDomains: { domain: string; retrievedChats: number }[]
   actions: { title: string; impact: string; type: string }[]
@@ -63,8 +69,9 @@ export interface SnapshotData {
   ownSites?: OwnSite[]
   /** Version 2: the settings this generation used. */
   settingsUsed?: SettingsUsed
-  /** Spec v1.1 §19.5: the SENTENCES_VERSION of rows whose context, findings and methodology code wrote (sentences.ts).
-   *  Absent on older rows, whose Glean text and grounding stay exactly as they were. */
+  /** Spec v1.1 §19.5: the SENTENCES_VERSION of rows whose context, findings and methodology code wrote (sentences.ts). The
+   *  pillar lines are not versioned: a pillar row is told apart by its marker (Paul, #415 review). Absent on older rows,
+   *  whose Glean text and grounding stay exactly as they were. */
   sentences?: number
   /** Spec v1.1 §19.5: 1 plus the domains with more retrieved chats than the most retrieved own site; null when none. */
   ownSiteRank?: number | null
@@ -238,22 +245,44 @@ export function buildSnapshotData(
     const label = titleClassification(r.classification)
     weights.set(label, (weights.get(label) ?? 0) + w)
   }
+  // Round 3 (pillars spec D3 (a)): the Content pillar counts the brand's own rows the way the own-site bullet does.
+  const ownMixWeight = ownRows.reduce((s, r) => { const w = r[decisions.sourceMixWeight] ?? 0; return w > 0 ? s + w : s }, 0)
+  const ownMixByType: Record<string, number> = {}
+  for (const r of ownRows) {
+    const w = r[decisions.sourceMixWeight] ?? 0
+    if (w > 0) { const label = titleClassification(r.classification); ownMixByType[label] = (ownMixByType[label] ?? 0) + w }
+  }
   const total = [...weights.values()].reduce((s, w) => s + w, 0)
   const sourceMix = [...weights.entries()]
     .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))
     .map(([label, weight]) => ({ label, weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 }))
   if (!sourceMix.length) note('empty_source_mix', 'Peec reported no source weights for this window, so the source mix is empty.')
 
-  const competitorIds = new Set(pull.roster.filter((b) => !b.is_own).map((b) => b.id))
-  const rosterDomains = pull.roster.flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
-  const isRosterSite = (domain: string) => { const d = bare(domain); return rosterDomains.some((rd) => d === rd || d.endsWith(`.${rd}`)) }
-  const gapDomains = !decisions.competitorSiteGaps ? [] : pull.domains
+  // Round 3 (Ryan, 2026-10-21: "Only include competitor domains"): the gaps are the own sites of the competitors the
+  // report compares (keptIds), where the brand does not appear. A site is a compared competitor's when its domain is one
+  // of that competitor's roster domains or a subdomain of one, or Peec classifies it COMPETITOR and it mentions a
+  // compared competitor. The brand's own site never counts (own wins), nor does a site of a competitor cut by rankAmong
+  // (spec 2026-10-21 E2, D1, D3, D4 (a)). With no competitors tracked the report names no outside brand, so it lists none.
+  const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
+  const keptSites = rosterSites((id) => keptIds.has(id))
+  const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !keptIds.has(id))
+  const within = (d: string, sites: string[]) => sites.some((s) => d === s || d.endsWith(`.${s}`))
+  /** The length of the closest (longest) site the domain is or sits under; -1 when none. */
+  const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (d === s || d.endsWith(`.${s}`) ? Math.max(n, s.length) : n), -1)
+  const gapDomains = !decisions.competitorSiteGaps || competitorsTracked === 0 ? [] : pull.domains
     .filter((r) => {
       // A domain no answer retrieved is not a gap worth naming (final review M3).
       if ((r.retrieved_chat_count ?? 0) <= 0) return false
-      if (r.classification === 'COMPETITOR' || r.classification === 'OWN' || isRosterSite(r.domain)) return false
+      const d = bare(r.domain)
+      if (r.classification === 'OWN' || within(d, ownMatch)) return false
+      // The closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a kept
+      // competitor's subdomain; a domain on both rosters stays cut (Paul, #413 review).
+      const kept = closest(d, keptSites)
+      const cut = closest(d, cutSites)
+      if (cut >= 0 && cut >= kept) return false
       const ids = new Set(r.mentioned_brands.map((m) => m.id))
-      return !ids.has(pull.ownBrand.id) && [...ids].some((id) => competitorIds.has(id))
+      if (ids.has(pull.ownBrand.id)) return false
+      return kept >= 0 || (r.classification === 'COMPETITOR' && [...ids].some((id) => keptIds.has(id)))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))
     .slice(0, 4)
@@ -282,10 +311,13 @@ export function buildSnapshotData(
     ownDomains,
     ownRetrievedChats,
     ownRetrievedPct,
+    ownMixWeight,
+    ownMixByType,
     sourceMix,
     sourceMixWeight: decisions.sourceMixWeight,
     gapDomains,
-    actions: pull.actions.map((a) => ({ title: String(a.title ?? ''), impact: String(a.impact ?? ''), type: String(a.type ?? '') })).filter((a) => a.title).slice(0, 10),
+    // Round 3 (Paul, #415 review): the pull no longer reads Peec's actions. Older rows keep the ones they stored.
+    actions: [],
     promptCount: pull.promptCount,
     models: pull.models,
     notes,

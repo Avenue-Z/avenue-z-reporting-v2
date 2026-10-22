@@ -125,13 +125,6 @@ export function SettingsForm(p: SettingsFormProps) {
                 <input id="s-rank-n" type="number" min={SETTINGS_LIMITS.rankMin} max={SETTINGS_LIMITS.rankMax} className={`${inputCls} w-24`} disabled={form.rankMode !== 'top'} value={form.rankAmong} onChange={(e) => set({ rankAmong: e.target.value })} />
                 {err('rankAmong')}
               </fieldset>
-              <div>
-                <label htmlFor="s-rows" className="block text-xs text-text-muted">{SETTINGS_FIELD_LABELS.peecOpportunityRows}</label>
-                <select id="s-rows" className={inputCls} value={form.peecOpportunityRows} onChange={(e) => set({ peecOpportunityRows: e.target.value })}>
-                  {['0', '1', '2', '3'].map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-                {err('peecOpportunityRows')}
-              </div>
               <label className="flex items-center gap-2 text-sm text-white">
                 <input type="checkbox" checked={form.methodologyStatesPromptsAndModels} onChange={(e) => set({ methodologyStatesPromptsAndModels: e.target.checked })} />
                 {SETTINGS_FIELD_LABELS.methodologyStatesPromptsAndModels}

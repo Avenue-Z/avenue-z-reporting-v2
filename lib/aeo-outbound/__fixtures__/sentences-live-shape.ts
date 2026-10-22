@@ -1,6 +1,6 @@
 // Synthetic (spec v1.1 §19.10). Shaped like the 2026-10-14 live dev run: five brands, one far ahead, a brand at 0
-// visibility, one own site at the top of the domains, an institutional-heavy source mix and four competitor domain
-// gaps. Every name and domain is made up; no prospect's data.
+// visibility, one own site at the top of the domains, an institutional-heavy source mix and two competitor domain
+// gaps (round 3): one by a roster domain, one by Peec's COMPETITOR class. Every name and domain is made up; no prospect's data.
 import type { PeecPull } from '../pull'
 
 const own = { id: 'kw_own', name: 'Example Senior Living', is_own: true, domains: ['www.examplesenior.com'] }
@@ -43,9 +43,9 @@ export const LIVE_SHAPE_PULL: PeecPull = {
     row('forum.example', 'UGC', 20, 50, []),
     row('magazine.example', 'EDITORIAL', 15, 89, []),
     row('misc.example', 'OTHER', 10, 89, []),
+    row('caringly.example', 'CORPORATE', 8, 9, []),
     row('rival-landing.example', 'COMPETITOR', 5, 37, ['kw_lead']),
   ],
-  actions: [],
   promptCount: 104,
   models: ['Google AI Overview', 'Gemini UI', 'ChatGPT UI'],
   warnings: [],

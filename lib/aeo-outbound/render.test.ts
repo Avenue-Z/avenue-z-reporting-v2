@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { AIVX_CSS } from './aivx/css'
 import { EDITOR_STYLE, FRAME_SCRIPT_JS, HEADER_CLONE_JS, PAGE_CSS, PAGE_JS, SHARE_BUTTON, SHARE_MOBILE, renderSnapshotHtml, showsPowered } from './render'
 import { AIVX_JS } from './aivx/js'
-import { slotEntries, withDefaults } from './slots'
+import { pageDefaults, slotEntries, withDefaults } from './slots'
 import { AIVX_SHARE_BLOCK } from './aivx/share'
 import type { SnapshotData } from './metrics'
 import type { Slots } from './slots'
@@ -97,6 +97,14 @@ test('sections, nav ids and roster bolding', () => {
   expect(h).toContain('<section id="competitive-visibility" class="section">')
   expect(h).toContain('<strong>Alpha</strong> leads <strong>Example &lt;Co&gt; &amp; &quot;Sons&quot;</strong>.')
   expect(h).toContain('These are opportunity hypotheses for discussion, not a full roadmap.')
+})
+
+test('round 3: a new row reads Executive Summary in menu item 01 and as the headline section label', () => {
+  const page = pageDefaults({ sectionTitles: ['Category data', 'Competitive visibility'], sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
+  const h = renderSnapshotHtml(DATA, { ...SLOTS, page }, 'final', 'Oct 9, 2026')
+  expect(h).toContain('<a href="#headline"><span class="nav-num">01</span> Executive Summary</a>')
+  expect(h).toContain('<div class="exec-label">Executive Summary</div>')
+  expect(h).not.toContain('Headline signal')
 })
 
 test('a short brand name is bolded only as a whole word', () => {
@@ -367,12 +375,13 @@ test('PAGE_CSS and PAGE_JS have no phone Share rules or proxy (v1.1 §17.11)', (
 
 /** v1.1 §17.8 and §17.10: the rules that close up the space beside the two charts and lay the findings out as rows, verbatim and in order.
  *  v1.1 18.12: rules 2 to 4 replace §17.8's display:flex on the first column, in its place, so both columns are flex
- *  columns and the chart card grows to a tall findings box with the figure centred in it. */
+ *  columns and the chart card grows to a tall findings box. Rule 4 centres the donut below its title; since round 3
+ *  (Ryan, 2026-10-21) the bar chart is left out of it, so it starts right under its title. */
 const CHART_SPACING_RULES = [
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
   '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
-  '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
+  '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
   '#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}',
@@ -388,6 +397,13 @@ const METHOD_RULES = [
   '#methodology .method-note>div+div{margin-top:14px}',
   '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
 ]
+/** Round 3 (Ryan, 2026-10-21): the pillar cards, one column by default, after the Methodology rules. */
+const PILLAR_RULES = [
+  '.aeo-pillars{display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px}',
+  '.aeo-pillar{display:flex;flex-direction:column;padding:24px}',
+  '.aeo-pillar-desc{font-size:14px;line-height:1.6;color:rgba(255,255,255,0.6);margin:10px 0 18px}',
+  '.aeo-pillar-line{margin:auto 0 0;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);font-size:16px;line-height:1.5;font-weight:600;color:#fff}',
+]
 /** v1.1 §17.15: Opportunities laid out like Ryan's table, in its own desktop block after the phone block, verbatim and in order. */
 const DESKTOP_OPEN = '@media (min-width: 901px){'
 const DESKTOP_RULES = [
@@ -401,6 +417,7 @@ const DESKTOP_RULES = [
   '#opportunities .leaderboard tbody tr:nth-child(even) td{background:rgba(255,255,255,0.035)}',
   '#opportunities .leaderboard tbody tr:hover{background:none}',
   '#opportunities .chart-takeaway{border-top:none;padding:16px 0 0;margin:0;color:rgba(255,255,255,0.6)}',
+  '#opportunities .aeo-pillars{grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}',
 ]
 const outsideRules = () => PAGE_CSS.slice(0, PAGE_CSS.indexOf('@media (max-width: 900px){')).split('\n').filter(Boolean)
 
@@ -410,7 +427,7 @@ test('every PAGE_CSS rule except aeo-long, the chart spacing rules sits inside t
   expect(at).toBeGreaterThan(-1)
   expect(PAGE_CSS.endsWith('}')).toBe(true)
   const outside = PAGE_CSS.slice(0, at).split('\n').filter(Boolean)
-  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES, ...METHOD_RULES])
+  expect(outside).toEqual(['.kpi-value.aeo-long{font-size:24px;line-height:1.15}', COLOR_SCHEME_RULE, ...CHART_SPACING_RULES, ...METHOD_RULES, ...PILLAR_RULES])
   const desktopAt = PAGE_CSS.indexOf(DESKTOP_OPEN)
   expect(desktopAt).toBeGreaterThan(at)
   expect(PAGE_CSS.slice(desktopAt - 2, desktopAt)).toBe('}\n')
@@ -467,9 +484,10 @@ test('the chart card rules (spec v1.1 18.12): the three rules replace the first-
   expect(out.slice(at + 1, at + 5)).toEqual([
     '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
     '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
-    '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
+    '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
     '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   ])
+  expect(PAGE_CSS).not.toContain('#competitive-visibility .chart-wrap>.chart-title~*')
 })
 
 test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final page exactly once', () => {
@@ -481,7 +499,7 @@ test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final
 
 test('Methodology rules (v1.1 §17.14): verbatim, in order, after the chart-wrap rule, outside the phone query, once per mode', () => {
   const out = outsideRules()
-  expect(out.slice(-3)).toEqual(METHOD_RULES)
+  expect(out.slice(-3 - PILLAR_RULES.length, -PILLAR_RULES.length)).toEqual(METHOD_RULES)
   expect(out.indexOf(METHOD_RULES[0]!)).toBe(out.indexOf(CHART_SPACING_RULES[CHART_SPACING_RULES.length - 1]!) + 1)
   for (const mode of ['draft', 'preview', 'final'] as const) {
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
@@ -598,4 +616,67 @@ test('the headline signal gets the phone side padding, once per mode, inside the
   expect(PAGE_CSS.indexOf(rule)).toBeGreaterThan(phoneAt)
   expect(PAGE_CSS.indexOf(rule)).toBeLessThan(desktopAt)
   for (const mode of ['draft', 'preview', 'final'] as const) expect(renderSnapshotHtml(DATA, SLOTS, mode, 'x').split(rule).length - 1, mode).toBe(1)
+})
+
+const HIDDEN: Slots = { ...SLOTS, opportunities_page: 'hidden' }
+test('Opportunities page off (Ryan, round 3): no section, no menu item, Methodology is 04, Why it matters stays, in every mode', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, HIDDEN, mode, 'Oct 8, 2026')
+    const doc = parse(h)
+    expect(doc.getElementById('opportunities'), mode).toBeNull()
+    expect(doc.querySelector('a[href="#opportunities"]'), mode).toBeNull()
+    expect([...doc.querySelectorAll('.sidebar-nav .nav-num')].map((e) => e.textContent), mode).toEqual(['01', '02', '03', '04'])
+    expect(doc.querySelector('#methodology .section-label')!.textContent, mode).toMatch(/^04 \/ /)
+    expect(doc.querySelector('.rec-global-bottom-line'), mode).not.toBeNull()
+    expect(h, mode).not.toContain('class="leaderboard"')
+  }
+})
+
+test('Opportunities page on, stored or by default, renders the same bytes', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) expect(renderSnapshotHtml(DATA, { ...SLOTS, opportunities_page: 'shown' }, mode, 'x')).toBe(renderSnapshotHtml(DATA, SLOTS, mode, 'x'))
+})
+
+test('hidden: the fixed marks, the slots and the menu copies follow the page (spec §9 m9)', () => {
+  const doc = parse(renderSnapshotHtml(DATA, HIDDEN, 'draft', 'Oct 8, 2026'))
+  expect([...doc.querySelectorAll('[data-locked="fixed"]')].map((e) => e.textContent)).toEqual(['01', '02', '03', '04', '02 / ', '03 / ', '04 / ', 'Oct 8, 2026'])
+  const paths = [...doc.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
+  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(HIDDEN, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
+  expect([...doc.querySelectorAll('[data-mirror-edit]')].map((e) => e.getAttribute('data-mirror'))).toEqual(['page.headline_label', 'page.section_1_title', 'page.section_2_title'])
+})
+
+const PILLAR_SLOTS: Slots = { ...SLOTS, opportunities_layout: 'pillars', opportunities: [0, 1, 2].map((i) => ({ workstream: `Pillar ${i}`, opportunity: `About ${i}`, signal: `Line ${i}` })) }
+test('pillar layout (Ryan, round 3): three cards in order, name, description and line as slots, no table or footnote, every mode', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const doc = parse(renderSnapshotHtml(DATA, PILLAR_SLOTS, mode, 'x'))
+    const cards = [...doc.querySelectorAll('#opportunities .aeo-pillars > .cluster-card.aeo-pillar')]
+    expect(cards.map((c) => [c.querySelector('.cluster-name')!.textContent, c.querySelector('.aeo-pillar-desc')!.textContent, c.querySelector('.aeo-pillar-line')!.textContent]), mode).toEqual([0, 1, 2].map((i) => [`Pillar ${i}`, `About ${i}`, `Line ${i}`]))
+    expect(doc.querySelector('#opportunities table'), mode).toBeNull()
+    expect(doc.querySelector('#opportunities .chart-takeaway'), mode).toBeNull()
+    expect(doc.querySelector('#opportunities h2.section-title'), mode).not.toBeNull()
+  }
+  const draft = parse(renderSnapshotHtml(DATA, PILLAR_SLOTS, 'draft', 'x'))
+  expect([...draft.querySelectorAll('#opportunities [data-slot]')].map((e) => e.getAttribute('data-slot'))).toEqual(['page.opps_label', 'page.opps_title', ...[0, 1, 2].flatMap((i) => [`opportunities.${i}.workstream`, `opportunities.${i}.opportunity`, `opportunities.${i}.signal`])])
+  const paths = [...draft.querySelectorAll('[data-slot]')].map((e) => e.getAttribute('data-slot'))
+  expect(new Set(paths)).toEqual(new Set(slotEntries(withDefaults(PILLAR_SLOTS, DATA)).map(([p]) => p).filter((p) => p !== 'page.sidebar_powered')))
+})
+
+test('both round-3 markers on one row: hidden writes no Opportunities section, cards or menu item; shown writes the cards', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const doc = parse(renderSnapshotHtml(DATA, { ...PILLAR_SLOTS, opportunities_page: 'hidden' }, mode, 'x'))
+    expect(doc.getElementById('opportunities'), mode).toBeNull()
+    expect(doc.querySelector('.aeo-pillars'), mode).toBeNull()
+    expect(doc.querySelector('a[href="#opportunities"]'), mode).toBeNull()
+    expect(doc.querySelector('#methodology .section-label')!.textContent, mode).toMatch(/^04 \/ /)
+    // Hidden, the layout leaves no trace: the page is the hidden table row's, byte for byte, so the hidden-page tests cover it.
+    expect(renderSnapshotHtml(DATA, { ...PILLAR_SLOTS, opportunities_page: 'hidden' }, mode, 'x'), mode).toBe(renderSnapshotHtml(DATA, { ...SLOTS, opportunities_page: 'hidden' }, mode, 'x'))
+  }
+  const shown = parse(renderSnapshotHtml(DATA, { ...PILLAR_SLOTS, opportunities_page: 'shown' }, 'final', 'x'))
+  expect(shown.querySelectorAll('#opportunities .aeo-pillars > .cluster-card.aeo-pillar')).toHaveLength(3)
+})
+
+test('pillar rules: verbatim after the Methodology rules, the 3-column rule in the desktop block, each once per mode', () => {
+  for (const mode of ['draft', 'preview', 'final'] as const) {
+    const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
+    for (const r of PILLAR_RULES) expect(h.split(r).length - 1, `${mode} ${r.slice(0, 40)}`).toBe(1)
+  }
 })

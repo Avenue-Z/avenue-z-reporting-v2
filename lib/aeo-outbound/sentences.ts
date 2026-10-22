@@ -1,9 +1,11 @@
 // The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
-// methodology, written by code from a row's data so every number is Peec's. Glean writes only the opinion (§19.2).
-import { settingsUsedOf, tenths, type SnapshotData } from './metrics'
-import type { Bullet } from './slots'
+// methodology, and since round 3 the pillar data lines, written by code from a row's data so every number is Peec's.
+// Glean writes only the opinion (§19.2).
+import { PILLARS } from './config'
+import { pyRound, settingsUsedOf, tenths, type SnapshotData } from './metrics'
+import type { Bullet, Opportunity } from './slots'
 
-export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string }
+export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string; opportunities: Opportunity[] }
 
 /** The slot paths these sentences fill (spec v1.1 §19.1), shared by generation and grounding. */
 export const isCodeSentencePath = (path: string): boolean => /^(?:context|methodology|(?:competitive|sources)_bullets\.\d\.(?:lead|text))$/.test(path)
@@ -354,17 +356,54 @@ function write(d: SnapshotData) {
     return `Snapshot based on Peec AI data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
   }
 
+  /** Round 3 (Ryan, 2026-10-21; pillars spec P3): one data line per pillar from the source shares. */
+  function pillars(): Opportunity[] {
+    const none = 'Peec reported no source types for this window.'
+    const lines = d.sourceMix.length ? pillarLines() : [none, none, none]
+    return PILLARS.map((p, i) => ({ workstream: p.name, opportunity: p.description, signal: lines[i] }))
+  }
+  function pillarLines(): string[] {
+    const mix = d.sourceMix
+    const total = mix.reduce((s, m) => s + m.weight, 0)
+    // The brand's own site counts once, in the Content line: an own row Peec files as Editorial or Competitor comes out
+    // of that line (Paul, #415 review). A slice left with nothing reads as absent.
+    const outside = (label: string) => {
+      const m = mix.find((x) => x.label === label)
+      const weight = (m?.weight ?? 0) - (d.ownMixByType?.[label] ?? 0)
+      return m && weight > 0 ? { weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 } : undefined
+    }
+    const editorial = outside('Editorial')
+    const competitor = outside('Competitor')
+    const ownWeight = d.ownMixWeight ?? 0
+    const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
+    // One rounding pass over the shares shown, so two pillars never read alike when their values differ (spec §9 m1).
+    const shown = [editorial, own, competitor].filter((x): x is { weight: number; pct: number } => !!x)
+    const texts = sharePctAll(shown.map((x) => ({ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 })))
+    const share = (x: { weight: number; pct: number }) => (x.pct === 0 ? 'under 0.1%' : texts[shown.indexOf(x)])
+    // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
+    const tail = 'of citations in this window.'
+    const missing = 'among citations in this window.'
+    const plural = new Set(d.ownDomains.filter(Boolean)).size > 1
+    const ownSubject = `${brand}'s own ${plural ? 'sites' : 'site'}`
+    return [
+      editorial ? `Editorial sites make up ${share(editorial)} ${tail}` : `Editorial sites don't appear ${missing}`,
+      own ? `${ownSubject} ${plural ? 'make' : 'makes'} up ${share(own)} ${tail}` : `${ownSubject} ${plural ? "don't" : "doesn't"} appear ${missing}`,
+      competitor ? `Competitors' own websites make up ${share(competitor)} ${tail}` : solo ? 'No competitors are tracked in this Peec project.' : `Competitors' own websites don't appear ${missing}`,
+    ]
+  }
+
   return {
     context: context(),
     methodology: methodology(),
     current: { competitive_bullets: citedSourcesBox(), sources_bullets: competitiveBox() },
     v2: { competitive_bullets: firstBox(), sources_bullets: secondBox() },
+    opportunities: pillars(),
   }
 }
 
 export function dataSentences(d: SnapshotData): DataSentences {
   const w = write(d)
-  return { context: w.context, competitive_bullets: w.current.competitive_bullets, sources_bullets: w.current.sources_bullets, methodology: w.methodology }
+  return { context: w.context, competitive_bullets: w.current.competitive_bullets, sources_bullets: w.current.sources_bullets, methodology: w.methodology, opportunities: w.opportunities }
 }
 
 /** Spec 2026-10-22 B3: the version 2 boxes, kept unchanged so grounding can still allow the numbers that a row written with

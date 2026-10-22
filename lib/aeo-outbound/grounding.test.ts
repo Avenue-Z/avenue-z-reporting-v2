@@ -292,6 +292,15 @@ test('spec v1.1 §19.3: a new row with code-written sentences and number-free op
   expect(flagsFor(d)).toEqual([])
 })
 
+test('round 3: a Glean field naming a listed competitor site is not flagged; on an older row whose list does not hold it, it still is', () => {
+  const d = newRow()
+  expect(d.gapDomains.map((g) => g.domain)).toEqual(['caringly.example', 'rival-landing.example'])
+  const why = 'Answers lean on caringly.example for the category.'
+  expect(flagsFor(d, { why })).toEqual([])
+  const older = { ...d, gapDomains: [{ domain: 'health-institute.gov', retrievedChats: 115 }] }
+  expect(flagsFor(older, { why }).map((n) => `${n.kind} ${n.path}: ${n.text}`)).toEqual(['domain_not_in_data why: "caringly.example" is not a domain in the Peec data'])
+})
+
 test('unchecked_number: every digit run and number word in a Glean field, names removed, ordinals not flagged', () => {
   const d = newRow()
   const f = flagsFor(d, { headline: 'Example Senior Living ranks third, two places behind', summary: 'It holds 1.1% of answers.', why: 'Its visibility doubled.' })
@@ -331,7 +340,8 @@ test('unchecked_number: the category only when it is not Peec\'s value; next_ste
 test('peec_recommends: no actions, a matching action, an unrelated one', () => {
   const sig = (signal: string) => ({ opportunities: [{ signal, opportunity: 'Explore it', workstream: 'Technical AEO / SEO' }, ...OPINION.opportunities.slice(1)] })
   expect(flagsFor(newRow(), sig('Peec recommends heading improvements'))).toEqual([{ kind: 'peec_recommends', path: 'opportunities.0.signal', text: 'Peec has no recommended actions for this project.' }])
-  const withActions = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }, { id: 'b', title: 'Add image descriptions', impact: 'LOW', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  // A row from before round 3 stored Peec's actions; the pull no longer reads them (Paul, #415 review).
+  const withActions = { ...newRow(), actions: [{ title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE' }, { title: 'Add image descriptions', impact: 'LOW', type: 'SEO_ISSUE' }] }
   expect(flagsFor(withActions, sig('Peec recommends heading improvements'))).toEqual([])
   expect(flagsFor(withActions, sig('Peec recommends schema markup'))).toEqual([{ kind: 'peec_recommends', path: 'opportunities.0.signal', text: "Check this against Peec's recommended actions: Give this page an H1 heading; Add image descriptions." }])
   expect(flagsFor(withActions, sig('Peec’s data points to schema'))).toEqual([])
@@ -414,7 +424,7 @@ test('a row without sentences keeps today\'s flags: a Glean number is number_not
 
 // Fix round after the Tasks 37 to 40 review.
 test('a digit inside a word (H1, B2B) is not a number; Peec action titles are removed before the scan', () => {
-  const d = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  const d = { ...newRow(), actions: [{ title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE' }] }
   const sig = { opportunities: [{ signal: 'Peec recommends H1 heading fixes', opportunity: 'Explore B2B pages', workstream: 'Technical AEO / SEO' }, ...OPINION.opportunities.slice(1)] }
   expect(flagsFor(d, sig)).toEqual([])
   // "24/7" is an idiom, not a figure (Paul's review of #388, C8); a plain 24 still is.
@@ -423,7 +433,7 @@ test('a digit inside a word (H1, B2B) is not a number; Peec action titles are re
 })
 
 test('peec_recommends ignores common words: only words of five letters or more, not stop words, count as a match', () => {
-  const d = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Fix broken links with redirects', impact: 'LOW', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  const d = { ...newRow(), actions: [{ title: 'Fix broken links with redirects', impact: 'LOW', type: 'SEO_ISSUE' }] }
   const sig = { opportunities: [{ signal: 'Peec recommends earning coverage with editorial outlets', opportunity: 'Explore it', workstream: 'PR / earned media' }, ...OPINION.opportunities.slice(1)] }
   expect(flagsFor(d, sig).map((n) => n.kind)).toEqual(['peec_recommends'])
 })
@@ -466,6 +476,78 @@ test('the exact sentence check runs only for rows written by the current sentenc
   expect(groundingFlags(edited, d, dataBlock(d)).filter((n) => n.path === 'sources_bullets.0.text')).toEqual([])
   // It is still a new row: a number in Glean's words is still an unchecked_number item.
   expect(groundingFlags({ ...edited, why: 'It rose 4.4%.' }, d, dataBlock(d)).filter((n) => n.path === 'why').map((n) => n.kind)).toEqual(['unchecked_number'])
+})
+
+test('a hidden Opportunities page is not checked: its numbers flag nothing until it is shown again (Ryan, round 3)', () => {
+  const d = newRow()
+  const opps = [0, 1, 2].map((i) => ({ signal: `Grew 40% in quarter ${i}`, opportunity: 'Explore it', workstream: 'Content' }))
+  expect(flagsFor(d, { opportunities: opps }).some((n) => n.path?.startsWith('opportunities.'))).toBe(true)
+  expect(flagsFor(d, { opportunities: opps, opportunities_page: 'hidden' })).toEqual([])
+})
+
+// Round 3 (Ryan, 2026-10-21): a pillar row is the opinion fields plus the code-written pillars and the marker.
+const pillarSlots = (d: SnapshotData, over: Partial<Slots> = {}): Slots => ({ ...slotsFor(d), opportunities: dataSentences(d).opportunities, opportunities_layout: 'pillars', ...over })
+const pillarFlags = (d: SnapshotData, over: Partial<Slots> = {}) => groundingFlags(pillarSlots(d, over), d, dataBlock(d))
+
+test('pillar rows: fresh lines carry no flags; an edited number is checked against its own sentence; no Peec-recommends check', () => {
+  const d = newRow()
+  expect(pillarFlags(d)).toEqual([])
+  const lines = dataSentences(d).opportunities
+  const edited = lines.map((o, i) => (i === 0 ? { ...o, signal: o.signal.replace(/\d+(?:\.\d)?%/, '55%') } : o))
+  expect(edited[0].signal).not.toBe(lines[0].signal)
+  expect(pillarFlags(d, { opportunities: edited })).toEqual([{ kind: 'number_not_in_data', path: 'opportunities.0.signal', text: '"55%" does not match Peec\'s number in this sentence' }])
+  const recommends = lines.map((o, i) => (i === 2 ? { ...o, signal: 'Peec recommends unblocking AI crawlers.' } : o))
+  expect(pillarFlags(d, { opportunities: recommends }).some((n) => n.kind === 'peec_recommends')).toBe(false)
+})
+
+// Paul, #415 review: pillar rows are told apart by their marker, not by SENTENCES_VERSION, so a pillar line keeps its exact
+// check on a row written before the next bump.
+test('pillar rows: an edited pillar line is checked against its own sentence on a row of the previous sentences version too', () => {
+  for (const version of [SENTENCES_VERSION, SENTENCES_VERSION - 1]) {
+    const d = { ...newRow(), sentences: version } as SnapshotData
+    const lines = dataSentences(d).opportunities
+    const edited = lines.map((o, i) => (i === 0 ? { ...o, signal: o.signal.replace(/\d+(?:\.\d)?%/, '55%') } : o))
+    expect(pillarFlags(d, { opportunities: edited }).filter((n) => n.path === 'opportunities.0.signal'), `version ${version}`)
+      .toEqual([{ kind: 'number_not_in_data', path: 'opportunities.0.signal', text: '"55%" does not match Peec\'s number in this sentence' }])
+  }
+})
+
+test('both round-3 markers on one row: a hidden pillar page is not checked, so an edited number flags nothing until it is shown', () => {
+  const d = newRow()
+  const edited = dataSentences(d).opportunities.map((o, i) => (i === 0 ? { ...o, signal: o.signal.replace(/\d+(?:\.\d)?%/, '55%') } : o))
+  expect(pillarFlags(d, { opportunities: edited }).some((n) => n.path === 'opportunities.0.signal')).toBe(true)
+  expect(pillarFlags(d, { opportunities: edited, opportunities_page: 'hidden' })).toEqual([])
+})
+
+test('both round-3 markers on one row: a hidden pillar page\'s numbers no longer count as data for other fields', () => {
+  // An own subdomain Peec files as Corporate makes the Content share differ from the donut's You slice (pillars D3 (a)),
+  // so the share is a number only the pillar line holds.
+  const blog = { domain: 'blog.examplesenior.com', classification: 'CORPORATE', retrieved_chat_count: 30, retrieval_count: 300, usage_rate: 300, mentioned_brands: [] }
+  const d = newRow({ ...LIVE_SHAPE_PULL, domains: [...LIVE_SHAPE_PULL.domains, blog] })
+  const n = dataSentences(d).opportunities[1].signal.match(/\d+(?:\.\d)?%/)![0]
+  expect(dataBlock(d)).not.toContain(n)
+  const over: Partial<Slots> = { page: { why_title: `Own site at ${n}` } }
+  expect(pillarFlags(d, over).some((f) => f.path === 'page.why_title')).toBe(false)
+  expect(pillarFlags(d, { ...over, opportunities_page: 'hidden' }).filter((f) => f.path === 'page.why_title').map((f) => f.kind)).toEqual(['number_not_in_data'])
+})
+
+test('pillar rows: a brand named like a domain raises no domain flag on its own pillar line', () => {
+  const own = LIVE_SHAPE_PULL.ownBrand
+  const n = 'Seniorcare.com'
+  const pull: PeecPull = {
+    ...LIVE_SHAPE_PULL,
+    ownBrand: { ...own, name: n },
+    roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === own.id ? { ...b, name: n } : b)),
+    brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === own.id ? { ...b, brand: { ...b.brand, name: n } } : b)),
+  }
+  const d = newRow(pull)
+  expect(pillarFlags(d).filter((f) => f.path?.startsWith('opportunities.'))).toEqual([])
+})
+
+test('a table row is checked as before: its opportunities are Glean\'s', () => {
+  const d = newRow()
+  const opps = [0, 1, 2].map(() => ({ signal: 'Grew 40%', opportunity: 'Explore it', workstream: 'Content' }))
+  expect(flagsFor(d, { opportunities: opps }).some((n) => n.kind === 'unchecked_number' && n.path === 'opportunities.0.signal')).toBe(true)
 })
 
 // Spec 2026-10-22 B3: the brand at 33.3% visibility and 11.4% share of voice, six brands above it, share-of-voice gaps.

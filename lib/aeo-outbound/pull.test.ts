@@ -45,7 +45,6 @@ const base: Record<string, Route> = {
     ? [{ brand: { id: 'kw_own' }, model_channel: { id: 'openai-0' }, visibility_total: 10 }, { brand: { id: 'kw_own' }, model_channel: { id: 'google-0' }, visibility_total: 0 }]
     : [{ brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.15, share_of_voice: 0.2, position: 3.1 }, { brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
   '/model-channels': () => [{ id: 'openai-0', description: 'ChatGPT UI' }, { id: 'google-0', description: 'Google AI Overview' }],
-  '/actions/list': () => [{ id: 'a1', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }, { id: 'a2', title: 'Done thing', impact: 'LOW', type: 'SEO_ISSUE', status: 'COMPLETED' }],
   '/prompts': () => ({ data: [{ id: 'p1' }], total_count: 100 }),
 }
 const NOW = Date.parse('2026-10-08T12:00:00Z')
@@ -66,7 +65,6 @@ test('pulls every step over one window from the days that carry data', async () 
   expect(pull.ownBrand.id).toBe('kw_own')
   expect(pull.profile).toEqual({ industry: 'Fintech', markets: ['United States'] })
   expect(pull.models).toEqual(['ChatGPT UI'])
-  expect(pull.actions.map((a) => a.title)).toEqual(['Give this page an H1 heading'])
   expect(pull.promptCount).toBe(100)
   expect(pull.requested).toEqual({ start: '2025-09-03', end: '2026-10-08' })
   const discovery = seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!
@@ -129,11 +127,10 @@ test('a failing prompt count is non-fatal: null and a warning', async () => {
 })
 
 test('a deadline, or a timer the deadline capped, in an optional call propagates instead of becoming a warning', async () => {
-  const now = () => (seen.some((s) => s.path === '/actions/list') ? 100 : 0)
+  // The domains report pages until an empty page, so the budget runs out once both its calls are made.
+  const now = () => (seen.filter((s) => s.path === '/reports/domains' && !s.body?.dimensions).length >= 2 ? 100 : 0)
   const { client, seen } = fakePeec(base, { deadline: 50, now })
   await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow(/\/prompts: deadline reached$/)
-  const t = fakePeec({ ...base, '/actions/list': () => { throw { abort: true } } }, CAPPED)
-  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/actions\/list: timed out after 30000ms$/)
   const p = fakePeec({ ...base, '/prompts': () => { throw { abort: true } } }, CAPPED)
   await expect(pullSnapshot(p.client, 'or_a', NOW)).rejects.toThrow(/\/prompts: timed out after 30000ms$/)
 })
@@ -226,29 +223,13 @@ test('a broken contract in an optional call propagates instead of becoming a war
   await expect(pullSnapshot(f.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.prompts.total_count' })
 })
 
-/** /actions/list answering page by page from body.offset, so the fake's offset-0 rule does not apply. */
-const actionPages = (all: { id: string; status: string; title: string }[]) => (_u: URL, b: Record<string, unknown> | null) => {
-  const offset = Number(b?.offset ?? 0); const limit = Number(b?.limit ?? 50)
-  return { data: all.slice(offset, offset + limit) }
-}
-const act = (i: number, pending: boolean) => ({ id: `a${i}`, status: pending ? 'PENDING' : 'COMPLETED', title: `Action ${i}`, impact: 'HIGH', type: 'SEO_ISSUE' })
-
-test('/actions/list pages until it has 10 pending actions', async () => {
-  const all = Array.from({ length: 300 }, (_, i) => act(i, i % 10 === 0))
-  const f = fakePeec({ ...base, '/actions/list': actionPages(all) })
+// Paul, #415 review: pillar reports no longer use Peec's actions, so the pull no longer asks for them or warns about them.
+test('the pull never asks Peec for its actions, and no actions warning is possible', async () => {
+  const f = fakePeec({ ...base, '/actions/list': () => { throw { abort: true } } }, ROOMY)
   const pull = await pullSnapshot(f.client, 'or_a', NOW)
-  expect(pull.actions.map((a) => a.id)).toEqual(['a0', 'a10', 'a20', 'a30', 'a40', 'a50', 'a60', 'a70', 'a80', 'a90'])
-  expect(f.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50])
-})
-
-test('/actions/list stops at 5 pages, and on a short page', async () => {
-  const sparse = Array.from({ length: 400 }, (_, i) => act(i, i === 7))
-  const f = fakePeec({ ...base, '/actions/list': actionPages(sparse) })
-  expect((await pullSnapshot(f.client, 'or_a', NOW)).actions.map((a) => a.id)).toEqual(['a7'])
-  expect(f.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50, 100, 150, 200])
-  const short = fakePeec({ ...base, '/actions/list': actionPages(Array.from({ length: 60 }, (_, i) => act(i, false))) })
-  await pullSnapshot(short.client, 'or_a', NOW)
-  expect(short.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50])
+  expect(f.seen.some((x) => x.path === '/actions/list')).toBe(false)
+  expect(pull.warnings).toEqual([])
+  expect('actions' in pull).toBe(false)
 })
 
 // Spec 18.3: each optional call, timing out after 45s with budget left, gives its warning and the pull completes;
@@ -262,7 +243,6 @@ const OPTIONAL: { name: string; routes: Record<string, Route>; path: string; war
     warning: "Peec's model breakdown could not be loaded, so the models covered are not listed.",
   },
   { name: '/model-channels', routes: { '/model-channels': () => { throw { abort: true } } }, path: '/model-channels', warning: "Peec's model names could not be loaded, so models are shown by id." },
-  { name: '/actions/list', routes: { '/actions/list': () => { throw { abort: true } } }, path: '/actions/list', warning: 'Peec actions could not be loaded, so opportunities come from the data only.' },
   { name: '/prompts', routes: { '/prompts': () => { throw { abort: true } } }, path: '/prompts', warning: "Peec's prompt count could not be loaded, so the methodology leaves it out." },
 ]
 
@@ -282,19 +262,6 @@ for (const c of OPTIONAL) {
     expect(isPeecDeadline(err)).toBe(true)
   })
 }
-
-// A per-call timeout on a later /actions/list page drops the pending actions already read and gives the warning.
-// Page 1 is a full page with 3 pending rows: with 10 or more pending the paging stops after page 1 and never asks
-// for page 2.
-test('/actions/list: a per-call timeout on page 2 with budget left gives no actions and the warning', async () => {
-  const page1 = Array.from({ length: 50 }, (_, i) => act(i, i < 3))
-  const f = fakePeec({ ...base, '/actions/list': (u, b) => { if (Number(b?.offset ?? 0) > 0) throw { abort: true }; return actionPages(page1)(u, b) } }, ROOMY)
-  const pull = await pullSnapshot(f.client, 'or_a', NOW)
-  expect(f.seen.filter((s) => s.path === '/actions/list').map((s) => s.body?.offset)).toEqual([0, 50])
-  expect(pull.actions).toEqual([])
-  expect(pull.warnings).toEqual(['Peec actions could not be loaded, so opportunities come from the data only.'])
-  expect(f.seen.some((s) => s.path === '/prompts')).toBe(true)
-})
 
 // Paul's review of #388 (C6): the paging key must not crash on a row the contract should name.
 test('a brands report row with no brand, or domain rows with no domain, fail as contract_violation naming the field', async () => {

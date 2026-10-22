@@ -56,6 +56,9 @@ export const OPENS_CAVEAT = 'Email security scanners can open links automaticall
 /** v1.1 §2: the Edit button, its states, the banner and the locked messages. */
 export const EDIT = 'Edit'
 export const DONE_EDITING = 'Done editing'
+/** Round 3 (Ryan, 2026-10-21): the Opportunities page switch; the text carries the state. */
+export const OPPS_ON = 'Opportunities page: on'
+export const OPPS_OFF = 'Opportunities page: off'
 export const EDIT_COPY = 'Edit a copy'
 export const EDIT_COPY_HINT = 'This report is frozen. Editing makes a new draft.'
 export const EDIT_BANNER = "Editing. Click any outlined text to change it. Changes save automatically. Charts come from Peec and can't be edited. For other dates, start a new report from the main page."
