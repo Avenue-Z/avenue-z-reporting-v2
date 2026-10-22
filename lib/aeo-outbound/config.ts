@@ -31,10 +31,11 @@ export const DECISIONS = {
 export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 /** Spec v1.1 §19.5, §19.11: the version of the code-written sentences (sentences.ts). Bump it whenever their wording or
- *  rounding changes (the pillar data lines included), so an edited sentence on an older row is never compared word for word with today's. Version 2
- *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). Version 3
- *  (2026-10-22): the pillar lines say "citations", Ryan's word (bullets spec D2). */
-export const SENTENCES_VERSION = 3
+ *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. Version 2
+ *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). The pillar data
+ *  lines (round 3) do not use it: grounding tells a pillar row apart by its opportunities_layout marker, so changing their
+ *  wording later needs a check of its own (Paul, #415 review). */
+export const SENTENCES_VERSION = 2
 /** Round 3 (Ryan, 2026-10-21): the three pillars of the Avenue Z audit slide, in its order, shown on the Opportunities
  *  page of every new report with one data line each (sentences.ts pillars). The Content description completes the
  *  slide's sentence, which is cut off after "LLMs for". */

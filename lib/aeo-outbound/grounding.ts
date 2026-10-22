@@ -221,7 +221,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       // leave half a domain behind (final review I2).
       const domainText = sentencesRow && (isCodeSentencePath(path) || pillarLine(path)) ? stripBrandNames(withoutDomains(value)) : value
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
-      const ref = sameVersion && (isCodeSentencePath(path) || pillarLine(path)) ? peecSentence(path) : undefined
+      // A pillar line is checked on any pillar row: the marker, not SENTENCES_VERSION, tells it apart (Paul, #415 review).
+      const ref = (sameVersion && isCodeSentencePath(path)) || pillarLine(path) ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
         // Peec's own action titles (an "H1 heading") are not Glean's numbers.
         let words = text

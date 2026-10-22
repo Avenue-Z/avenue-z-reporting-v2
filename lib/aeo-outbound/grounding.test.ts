@@ -490,6 +490,18 @@ test('pillar rows: fresh lines carry no flags; an edited number is checked again
   expect(pillarFlags(d, { opportunities: recommends }).some((n) => n.kind === 'peec_recommends')).toBe(false)
 })
 
+// Paul, #415 review: pillar rows are told apart by their marker, not by SENTENCES_VERSION, so a pillar line keeps its exact
+// check on a row written before the next bump.
+test('pillar rows: an edited pillar line is checked against its own sentence on a row of the previous sentences version too', () => {
+  for (const version of [SENTENCES_VERSION, SENTENCES_VERSION - 1]) {
+    const d = { ...newRow(), sentences: version } as SnapshotData
+    const lines = dataSentences(d).opportunities
+    const edited = lines.map((o, i) => (i === 0 ? { ...o, signal: o.signal.replace(/\d+(?:\.\d)?%/, '55%') } : o))
+    expect(pillarFlags(d, { opportunities: edited }).filter((n) => n.path === 'opportunities.0.signal'), `version ${version}`)
+      .toEqual([{ kind: 'number_not_in_data', path: 'opportunities.0.signal', text: '"55%" does not match Peec\'s number in this sentence' }])
+  }
+})
+
 test('both round-3 markers on one row: a hidden pillar page is not checked, so an edited number flags nothing until it is shown', () => {
   const d = newRow()
   const edited = dataSentences(d).opportunities.map((o, i) => (i === 0 ? { ...o, signal: o.signal.replace(/\d+(?:\.\d)?%/, '55%') } : o))

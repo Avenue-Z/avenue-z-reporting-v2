@@ -196,7 +196,8 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 - **D4. Wording** changed in round 1 from the draft I approved: "of the domain mix in this window" in place of
   "of the sources AI drew on in this snapshot" (P3).
   Changed again on 2026-10-22 to "of citations in this window" ("among citations" when absent), Ryan's word in his
-  answer on the findings bullets (bullets spec D2); `SENTENCES_VERSION` 3.
+  answer on the findings bullets (bullets spec D2). `SENTENCES_VERSION` stays 2, as P3 says: the reworded lines exist
+  only on pillar rows, which the P1 marker tells apart (Paul's review; an earlier note here said 3).
 
 ## 8. Not touched
 
@@ -233,7 +234,8 @@ database, AIVx files, the hub, the share and snapshot routes.
   `GLEAN_SLOTS`).
 - r2-m3: code sentences say "in this window" or "for this window" (`sentences.ts:144`, `:200`); the rest don't name it.
 - r2-m4: the `SENTENCES_VERSION` comments (`config.ts:33-35`, `metrics.ts:66`) name `pillars(d)` too, so a later pillar
-  wording change bumps the version.
+  wording change bumps the version. Superseded by Paul's review: the pillar lines are checked on any pillar row by the
+  P1 marker, so the comments now say a later pillar wording change needs a check of its own.
 - r2-m5: "sites" when `new Set(d.ownDomains.filter(Boolean)).size > 1` (§9 m2's rule; it replaces P3's).
 - r2-m6: a roster competitor's site that Peec classifies CORPORATE is in neither the Technical share nor the gaps
   (`metrics.ts:254`) (true until #413 merges).
