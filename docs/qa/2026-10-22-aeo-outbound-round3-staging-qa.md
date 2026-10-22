@@ -153,6 +153,11 @@ reports left on staging: `db61f066` (revoked), `1603b65f` (draft copy), `7c7bb28
 4. **Report name on staging is "AI Visibility Snapshot 2"** (Settings, Report name; the default is "AI Visibility
    Snapshot", `config.ts:92`). Every staging report's header and tab title carry the "2". A saved setting, not code.
 
+**What happened to them (2026-10-22):** findings 1 to 3 are fixed in #420 (`fix/aeo-outbound-round3-qa` into `dev`),
+with a spec, two review rounds, tests first and a final review whose two findings were also fixed. Finding 4 is done on
+staging: Report name is back to "AI Visibility Snapshot" (the "2" was a test value saved on 2026-10-14). After #420
+reaches staging, CV4, X1 and O5 run again on fresh reports and are recorded here.
+
 ## Exit
 
 All PASS: send Ryan the staging link and the test report. Any FAIL: fixed on a feature branch off `dev` through the
