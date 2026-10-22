@@ -149,9 +149,7 @@ export const PAGE_CSS = [
  *  name with nothing to its right, Paul's #410 review): checked once at load on a desktop width,
  *  after each two-column draw, when a font still loading at load arrives, and 150ms after the last resize that changed
  *  the chart's width (round 3, spec 2026-10-21 C5). Registered before the frame script's
- *  listener, so it runs first. Each chart's container is watched: in the editor's frame a chart keeps the width it was
- *  drawn at while the frame settles, so a container whose width changes fires one window resize, which Plotly
- *  (responsive) and the legend check answer; an unchanged width fires nothing (blind scorecard, spec 2026-10-22 S1). */
+ *  listener, so it runs first. */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
 function setActive(h){for(var i=0;i<nav.length;i++){if(nav[i].getAttribute('href')===h)nav[i].classList.add('active');else nav[i].classList.remove('active')}}
@@ -176,7 +174,6 @@ if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%
 function resized(){clearTimeout(tmr);tmr=setTimeout(function(){try{if(el.clientWidth===w)return;if(!fallen){check();return}restored=false;fallen=false;draw(copy(cur.d),copy(cur.l),check)}catch(err){}},150)}
 function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};cur=orig;w=el.clientWidth;window.addEventListener('resize',resized);var f=document.fonts;if(f&&f.status==='loading'&&f.ready&&f.ready.then)f.ready.then(check);if(!window.matchMedia){check();return}var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);else check();var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}
-if(window.ResizeObserver){var ro=new window.ResizeObserver(function(es){var moved=false;for(var i=0;i<es.length;i++){var t=es[i].target,cw=Math.round(es[i].contentRect.width);if(t.__aeoW!==undefined&&t.__aeoW!==cw)moved=true;t.__aeoW=cw}if(moved)window.dispatchEvent(new Event('resize'))});var gd=document.querySelectorAll('.plotly-graph-div');for(var g=0;g<gd.length;g++)ro.observe(gd[g])}
 })();`
 const PAGE_SCRIPT = `<script>${PAGE_JS}</script>`
 

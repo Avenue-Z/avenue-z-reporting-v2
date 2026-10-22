@@ -8,13 +8,12 @@ fix these five; the other failures read the scorecard stricter than Ryan wrote (
 
 ## 1. The five changes
 
-**S1. The bar chart redraws when its card changes size (editor).** In the editor the report sits in a frame that is
-still settling when the chart draws, so the chart keeps its first width: on staging at 1440 its labels were cut
-("onarch Money", "eed A Budget") and the longest bar ran past the card. Measured: a chart drawn at 502 px stayed 502 px
-in a 342 px card until a window resize event, then fit. The preview and the shared page load at their final width, so
-they were clean. `PAGE_JS` (`render.ts`) watches each chart's container with a `ResizeObserver` and, when a container's
-width changes, fires one window `resize` event, which Plotly (`responsive: true`, `charts.ts:19`) and the legend check
-already answer. A width that did not change fires nothing, so no loop.
+**S1. Editor bar chart labels cut: open, not fixed in this PR.** On staging at 1440 the editor showed the bar labels
+cut ("onarch Money", "eed A Budget"); the full-size preview and the shared page are clean, so prospects never see it.
+Measured so far: the exact HTML the editor loads, in an unsandboxed 1120 px frame, lays out correctly (card 360 px,
+label margin 131 px), so the difference comes with the editor's sandboxed frame. Two fixes were tried and neither
+changed the editor (a container-width watcher: the chart's width never changes; a redraw after fonts load), so both
+were removed rather than shipped unproven. Tracked as its own fix.
 
 **S2. Citation volume prints the exact count.** Ryan's template is "[Brand domain] appears in [X] retrieved
 citations." Today 1,000 and above read "approximately 1.4K". The count is now the whole number with thousands
@@ -47,12 +46,10 @@ Not changed, my call: the earned pillar leans on Editorial. Recorded so it is no
 | Fewer than two other brands with data | No peer cluster, as today |
 | Brand in the top three | Included in the average; "above" when it is above it |
 | Count 999 / 1000 / 1,412,345 | "999" / "1,000" / "1,412,345" |
-| A container that never changes width | No resize event |
 
 ## 3. Tests (written first)
 
 - `sentences.test.ts`: exact counts at 999, 1,000, 1,412; peers by closeness on the A Place for Mom shape (Caring and
   Petunia, 3.1 points) and PocketGuard unchanged; the top-three average with the brand inside the top three.
-- `render.frame.test.ts`: a container width change fires one window resize; an unchanged width fires none.
 - Existing expectations that change on purpose: the top-two and top-three averages where the brand ranks in the top
   three, and the "approximately" own-site test lines that use the new box.
