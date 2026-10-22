@@ -267,7 +267,8 @@ function write(d: SnapshotData) {
     } else {
       const domain = ownDomainText(site.domain, brand)
       const n = site.retrievedChats
-      out.push({ lead: 'Citation volume:', text: `${domain} appears in ${n >= 1000 ? 'approximately ' : ''}${countText(n)} retrieved ${n === 1 ? 'citation' : 'citations'}.` })
+      // Ryan's "[Brand domain] appears in [X] retrieved citations.": the exact count (blind scorecard, spec 2026-10-22 S2).
+      out.push({ lead: 'Citation volume:', text: `${domain} appears in ${n.toLocaleString('en-US')} retrieved ${n === 1 ? 'citation' : 'citations'}.` })
       // A rate that rounds to 0.0 after a count above zero reads "under 0.1%" (Paul, #417 review).
       const rate = site.retrievedPct === 0 ? 'under 0.1%' : site.retrievedPct === null ? null : pctText(site.retrievedPct)
       if (rate !== null) out.push({ lead: 'Citation rate:', text: `${d.ownSites!.length === 1 ? brand : domain} is cited in ${rate} of tracked answers.` })
@@ -328,8 +329,11 @@ function write(d: SnapshotData) {
   }
 
   function topTier(): Bullet | null {
-    const top3 = others.slice(0, 3)
-    if (top3.length < 2) return null
+    // Ryan's "the average visibility of the top [N] brands": the first three of the ranking, the prospect included when it
+    // ranks there (blind scorecard, spec 2026-10-22 S4; this reverses bullets spec D3, competitors only).
+    // At least three brands with data, so the average is never just the prospect and one rival.
+    if (d.brands.length < 3) return null
+    const top3 = d.brands.slice(0, 3)
     // In whole tenths, half up, so the average and the distance are exact on the printed one-decimal values (spec D3).
     const avg = Math.round(top3.reduce((s, b) => s + Math.round(b.visibilityPct * 10), 0) / top3.length) / 10
     const x = tenths(avg, own.visibilityPct)
@@ -341,9 +345,13 @@ function write(d: SnapshotData) {
   function peerCluster(): Bullet | null {
     if (others.length < 2) return null
     const i = d.brands.findIndex((b) => b.isOwn)
-    const above = d.brands.slice(0, i)
-    const below = d.brands.slice(i + 1)
-    const peers = !above.length ? below.slice(0, 2) : !below.length ? above.slice(-2) : [above[above.length - 1], below[0]]
+    // The two of the (up to) two brands above and two below that are closest in visibility; ties go to the higher-ranked,
+    // and they are named in rank order (blind scorecard, spec 2026-10-22 S3: A Place for Mom's nearest peers are both below).
+    const candidates = [...d.brands.slice(Math.max(0, i - 2), i), ...d.brands.slice(i + 1, i + 3)]
+    // Distances in whole tenths, the precision the page prints, so equal distances tie whatever floating point says.
+    const gap = (b: { visibilityPct: number }) => Math.abs(Math.round(b.visibilityPct * 10) - Math.round(own.visibilityPct * 10))
+    const near = [...candidates].sort((a, b) => gap(a) - gap(b) || d.brands.indexOf(a) - d.brands.indexOf(b)).slice(0, 2)
+    const peers = near.sort((a, b) => d.brands.indexOf(a) - d.brands.indexOf(b))
     const values = [own.visibilityPct, ...peers.map((b) => b.visibilityPct)]
     const x = tenths(Math.max(...values), Math.min(...values))
     if (x > PEER_CLUSTER_MAX_POINTS) return null
