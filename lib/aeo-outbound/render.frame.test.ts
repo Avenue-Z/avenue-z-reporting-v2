@@ -227,7 +227,7 @@ test('a link to a hash with no section is not prevented', () => {
 
 // The donut (v1.1 §17.2): Plotly and matchMedia are stubs; the tests prove the calls.
 const MIX = [{ label: 'Reference', weight: 4.8, pct: 4.8 }, { label: 'Corporate', weight: 60.3, pct: 60.3 }, { label: 'You', weight: 34.9, pct: 34.9 }]
-function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; mix?: typeof MIX; text?: unknown; before?: (el: HTMLElement) => void } = {}) {
+function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; noMatchMedia?: boolean; mix?: typeof MIX; text?: unknown; before?: (el: HTMLElement) => void } = {}) {
   const fig = sourceDonutFigure(over.mix ?? MIX)
   const react = vi.fn(over.react ?? (() => Promise.resolve()))
   const listeners: ((e: { matches: boolean }) => void)[] = []
@@ -239,7 +239,7 @@ function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: 
   else { el.data = JSON.parse(JSON.stringify(fig.data)); el.layout = JSON.parse(JSON.stringify(fig.layout)) }
   if ('text' in over && !over.noEl) (el.data as Record<string, unknown>[])[0].text = over.text
   if (!over.noEl) over.before?.(el)
-  win = Object.assign(new EventTarget(), { matchMedia }, over.noPlotly ? {} : { Plotly: { react } })
+  win = Object.assign(new EventTarget(), over.noMatchMedia ? {} : { matchMedia }, over.noPlotly ? {} : { Plotly: { react } })
   new Function('window', 'document', PAGE_JS)(win, doc)
   if (doc.readyState !== 'complete') win.dispatchEvent(new Event('load'))
   return { react, fig, mq, change: (matches: boolean) => listeners.forEach((f) => f({ matches })), matchMedia }
@@ -355,6 +355,13 @@ test('legend on a desktop width: names that fit draw nothing; names that overlap
   expect(layout).toEqual(flowing(over.fig.layout))
   await vi.advanceTimersByTimeAsync(1000)
   expect(over.react).toHaveBeenCalledTimes(1)
+})
+
+test('legend: with no matchMedia the desktop check still runs once and falls back where names overlap', async () => {
+  const { react, fig } = bootDonut({ noMatchMedia: true, before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2]).toEqual(flowing(fig.layout))
 })
 
 test('legend: one source type has nothing to overlap, so nothing is redrawn', async () => {

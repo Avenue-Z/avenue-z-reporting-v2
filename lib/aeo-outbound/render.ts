@@ -139,8 +139,9 @@ export const PAGE_CSS = [
  *  the phone donut shows each slice's own label (§17.2; since 2026-10-19 the figure's text, charts.ts sliceLabel, so
  *  phone, desktop and the source-mix sentence round a slice the same way), and the menu marks 05 at the bottom of the
  *  page, where AIVx's scroll-spy never reaches the short last section (§17.12). The donut's two legend columns fall back
- *  to Plotly's flowing legend wherever a name would run into the next column, checked after each draw, when a loading
- *  font arrives and 150ms after the last resize (round 3, spec 2026-10-21 C5). Registered before the frame script's
+ *  to Plotly's flowing legend wherever a name would run into the next column: checked once at load on a desktop width,
+ *  after each two-column draw, when a font still loading at load arrives, and 150ms after the last resize that changed
+ *  the chart's width (round 3, spec 2026-10-21 C5). Registered before the frame script's
  *  listener, so it runs first. */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
