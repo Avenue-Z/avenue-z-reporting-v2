@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { SENTENCES_VERSION } from './config'
 import vectors from './round.vectors.json'
 import { buildSnapshotData, fmtDay, fmtEasternDateTime, fmtEasternDay, preparedDay, pyRound, titleClassification, V1_SETTINGS_USED } from './metrics'
+import { chartedBrands } from './charted'
 import type { MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
@@ -300,6 +301,54 @@ test('the closest roster domain decides between a kept and a cut competitor; a d
   ]
   // rankAmong 2 keeps the brand and Alpha (26.1%); Beta (18.5%) is cut.
   expect(gapsOf({ ...PULL, roster, domains }, { rankAmong: 2, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' })).toEqual(['alpha.parent.com', 'parent2.com', 'deep.alpha.parent.com'])
+})
+
+// Spec 2026-10-22 (round 3 QA) F1: the gaps list only the competitors the bar chart shows (the top 10 with the brand).
+const wide = (n: number, ownIndex: number, extra: Partial<PeecPull> = {}): PeecPull => {
+  const ids = Array.from({ length: n }, (_, i) => (i === ownIndex ? 'kw_own' : `kw_${i}`))
+  return {
+    ...PULL,
+    roster: ids.map((id, i) => ({ id, name: id === 'kw_own' ? 'Example Co' : `Rival${i}`, is_own: id === 'kw_own', domains: [id === 'kw_own' ? 'example.com' : `rival${i}.com`] })),
+    ownBrand: { id: 'kw_own', name: 'Example Co', is_own: true, domains: ['example.com'] },
+    brands: ids.map((id, i) => ({ brand: { id, name: id === 'kw_own' ? 'Example Co' : `Rival${i}` }, visibility: (60 - i) / 100, share_of_voice: 0.05, position: 3 })),
+    ...extra,
+  }
+}
+
+test('F1: an 11th-ranked competitor\'s own site is not a gap; a charted competitor\'s is', () => {
+  const domains = [gapRow('rival10.com', 'COMPETITOR', 100, ['kw_10']), gapRow('rival1.com', 'COMPETITOR', 50, ['kw_1']), gapRow('www.rival11.com', 'CORPORATE', 90, [])]
+  expect(gapsOf(wide(12, 0, { domains }))).toEqual(['rival1.com'])
+})
+
+test('F1: with the brand ranked 12th, the nine charted competitors give the gaps', () => {
+  const domains = [gapRow('rival9.com', 'CORPORATE', 100, []), gapRow('rival8.com', 'CORPORATE', 90, []), gapRow('rival10.com', 'CORPORATE', 80, [])]
+  expect(gapsOf(wide(12, 11, { domains }))).toEqual(['rival8.com'])
+})
+
+test('F1: a competitor with no Peec row is not charted, so its site is not a gap', () => {
+  const p = wide(3, 0)
+  const roster = [...p.roster, { id: 'kw_nodata', name: 'Nodata', is_own: false, domains: ['nodata.com'] }]
+  const domains = [gapRow('nodata.com', 'COMPETITOR', 100, ['kw_nodata']), gapRow('rival1.com', 'COMPETITOR', 50, ['kw_1'])]
+  expect(gapsOf({ ...p, roster, domains })).toEqual(['rival1.com'])
+})
+
+test('F1: competitors tied at the 10th bar give the chart and the gaps the same set', () => {
+  const p = wide(12, 0)
+  // Rival9, Rival10 and Rival11 tie for the 10th bar; only one is charted. The two left off get the most retrievals.
+  const brands = p.brands.map((b, i) => (i >= 9 ? { ...b, visibility: 0.4 } : b))
+  const domains = p.roster.filter((r) => !r.is_own).map((r, i) => gapRow(r.domains![0], 'CORPORATE', 10 + i, []))
+  const d = buildSnapshotData({ ...p, brands, domains }, '2026-10-08T15:00:00Z')
+  const charted = chartedBrands(d.brands).filter((b) => !b.isOwn).map((b) => `${b.name.toLowerCase()}.com`)
+  expect(charted).toHaveLength(9)
+  expect(d.gapDomains).toHaveLength(4)
+  for (const g of d.gapDomains) expect(charted).toContain(g.domain)
+  expect(['rival9.com', 'rival10.com', 'rival11.com'].filter((x) => d.gapDomains.some((g) => g.domain === x))).toHaveLength(1)
+})
+
+test('F1: a cut parent domain never hides a charted competitor\'s subdomain', () => {
+  const p = wide(12, 0)
+  const roster = p.roster.map((r) => (r.id === 'kw_11' ? { ...r, domains: ['parent.com'] } : r.id === 'kw_1' ? { ...r, domains: ['one.parent.com'] } : r))
+  expect(gapsOf({ ...p, roster, domains: [gapRow('one.parent.com', 'CORPORATE', 100, []), gapRow('parent.com', 'CORPORATE', 90, [])] })).toEqual(['one.parent.com'])
 })
 
 test('with no competitors tracked no site is listed, even a COMPETITOR site naming a brand Peec still reports', () => {

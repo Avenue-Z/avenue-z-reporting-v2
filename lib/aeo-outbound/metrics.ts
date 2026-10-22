@@ -1,6 +1,7 @@
 // Turns a Peec pull into the numbers the page shows and Glean writes from (spec §5a, §7; v1.1 §4, §9, §10).
 // It writes schema version 2: structured notes, each own domain on its own, the project status and the settings used.
 import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT, SENTENCES_VERSION } from './config'
+import { chartedBrands } from './charted'
 import type { Note, NoteKind, StoredNote } from './notes'
 import type { PeecPull } from './pull'
 
@@ -259,13 +260,15 @@ export function buildSnapshotData(
   if (!sourceMix.length) note('empty_source_mix', 'Peec reported no source weights for this window, so the source mix is empty.')
 
   // Round 3 (Ryan, 2026-10-21: "Only include competitor domains"): the gaps are the own sites of the competitors the
-  // report compares (keptIds), where the brand does not appear. A site is a compared competitor's when its domain is one
-  // of that competitor's roster domains or a subdomain of one, or Peec classifies it COMPETITOR and it mentions a
-  // compared competitor. The brand's own site never counts (own wins), nor does a site of a competitor cut by rankAmong
-  // (spec 2026-10-21 E2, D1, D3, D4 (a)). With no competitors tracked the report names no outside brand, so it lists none.
+  // bar chart shows (chartedIds, charted.ts; round 3 QA, spec 2026-10-22 F1), where the brand does not appear. A site is
+  // a charted competitor's when its domain is one of that competitor's roster domains or a subdomain of one, or Peec
+  // classifies it COMPETITOR and it mentions a charted competitor. The brand's own site never counts (own wins), nor does
+  // a site of any other competitor: cut by rankAmong, ranked below the chart, or without a Peec row (spec 2026-10-21 E2,
+  // D1, D3, D4 (a)). With no competitors tracked the report names no outside brand, so it lists none.
+  const chartedIds = new Set(chartedBrands(brands).filter((b) => !b.isOwn).map((b) => b.id))
   const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
-  const keptSites = rosterSites((id) => keptIds.has(id))
-  const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !keptIds.has(id))
+  const keptSites = rosterSites((id) => chartedIds.has(id))
+  const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !chartedIds.has(id))
   const within = (d: string, sites: string[]) => sites.some((s) => d === s || d.endsWith(`.${s}`))
   /** The length of the closest (longest) site the domain is or sits under; -1 when none. */
   const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (d === s || d.endsWith(`.${s}`) ? Math.max(n, s.length) : n), -1)
@@ -282,7 +285,7 @@ export function buildSnapshotData(
       if (cut >= 0 && cut >= kept) return false
       const ids = new Set(r.mentioned_brands.map((m) => m.id))
       if (ids.has(pull.ownBrand.id)) return false
-      return kept >= 0 || (r.classification === 'COMPETITOR' && [...ids].some((id) => keptIds.has(id)))
+      return kept >= 0 || (r.classification === 'COMPETITOR' && [...ids].some((id) => chartedIds.has(id)))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))
     .slice(0, 4)
