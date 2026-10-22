@@ -280,6 +280,13 @@ test('round 3: Ryan\'s PocketGuard example reads word for word as he wrote it', 
   ])
 })
 
+// Paul, #417 review: a rate that rounds to 0.0 after a count above zero reads "under 0.1%", as the pillar lines do.
+test('round 3: a citation rate that rounds to 0.0% reads "under 0.1%"', () => {
+  const rate = (pct: number) => now({ ...POCKETGUARD, domains: POCKETGUARD.domains.map((r) => (r.domain === 'pocketguard.com' ? { ...r, retrieved_chat_count: 3, retrieved_percentage: pct } : r)) }).competitive_bullets.slice(0, 2).map((b) => b.text)
+  expect(rate(0.0004)).toEqual(['PocketGuard.com appears in 3 retrieved citations.', 'PocketGuard is cited in under 0.1% of tracked answers.'])
+  expect(rate(0.0006)[1]).toBe('PocketGuard is cited in 0.1% of tracked answers.')
+})
+
 test('round 3: the live-shape fixture in the new boxes', () => {
   const s = now()
   expect(s.competitive_bullets).toEqual([

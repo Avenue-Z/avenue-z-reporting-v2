@@ -169,8 +169,8 @@ order and names (#414), the pillars (#415), the KPI cards (the rank card stays).
 ## 7. Overlaps
 
 #413 edits the gaps test in `sentences.test.ts`; #415 adds the pillar lines to `sentences.ts` and, with decision D2,
-rewords them and moves `SENTENCES_VERSION` to 3. Whichever of this PR and #415 merges second sets `SENTENCES_VERSION` one
-higher than the first. Each PR stands alone off `dev`.
+rewords them. This PR alone moves `SENTENCES_VERSION` to 3; #415 keeps it at 2 and checks pillar lines by the row's
+`opportunities_layout` (Paul's review). Each PR stands alone off `dev`.
 
 ## 8. Decisions (mine, 2026-10-22)
 
@@ -183,3 +183,13 @@ higher than the first. Each PR stands alone off `dev`.
 - **D4.** The average prints to one decimal (Ryan's "53.8%"); every other percent keeps today's rule except D5.
 - **D5.** The source-type mix prints whole percents from 1% up, as Ryan writes ("8%") and Peec's dashboard shows.
 - **D6.** The own domain takes the brand's casing when its first label is the brand's name ("PocketGuard.com").
+
+## 9. Paul's review (2026-10-22)
+
+- **Blocking, fixed.** Context and methodology read the same from version 1 to 3 (`context()`, `methodology()` and their
+  helpers diffed from `8ce2f128^`), so a row from `CONTEXT_WORDING_SINCE` (2) on keeps their word-for-word check
+  (`grounding.ts`); only the bullets need today's version.
+- **Fixed.** A citation rate that rounds to 0.0 after a count above zero reads "under 0.1%", as the pillar lines do.
+- **Fixed.** `OLDER_BOXES` (`sentences.ts`) names each earlier version's boxes; a test fails if a version below today's
+  has none, so the next bump cannot miss it.
+- **Unchanged.** A 1999:1 mix still prints "100%" beside "0.1%" (a deferred minor).

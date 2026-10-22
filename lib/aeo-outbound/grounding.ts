@@ -1,11 +1,11 @@
 // Post-generation checks (spec §6, v1.1 §3): numbers must appear in the Data block, domains must be Peec's, on every
 // slot. A KPI value is compared with Peec's value and the window label with Peec's label instead. Modeled on
 // lib/peec/content-impact-synopsis.ts:58-100. Runs on every save, so notes stay current. Flags are structured notes.
-import { NEEDS_VALIDATION, SENTENCES_VERSION } from './config'
+import { CONTEXT_WORDING_SINCE, NEEDS_VALIDATION, SENTENCES_VERSION } from './config'
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
 import { showsPowered } from './render'
-import { boxesV2, dataSentences, isCodeSentencePath, type DataSentences } from './sentences'
+import { dataSentences, isCodeSentencePath, OLDER_BOXES, type DataSentences } from './sentences'
 import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 
 /** Phrases that read as numbers but aren't figures, removed before the scan (Paul, #388 review). */
@@ -151,9 +151,10 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   const sameVersion = d.sentences === SENTENCES_VERSION
   if (sentences) {
     const s = sentences
-    // Spec 2026-10-22 B3: a row written with an earlier sentences version also allows the numbers its version 2 boxes
-    // print, so the bullets it stored never gain a flag. A row with no sentences (version 1) is unchanged.
-    const older = typeof d.sentences === 'number' && d.sentences < SENTENCES_VERSION ? boxesV2(d) : null
+    // Spec 2026-10-22 B3: a row written with an earlier sentences version also allows the numbers its own version's boxes
+    // print (OLDER_BOXES), so the bullets it stored never gain a flag. A row with no sentences is unchanged.
+    const olderBoxes = typeof d.sentences === 'number' && d.sentences < SENTENCES_VERSION ? OLDER_BOXES[d.sentences] : undefined
+    const older = olderBoxes ? olderBoxes(d) : null
     const boxes = [...s.competitive_bullets, ...s.sources_bullets, ...(older ? [...older.competitive_bullets, ...older.sources_bullets] : [])]
     const sentenceText = stripNames([s.context, s.methodology, ...boxes.flatMap((b) => [b.lead, b.text])].join(' | '))
     for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
@@ -217,7 +218,10 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       // leave half a domain behind (final review I2).
       const domainText = sentencesRow && isCodeSentencePath(path) ? stripBrandNames(withoutDomains(value)) : value
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
-      const ref = sameVersion && isCodeSentencePath(path) ? peecSentence(path) : undefined
+      // Context and methodology keep the exact check on any row from CONTEXT_WORDING_SINCE on, since their wording did not
+      // change; the bullets only on today's version (Paul, #417 review).
+      const sameWording = (path === 'context' || path === 'methodology') && typeof d.sentences === 'number' && d.sentences >= CONTEXT_WORDING_SINCE
+      const ref = (sameVersion && isCodeSentencePath(path)) || sameWording ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
         // Peec's own action titles (an "H1 heading") are not Glean's numbers.
         let words = text

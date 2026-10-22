@@ -3,7 +3,7 @@ import { SENTENCES_VERSION } from './config'
 import { groundingFlags } from './grounding'
 import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData } from './metrics'
-import { boxesV2, dataSentences } from './sentences'
+import { boxesV2, dataSentences, OLDER_BOXES } from './sentences'
 import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
 import type { SnapshotData } from './metrics'
@@ -483,6 +483,29 @@ test('B3: a row written with version 2 or 1 gains no flag on the bullets it stor
     const d = { ...newRow(BIG), sentences: version } as SnapshotData
     expect(groundingFlags({ ...slotsFor(d), ...boxesV2(d) }, d, dataBlock(d))).toEqual([])
   }
+})
+
+// Paul, #417 review: context and methodology read the same from version 2 on, so an older row keeps their exact check.
+test('a version 2 row keeps the word-for-word check on context and methodology; a version 1 row does not', () => {
+  const edit = (d: SnapshotData) => {
+    const s = slotsFor(d)
+    return { ...s, methodology: s.methodology.replace('five brands', 'nine brands'), context: `${s.context} Third place trails.` }
+  }
+  const flagged = (version: number) => {
+    const d = { ...newRow(), sentences: version } as SnapshotData
+    expect(slotsFor(d).methodology).toContain('five brands compared')
+    return groundingFlags(edit(d), d, dataBlock(d)).filter((n) => n.path === 'methodology' || n.path === 'context').map((n) => `${n.path}: ${n.text}`)
+  }
+  const exact = ['methodology: "nine" does not match Peec\'s number in this sentence', 'context: "Third" does not match Peec\'s rank in this sentence']
+  expect(flagged(SENTENCES_VERSION).sort()).toEqual([...exact].sort())
+  expect(flagged(2).sort()).toEqual([...exact].sort())
+  expect(flagged(1)).toEqual([])
+})
+
+// Paul, #417 review: every earlier version names the boxes it printed, so a bump cannot leave one out unnoticed.
+test('every sentences version below today\'s has its older boxes', () => {
+  for (let v = 1; v < SENTENCES_VERSION; v++) expect(OLDER_BOXES[v], `version ${v}`).toBeTypeOf('function')
+  expect(OLDER_BOXES[SENTENCES_VERSION]).toBeUndefined()
 })
 
 test('B4: the rename note does not count the own domain printed in the brand\'s casing', () => {

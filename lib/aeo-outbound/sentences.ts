@@ -262,7 +262,9 @@ function write(d: SnapshotData) {
       const domain = ownDomainText(site.domain, brand)
       const n = site.retrievedChats
       out.push({ lead: 'Citation volume:', text: `${domain} appears in ${n >= 1000 ? 'approximately ' : ''}${countText(n)} retrieved ${n === 1 ? 'citation' : 'citations'}.` })
-      if (site.retrievedPct !== null) out.push({ lead: 'Citation rate:', text: `${d.ownSites!.length === 1 ? brand : domain} is cited in ${pctText(site.retrievedPct)} of tracked answers.` })
+      // A rate that rounds to 0.0 after a count above zero reads "under 0.1%", as the pillar lines do (Paul, #417 review).
+      const rate = site.retrievedPct === 0 ? 'under 0.1%' : site.retrievedPct === null ? null : pctText(site.retrievedPct)
+      if (rate !== null) out.push({ lead: 'Citation rate:', text: `${d.ownSites!.length === 1 ? brand : domain} is cited in ${rate} of tracked answers.` })
     }
     out.push(sourceTypeMix())
     return out
@@ -370,6 +372,12 @@ export function dataSentences(d: SnapshotData): DataSentences {
 export function boxesV2(d: SnapshotData): Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'> {
   return write(d).v2
 }
+
+/** The boxes each earlier sentences version printed, by version (Paul, #417 review). A row written under version n also
+ *  allows the numbers OLDER_BOXES[n] prints. Bumping SENTENCES_VERSION means adding the outgoing version here, or its
+ *  rows gain flags on bullets they stored; grounding.test.ts fails until it is added. Version 1 keeps version 2's boxes,
+ *  as it did before this lookup. */
+export const OLDER_BOXES: Readonly<Record<number, (d: SnapshotData) => Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'>>> = { 1: boxesV2, 2: boxesV2 }
 
 /** The own-site slice reads "own-site" in a sentence; every other type as the donut shows it. */
 const label = (l: string): string => (l === 'You' ? 'own-site' : l)

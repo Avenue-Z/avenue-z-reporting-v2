@@ -35,6 +35,10 @@ export const NEEDS_VALIDATION = 'Needs validation'
  *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). Version 3
  *  (2026-10-22): the findings bullets follow Ryan's per-page wording (spec 2026-10-22). */
 export const SENTENCES_VERSION = 3
+/** The first sentences version whose context and methodology read as they do today (Paul, #417 review). A row from this
+ *  version on keeps the word-for-word check on those two, whatever SENTENCES_VERSION is. Set it to the new
+ *  SENTENCES_VERSION whenever context() or methodology() changes. Their wording has not changed since version 1. */
+export const CONTEXT_WORDING_SINCE = 2
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
 /** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */
