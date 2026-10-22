@@ -384,6 +384,15 @@ test('round 3: a citation rate that rounds to 0.0% reads "under 0.1%"', () => {
   expect(rate(0.0006)[1]).toBe('PocketGuard is cited in 0.1% of tracked answers.')
 })
 
+// Blind scorecard (spec 2026-10-22 S2): Ryan's "[Brand domain] appears in [X] retrieved citations." takes the exact count.
+test('citation volume prints the exact count with thousands separators, never "approximately"', () => {
+  const vol = (n: number) => now({ ...POCKETGUARD, domains: POCKETGUARD.domains.map((r) => (r.domain === 'pocketguard.com' ? { ...r, retrieved_chat_count: n } : r)) }).competitive_bullets[0].text
+  expect(vol(999)).toBe('PocketGuard.com appears in 999 retrieved citations.')
+  expect(vol(1000)).toBe('PocketGuard.com appears in 1,000 retrieved citations.')
+  expect(vol(1412)).toBe('PocketGuard.com appears in 1,412 retrieved citations.')
+  expect(vol(1412345)).toBe('PocketGuard.com appears in 1,412,345 retrieved citations.')
+})
+
 test('round 3: the live-shape fixture in the new boxes', () => {
   const s = now()
   expect(s.competitive_bullets).toEqual([
@@ -393,7 +402,7 @@ test('round 3: the live-shape fixture in the new boxes', () => {
   ])
   expect(s.sources_bullets).toEqual([
     { lead: 'Next-tier gap:', text: 'Example Senior Living is 0.2 percentage points behind Caringly in visibility.' },
-    { lead: 'Top-tier distance:', text: 'Example Senior Living is 32.0 percentage points below the top-three average visibility of 33.1%.' },
+    { lead: 'Top-tier distance:', text: 'Example Senior Living is 32.3 percentage points below the top-three average visibility of 33.4%.' },
     { lead: 'Peer cluster:', text: 'Example Senior Living sits within a 1.1-point visibility range alongside Caringly and Seniorway.' },
     { lead: 'Competitor domain gaps:', text: 'The largest gaps include caringly.example at 8 retrievals and rival-landing.example at 5.' },
   ])
@@ -404,18 +413,18 @@ const cv = (rows: [string, string, number, number | null][], extra: Partial<Peec
 test('round 3, Competitive Visibility box: first, level at the top, last, ties above, inside the top three', () => {
   expect(cv([['own', 'Own', 0.5, 0.3], ['a', 'A', 0.4, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
     'Own is 10.0 percentage points ahead of A in visibility.',
-    'Own is 15.0 percentage points above the top-two average visibility of 35.0%.',
+    'Own is 10.0 percentage points above the top-three average visibility of 40.0%.',
   ])
   expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.5, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
     'Own is level with A at the top in visibility.',
-    'Own is 10.0 percentage points above the top-two average visibility of 40.0%.',
+    'Own is 6.7 percentage points above the top-three average visibility of 43.3%.',
   ])
   expect(cv([['a', 'A', 0.5, 0.3], ['b', 'B', 0.4, 0.2], ['own', 'Own', 0.2, 0.1]])).toEqual([
     'Own is 20.0 percentage points behind B in visibility.',
-    'Own is 25.0 percentage points below the top-two average visibility of 45.0%.',
+    'Own is 16.7 percentage points below the top-three average visibility of 36.7%.',
   ])
   expect(cv([['a', 'A', 0.5, 0.3], ['b', 'B', 0.4, 0.2], ['c', 'C', 0.4, 0.2], ['own', 'Own', 0.2, 0.1]])[0]).toBe('Own is 20.0 percentage points behind B and C in visibility.')
-  expect(cv([['a', 'A', 0.6, 0.3], ['own', 'Own', 0.5, 0.2], ['b', 'B', 0.4, 0.1], ['c', 'C', 0.3, 0.1], ['d', 'D', 0.2, 0.1]])[1]).toBe('Own is 6.7 percentage points above the top-three average visibility of 43.3%.')
+  expect(cv([['a', 'A', 0.6, 0.3], ['own', 'Own', 0.5, 0.2], ['b', 'B', 0.4, 0.1], ['c', 'C', 0.3, 0.1], ['d', 'D', 0.2, 0.1]])[1]).toBe('Own matches the top-three average visibility of 50.0%.')
 })
 
 // Round 3 QA (spec 2026-10-22 F2): a peer cluster wider than 10 points is not a cluster, so the bullet is left out.
@@ -430,6 +439,18 @@ test('peer cluster: 10.0 points is kept, 10.1 and 96.4 are left out', () => {
   expect(apfm[0]).toBe('Own is 95.5 percentage points behind Care in visibility.')
 })
 
+// Blind scorecard (spec 2026-10-22 S3, S4): the peers are the two brands closest in visibility, and the top-tier average is
+// over the top three brands, the prospect included. The A Place for Mom shape from staging: Care 98.6, the brand 3.1,
+// Caring 2.2, Petunia 0.0.
+test('peer cluster takes the two closest brands; the top-three average includes the prospect when it ranks there', () => {
+  const apfm = cv([['care', 'Care', 0.986, 0.9], ['own', 'Own', 0.031, 0.003], ['caring', 'Caring', 0.022, 0.002], ['petunia', 'Petunia', 0, 0]])
+  expect(apfm).toContain('Own is 31.5 percentage points below the top-three average visibility of 34.6%.')
+  expect(apfm).toContain('Own sits within a 3.1-point visibility range alongside Caring and Petunia.')
+  // Ties in closeness go to the higher-ranked brand.
+  const tie = cv([['a', 'A', 0.6, 0.3], ['b', 'B', 0.52, 0.2], ['own', 'Own', 0.5, 0.2], ['c', 'C', 0.48, 0.1], ['d', 'D', 0.2, 0.1]])
+  expect(tie).toContain('Own sits within a 4.0-point visibility range alongside B and C.')
+})
+
 test('round 3, Competitive Visibility box: one competitor, none tracked, none with data, all at zero, the brand at zero', () => {
   expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.2, 0.1]])).toEqual(['Own is 30.0 percentage points behind A in visibility.'])
   expect(now(brandPull([['own', 'Own', 0.2, 1]])).sources_bullets).toEqual([{ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers.' }])
@@ -438,17 +459,17 @@ test('round 3, Competitive Visibility box: one competitor, none tracked, none wi
   expect(cv([['a', 'A', 0, 0], ['own', 'Own', 0, 0]])).toEqual(['No brand tracked shows visibility in this window.'])
   expect(cv([['a', 'A', 0.3, 0.3], ['b', 'B', 0.1, 0.1], ['own', 'Own', 0, 0]])).toEqual([
     'Own is 10.0 percentage points behind B in visibility.',
-    'Own is 20.0 percentage points below the top-two average visibility of 20.0%.',
+    'Own is 13.3 percentage points below the top-three average visibility of 13.3%.',
   ])
 })
 
-test('round 3, Competitive Visibility box: equal peers, a top-two average at a half tenth, a brand below tenth', () => {
+test('round 3, Competitive Visibility box: equal peers, a top-three average with tenths that do not divide evenly, a brand below tenth', () => {
   expect(cv([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.3, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
     'Own is level with A and B at the top in visibility.',
-    'Own matches the top-two average visibility of 30.0%.',
+    'Own matches the top-three average visibility of 30.0%.',
     'Own sits at the same visibility as A and B.',
   ])
-  expect(cv([['a', 'A', 0.501, 0.3], ['b', 'B', 0.502, 0.2], ['own', 'Own', 0.2, 0.1]])[1]).toBe('Own is 30.2 percentage points below the top-two average visibility of 50.2%.')
+  expect(cv([['a', 'A', 0.501, 0.3], ['b', 'B', 0.502, 0.2], ['own', 'Own', 0.2, 0.1]])[1]).toBe('Own is 20.1 percentage points below the top-three average visibility of 40.1%.')
   const many = Array.from({ length: 12 }, (_, i) => [`c${String(i).padStart(2, '0')}`, `C${i}`, 0.7 - i * 0.05, 0.1] as [string, string, number, number])
   const low = cv([...many, ['own', 'Own', 0.1, 0.05]])
   expect(low[0]).toBe('Own is 5.0 percentage points behind C11 in visibility.')

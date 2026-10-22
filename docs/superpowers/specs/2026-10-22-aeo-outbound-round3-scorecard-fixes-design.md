@@ -30,7 +30,8 @@ closest in visibility to the brand (ties go to the higher-ranked), named in rank
 visibility of the top [N] brands". Today the average is over competitors only (bullets spec D3, reversed here). It is
 now over the first three brands of the ranking, the prospect included when it is among them, so A Place for Mom
 (Care 98.6, the brand 3.1, Caring 2.2) reads "top-three average visibility of 34.6%". With fewer than three brands
-it is the top two; with fewer than two brands the bullet is left out, as today. PocketGuard (6th) is unchanged.
+with data the bullet is left out, so the average is never just the prospect and one rival (the old rule printed a
+"top-two" average over two competitors). PocketGuard (6th) is unchanged.
 
 **S5. Source-type mix keeps both Editorial and UGC** when neither is in the top two (A Place for Mom names four types).
 Not changed, my call: the earned pillar leans on Editorial. Recorded so it is not re-raised.

@@ -408,10 +408,10 @@ test('an edited code sentence that changes a count word is flagged; the same wor
     s.sources_bullets = s.sources_bullets.map((b, i) => (i === 1 ? { ...b, text } : b))
     return groundingFlags(s, d, dataBlock(d))
   }
-  expect(edit('Example Senior Living is 32.0 percentage points below the top-nine average visibility of 33.1%.')).toEqual([
+  expect(edit('Example Senior Living is 32.3 percentage points below the top-nine average visibility of 33.4%.')).toEqual([
     { kind: 'number_not_in_data', path: 'sources_bullets.1.text', text: '"nine" does not match Peec\'s number in this sentence' },
   ])
-  expect(edit('Against the top-three average visibility of 33.1%, Example Senior Living is 32.0 percentage points below.')).toEqual([])
+  expect(edit('Against the top-three average visibility of 33.4%, Example Senior Living is 32.3 percentage points below.')).toEqual([])
 })
 
 test('a row without sentences keeps today\'s flags: a Glean number is number_not_in_data, never unchecked_number', () => {

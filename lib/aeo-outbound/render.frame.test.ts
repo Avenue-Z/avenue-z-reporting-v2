@@ -245,6 +245,37 @@ function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: 
   return { react, fig, mq, change: (matches: boolean) => listeners.forEach((f) => f({ matches })), matchMedia }
 }
 
+// Blind scorecard (spec 2026-10-22 S1): in the editor's frame a chart keeps the width it was drawn at, so each chart's
+// container is watched and a width change fires one window resize, which Plotly and the legend check answer.
+test('a chart container that changes width fires one window resize; the first report and an unchanged width fire none', () => {
+  let callback: ((entries: { target: Element; contentRect: { width: number } }[]) => void) | null = null
+  const observed: Element[] = []
+  class FakeResizeObserver { constructor(cb: typeof callback) { callback = cb } observe(t: Element) { observed.push(t) } }
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'final', 'x'), 'text/html')
+  win = Object.assign(new EventTarget(), { ResizeObserver: FakeResizeObserver })
+  const resizes = vi.fn()
+  win.addEventListener('resize', resizes)
+  new Function('window', 'document', PAGE_JS)(win, doc)
+  const charts = [...doc.querySelectorAll('.plotly-graph-div')]
+  expect(charts).toHaveLength(2)
+  expect(observed).toEqual(charts)
+  const report = (w: number[]) => callback!(charts.map((target, i) => ({ target, contentRect: { width: w[i] } })))
+  report([502, 400])
+  expect(resizes).not.toHaveBeenCalled()
+  report([502, 400])
+  expect(resizes).not.toHaveBeenCalled()
+  report([342, 400])
+  expect(resizes).toHaveBeenCalledTimes(1)
+  report([342, 300])
+  expect(resizes).toHaveBeenCalledTimes(2)
+})
+
+test('without ResizeObserver the page script still runs', () => {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'final', 'x'), 'text/html')
+  win = new EventTarget()
+  expect(() => new Function('window', 'document', PAGE_JS)(win, doc)).not.toThrow()
+})
+
 test("donut on a phone: one react call with the figure's own labels as slice text from 5% and in the legend, and a customdata hover", () => {
   const { react, fig, matchMedia } = bootDonut()
   expect(matchMedia).toHaveBeenCalledWith('(max-width: 900px)')
