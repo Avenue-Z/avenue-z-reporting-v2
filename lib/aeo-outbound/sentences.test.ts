@@ -290,15 +290,17 @@ test('pillars: an own site filed as Editorial or Competitor counts in the Conten
 })
 
 // Round 3 QA (spec 2026-10-22 F3): the pillar lines round like the source-mix bullet (D5), so one number reads one way.
-test('pillars: whole numbers from 1%, one decimal below 1% and where two different values would read alike', () => {
+test('pillars: whole numbers from 1%, one decimal below 1%, each rounded on its own as the donut does', () => {
   expect(pillarsOf([['ed.example', 'EDITORIAL', 2.4], ['own.example', 'OWN', 3.2], ['rival.example', 'COMPETITOR', 0.6], ['corp.example', 'CORPORATE', 93.8]]).map((o) => o.signal)).toEqual([
     'Editorial sites make up 2% of citations in this window.',
     "Own's own site makes up 3% of citations in this window.",
     "Competitors' own websites make up 0.6% of citations in this window.",
   ])
   expect(pillarsOf([['own.example', 'OWN', 4.1], ['corp.example', 'CORPORATE', 95.9]])[1].signal).toBe("Own's own site makes up 4% of citations in this window.")
-  const tie = pillarsOf([['ed.example', 'EDITORIAL', 2.4], ['own.example', 'OWN', 10], ['rival.example', 'COMPETITOR', 1.6], ['corp.example', 'CORPORATE', 86]]).map((o) => o.signal)
-  expect([tie[0], tie[2]]).toEqual(['Editorial sites make up 2.4% of citations in this window.', "Competitors' own websites make up 1.6% of citations in this window."])
+  // Each pillar rounds on its own, as the donut does: two pillars may read alike, but a pillar never reads differently
+  // from its donut slice. Dev click-through (A Place for Mom): Editorial 2.6% and own 3.3% read "3%" each, as the donut.
+  const alike = pillarsOf([['ed.example', 'EDITORIAL', 2.6], ['own.example', 'OWN', 3.3], ['rival.example', 'COMPETITOR', 0.6], ['corp.example', 'CORPORATE', 93.5]]).map((o) => o.signal)
+  expect(alike).toEqual(['Editorial sites make up 3% of citations in this window.', "Own's own site makes up 3% of citations in this window.", "Competitors' own websites make up 0.6% of citations in this window."])
 })
 
 test('pillars: absent slices, a share under 0.1%, an empty mix', () => {
@@ -324,9 +326,10 @@ test('pillars: two distinct own domains read "sites"; a repeated or empty entry 
   expect(pillarsOf([['own.example', 'OWN', 10], ['corp.example', 'CORPORATE', 90]], own(['own.example', 'own.example', '']))[1].signal).toBe("Own's own site makes up 10% of citations in this window.")
 })
 
-test('pillars: shares that differ but would round alike keep one decimal (spec §9 m1)', () => {
+test('pillars: shares that differ but round alike read alike, as their donut slices do (round 3 QA, replacing spec §9 m1)', () => {
   const p = pillarsOf([['ed.example', 'EDITORIAL', 17.4], ['rival.example', 'COMPETITOR', 16.6], ['corp.example', 'CORPORATE', 66]])
-  expect([p[0].signal, p[2].signal]).toEqual(['Editorial sites make up 17.4% of citations in this window.', "Competitors' own websites make up 16.6% of citations in this window."])
+  // Reversed by the round 3 QA (dev click-through): each pillar rounds as its donut slice does, 17% and 17%.
+  expect([p[0].signal, p[2].signal]).toEqual(['Editorial sites make up 17% of citations in this window.', "Competitors' own websites make up 17% of citations in this window."])
 })
 
 // Ryan's PocketGuard example, rebuilt from the values measured read only on 2026-10-22 (spec §3).

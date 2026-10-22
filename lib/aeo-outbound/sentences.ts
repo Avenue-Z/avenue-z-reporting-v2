@@ -380,10 +380,11 @@ function write(d: SnapshotData) {
     const competitor = outside('Competitor')
     const ownWeight = d.ownMixWeight ?? 0
     const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
-    // One rounding pass over the shares shown, so two pillars never read alike when their values differ (spec §9 m1).
+    // The shares shown, each rounded on its own below (round 3 QA replaced the single pass of pillars spec §9 m1).
     const shown = [editorial, own, competitor].filter((x): x is { weight: number; pct: number } => !!x)
-    // Round 3 QA (spec 2026-10-22 F3): the source-mix bullet's rounding (D5), so a share reads as the donut and bullet read it.
-    const texts = mixPctAll(shown.map((x) => ({ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 })))
+    // Round 3 QA (spec 2026-10-22 F3): the source-mix bullet's rounding (D5), each share on its own, so a pillar reads as
+    // its donut slice does. The three are separate facts, not a ranking, so two may read alike (dev click-through).
+    const texts = shown.map((x) => mixPctAll([{ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 }])[0])
     const share = (x: { weight: number; pct: number }) => (x.pct === 0 ? 'under 0.1%' : texts[shown.indexOf(x)])
     // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
     const tail = 'of citations in this window.'
