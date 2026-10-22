@@ -158,6 +158,26 @@ with a spec, two review rounds, tests first and a final review whose two finding
 staging: Report name is back to "AI Visibility Snapshot" (the "2" was a test value saved on 2026-10-14). After #420
 reaches staging, CV4, X1 and O5 run again on fresh reports and are recorded here.
 
+## Re-check after #420 (2026-10-22, staging `3f82cd20`, via #421)
+
+#420 was reviewed by two fresh adversarial reviewers (one fuzzing 3,000 reports), checked against live Peec data read
+only, and clicked through on the dev database; its later findings were fixed test first (gaps by the competitor a
+domain names; pillars use the donut's own label; no "accounts for 0.0%"). Then, on staging:
+
+| # | Check | Result |
+|---|---|---|
+| CV4 | PocketGuard 2026-10-19 (`0197d0ef`) gaps | PASS: "The largest gaps include ynab.com at 488 retrievals and monarchmoney.com at 213." Both on the chart. The other charted competitors' sites mention PocketGuard (left out by rule D1); copilot.money, actualbudget.org and empower.com are off the chart |
+| X1 | A Place for Mom (`0a31b0ef`: Care 98.6, the brand 3.1, Caring 2.2) | PASS: no peer cluster; Next-tier gap, Top-tier distance and the gaps (care.com, caring.com, seniorly.com, all charted) |
+| O5 | Pillars against the donut | PASS: PocketGuard 19%, 4%, 17% (donut 19, 4, 17); A Place for Mom 2%, 3%, 1% (donut 2, 3, 1) |
+| CV1-3, CS1-3 | Ryan's six sentences | PASS, word for word |
+| M1-M4 | Order and names | PASS: Executive Summary, Competitive Visibility, Cited Sources, The Pillars of AI Search, Methodology; header "AI Visibility Snapshot" |
+| CV7, CS5 | Charts | PASS: bar plot `#000000`, top margin 8; legend `entrywidth` 0.5 |
+| E1 | Flags on the fresh reports | PASS: PocketGuard 0; A Place for Mom 1, the existing "Care shows 98.6% AI visibility, which is unusually high" data note |
+| S1-S3 | Settings | PASS: "Cited Sources", "Competitive Visibility", Report name "AI Visibility Snapshot" |
+| S4 | Ryan can change the titles | PASS (from code and history): Settings opens for admins, and everyone on the tool's environment list is an admin (`access.ts`); staging's Settings user and admin lists are empty and have never changed, and Ryan made a staging draft on 2026-10-19, so he is on that list. The environment value itself cannot be read |
+
+**Ready for Ryan.**
+
 ## Exit
 
 All PASS: send Ryan the staging link and the test report. Any FAIL: fixed on a feature branch off `dev` through the
