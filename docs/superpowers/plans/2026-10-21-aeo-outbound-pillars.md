@@ -10,9 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-21-aeo-outbound-pillars-design.md` (decisions D2 to D4 in §7, minors in §9 and §10; review log and trial beside it, trial note `docs/findings/2026-10-21-aeo-outbound-pillars-trial.md`).
 
+**Changed after this plan:** `PILLARS_TITLE` is "The Pillars of AI Search" and the Earned description keeps "Quality
+Citations from Trusted Media Publications", the slide's own casing (`5c0d4695`, spec P6).
+
 ## Global Constraints
 
-- Branch `feat/aeo-outbound-pillars` off `dev`. The PR targets `dev`, opens as a **draft with no reviewer**, and waits with the rest of round 3 for Thomas's word to go to Paul. Nothing merges without Thomas's "merge".
+- Branch `feat/aeo-outbound-pillars` off `dev`. The PR targets `dev`, opens as a **draft with no reviewer**, and waits with the rest of round 3 for my word to go to Paul. Nothing merges without my "merge".
 - `SENTENCES_VERSION` stays 2. No `PAGE_KEYS` change. No migration. No AIVx file, settings contract or settings database change.
 - Pillar names, descriptions and title exactly as `PILLARS` / `PILLARS_TITLE` below; data-line wording exactly as Task 1.
 - A table row (no marker) renders, grounds and labels exactly as today; `v1-compat.test.ts` passes unchanged.

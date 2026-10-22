@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Branch `feat/aeo-outbound-opps-toggle` off `dev`. The PR targets `dev`, is opened as a **draft with no reviewer**, and waits with the rest of round 3 until Thomas says to send the set to Paul. Nothing merges without Thomas's "merge".
+- Branch `feat/aeo-outbound-opps-toggle` off `dev`. The PR targets `dev`, is opened as a **draft with no reviewer**, and waits with the rest of round 3 until I send the set to Paul. Nothing merges without my "merge".
 - Stored key: `opportunities_page?: 'shown' | 'hidden'`, top level of `slots`, never under `page`. Absent means shown.
 - Structural paths exactly `opportunities_page.hide` and `opportunities_page.show`; the value is the literal `"structure"` as for bullets.
 - Button text exactly "Opportunities page: on" and "Opportunities page: off", right before Approve, no `aria-pressed`.
@@ -586,4 +586,4 @@ Expected: each passes. Keep the raw final lines for the PR.
 
 - [ ] **Step 2: Browser check** of this branch's real render (a local static page, as for the charts PR), hidden and shown, at 1440 and 375px: no Opportunities section or menu item when hidden, Methodology 04 in menu and label, the menu's bottom highlight lands on Methodology, "Why it matters" present. The editor button is covered by the editor tests; the live click-through happens on staging after promotion.
 
-- [ ] **Step 3: Open the PR as a draft against `dev` with no reviewer** ("AEO Outbound: turn the Opportunities page on or off → dev"). The body says what changed and why, links the spec, review log and plan, and pastes the Step 1 output. Do not request Paul: the round-3 PRs go to him together on Thomas's word.
+- [ ] **Step 3: Open the PR as a draft against `dev` with no reviewer** ("AEO Outbound: turn the Opportunities page on or off → dev"). The body says what changed and why, links the spec, review log and plan, and pastes the Step 1 output. Do not request Paul: the round-3 PRs go to him together on my word.

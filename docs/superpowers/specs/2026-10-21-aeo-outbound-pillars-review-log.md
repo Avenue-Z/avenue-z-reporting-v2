@@ -16,4 +16,4 @@ MINORs in §9 of the spec.
 ## Round 2 (changed lines only, `9f2f90aa`)
 
 1 MAJOR, 6 MINOR. The MAJOR (the Content line can deny an own site the first findings box shows) is not iterated on:
-it goes to Thomas as decision D3. MINORs in §10.
+it came to me as decision D3, decided (a) (spec §7). MINORs in §10.

@@ -7,8 +7,8 @@ Status: draft for review, 2026-10-21. Code cited at dev `5fedaa52`, read this se
 "Inquire about toggle on/off the Opportunities page. Allowing sales person reviewing before sending to include this
 page, or toggle off, depending on if they like the findings generated."
 
-Decided with Thomas (2026-10-21): every report starts with the page on; when it is off, Methodology moves up to 04;
-"Why it matters" stays. Nothing else is in scope: the pillars rework is a separate PR.
+I decided (2026-10-21): every report starts with the page on; when it is off, Methodology moves up to 04;
+"Why it matters" stays. Nothing else is in scope: the pillars rework was a separate PR (#412) until the two were combined (below).
 
 **Combined with the pillars (2026-10-22).** The toggle and the pillars rebuild the same Opportunities section, so they
 ship as one PR (`feat/aeo-outbound-opportunities`, merge `95140bd5`). Three rules join them: the section wraps either
@@ -98,8 +98,8 @@ label for these paths is ever shown; none is added.
 - **Edit a copy** copies the slots JSON (`store.ts:167-172`), so the copy keeps the switch.
 - **Rerun** builds new slots from generation (`validateGeneratedSlots`, `slots.ts:162-201`), which never sets the key:
   the page starts on.
-- **Generation** is unchanged: Glean still writes three opportunities (`contracts.ts:109`), whether or not the page is
-  later turned off.
+- **Generation** sets no switch (the page starts on). Since the combination, code writes the opportunities as pillar
+  rows (pillars spec P4), whether or not the page is later turned off.
 
 ## 5. Who sees it
 
@@ -141,7 +141,8 @@ label for these paths is ever shown; none is added.
 ## 8. Not touched
 
 The prompt, the reply contract, generation, the opportunities' shape, `PAGE_KEYS`, settings, the hub, the share and
-snapshot routes, AIVx files, the charts.
+snapshot routes, AIVx files, the charts. (The combined PR changes the prompt, reply contract, generation and settings
+form for the pillars; see the pillars spec.)
 
 ## 9. Minor findings carried to the plan (review round 1)
 

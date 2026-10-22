@@ -12,9 +12,10 @@ the pillars as the slide does; one line under each pillar that links this report
 sources that are editorial. Content: the share coming from the brand's own site ("zero or low" is the point).
 Technical: how often competitors' own sites are cited.
 
-Decided with Thomas (2026-10-21): wording matches the donut (shares of the domain mix, not "citations"); pillar name
+I decided (2026-10-21): wording matches the donut (shares of the domain mix, not "citations"); pillar name
 and description only, no sample items; slide order (Earned, Content, Technical); code writes the lines. The Content
-description is the slide's sentence, completed after "LLMs" (the slide cuts it off).
+description is the slide's sentence, which the slide cuts off after "to better influence LLMs for..."; the ending "how
+LLMs answer the questions buyers ask" is my wording.
 
 ## 2. How the page works today
 
@@ -74,10 +75,10 @@ the sources AI drew on in this snapshot".)
 | Pillar | Slice | Present, share prints | Present, `pct` 0 | Absent |
 |---|---|---|---|---|
 | Earned | `Editorial` | "Editorial sites make up {x} of the domain mix in this window." | "Editorial sites make up under 0.1% of the domain mix in this window." | "Editorial sites don't appear in the domain mix for this window." |
-| Content | `You` | "{Brand}'s own {site makes / sites make} up {x} of the domain mix in this window." | "... under 0.1% ..." | "{Brand}'s own {site doesn't / sites don't} appear in the domain mix for this window." |
+| Content | `ownMixWeight` (D3 (a)) | "{Brand}'s own {site makes / sites make} up {x} of the domain mix in this window." | "... under 0.1% ..." | "{Brand}'s own {site doesn't / sites don't} appear in the domain mix for this window." |
 | Technical | `Competitor` | "Competitors' own websites make up {x} of the domain mix in this window." | "... under 0.1% ..." | "Competitors' own websites don't appear in the domain mix for this window." |
 
-- **Own site counts as the first findings box counts it** (decision D3 (a), Thomas, 2026-10-21): a row is the brand's
+- **Own site counts as the first findings box counts it** (my decision D3 (a), 2026-10-21): a row is the brand's
   own when Peec classifies it OWN or its domain is an own domain or a subdomain of one (`ownRows`, `metrics.ts:215-222`).
   `buildSnapshotData` stores the sum of those rows' mix weight (`decisions.sourceMixWeight`, rows with weight above 0,
   the same filter as `metrics.ts:235-236`) as a new data field `ownMixWeight` (a number, 0 when none); the Content share
@@ -86,9 +87,9 @@ the sources AI drew on in this snapshot".)
   `STORED_DATA` (`contracts.ts:146`, a loose object) declares `ownMixWeight: z.number().min(0).optional()`; older rows
   lack it and are never pillar rows. "Absent" for Content means `ownMixWeight` is 0.
 - `Competitor` is the COMPETITOR class only: a roster competitor's site that Peec classifies CORPORATE is not in the
-  Technical share. Since #413 the gaps list does include it (roster domain match). I decided on 2026-10-21 that the
+  Technical share. Once #413 merges, the gaps list includes it (roster domain match). I decided on 2026-10-21 that the
   Technical line stays the donut's Competitor slice, so the number always equals the slice on the same page.
-- `{Brand}` is `d.brand`, as every code sentence names it. "sites" when `d.ownDomains.length > 1`, else "site".
+- `{Brand}` is `d.brand`, as every code sentence names it. "sites" when `new Set(d.ownDomains.filter(Boolean)).size > 1`, else "site".
 - An empty mix (`metrics.ts:245`) gives all three the line "Peec reported no source types for this window.", the
   source-mix bullet's own words (`sentences.ts:200`).
 - No competitors tracked (`d.competitorsTracked === 0`): Technical reads "No competitors are tracked in this Peec
@@ -107,7 +108,8 @@ unchanged (`v1-compat.test.ts:14-16` pins it).
 `page.opps_label`) and title (`page.opps_title`) and replaces the table and footnote with a grid of three cards, one
 per row in order: the name (`opportunities.N.workstream`, AIVx's `.cluster-name` style), the description
 (`opportunities.N.opportunity`, muted), then the data line (`opportunities.N.signal`, prominent). Three columns from
-901px up, one column on phones, rules added inside the two existing media queries of `PAGE_CSS`. The cards reuse
+901px up, one column on phones: one-column base rules after the Methodology rules, outside the phone query, and the
+three-column rule in the existing 901px block of `PAGE_CSS`. The cards reuse
 AIVx's `.cluster-card` (`aivx/css.ts`); no AIVx file changes. Without the marker the section is byte-identical to
 today.
 
@@ -172,26 +174,26 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 | `contracts.test.ts` | `GLEAN_SLOTS` accepts a reply with no opportunities and one with two malformed ones; `STORED_SLOTS` accepts the marker absent or `'pillars'` and nothing else |
 | `prompt.test.ts` | The prompt asks for no opportunities and names no Peec-actions rule; the Data block is unchanged |
 | `generate.test.ts` | A generated row has the marker, the three pillar rows from code, and the pillar title |
-| `grounding.test.ts` | A fresh pillar row has no flags, a domain-shaped brand included; an edited data line number is flagged against its sentence; a pillar row skips "Peec recommends"; a table row's opportunities are checked as before, with the same allowed numbers; an own domain classified CORPORATE gives a Content line that agrees with the donut |
+| `grounding.test.ts` | A fresh pillar row has no flags, a domain-shaped brand included; an edited data line number is flagged against its sentence; a pillar row skips "Peec recommends"; a table row's opportunities are checked as before, with the same allowed numbers; an own domain classified CORPORATE counts in the Content line, so it can read above the donut's You slice (D3 (a)) |
 | `render.test.ts` | Pillar row: three cards in order with name, description and line as slots, no table, no footnote, every mode; table row: unchanged |
 | `v1-compat.test.ts` | Passes unchanged |
 | `labels.test.ts` | Pillar labels; every `slotEntries` path labeled on both layouts |
 | `settings-form.test.tsx` | No Peec-rows select; a save still sends the stored value |
 | `editor.test.tsx` | The `pillars` prop reaches the save-error label |
 
-## 7. Decisions for Thomas
+## 7. Decisions
 
-**Decided (Thomas, 2026-10-21):** D2 remove the setting from the form; D3 (a); D4 the new wording; D1 after the trial.
+**I decided (2026-10-21):** D2 remove the setting from the form; D3 (a); D4 the new wording; D1 after the trial.
 
 - **D1. Card look.** Three cards in AIVx's cluster style (gradient pillar name, muted description, white data line).
-  The scratch trial renders it with PocketGuard's numbers for you, and Ryan if you want, before the plan.
+  The scratch trial renders it with PocketGuard's numbers, for me and for Ryan, before the plan.
 - **D2. Remove the dead setting from the Settings form** (P9), or leave it showing. I'd remove it: it would do nothing.
 - **D3. What counts as the brand's own site in the Content line** (review round 2, M1). (a) Peec's OWN class or a
   domain match, as the first findings box counts it: the share is the usage weight of those rows over the mix total,
   the page never denies a site it shows elsewhere, and it can read above the donut's "You" slice when Peec misclassifies
   a subdomain. (b) The `You` slice, as the donut shows it, with a different absent line when the box shows own
   retrievals. (c) The `You` slice as drafted, accepting the rare clash. Recommended: (a).
-- **D4. Wording** changed in round 1 from the draft Thomas approved: "of the domain mix in this window" in place of
+- **D4. Wording** changed in round 1 from the draft I approved: "of the domain mix in this window" in place of
   "of the sources AI drew on in this snapshot" (P3).
 
 ## 8. Not touched
@@ -218,11 +220,11 @@ database, AIVx files, the hub, the share and snapshot routes.
   block keeps Peec's actions line (`prompt.ts:58`), now read by no field, to keep it unchanged; PocketGuard's exact
   stored values are unverified (read from its staging donut only).
 
-## 10. Review round 2 (changed lines only): one MAJOR open for Thomas, minors carried to the plan
+## 10. Review round 2 (changed lines only): one MAJOR (decided as D3), minors carried to the plan
 
 - **Open MAJOR (r2-M1):** with the `You` slice rule, an own subdomain that Peec classifies CORPORATE shows in the first
   findings box ("Blog.brand.com appears in 300 retrievals", `sentences.ts:149-151`, from `ownRows`, `metrics.ts:218-221`)
-  while the Content line says the brand's own site doesn't appear. Decision for Thomas, see §7 D3.
+  while the Content line says the brand's own site doesn't appear. Decided as §7 D3 (a).
 - r2-m1: names and descriptions fall through to the allowed-numbers check (`grounding.ts:241`) like any non-Glean field,
   plus the domain, date and dash checks.
 - r2-m2: deliberate test edits also include `contracts.test.ts:159`, `:167`, `:245-246` (opportunities no longer in
@@ -232,5 +234,5 @@ database, AIVx files, the hub, the share and snapshot routes.
   wording change bumps the version.
 - r2-m5: "sites" when `new Set(d.ownDomains.filter(Boolean)).size > 1` (§9 m2's rule; it replaces P3's).
 - r2-m6: a roster competitor's site that Peec classifies CORPORATE is in neither the Technical share nor the gaps
-  (`metrics.ts:254`).
+  (`metrics.ts:254`) (true until #413 merges).
 
