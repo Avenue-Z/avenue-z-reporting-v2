@@ -103,6 +103,9 @@ ignores whatever Glean sends there, as it ignores the boxes (review round 1, M5)
 `slots.ts:171-176`). Generation sets `opportunities_layout: 'pillars'` on the new row (`generate.ts:101`). `codeSetPath`
 counts every `opportunities.N.*` path as code-set, so a flag there never asks Glean to retry. The Data block is
 unchanged (`v1-compat.test.ts:14-16` pins it).
+Changed in Paul's review: nothing reads Peec's actions now, so the pull no longer calls `/actions/list`, its warning
+("Peec actions could not be loaded...") and the "Loading Peec's recommendations" progress row go, new rows store no
+actions, and the Data block names actions only for an older row that stored some (that row's block is unchanged).
 
 **P5. Render.** When `opportunities_layout === 'pillars'`, the `#opportunities` section keeps its label (`04 / ` +
 `page.opps_label`) and title (`page.opps_title`) and replaces the table and footnote with a grid of three cards, one
@@ -220,7 +223,8 @@ database, AIVx files, the hub, the share and snapshot routes.
 - m7: an older build that saves a pillar draft stores `unchecked_number` notes on its data lines; a new build shows them
   until the next save.
 - m8: `DataSentences` is `sentences.ts:6`; `v1-compat.test.ts:14-16` pins a version-1 row's Data block only; the Data
-  block keeps Peec's actions line (`prompt.ts:58`), now read by no field, to keep it unchanged; PocketGuard's exact
+  block keeps Peec's actions line (`prompt.ts:58`) for an older row that stored actions (superseded for new rows by
+Paul's review, P4); PocketGuard's exact
   stored values are unverified (read from its staging donut only).
 
 ## 10. Review round 2 (changed lines only): one MAJOR (decided as D3), minors carried to the plan

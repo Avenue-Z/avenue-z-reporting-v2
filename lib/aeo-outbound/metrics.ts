@@ -292,7 +292,8 @@ export function buildSnapshotData(
     sourceMix,
     sourceMixWeight: decisions.sourceMixWeight,
     gapDomains,
-    actions: pull.actions.map((a) => ({ title: String(a.title ?? ''), impact: String(a.impact ?? ''), type: String(a.type ?? '') })).filter((a) => a.title).slice(0, 10),
+    // Round 3 (Paul, #415 review): the pull no longer reads Peec's actions. Older rows keep the ones they stored.
+    actions: [],
     promptCount: pull.promptCount,
     models: pull.models,
     notes,

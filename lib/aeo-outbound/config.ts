@@ -67,7 +67,6 @@ export const CONTRACT_MODES = {
   'peec.brands_by_model': 'enforce',
   'peec.model_channels': 'observe',
   'peec.domains_report': 'enforce',
-  'peec.actions': 'observe',
   'peec.prompts': 'enforce',
   'glean.slots': 'enforce',
   'request.generate': 'enforce',

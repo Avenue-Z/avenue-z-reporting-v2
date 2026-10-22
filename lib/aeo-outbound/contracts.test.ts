@@ -134,7 +134,7 @@ test('unused fields pass through untouched: the very same value comes back', () 
 test('every Peec boundary has a contract and starts in the documented mode', () => {
   expect(Object.keys(PEEC_CONTRACTS).sort()).toEqual(Object.keys(CONTRACT_MODES).filter((b) => b.startsWith('peec.')).sort())
   for (const b of ['peec.brands', 'peec.domains_by_date', 'peec.brands_report', 'peec.brands_by_model', 'peec.domains_report', 'peec.prompts'] as const) expect(CONTRACT_MODES[b]).toBe('enforce')
-  for (const b of ['peec.projects', 'peec.project_profile', 'peec.model_channels', 'peec.actions'] as const) expect(CONTRACT_MODES[b]).toBe('observe')
+  for (const b of ['peec.projects', 'peec.project_profile', 'peec.model_channels'] as const) expect(CONTRACT_MODES[b]).toBe('observe')
 })
 
 test('the generate body contract keeps the v1.0 rules: a non-empty projectId, and rerunOf null or a report id', () => {
@@ -189,7 +189,6 @@ const PULL: PeecPull = {
     { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
     { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, mentioned_brands: [{ id: 'kw_a' }] },
   ],
-  actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
   promptCount: 100, models: ['ChatGPT UI'], warnings: [],
 }
 

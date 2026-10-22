@@ -331,7 +331,8 @@ test('unchecked_number: the category only when it is not Peec\'s value; next_ste
 test('peec_recommends: no actions, a matching action, an unrelated one', () => {
   const sig = (signal: string) => ({ opportunities: [{ signal, opportunity: 'Explore it', workstream: 'Technical AEO / SEO' }, ...OPINION.opportunities.slice(1)] })
   expect(flagsFor(newRow(), sig('Peec recommends heading improvements'))).toEqual([{ kind: 'peec_recommends', path: 'opportunities.0.signal', text: 'Peec has no recommended actions for this project.' }])
-  const withActions = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }, { id: 'b', title: 'Add image descriptions', impact: 'LOW', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  // A row from before round 3 stored Peec's actions; the pull no longer reads them (Paul, #415 review).
+  const withActions = { ...newRow(), actions: [{ title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE' }, { title: 'Add image descriptions', impact: 'LOW', type: 'SEO_ISSUE' }] }
   expect(flagsFor(withActions, sig('Peec recommends heading improvements'))).toEqual([])
   expect(flagsFor(withActions, sig('Peec recommends schema markup'))).toEqual([{ kind: 'peec_recommends', path: 'opportunities.0.signal', text: "Check this against Peec's recommended actions: Give this page an H1 heading; Add image descriptions." }])
   expect(flagsFor(withActions, sig('Peec’s data points to schema'))).toEqual([])
@@ -414,7 +415,7 @@ test('a row without sentences keeps today\'s flags: a Glean number is number_not
 
 // Fix round after the Tasks 37 to 40 review.
 test('a digit inside a word (H1, B2B) is not a number; Peec action titles are removed before the scan', () => {
-  const d = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  const d = { ...newRow(), actions: [{ title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE' }] }
   const sig = { opportunities: [{ signal: 'Peec recommends H1 heading fixes', opportunity: 'Explore B2B pages', workstream: 'Technical AEO / SEO' }, ...OPINION.opportunities.slice(1)] }
   expect(flagsFor(d, sig)).toEqual([])
   // "24/7" is an idiom, not a figure (Paul's review of #388, C8); a plain 24 still is.
@@ -423,7 +424,7 @@ test('a digit inside a word (H1, B2B) is not a number; Peec action titles are re
 })
 
 test('peec_recommends ignores common words: only words of five letters or more, not stop words, count as a match', () => {
-  const d = newRow({ ...LIVE_SHAPE_PULL, actions: [{ id: 'a', title: 'Fix broken links with redirects', impact: 'LOW', type: 'SEO_ISSUE', status: 'PENDING' }] })
+  const d = { ...newRow(), actions: [{ title: 'Fix broken links with redirects', impact: 'LOW', type: 'SEO_ISSUE' }] }
   const sig = { opportunities: [{ signal: 'Peec recommends earning coverage with editorial outlets', opportunity: 'Explore it', workstream: 'PR / earned media' }, ...OPINION.opportunities.slice(1)] }
   expect(flagsFor(d, sig).map((n) => n.kind)).toEqual(['peec_recommends'])
 })

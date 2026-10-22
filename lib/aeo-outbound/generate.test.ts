@@ -48,7 +48,6 @@ const base: Record<string, Route> = {
     ? [{ brand: { id: 'kw_own' }, model_channel: { id: 'openai-0' }, visibility_total: 10 }, { brand: { id: 'kw_own' }, model_channel: { id: 'google-0' }, visibility_total: 0 }]
     : [{ brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.15, share_of_voice: 0.2, position: 3.1 }, { brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
   '/model-channels': () => [{ id: 'openai-0', description: 'ChatGPT UI' }, { id: 'google-0', description: 'Google AI Overview' }],
-  '/actions/list': () => [{ id: 'a1', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }, { id: 'a2', title: 'Done thing', impact: 'LOW', type: 'SEO_ISSUE', status: 'COMPLETED' }],
   '/prompts': () => ({ data: [{ id: 'p1' }], total_count: 100 }),
 }
 const NOW = Date.parse('2026-10-08T12:00:00Z')
@@ -192,12 +191,12 @@ test('Q7: the fixed next step is written into next_step', async () => {
   expect(r.ok && r.slots.next_step).toBe(DECISIONS.fixedNextStep)
 })
 
-test('progress: pull reports steps 1 to 6 and 8, then generate reports 9 before the first Glean call', async () => {
+test('progress: pull reports steps 1 to 6, then generate reports 9 before the first Glean call (no step 8 since Paul\'s #415 review)', async () => {
   const steps: number[] = []
   const glean = vi.fn(async () => { steps.push(-1); return reply(GOOD) })
   await generateSnapshot('or_a', { ...deps(glean), onStep: (s) => steps.push(s) })
   // GOOD has numbers the fixture's Data block lacks, so a second attempt may follow; only the order up to the first call matters.
-  expect(steps.slice(0, 9)).toEqual([1, 2, 3, 4, 5, 6, 8, 9, -1])
+  expect(steps.slice(0, 8)).toEqual([1, 2, 3, 4, 5, 6, 9, -1])
 })
 
 test('progress: step 10 is reported before a second Glean attempt, and never when the second attempt is skipped (spec v1.1 §16.3)', async () => {
@@ -205,7 +204,7 @@ test('progress: step 10 is reported before a second Glean attempt, and never whe
   let calls = 0
   const glean = vi.fn(async () => { steps.push(-1); return calls++ === 0 ? reply('not json') : reply(GOOD) })
   await generateSnapshot('or_a', { ...deps(glean), onStep: (s) => steps.push(s) })
-  expect(steps.slice(7, 11)).toEqual([9, -1, 10, -1])
+  expect(steps.slice(6, 10)).toEqual([9, -1, 10, -1])
   const skipped: number[] = []
   let t = NOW
   const slow = vi.fn(async () => { t += 230_000; skipped.push(-1); return reply('not json') })

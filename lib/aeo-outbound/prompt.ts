@@ -55,7 +55,8 @@ export function dataBlock(d: SnapshotData): string {
     ownLine,
     `Source types by share of ${d.sourceMixWeight === 'usage_rate' ? "AI use (Peec's usage rate)" : 'retrievals'}: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
     `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
-    `Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ') || 'none'}`,
+    // Round 3 (Paul, #415 review): new rows store no actions, so the line is only for an older row that stored some.
+    ...(d.actions.length ? [`Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ')}`] : []),
   ]
   if (settingsUsedOf(d).methodologyStatesPromptsAndModels) lines.push(`Prompts tracked: ${d.promptCount ?? 'not reported'}`, `AI models covered: ${d.models.map(one).join(', ') || 'not reported'}`)
   return lines.join('\n')

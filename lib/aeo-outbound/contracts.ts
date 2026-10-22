@@ -78,7 +78,6 @@ export const PEEC_CONTRACTS = {
     enforce: z.array(z.looseObject({ domain: z.string().min(1), retrieved_chat_count: count, retrieval_count: count, usage_rate: z.number().min(0), retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
     observe: z.unknown(),
   },
-  'peec.actions': { observe: z.array(z.looseObject({ title: z.string().nullish(), impact: z.string().nullish(), type: z.string().nullish(), status: z.string().nullish() })) },
   'peec.prompts': { enforce: z.looseObject({ total_count: count }).nullable(), observe: z.unknown() },
 } satisfies Record<string, { observe: z.ZodType; enforce?: z.ZodType }>
 export type PeecBoundary = keyof typeof PEEC_CONTRACTS
