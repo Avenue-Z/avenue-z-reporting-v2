@@ -182,4 +182,6 @@ export const STORED_SLOTS = z.looseObject({
   opportunities_page: z.enum(['shown', 'hidden']).optional(),
   // Round 3 (Ryan, 2026-10-21): the pillar layout marker; absent reads today's table.
   opportunities_layout: z.literal('pillars').optional(),
+  // Round 3 (Ryan, 2026-10-21): the page-order marker; absent reads today's order.
+  section_order: z.literal('visibility_first').optional(),
 })

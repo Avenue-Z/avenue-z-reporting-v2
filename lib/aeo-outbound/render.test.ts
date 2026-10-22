@@ -107,6 +107,47 @@ test('round 3: a new row reads Executive Summary in menu item 01 and as the head
   expect(h).not.toContain('Headline signal')
 })
 
+const VIS_FIRST: Slots = { ...SLOTS, section_order: 'visibility_first' }
+const menuOf = (doc: Document) => [...doc.querySelectorAll('.sidebar-nav a')].map((a) => [a.getAttribute('href'), a.querySelector('.nav-num')!.textContent])
+const sectionIds = (doc: Document) => [...doc.querySelectorAll('section[id]')].map((e) => e.id)
+
+test('round 3: a row with the marker lists Competitive Visibility at 02 and Cited Sources at 03, in the menu and on the page, in every mode', () => {
+  for (const mode of ['final', 'preview', 'draft'] as const) {
+    const doc = parse(renderSnapshotHtml(DATA, VIS_FIRST, mode, 'x'))
+    expect(menuOf(doc)).toEqual([['#headline', '01'], ['#competitive-visibility', '02'], ['#category-data', '03'], ['#opportunities', '04'], ['#methodology', '05']])
+    expect(sectionIds(doc)).toEqual(['headline', 'competitive-visibility', 'category-data', 'opportunities', 'methodology'])
+    expect(doc.querySelector('#competitive-visibility .section-label')!.textContent).toMatch(/^02 \/ /)
+    expect(doc.querySelector('#category-data .section-label')!.textContent).toMatch(/^03 \/ /)
+  }
+})
+
+test('round 3: with the marker each section keeps its own title, bullets and chart, and the menu copies follow the page', () => {
+  const doc = parse(renderSnapshotHtml(DATA, VIS_FIRST, 'draft', 'x'))
+  const cv = doc.getElementById('competitive-visibility')!
+  const cd = doc.getElementById('category-data')!
+  expect(cv.querySelector('h2')!.getAttribute('data-slot')).toBe('page.section_2_title')
+  expect(cv.querySelector('[data-slot="sources_bullets.0.lead"]')).not.toBeNull()
+  expect(cv.querySelector('[data-slot="page.chart_2_title"]')).not.toBeNull()
+  expect(cd.querySelector('h2')!.getAttribute('data-slot')).toBe('page.section_1_title')
+  expect(cd.querySelector('[data-slot="competitive_bullets.0.lead"]')).not.toBeNull()
+  expect(cd.querySelector('[data-slot="page.chart_1_title"]')).not.toBeNull()
+  expect([...doc.querySelectorAll('[data-mirror-edit]')].map((e) => e.getAttribute('data-mirror'))).toEqual(['page.headline_label', 'page.section_2_title', 'page.section_1_title', 'page.opps_label'])
+})
+
+test('round 3: a row without the marker keeps today\'s order', () => {
+  const doc = parse(renderSnapshotHtml(DATA, SLOTS, 'final', 'x'))
+  expect(menuOf(doc)).toEqual([['#headline', '01'], ['#category-data', '02'], ['#competitive-visibility', '03'], ['#opportunities', '04'], ['#methodology', '05']])
+  expect(sectionIds(doc)).toEqual(['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology'])
+})
+
+test('round 3, both features: a row with Competitive Visibility first and the Opportunities page hidden keeps Methodology right after 03', () => {
+  for (const mode of ['final', 'preview', 'draft'] as const) {
+    const doc = parse(renderSnapshotHtml(DATA, { ...VIS_FIRST, opportunities_page: 'hidden' }, mode, 'x'))
+    expect(menuOf(doc), mode).toEqual([['#headline', '01'], ['#competitive-visibility', '02'], ['#category-data', '03'], ['#methodology', '04']])
+    expect(sectionIds(doc), mode).toEqual(['headline', 'competitive-visibility', 'category-data', 'methodology'])
+  }
+})
+
 test('a short brand name is bolded only as a whole word', () => {
   const brands = [...BRANDS, { id: 's', name: 'amp', isOwn: false, visibilityPct: 1, sovPct: 1, position: 5, rank: 3 }]
   const h = renderSnapshotHtml({ ...DATA, brands }, { ...SLOTS, context: 'Tom & Jerry vs amp and camping.' }, 'final', 'x')

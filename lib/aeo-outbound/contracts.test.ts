@@ -200,6 +200,12 @@ test('the stored contracts accept what metrics and slots write today, version 1 
   expect(checkContract('stored.slots', STORED_SLOTS, withDefaults(V1_SLOTS, v2), 'enforce')).toEqual({ ok: true })
 })
 
+test('round 3: the stored slots accept the page-order marker, refuse another value, and read a row without it', () => {
+  expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, section_order: 'visibility_first' }, 'enforce')).toEqual({ ok: true })
+  expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, section_order: 'sources_first' }, 'enforce').ok).toBe(false)
+  expect(checkContract('stored.slots', STORED_SLOTS, V1_SLOTS, 'enforce')).toEqual({ ok: true })
+})
+
 test('stored data declares the spec v1.1 §19.5 fields: optional, and refused when the wrong shape', () => {
   const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
   expect([v2.sentences, v2.ownSiteRank, v2.noDataBrands]).toEqual([SENTENCES_VERSION, 1, []])

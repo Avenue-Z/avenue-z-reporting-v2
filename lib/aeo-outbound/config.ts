@@ -1,8 +1,9 @@
 // Ryan's answers to the spec's §13 questions (docs/superpowers/specs/2026-10-08-aeo-outbound-snapshot-design.md).
 // Each default is the spec's assumption. When he answers, change the value here and nowhere else.
 export const DECISIONS = {
-  /** Q1: titles of the two data sections, first (strengths) then second (gaps). */
-  sectionTitles: ['Category data', 'Competitive visibility'] as readonly [string, string],
+  /** Q1: titles of the two data sections: first the sources section (the Domain Types donut), then the competitive
+   *  visibility section (the bars). Round 3 (Ryan, 2026-10-21): renamed, and new rows show the visibility section first. */
+  sectionTitles: ['Cited Sources', 'Competitive Visibility'] as readonly [string, string],
   /** Q2: null ranks the brand among every brand tracked in Peec. A number N (2 or more) ranks it among itself and
    *  the N - 1 competitors with the highest visibility, like the 7 brands Peec's dashboard shows. */
   rankAmong: null as number | null,
@@ -85,8 +86,9 @@ export type ContractBoundary = keyof typeof CONTRACT_MODES
 export const PAGE_WORDS_V1 = {
   series: 'AI Visibility Snapshot',
   headline_label: 'Headline signal',
-  section_1_title: DECISIONS.sectionTitles[0],
-  section_2_title: DECISIONS.sectionTitles[1],
+  // The v1.0 words, frozen: DECISIONS.sectionTitles changed in round 3, and a row from before v1.1 keeps these.
+  section_1_title: 'Category data',
+  section_2_title: 'Competitive visibility',
   opps_label: 'Opportunities',
   method_nav: 'Methodology',
   category_label: 'Category:',

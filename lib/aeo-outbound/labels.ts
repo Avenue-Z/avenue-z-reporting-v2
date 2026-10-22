@@ -8,9 +8,9 @@ const SCALAR_LABELS: Record<string, string> = {
   why: 'Why it matters', methodology: 'Methodology', next_step: 'Next step', brand: 'Brand name', window_label: 'Data window',
 }
 const PAGE_LABELS: Record<PageKey, string> = {
-  series: 'Report name', headline_label: 'Headline label', section_1_title: 'First section title', section_2_title: 'Second section title',
+  series: 'Report name', headline_label: 'Headline label', section_1_title: 'Sources section title', section_2_title: 'Visibility section title',
   opps_label: 'Opportunities label', method_nav: 'Methodology menu item', category_label: 'Category label', market_label: 'Market label',
-  window_prefix: 'Data window label', chart_1_title: 'First chart title', chart_2_title: 'Second chart title', why_title: 'Why it matters title',
+  window_prefix: 'Data window label', chart_1_title: 'Domain types chart title', chart_2_title: 'Visibility chart title', why_title: 'Why it matters title',
   opps_title: 'Opportunities title', opps_col_1: 'Opportunities table, first column', opps_col_2: 'Opportunities table, second column',
   opps_col_3: 'Opportunities table, third column', opps_takeaway: 'Opportunities footnote', method_label: 'Methodology label',
   next_label: 'Next step label', prepared_label: 'Prepared label', footer_name: 'Footer name', footer_desc: 'Footer description',

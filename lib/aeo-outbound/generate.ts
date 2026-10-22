@@ -98,8 +98,8 @@ export async function generateSnapshot(
       const checked = validateGeneratedSlots(parsed, fixedNow)
       if (!checked.ok) { problems = checked.errors; continue }
       // v1.1 §3: the row is created with every key: brand, window label and KPIs from its data, words from settings.
-      // Round 3: every new row shows the pillars.
-      const full: FullSlots = { ...withDefaults(checked.slots, data), page: pageDefaults(settings), opportunities_layout: 'pillars' }
+      // Round 3: every new row shows the pillars, and Competitive Visibility before Cited Sources.
+      const full: FullSlots = { ...withDefaults(checked.slots, data), page: pageDefaults(settings), opportunities_layout: 'pillars', section_order: 'visibility_first' }
       const flags = groundingFlags(full, data, block)
       if (!flags.length) return { ok: true, brandName, data, slots: full, notes: data.notes }
       if (!groundedFallback || flags.length <= groundedFallback.flags.length) groundedFallback = { slots: full, flags }

@@ -477,10 +477,11 @@ test('legend: a font still loading re-checks when it arrives; a loaded font adds
 // The menu highlights 05 at the bottom of the page (v1.1 §17.12). AIVx's real scroll-spy runs first, then PAGE_JS, as in
 // the page. getBoundingClientRect is stubbed so the sections sit where the test says; the scroll metrics are stubbed too.
 const SECTION_IDS = ['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology']
-function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean; hidden?: boolean }) {
-  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, o.hidden ? { ...V1_SLOTS, opportunities_page: 'hidden' as const } : V1_SLOTS, mode, 'Oct 8, 2026'), 'text/html')
+function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean; hidden?: boolean; slots?: Slots; ids?: string[] }) {
+  const slots = o.slots ?? V1_SLOTS
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, o.hidden ? { ...slots, opportunities_page: 'hidden' as const } : slots, mode, 'Oct 8, 2026'), 'text/html')
   if (o.edit) doc.querySelector('[data-slot]')!.setAttribute('contenteditable', 'true')
-  const ids = o.hidden ? SECTION_IDS.filter((id) => id !== 'opportunities') : SECTION_IDS
+  const ids = o.ids ?? (o.hidden ? SECTION_IDS.filter((id) => id !== 'opportunities') : SECTION_IDS)
   const tops = o.tops ?? (o.hidden ? [-900, -600, 0, 400] : [-900, -600, 0, 400, 700])
   ids.forEach((id, i) => {
     const el = doc.getElementById(id)!
@@ -523,6 +524,13 @@ test('in edit mode a click marks nothing new', () => {
   stubScroll()
   bootSpy('draft', { bottom: false, tops: [-900, -600, 700, 800, 900], edit: true })
   click(link('competitive-visibility'))
+  expect(actives()).toEqual(['#category-data'])
+})
+
+test('round 3: on a row with Competitive Visibility first, the scroll highlight follows the page order', () => {
+  // Tops follow the marker row's page order. With today's DOM order AIVx would visit Competitive Visibility last and pick it.
+  bootSpy('final', { bottom: false, slots: { ...V1_SLOTS, section_order: 'visibility_first' }, ids: ['headline', 'competitive-visibility', 'category-data', 'opportunities', 'methodology'] })
+  win.dispatchEvent(new Event('scroll'))
   expect(actives()).toEqual(['#category-data'])
 })
 
