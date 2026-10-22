@@ -3,6 +3,7 @@ import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData, type MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
 import { countText, dataSentences, listText, ordinal, pctText } from './sentences'
+import { PILLARS } from './config'
 
 const AT = '2026-10-14T13:00:00Z'
 const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' }
@@ -33,7 +34,7 @@ test('the live-shape fixture gives every sentence in Ryan\'s format, with Peec\'
   ])
   expect(s.sources_bullets).toEqual([
     { lead: 'Leadership gap:', text: 'Example Senior Living trails Carefinder by 96.7 percentage points in visibility and 99.7 points in share of voice; it trails Caringly by 0.2 points in visibility and matches it in share of voice.' },
-    { lead: 'Competitor domain gaps:', text: 'The largest gaps include health-institute.gov at 115 retrievals, medicare-info.gov at 90, retiree-benefits.gov at 60, and seniornews.example at 55.' },
+    { lead: 'Competitor domain gaps:', text: 'The largest gaps include caringly.example at 8 retrievals and rival-landing.example at 5.' },
     { lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by Institutional sources at 62% and Corporate sources at 22%; Editorial represents 2.7% and UGC 3.7%.' },
   ])
   expect(s.methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026: five brands compared, 104 prompts tracked, and answers from Google AI Overview, Gemini UI, and ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
@@ -146,13 +147,14 @@ test('leadership: the brand first, level at the top, alone with data, negative a
   expect(lb([['a', 'A', 0.5, 0.4], ['own', 'Own', 0.2, 0.2]])).toEqual({ lead: 'Leadership gap:', text: 'Own trails A by 30.0 percentage points in visibility and 20.0 points in share of voice.' })
 })
 
-test('competitor domain gaps: none, one, two, thousands', () => {
+test('competitor domain gaps: none, one, two, thousands; a competitor\'s roster site with no mentions counts', () => {
   const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-  const gap = (domain: string, chats: number) => ({ domain, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'a' }] })
+  const gap = (domain: string, chats: number) => ({ domain, classification: 'COMPETITOR', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'a' }] })
   const leads = (domains: PeecPull['domains']) => sent({ ...base, domains: [...base.domains, ...domains] }).sources_bullets.map((b) => b.lead)
   expect(leads([])).toEqual(['Leadership gap:', 'Source mix:'])
   expect(sent({ ...base, domains: [...base.domains, gap('one.example', 12)] }).sources_bullets[1].text).toBe('The largest gaps include one.example at 12 retrievals.')
   expect(sent({ ...base, domains: [...base.domains, gap('one.example', 1200), gap('two.example', 9)] }).sources_bullets[1].text).toBe('The largest gaps include one.example at 1.2K retrievals and two.example at 9.')
+  expect(sent({ ...base, domains: [...base.domains, { ...gap('a.example', 30), classification: 'CORPORATE', mentioned_brands: [] }] }).sources_bullets[1].text).toBe('The largest gaps include a.example at 30 retrievals.')
 })
 
 test('source mix: Editorial or UGC in the top two, one type only, empty, the own-site slice, a custom type', () => {
@@ -242,4 +244,71 @@ test('2026-10-20 amendment: a source-mix whole number rounds the exact share, as
   expect(mixOf([['INSTITUTIONAL', 6000], ['CORPORATE', 2446], ['EDITORIAL', 1000], ['UGC', 554]])).toEqual({
     lead: 'Source mix:', text: 'The domain mix is led by Institutional sources at 60% and Corporate sources at 24%; Editorial represents 10% and UGC 5.5%.',
   })
+})
+
+// Round 3 (Ryan, 2026-10-21): the pillar rows. Domains by [domain, classification, weight].
+const dom = ([domain, classification, w]: [string, string, number]) => ({ domain, classification, retrieved_chat_count: 1, retrieval_count: w, usage_rate: w, mentioned_brands: [] })
+const pillarsOf = (rows: [string, string, number][], extra: Partial<PeecPull> = {}) =>
+  sent({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]], extra), domains: rows.map(dom) }).opportunities
+const soloPillars = (rows: [string, string, number][]) => sent({ ...brandPull([['own', 'Own', 0.2, 1]]), domains: rows.map(dom) }).opportunities
+
+test('pillars: the slide names and descriptions in order, and one data line each from the citations', () => {
+  const p = pillarsOf([['ed.example', 'EDITORIAL', 19], ['own.example', 'OWN', 4], ['rival.example', 'COMPETITOR', 17], ['corp.example', 'CORPORATE', 60]])
+  expect(p.map((o) => o.workstream)).toEqual(PILLARS.map((x) => x.name))
+  expect(p.map((o) => o.opportunity)).toEqual(PILLARS.map((x) => x.description))
+  expect(p.map((o) => o.signal)).toEqual([
+    'Editorial sites make up 19% of citations in this window.',
+    "Own's own site makes up 4.0% of citations in this window.",
+    "Competitors' own websites make up 17% of citations in this window.",
+  ])
+})
+
+test('pillars D3 (a): an own subdomain Peec files under another type counts in the Content line, as the own-site bullet counts it', () => {
+  expect(pillarsOf([['own.example', 'OWN', 4], ['blog.own.example', 'CORPORATE', 6], ['corp.example', 'CORPORATE', 90]])[1].signal).toBe("Own's own site makes up 10% of citations in this window.")
+  expect(pillarsOf([['blog.own.example', 'CORPORATE', 5], ['corp.example', 'CORPORATE', 95]])[1].signal).toBe("Own's own site makes up 5.0% of citations in this window.")
+  const d = buildSnapshotData({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: [['own.example', 'OWN', 4], ['blog.own.example', 'CORPORATE', 6], ['corp.example', 'CORPORATE', 90]].map((r) => dom(r as [string, string, number])) }, AT, DEFAULTS, USED)
+  expect(d.ownMixWeight).toBe(10)
+})
+
+// Paul, #415 review: an own site Peec files as Editorial or Competitor counts once, in the Content line, never also as
+// earned media or a rival's site.
+test('pillars: an own site filed as Editorial or Competitor counts in the Content line only', () => {
+  expect(pillarsOf([['blog.own.example', 'EDITORIAL', 6], ['news.example', 'EDITORIAL', 14], ['corp.example', 'CORPORATE', 80]]).map((o) => o.signal)).toEqual([
+    'Editorial sites make up 14% of citations in this window.',
+    "Own's own site makes up 6.0% of citations in this window.",
+    "Competitors' own websites don't appear among citations in this window.",
+  ])
+  expect(pillarsOf([['blog.own.example', 'EDITORIAL', 6], ['rival.own.example', 'COMPETITOR', 4], ['corp.example', 'CORPORATE', 90]]).map((o) => o.signal)).toEqual([
+    "Editorial sites don't appear among citations in this window.",
+    "Own's own site makes up 10% of citations in this window.",
+    "Competitors' own websites don't appear among citations in this window.",
+  ])
+})
+
+test('pillars: absent slices, a share under 0.1%, an empty mix', () => {
+  expect(pillarsOf([['corp.example', 'CORPORATE', 100]]).map((o) => o.signal)).toEqual([
+    "Editorial sites don't appear among citations in this window.",
+    "Own's own site doesn't appear among citations in this window.",
+    "Competitors' own websites don't appear among citations in this window.",
+  ])
+  expect(pillarsOf([['ed.example', 'EDITORIAL', 0.04], ['corp.example', 'CORPORATE', 99.96]])[0].signal).toBe('Editorial sites make up under 0.1% of citations in this window.')
+  expect(pillarsOf([['corp.example', 'CORPORATE', 0]]).map((o) => o.signal)).toEqual(Array(3).fill('Peec reported no source types for this window.'))
+})
+
+test('pillars: no competitors tracked, a Competitor slice anyway, and an empty mix wins (spec §9 m3)', () => {
+  expect(soloPillars([['corp.example', 'CORPORATE', 100]])[2].signal).toBe('No competitors are tracked in this Peec project.')
+  expect(soloPillars([['rival.example', 'COMPETITOR', 20], ['corp.example', 'CORPORATE', 80]])[2].signal).toBe("Competitors' own websites make up 20% of citations in this window.")
+  expect(soloPillars([['corp.example', 'CORPORATE', 0]])[2].signal).toBe('Peec reported no source types for this window.')
+})
+
+test('pillars: two distinct own domains read "sites"; a repeated or empty entry does not (spec §10 r2-m5)', () => {
+  const own = (domains: string[]) => ({ ownBrand: { id: 'own', name: 'Own', is_own: true, domains } })
+  expect(pillarsOf([['own.example', 'OWN', 10], ['corp.example', 'CORPORATE', 90]], own(['own.example', 'own2.example']))[1].signal).toBe("Own's own sites make up 10% of citations in this window.")
+  expect(pillarsOf([['corp.example', 'CORPORATE', 100]], own(['own.example', 'own2.example']))[1].signal).toBe("Own's own sites don't appear among citations in this window.")
+  expect(pillarsOf([['own.example', 'OWN', 10], ['corp.example', 'CORPORATE', 90]], own(['own.example', 'own.example', '']))[1].signal).toBe("Own's own site makes up 10% of citations in this window.")
+})
+
+test('pillars: shares that differ but would round alike keep one decimal (spec §9 m1)', () => {
+  const p = pillarsOf([['ed.example', 'EDITORIAL', 17.4], ['rival.example', 'COMPETITOR', 16.6], ['corp.example', 'CORPORATE', 66]])
+  expect([p[0].signal, p[2].signal]).toEqual(['Editorial sites make up 17.4% of citations in this window.', "Competitors' own websites make up 16.6% of citations in this window."])
 })

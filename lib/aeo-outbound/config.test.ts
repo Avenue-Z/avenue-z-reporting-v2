@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { DECISIONS, PAGE_WORDS_V1, SENTENCES_VERSION } from './config'
+import { DECISIONS, PAGE_WORDS_V1, PILLARS, PILLARS_TITLE, SENTENCES_VERSION } from './config'
 
 test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
   expect(DECISIONS.sectionTitles).toEqual(['Cited Sources', 'Competitive Visibility'])
@@ -19,6 +19,17 @@ test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Pe
   expect(DECISIONS.sourceMixWeight).toBe('usage_rate')
 })
 
-test('2026-10-20 amendment: the code-written sentences are version 2, since the source-mix rounding changed', () => {
+test('the code-written sentences stay version 2: the pillar lines are new and told apart by their marker (Paul, #415 review)', () => {
   expect(SENTENCES_VERSION).toBe(2)
+})
+
+test('the three pillars (Ryan, round 3): the slide names in its order, descriptions and title in the slide\'s own casing', () => {
+  expect(PILLARS.map((p) => p.name)).toEqual(['Earned & Affiliate Media', 'Content and Creative', 'Technical Optimizations'])
+  expect(PILLARS.map((p) => p.description)).toEqual([
+    'Quality Citations from Trusted Media Publications are a key factor in determining the credibility and authority of information.',
+    'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.',
+    'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.',
+  ])
+  expect(PILLARS_TITLE).toBe('The Pillars of AI Search')
+  for (const p of PILLARS) expect(`${p.name} ${p.description}`).not.toMatch(/[0-9\u2013\u2014]/)
 })

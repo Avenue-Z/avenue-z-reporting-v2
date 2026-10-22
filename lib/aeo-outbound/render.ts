@@ -94,11 +94,12 @@ export const PAGE_CSS = [
   '.kpi-value.aeo-long{font-size:24px;line-height:1.15}',
   'html{color-scheme:dark}',
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
-  // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box and the figure
-  // below its title sits centred in it. The figures themselves are untouched.
+  // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box. The donut sits
+  // centred below its title; the bar chart starts right under its title (round 3, Ryan, 2026-10-21). No rule here
+  // sizes a figure.
   '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
-  '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
+  '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
   '#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}',
@@ -109,6 +110,11 @@ export const PAGE_CSS = [
   '#methodology .method-note{background:none;border:none;border-radius:0;padding:0;margin-top:16px;max-width:none;font-style:normal;font-size:15px;line-height:1.75;color:rgba(255,255,255,0.75)}',
   '#methodology .method-note>div+div{margin-top:14px}',
   '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
+  // Round 3 (Ryan, 2026-10-21): the pillar cards, one column on a phone; three from 901px (below).
+  '.aeo-pillars{display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px}',
+  '.aeo-pillar{display:flex;flex-direction:column;padding:24px}',
+  '.aeo-pillar-desc{font-size:14px;line-height:1.6;color:rgba(255,255,255,0.6);margin:10px 0 18px}',
+  '.aeo-pillar-line{margin:auto 0 0;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);font-size:16px;line-height:1.5;font-weight:600;color:#fff}',
   '@media (max-width: 900px){',
   '.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}',
   '.exec-summary{padding:40px 24px}',
@@ -131,13 +137,18 @@ export const PAGE_CSS = [
   '#opportunities .leaderboard tbody tr:nth-child(even) td{background:rgba(255,255,255,0.035)}',
   '#opportunities .leaderboard tbody tr:hover{background:none}',
   '#opportunities .chart-takeaway{border-top:none;padding:16px 0 0;margin:0;color:rgba(255,255,255,0.6)}',
+  '#opportunities .aeo-pillars{grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}',
   '}',
 ].join('\n')
 
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
  *  the phone donut shows each slice's own label (§17.2; since 2026-10-19 the figure's text, charts.ts sliceLabel, so
  *  phone, desktop and the source-mix sentence round a slice the same way), and the menu marks 05 at the bottom of the
- *  page, where AIVx's scroll-spy never reaches the short last section (§17.12). Registered before the frame script's
+ *  page, where AIVx's scroll-spy never reaches the short last section (§17.12). The donut's two legend columns fall back
+ *  to Plotly's flowing legend wherever a name would run into the next name in its row (or past the chart's edge, for a
+ *  name with nothing to its right, Paul's #410 review): checked once at load on a desktop width,
+ *  after each two-column draw, when a font still loading at load arrives, and 150ms after the last resize that changed
+ *  the chart's width (round 3, spec 2026-10-21 C5). Registered before the frame script's
  *  listener, so it runs first. */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
@@ -150,15 +161,18 @@ var n=e.target;if(!n||!n.closest)return;
 var a=n.closest('a[href^="#"]');
 if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(a.closest('.sidebar-nav'))setActive(a.getAttribute('href'));if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
 },true);
-var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
+var el=document.getElementById('aeo-chart-sources'),orig=null,cur=null,restored=false,fallen=false,w=-1,tmr=null;
 function copy(x){return JSON.parse(JSON.stringify(x))}
 function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
-function draw(d,l){try{var p=window.Plotly.react(el,d,l);if(p&&p.catch)p.catch(restore)}catch(err){restore()}}
-function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){draw(copy(orig.d),copy(orig.l));return}
+function draw(d,l,after){try{var p=window.Plotly.react(el,d,l);if(p&&p.then)p.then(after,restore);else if(after)after()}catch(err){restore()}}
+function fits(){var it=el.querySelectorAll('.legend .traces');if(it.length<2)return true;var e=[];for(var i=0;i<it.length;i++){var r=it[i].getBoundingClientRect(),t=it[i].querySelector('.legendtext')||it[i];e.push([Math.round(r.left),t.getBoundingClientRect().right,Math.round(r.top)])}var edge=el.getBoundingClientRect().right;for(var j=0;j<e.length;j++){var lim=edge;for(var k=0;k<e.length;k++)if(Math.abs(e[k][2]-e[j][2])<=2&&e[k][0]>e[j][0]&&e[k][0]<lim)lim=e[k][0];if(e[j][1]>lim-2)return false}return true}
+function check(){try{w=el.clientWidth;if(fallen||!cur||!cur.l.legend||!cur.l.legend.entrywidth||fits())return;fallen=true;var l=copy(cur.l);delete l.legend.entrywidth;delete l.legend.entrywidthmode;draw(copy(cur.d),l)}catch(err){}}
+function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){cur=orig;fallen=false;draw(copy(orig.d),copy(orig.l),check);return}
 var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],tx=t.text,total=0;if(!Array.isArray(tx)||tx.length!==v.length)return;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];
 t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{text}':''});t.labels=lab.map(function(x,i){return x+' '+tx[i]});
-if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');draw(d,l)}
-function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};if(!window.matchMedia)return;var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
+if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');cur={d:copy(d),l:copy(l)};fallen=false;draw(d,l,check)}
+function resized(){clearTimeout(tmr);tmr=setTimeout(function(){try{if(el.clientWidth===w)return;if(!fallen){check();return}restored=false;fallen=false;draw(copy(cur.d),copy(cur.l),check)}catch(err){}},150)}
+function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};cur=orig;w=el.clientWidth;window.addEventListener('resize',resized);var f=document.fonts;if(f&&f.status==='loading'&&f.ready&&f.ready.then)f.ready.then(check);if(!window.matchMedia){check();return}var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);else check();var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}
 })();`
 const PAGE_SCRIPT = `<script>${PAGE_JS}</script>`
@@ -223,6 +237,30 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   const t2 = p.section_2_title
   const brand = esc(s.brand)
   const chartMark = attr('data-locked', 'chart')
+  // Round 3 (Ryan, 2026-10-21): the Opportunities page can be turned off per report. Off, its menu item and section are
+  // not written and Methodology moves up to 04; on, the section is written as before (the table, or the pillar cards on
+  // a pillar row).
+  const oppsShown = s.opportunities_page !== 'hidden'
+  const methodNum = oppsShown ? '05' : '04'
+  const oppsNav = oppsShown ? `\n    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>` : ''
+  // Round 3 (Ryan, 2026-10-21): a pillar row shows three cards (name, description, data line) in place of the table and
+  // its footnote; a table row is byte-identical to before.
+  const oppsBody = s.opportunities_layout === 'pillars'
+    ? `<div class="aeo-pillars">${s.opportunities.map((o, i) => `<div class="cluster-card aeo-pillar">${slot('div', `opportunities.${i}.workstream`, o.workstream, 'cluster-name')}${slot('p', `opportunities.${i}.opportunity`, o.opportunity, 'aeo-pillar-desc')}${slot('p', `opportunities.${i}.signal`, o.signal, 'aeo-pillar-line')}</div>`).join('')}</div>`
+    : `<div class="leaderboard-wrap">
+    <table class="leaderboard">
+      <thead><tr>${slot('th', 'page.opps_col_1', p.opps_col_1)}${slot('th', 'page.opps_col_2', p.opps_col_2)}${slot('th', 'page.opps_col_3', p.opps_col_3)}</tr></thead>
+      <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal, '', label(p.opps_col_1))}${slot('td', `opportunities.${i}.opportunity`, o.opportunity, '', label(p.opps_col_2))}${slot('td', `opportunities.${i}.workstream`, o.workstream, '', label(p.opps_col_3))}</tr>`).join('')}</tbody>
+    </table>
+  </div>
+  ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}`
+  // Shown: the section with the table or the pillar cards. Hidden: nothing, whatever the layout.
+  const oppsSection = oppsShown ? `
+<section id="opportunities" class="section">
+  <div class="section-label">${fixed('04 / ')}${wrap('page.opps_label', p.opps_label)}</div>
+  ${slot('h2', 'page.opps_title', p.opps_title, 'section-title')}
+  ${oppsBody}
+</section>` : ''
   // Round 3 (Ryan, 2026-10-21): a row generated since the swap shows Competitive Visibility (02) before Cited Sources (03).
   // Each section keeps its id, title, bullet box and chart, and the menu items after them stay after both. A row without
   // the marker is byte-identical to before.
@@ -261,9 +299,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   <nav class="sidebar-nav">
     <a href="#headline"><span class="nav-num"${fixedMark}>01</span> ${mirror('page.headline_label', p.headline_label, false, true)}</a>
     ${firstNav}
-    ${secondNav}
-    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>
-    <a href="#methodology"><span class="nav-num"${fixedMark}>05</span> ${wrap('page.method_nav', p.method_nav)}</a>
+    ${secondNav}${oppsNav}
+    <a href="#methodology"><span class="nav-num"${fixedMark}>${methodNum}</span> ${wrap('page.method_nav', p.method_nav)}</a>
   </nav>
   <div class="sidebar-footer">
     ${slot('a', 'page.sidebar_link', p.sidebar_link, '', ' href="https://avenuez.com" target="_blank" rel="noopener"')}
@@ -294,20 +331,9 @@ ${secondSection}
     ${slot('div', 'page.why_title', p.why_title, '', ' style="font-size:18px;font-weight:900;color:var(--white);margin-bottom:12px"')}
     ${slot('p', 'why', s.why, '', ' style="font-size:15px;color:rgba(255,255,255,0.75);line-height:1.75;margin:0"')}
   </div>
-</section>
-<section id="opportunities" class="section">
-  <div class="section-label">${fixed('04 / ')}${wrap('page.opps_label', p.opps_label)}</div>
-  ${slot('h2', 'page.opps_title', p.opps_title, 'section-title')}
-  <div class="leaderboard-wrap">
-    <table class="leaderboard">
-      <thead><tr>${slot('th', 'page.opps_col_1', p.opps_col_1)}${slot('th', 'page.opps_col_2', p.opps_col_2)}${slot('th', 'page.opps_col_3', p.opps_col_3)}</tr></thead>
-      <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal, '', label(p.opps_col_1))}${slot('td', `opportunities.${i}.opportunity`, o.opportunity, '', label(p.opps_col_2))}${slot('td', `opportunities.${i}.workstream`, o.workstream, '', label(p.opps_col_3))}</tr>`).join('')}</tbody>
-    </table>
-  </div>
-  ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}
-</section>
+</section>${oppsSection}
 <section id="methodology" class="section">
-  <div class="section-label">${fixed('05 / ')}${mirror('page.method_nav', p.method_nav)}</div>
+  <div class="section-label">${fixed(`${methodNum} / `)}${mirror('page.method_nav', p.method_nav)}</div>
   ${slot('h2', 'page.method_title', p.method_title, 'section-title')}
   <div class="method-note"><div>${slot('strong', 'page.method_label', p.method_label)} ${slot('span', 'methodology', s.methodology)}</div><div>${slot('strong', 'page.next_label', p.next_label)} ${slot('span', 'next_step', s.next_step)}</div></div>
 </section>

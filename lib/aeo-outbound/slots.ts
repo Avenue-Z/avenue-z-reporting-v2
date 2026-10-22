@@ -3,7 +3,7 @@
 // v1.1 makes every visible word a slot: brand, window_label, kpis and the page words. A row from before v1.1 lacks those
 // keys; withDefaults fills them from the row's own data and the v1.0 words, never from live settings, so a settings
 // change never alters an existing row.
-import { NEEDS_VALIDATION, PAGE_WORDS_V1 } from './config'
+import { HEADLINE_LABEL, NEEDS_VALIDATION, PAGE_WORDS_V1, PILLARS_TITLE } from './config'
 import type { Kpi } from './metrics'
 
 export interface Bullet { lead: string; text: string }
@@ -35,11 +35,15 @@ export interface Slots {
   window_label?: string
   kpis?: Kpi[]
   page?: Partial<PageWords>
+  /** Round 3 (Ryan, 2026-10-21): the Opportunities page per report. Absent reads shown, so every older row is unchanged. */
+  opportunities_page?: 'shown' | 'hidden'
+  /** Round 3 (Ryan, 2026-10-21): every report generated after the pillars change; absent reads today's table. */
+  opportunities_layout?: 'pillars'
   /** Round 3 (Ryan, 2026-10-21): every row generated since the page swap; absent reads today's order (Cited Sources first). */
   section_order?: 'visibility_first'
 }
 /** Every key present: what saves, grounding and render work on. */
-export type FullSlots = Omit<Slots, 'brand' | 'window_label' | 'kpis' | 'page'> & { brand: string; window_label: string; kpis: Kpi[]; page: PageWords }
+export type FullSlots = Omit<Slots, 'brand' | 'window_label' | 'kpis' | 'page' | 'opportunities_page'> & { brand: string; window_label: string; kpis: Kpi[]; page: PageWords; opportunities_page: 'shown' | 'hidden' }
 
 export const MAX_VALUE = 1000
 export const MAX_LEAD = 80
@@ -50,8 +54,14 @@ const PATH = new RegExp(`^(?:(category|market|headline|summary|context|why|metho
 // Spec v1.1 18.12: in a draft each findings box holds 1 to 6 bullets (Glean still writes 2 or 3).
 export const MIN_BULLETS = 1
 export const MAX_BULLETS = 6
-const STRUCTURE = /^(competitive_bullets|sources_bullets)\.(?:add|([0-5])\.remove)$/
+const STRUCTURE = /^(?:(competitive_bullets|sources_bullets)\.(?:add|([0-5])\.remove)|opportunities_page\.(hide|show))$/
 export const isStructuralPath = (path: string): boolean => STRUCTURE.test(path)
+/** Round 3: turn the Opportunities page off or on. The first segment is no prefix of any text path, so the save queue's
+ *  structural cleanup (save-queue.ts) drops nothing else. */
+export const OPPS_HIDE = 'opportunities_page.hide'
+export const OPPS_SHOW = 'opportunities_page.show'
+/** The page words that sit on the Opportunities page, left out of slotEntries while it is hidden. */
+export const OPPS_PAGE_KEYS = ['opps_label', 'opps_title', 'opps_col_1', 'opps_col_2', 'opps_col_3', 'opps_takeaway'] as const satisfies readonly PageKey[]
 export const STRUCTURE_ERRORS = { full: 'A list can have at most six bullets.', min: 'A list needs at least one bullet.' } as const
 
 export function cleanValue(v: string): string {
@@ -75,15 +85,17 @@ export function limitFor(path: string): number {
   return path.endsWith('.lead') || path === 'category' ? MAX_LEAD : MAX_VALUE
 }
 
-/** The page words a new row is created with: v1.0's, with the section titles, wordmark and report name from settings (v1.1 §3). */
+/** The page words a new row is created with: v1.0's, with the section titles, wordmark and report name from settings
+ *  (v1.1 §3), "Executive Summary" as the headline label and the pillar title (round 3). */
 export function pageDefaults(s: { sectionTitles: readonly string[]; sidebarWordmark: string; series: string }): PageWords {
-  return { ...V1_WORDS, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series }
+  return { ...V1_WORDS, headline_label: HEADLINE_LABEL, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series, opps_title: PILLARS_TITLE }
 }
 
-/** Every key filled. Missing keys read the row's own data (brand, window label, KPIs) and the v1.0 words. Never mutates. */
+/** Every key filled. Missing keys read the row's own data (brand, window label, KPIs), the v1.0 words, and a shown
+ *  Opportunities page. Never mutates. */
 export function withDefaults(s: Slots, d: { brand: string; windowLabel: string; kpis: Kpi[] }): FullSlots {
-  const { brand, window_label, kpis, page, ...copy } = structuredClone(s)
-  return { ...copy, brand: brand ?? d.brand, window_label: window_label ?? d.windowLabel, kpis: kpis ?? structuredClone(d.kpis), page: { ...V1_WORDS, ...(page ?? {}) } }
+  const { brand, window_label, kpis, page, opportunities_page, ...copy } = structuredClone(s)
+  return { ...copy, brand: brand ?? d.brand, window_label: window_label ?? d.windowLabel, kpis: kpis ?? structuredClone(d.kpis), page: { ...V1_WORDS, ...(page ?? {}) }, opportunities_page: opportunities_page === 'hidden' ? 'hidden' : 'shown' }
 }
 
 export function applySlotPatch(slots: FullSlots, path: string, raw: unknown): { ok: true; slots: FullSlots } | { ok: false; error: string } {
@@ -112,15 +124,20 @@ export function applySlotPatch(slots: FullSlots, path: string, raw: unknown): { 
   return { ok: true, slots: next }
 }
 
-/** Add a bullet to a list shorter than MAX_BULLETS, or remove one from a list longer than MIN_BULLETS (v1.1 §3, 18.12).
- *  A remove checks its index first: one at or past the end is unknown field. value is the literal "structure": ignored,
- *  but it must be non-empty text, so the §9a rule holds for every PATCH. */
+/** Add a bullet to a list shorter than MAX_BULLETS, or remove one from a list longer than MIN_BULLETS (v1.1 §3, 18.12),
+ *  or turn the Opportunities page off or on (round 3; setting it to the state it has is a no-op). A remove checks its
+ *  index first: one at or past the end is unknown field. value is the literal "structure": ignored, but it must be
+ *  non-empty text, so the §9a rule holds for every PATCH. */
 export function applyStructure(slots: FullSlots, path: string, raw: unknown): { ok: true; slots: FullSlots } | { ok: false; error: string } {
   const m = STRUCTURE.exec(path)
   if (!m) return { ok: false, error: 'unknown field' }
   const checked = checkValue(raw, MAX_VALUE)
   if (!checked.ok) return checked
   const next: FullSlots = structuredClone(slots)
+  if (m[3]) {
+    next.opportunities_page = m[3] === 'hide' ? 'hidden' : 'shown'
+    return { ok: true, slots: next }
+  }
   const list = next[m[1] as 'competitive_bullets' | 'sources_bullets']
   if (m[2] === undefined) {
     if (list.length >= MAX_BULLETS) return { ok: false, error: STRUCTURE_ERRORS.full }
@@ -134,14 +151,19 @@ export function applyStructure(slots: FullSlots, path: string, raw: unknown): { 
   return { ok: true, slots: next }
 }
 
-/** Every [path, value] in page order: the copy as v1.0 listed it, then brand, window label, KPIs and page words. */
+/** Every [path, value] on the page, in page order: the copy as v1.0 listed it, then brand, window label, KPIs and page
+ *  words. A hidden Opportunities page leaves out its rows and its six page words (round 3). */
 export function slotEntries(s: FullSlots): [string, string][] {
+  const shown = s.opportunities_page !== 'hidden'
   const out: [string, string][] = SCALARS.map((k) => [k, s[k]])
   for (const list of ['competitive_bullets', 'sources_bullets'] as const) s[list].forEach((b, i) => { out.push([`${list}.${i}.lead`, b.lead], [`${list}.${i}.text`, b.text]) })
-  s.opportunities.forEach((o, i) => { out.push([`opportunities.${i}.signal`, o.signal], [`opportunities.${i}.opportunity`, o.opportunity], [`opportunities.${i}.workstream`, o.workstream]) })
+  if (shown) s.opportunities.forEach((o, i) => { out.push([`opportunities.${i}.signal`, o.signal], [`opportunities.${i}.opportunity`, o.opportunity], [`opportunities.${i}.workstream`, o.workstream]) })
   out.push(['brand', s.brand], ['window_label', s.window_label])
   s.kpis.forEach((k, i) => { out.push([`kpis.${i}.label`, k.label], [`kpis.${i}.value`, k.value]) })
-  for (const k of PAGE_KEYS) out.push([`page.${k}`, s.page[k]])
+  // Round 3: a hidden Opportunities page shows none of its six words. A shown pillar row shows no table, so its column
+  // words and footnote are not on the page either.
+  const skip: readonly string[] = !shown ? OPPS_PAGE_KEYS : s.opportunities_layout === 'pillars' ? ['opps_col_1', 'opps_col_2', 'opps_col_3', 'opps_takeaway'] : []
+  for (const k of PAGE_KEYS) if (!skip.includes(k)) out.push([`page.${k}`, s.page[k]])
   return out
 }
 
@@ -149,7 +171,7 @@ export function slotEntries(s: FullSlots): [string, string][] {
 export const needsValidationPaths = (s: FullSlots): string[] => slotEntries(s).filter(([, v]) => v.toLowerCase().includes(NEEDS_VALIDATION.toLowerCase())).map(([p]) => p)
 
 /** The slots code writes at generation (spec §6; v1.1 §19.2): category, market, an optional fixed next_step, and the
- *  data sentences (context, both boxes, methodology) when given. */
+ *  data sentences (context, both boxes, methodology) when given, and, since round 3, the pillar rows. */
 export interface FixedSlots {
   category: string
   market: string
@@ -158,6 +180,7 @@ export interface FixedSlots {
   methodology?: string
   competitive_bullets?: Bullet[]
   sources_bullets?: Bullet[]
+  opportunities?: Opportunity[]
 }
 
 /** Shape and limits for a model reply (spec §6). A field in `fixed` comes from code and is checked for length only; a
@@ -181,13 +204,20 @@ export function validateGeneratedSlots(raw: unknown, fixed: FixedSlots): { ok: t
     if (!Array.isArray(v) || v.length < 2 || v.length > 3) { errors.push(`${key}: needs 2 or 3 bullets`); return [] }
     return v.map((b, i) => ({ lead: text(`${key}.${i}.lead`, (b as Bullet)?.lead, MAX_LEAD), text: text(`${key}.${i}.text`, (b as Bullet)?.text) }))
   }
-  const opps = Array.isArray(o.opportunities) && o.opportunities.length === 3
-    ? o.opportunities.map((x, i) => ({
-        signal: text(`opportunities.${i}.signal`, (x as Opportunity)?.signal),
-        opportunity: text(`opportunities.${i}.opportunity`, (x as Opportunity)?.opportunity),
-        workstream: text(`opportunities.${i}.workstream`, (x as Opportunity)?.workstream),
+  // Round 3: code writes the pillar rows; a reply's opportunities are then ignored, as its boxes are.
+  const opps = fixed.opportunities
+    ? fixed.opportunities.map((x, i) => ({
+        signal: text(`opportunities.${i}.signal`, x.signal),
+        opportunity: text(`opportunities.${i}.opportunity`, x.opportunity),
+        workstream: text(`opportunities.${i}.workstream`, x.workstream),
       }))
-    : (errors.push('opportunities: needs exactly 3'), [])
+    : Array.isArray(o.opportunities) && o.opportunities.length === 3
+      ? o.opportunities.map((x, i) => ({
+          signal: text(`opportunities.${i}.signal`, (x as Opportunity)?.signal),
+          opportunity: text(`opportunities.${i}.opportunity`, (x as Opportunity)?.opportunity),
+          workstream: text(`opportunities.${i}.workstream`, (x as Opportunity)?.workstream),
+        }))
+      : (errors.push('opportunities: needs exactly 3'), [])
   const slots: Slots = {
     category: text('category', fixed.category),
     market: text('market', fixed.market),

@@ -27,10 +27,10 @@ export const SECOND_ATTEMPT_STEP = 10
 
 const CODE_SET_PATHS = ['brand', 'window_label', 'market']
 /** True for a path code or settings write, whose flags Glean cannot fix: page words, KPIs, brand, window label, market,
- *  the data sentences (spec v1.1 §19.2), and next_step while a fixed sentence is set. Such a flag is still stored as a
+ *  the data sentences (spec v1.1 §19.2), the pillar rows (round 3), and next_step while a fixed sentence is set. Such a flag is still stored as a
  *  note; it never asks Glean for another attempt. */
 export function codeSetPath(path: string, fixedNextStep: string | null): boolean {
-  if (/^(page|kpis)\./.test(path) || isCodeSentencePath(path)) return true
+  if (/^(page|kpis)\./.test(path) || /^opportunities\.\d\./.test(path) || isCodeSentencePath(path)) return true
   return CODE_SET_PATHS.includes(path) || (fixedNextStep !== null && path === 'next_step')
 }
 
@@ -98,7 +98,8 @@ export async function generateSnapshot(
       const checked = validateGeneratedSlots(parsed, fixedNow)
       if (!checked.ok) { problems = checked.errors; continue }
       // v1.1 §3: the row is created with every key: brand, window label and KPIs from its data, words from settings.
-      const full: FullSlots = { ...withDefaults(checked.slots, data), page: pageDefaults(settings), section_order: 'visibility_first' }
+      // Round 3: every new row shows the pillars, and Competitive Visibility before Cited Sources.
+      const full: FullSlots = { ...withDefaults(checked.slots, data), page: pageDefaults(settings), opportunities_layout: 'pillars', section_order: 'visibility_first' }
       const flags = groundingFlags(full, data, block)
       if (!flags.length) return { ok: true, brandName, data, slots: full, notes: data.notes }
       if (!groundedFallback || flags.length <= groundedFallback.flags.length) groundedFallback = { slots: full, flags }

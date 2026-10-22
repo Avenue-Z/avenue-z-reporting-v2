@@ -477,3 +477,18 @@ test('a structure 200 drops edits still pending for that list, whose indices no 
   expect(calls).toEqual(['competitive_bullets.0.remove', 'why'])
   expect(q.state).toMatchObject({ dirty: false, structuring: false })
 })
+
+test('a structural save of the Opportunities page switch keeps opportunities.* errors and dirt (spec §9 m10)', async () => {
+  const send = vi.fn(async (p: string, _v: string, r: number): Promise<SendResult> =>
+    p === 'opportunities.0.signal' ? { kind: 'bad', error: 'Too long.' } : { kind: 'ok', revision: r + 1 })
+  const q = new SaveQueue(send, 1, () => {})
+  q.markDirty('opportunities.0.signal'); q.edit('opportunities.0.signal', 'x')
+  await flush()
+  expect(q.state.badPaths).toEqual(['opportunities.0.signal'])
+  q.markDirty('opportunities.1.signal')
+  q.structure('opportunities_page.hide')
+  await flush()
+  expect(send.mock.calls.at(-1)?.slice(0, 2)).toEqual(['opportunities_page.hide', 'structure'])
+  expect(q.state.badPaths).toEqual(['opportunities.0.signal'])
+  expect(q.state.dirty).toBe(true)
+})

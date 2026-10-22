@@ -8,19 +8,26 @@ const C = goldens.cases as unknown as Record<string, Case>
 const plain = (x: unknown) => JSON.parse(JSON.stringify(x))
 
 for (const name of ['visibility_bar_12', 'visibility_bar_4']) {
-  test(`${name}: identical to AIVx's bar except the visibility hover, % labels and unclipped labels`, () => {
+  test(`${name}: identical to AIVx's bar except the visibility hover, % labels, unclipped labels, black plot area and 8px top margin`, () => {
     const lb = (C[name].input.leaderboard as { brand: string; citation_count: number }[])
     const ours = plain(visibilityBarFigure(lb.map((b) => ({ name: b.brand, visibilityPct: b.citation_count }))))
     const gold = plain(C[name].figure)
     expect(ours.data[0].hovertemplate).toBe('<b>%{y}</b><br>Visibility: %{x}%<extra></extra>')
     expect(ours.data[0].text).toEqual(ours.data[0].x.map((v: number) => `${v.toFixed(1)}%`))
     expect(ours.data[0].cliponaxis).toBe(false)
-    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].text; delete f.data[0].cliponaxis }
+    // Round 3 (Ryan, 2026-10-21): no grey behind the bars, and the bars start right under the chart title.
+    expect(ours.layout.plot_bgcolor).toBe('#000000')
+    expect(gold.layout.plot_bgcolor).toBe('#1a1a1a')
+    expect(ours.layout.margin).toEqual({ t: 8 })
+    expect(gold.layout.margin).toBeUndefined()
+    const keys = Object.keys(ours.layout)
+    expect(keys[keys.length - 1]).toBe('margin')
+    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].text; delete f.data[0].cliponaxis; delete f.layout.plot_bgcolor; delete f.layout.margin }
     expect(ours).toEqual(gold)
   })
 }
 for (const name of ['sources_8_types', 'sources_3_types']) {
-  test(`${name}: identical to AIVx's content-source donut except the whole-number labels and their hover`, () => {
+  test(`${name}: identical to AIVx's content-source donut except the whole-number labels, their hover, two legend columns and 24px sides`, () => {
     const eb = C[name].input.earned_breakdown as Record<string, { count: number }>
     const total = Object.values(eb).reduce((s, v) => s + v.count, 0)
     const mix = Object.entries(eb).map(([label, v]) => ({ label, weight: v.count, pct: pyRound((v.count / total) * 100, 1) }))
@@ -32,7 +39,21 @@ for (const name of ['sources_8_types', 'sources_3_types']) {
     expect(ours.data[0].text).toEqual(mix.map((m) => sliceLabel((m.weight / total) * 100)))
     expect(ours.data[0].hovertemplate).toBe('<b>%{label}</b><br>%{text}<extra></extra>')
     expect(gold.data[0].textinfo).toBe('percent')
-    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].textinfo; delete f.data[0].text }
+    // Round 3 (Ryan, 2026-10-21): two legend columns, appended after yanchor, and 24px sides so they fit. The grey
+    // plot_bgcolor stays on the donut: only the bar chart's changed.
+    expect(Object.keys(ours.layout.legend).slice(-3)).toEqual(['yanchor', 'entrywidth', 'entrywidthmode'])
+    expect(ours.layout.legend.entrywidth).toBe(0.5)
+    expect(ours.layout.legend.entrywidthmode).toBe('fraction')
+    expect(ours.layout.margin).toEqual({ l: 24, r: 24, t: 28, b: 64 })
+    expect(gold.layout.margin).toEqual({ l: 90, r: 90, t: 28, b: 64 })
+    expect(ours.layout.plot_bgcolor).toBe('#1a1a1a')
+    // Paul, #410 review: a uirevision keeps the slices a viewer hid when the page redraws the legend (checked in Plotly 3.5.0).
+    expect(ours.layout.uirevision).toBe('aeo-sources')
+    expect(gold.layout.uirevision).toBeUndefined()
+    for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].textinfo; delete f.data[0].text; delete f.layout.margin }
+    delete ours.layout.uirevision
+    delete ours.layout.legend.entrywidth
+    delete ours.layout.legend.entrywidthmode
     expect(ours).toEqual(gold)
   })
 }
