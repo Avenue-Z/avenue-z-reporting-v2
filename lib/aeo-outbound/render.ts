@@ -94,11 +94,12 @@ export const PAGE_CSS = [
   '.kpi-value.aeo-long{font-size:24px;line-height:1.15}',
   'html{color-scheme:dark}',
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
-  // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box and the figure
-  // below its title sits centred in it. The figures themselves are untouched.
+  // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box. The donut sits
+  // centred below its title; the bar chart starts right under its title (round 3, Ryan, 2026-10-21). No rule here
+  // sizes a figure.
   '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
-  '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
+  '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
   '#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}',
@@ -143,7 +144,11 @@ export const PAGE_CSS = [
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
  *  the phone donut shows each slice's own label (§17.2; since 2026-10-19 the figure's text, charts.ts sliceLabel, so
  *  phone, desktop and the source-mix sentence round a slice the same way), and the menu marks 05 at the bottom of the
- *  page, where AIVx's scroll-spy never reaches the short last section (§17.12). Registered before the frame script's
+ *  page, where AIVx's scroll-spy never reaches the short last section (§17.12). The donut's two legend columns fall back
+ *  to Plotly's flowing legend wherever a name would run into the next name in its row (or past the chart's edge, for a
+ *  name with nothing to its right, Paul's #410 review): checked once at load on a desktop width,
+ *  after each two-column draw, when a font still loading at load arrives, and 150ms after the last resize that changed
+ *  the chart's width (round 3, spec 2026-10-21 C5). Registered before the frame script's
  *  listener, so it runs first. */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
@@ -156,15 +161,18 @@ var n=e.target;if(!n||!n.closest)return;
 var a=n.closest('a[href^="#"]');
 if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(a.closest('.sidebar-nav'))setActive(a.getAttribute('href'));if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
 },true);
-var el=document.getElementById('aeo-chart-sources'),orig=null,restored=false;
+var el=document.getElementById('aeo-chart-sources'),orig=null,cur=null,restored=false,fallen=false,w=-1,tmr=null;
 function copy(x){return JSON.parse(JSON.stringify(x))}
 function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
-function draw(d,l){try{var p=window.Plotly.react(el,d,l);if(p&&p.catch)p.catch(restore)}catch(err){restore()}}
-function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){draw(copy(orig.d),copy(orig.l));return}
+function draw(d,l,after){try{var p=window.Plotly.react(el,d,l);if(p&&p.then)p.then(after,restore);else if(after)after()}catch(err){restore()}}
+function fits(){var it=el.querySelectorAll('.legend .traces');if(it.length<2)return true;var e=[];for(var i=0;i<it.length;i++){var r=it[i].getBoundingClientRect(),t=it[i].querySelector('.legendtext')||it[i];e.push([Math.round(r.left),t.getBoundingClientRect().right,Math.round(r.top)])}var edge=el.getBoundingClientRect().right;for(var j=0;j<e.length;j++){var lim=edge;for(var k=0;k<e.length;k++)if(Math.abs(e[k][2]-e[j][2])<=2&&e[k][0]>e[j][0]&&e[k][0]<lim)lim=e[k][0];if(e[j][1]>lim-2)return false}return true}
+function check(){try{w=el.clientWidth;if(fallen||!cur||!cur.l.legend||!cur.l.legend.entrywidth||fits())return;fallen=true;var l=copy(cur.l);delete l.legend.entrywidth;delete l.legend.entrywidthmode;draw(copy(cur.d),l)}catch(err){}}
+function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){cur=orig;fallen=false;draw(copy(orig.d),copy(orig.l),check);return}
 var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],tx=t.text,total=0;if(!Array.isArray(tx)||tx.length!==v.length)return;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];
 t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{text}':''});t.labels=lab.map(function(x,i){return x+' '+tx[i]});
-if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');draw(d,l)}
-function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};if(!window.matchMedia)return;var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
+if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');cur={d:copy(d),l:copy(l)};fallen=false;draw(d,l,check)}
+function resized(){clearTimeout(tmr);tmr=setTimeout(function(){try{if(el.clientWidth===w)return;if(!fallen){check();return}restored=false;fallen=false;draw(copy(cur.d),copy(cur.l),check)}catch(err){}},150)}
+function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};cur=orig;w=el.clientWidth;window.addEventListener('resize',resized);var f=document.fonts;if(f&&f.status==='loading'&&f.ready&&f.ready.then)f.ready.then(check);if(!window.matchMedia){check();return}var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);else check();var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}
 })();`
 const PAGE_SCRIPT = `<script>${PAGE_JS}</script>`

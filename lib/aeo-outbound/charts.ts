@@ -38,8 +38,9 @@ function cycledDonutPalette(n: number): string[] {
   }
   return out
 }
-/** agent.py:2477-2487 */
-const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top' })
+/** agent.py:2477-2487, plus two equal columns (round 3, Ryan, 2026-10-21): each entry is half the plot area's width.
+ *  PAGE_JS falls back to Plotly's flowing legend wherever a name would run into the next column (render.ts). */
+const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top', entrywidth: 0.5, entrywidthmode: 'fraction' })
 
 export function visibilityBarFigure(brands: { name: string; visibilityPct: number; isOwn?: boolean }[]): Figure {
   let top10 = [...brands.slice(0, 20)].sort((a, b) => b.visibilityPct - a.visibilityPct).slice(0, 10)
@@ -61,10 +62,15 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
     }],
     layout: {
       template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE,
+      // Round 3 (Ryan, 2026-10-21): a black plot area in place of PLOTLY_BASE's grey (this key keeps its place in the
+      // JSON), and an 8px top margin in place of Plotly's default 100, so the bars start right under the chart title.
+      // Left, right and bottom keep Plotly's defaults.
+      plot_bgcolor: '#000000',
       height: Math.max(420, top10.length * 38),
       xaxis: { title: { text: '' }, gridcolor: 'rgba(255,255,255,0.06)', showgrid: true, zeroline: false, tickfont: { color: '#A6A6A6', size: 11 } },
       yaxis: { title: { text: '' }, showgrid: false, tickfont: { color: '#FFFFFF', size: 12, family: 'Avenir' } },
       bargap: 0.38,
+      margin: { t: 8 },
     },
     config: CONFIG,
   }
@@ -94,7 +100,10 @@ export function sourceDonutFigure(mix: { label: string; weight: number; pct: num
       outsidetextfont: { family: 'Avenir', size: 14, color: '#FFFFFF' },
       hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
     }],
-    layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 90, r: 90, t: 28, b: 64 } },
+    // Sides of 24px (AIVx: 90) so two legend columns fit at the editor's width (round 3, spec C4).
+    // uirevision: a slice the viewer hid by clicking its legend entry stays hidden when the page redraws the legend
+    // (Paul, #410 review; checked in Plotly 3.5.0, 2026-10-22).
+    layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 24, r: 24, t: 28, b: 64 }, uirevision: 'aeo-sources' },
     config: CONFIG,
   }
 }

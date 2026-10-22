@@ -367,12 +367,13 @@ test('PAGE_CSS and PAGE_JS have no phone Share rules or proxy (v1.1 §17.11)', (
 
 /** v1.1 §17.8 and §17.10: the rules that close up the space beside the two charts and lay the findings out as rows, verbatim and in order.
  *  v1.1 18.12: rules 2 to 4 replace §17.8's display:flex on the first column, in its place, so both columns are flex
- *  columns and the chart card grows to a tall findings box with the figure centred in it. */
+ *  columns and the chart card grows to a tall findings box. Rule 4 centres the donut below its title; since round 3
+ *  (Ryan, 2026-10-21) the bar chart is left out of it, so it starts right under its title. */
 const CHART_SPACING_RULES = [
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
   '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
-  '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
+  '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   '#category-data .insight-box>.aeo-ctl,#competitive-visibility .insight-box>.aeo-ctl{align-self:flex-start}',
   '#category-data .insight-box ul,#competitive-visibility .insight-box ul{flex:1;justify-content:space-evenly;list-style:none}',
@@ -475,9 +476,10 @@ test('the chart card rules (spec v1.1 18.12): the three rules replace the first-
   expect(out.slice(at + 1, at + 5)).toEqual([
     '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
     '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
-    '#category-data .chart-wrap>.chart-title~*,#competitive-visibility .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
+    '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
     '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
   ])
+  expect(PAGE_CSS).not.toContain('#competitive-visibility .chart-wrap>.chart-title~*')
 })
 
 test('chart spacing rules (v1.1 §17.8): each is in the draft, preview and final page exactly once', () => {
