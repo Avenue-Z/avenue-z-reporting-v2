@@ -58,7 +58,7 @@ only at generation, so older rows keep their stored gaps.
 | Case | Expected |
 |---|---|
 | Brand outside the top 10 | It takes the tenth bar; the nine charted competitors give the gaps |
-| 10 or fewer brands with data | Every competitor with a Peec row is charted; gaps as before, except row 3 |
+| 10 or fewer brands with data | Every competitor with a Peec row is charted; gaps as before, except a competitor with no Peec row (next row) |
 | A competitor with no Peec row | Not charted (no bar), so its sites are no longer gaps (today `keptIds` includes it, `metrics.ts:154`) |
 | A competitor named in a bullet but not charted (the brand ranks 11th or lower, so Next-tier gap or Peer cluster names a neighbour off the chart; or a no-data brand in the context) | Its sites are not gaps, on purpose: the list follows the chart |
 | Competitors tied at the 10th bar | The chart and the gaps agree, because both use `chartedBrands` on the same ordered list |
@@ -67,7 +67,7 @@ only at generation, so older rows keep their stored gaps.
 | Peer range 10.0 / 10.1 | Kept / dropped |
 | Brand first or last | Its two neighbours on one side, same width rule |
 | Pillar share 0.4% / 1.0% / 2.4% / 2.4% beside 1.6% | "0.4%" / "1%" / "2%" / "2.4%" and "1.6%" (two different values never read alike) |
-| The Editorial pillar beside the source-mix bullet | Usually the same reading. They can still differ: the pillar's Editorial excludes the brand's own rows (`ownMixByType`), and the tie rule runs within each sentence |
+| The Editorial pillar beside the source-mix bullet | Usually the same reading. They can still differ: the pillar's Editorial excludes the brand's own rows (`ownMixByType`), and the tie rule runs once over the three pillar lines and separately over the source-mix sentence (`sentences.ts:379-381`, `:286`) |
 
 ## 5. Tests (written first)
 
