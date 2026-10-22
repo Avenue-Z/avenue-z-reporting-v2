@@ -344,8 +344,8 @@ test('code-written sentences: a brand named like a domain is never flagged, a no
   expect(dataSentences(d).context).toContain('Care.com')
   expect(flagsFor(d)).toEqual([])
   const edited = slotsFor(d)
-  edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Example Senior Living ranks third, with 4.4% visibility.' }, ...edited.competitive_bullets.slice(1)]
-  expect(groundingFlags(edited, d, dataBlock(d))).toEqual([{ kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"4.4%" does not match Peec\'s number in this sentence' }])
+  edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Examplesenior.com appears in 144 retrieved citations.' }, ...edited.competitive_bullets.slice(1)]
+  expect(groundingFlags(edited, d, dataBlock(d))).toEqual([{ kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"144" does not match Peec\'s number in this sentence' }])
 })
 
 test('code-written sentences: an own site whose domain starts with the brand name, or carries www., is not flagged (final review I2)', () => {
@@ -357,7 +357,7 @@ test('code-written sentences: an own site whose domain starts with the brand nam
     brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === 'kw_own' ? { ...b, brand: { ...b.brand, name } } : b)),
   })
   const prefix = newRow(rename('Examplesenior'))
-  expect(dataSentences(prefix).competitive_bullets[1].text).toContain('Examplesenior.com')
+  expect(dataSentences(prefix).competitive_bullets[0].text).toContain('Examplesenior.com')
   expect(flagsFor(prefix)).toEqual([])
   // A www. own row with no own domain on the roster prints without the www.
   const bare = newRow({
@@ -366,14 +366,14 @@ test('code-written sentences: an own site whose domain starts with the brand nam
     ownBrand: { ...LIVE_SHAPE_PULL.ownBrand, domains: [] },
     domains: LIVE_SHAPE_PULL.domains.map((r) => (r.domain === 'examplesenior.com' ? { ...r, domain: 'www.examplesenior.com' } : r)),
   })
-  expect(dataSentences(bare).competitive_bullets[1].text).toContain('Examplesenior.com')
+  expect(dataSentences(bare).competitive_bullets[0].text).toContain('Examplesenior.com')
   expect(flagsFor(bare)).toEqual([])
   // A domain that is not Peec's is still flagged in an edited code sentence.
   const edited = slotsFor(prefix)
-  edited.competitive_bullets = edited.competitive_bullets.map((b, i) => (i === 1 ? { ...b, text: 'Elsewhere.com appears among the top domains at 142 retrievals.' } : b))
+  edited.competitive_bullets = edited.competitive_bullets.map((b, i) => (i === 0 ? { ...b, text: 'Elsewhere.com appears in 142 retrieved citations.' } : b))
   expect(groundingFlags(edited, prefix, dataBlock(prefix)).map((n) => n.text)).toContain('"Elsewhere.com" is not a domain in the Peec data')
   // Only a whole domain is Peec's: one that merely ends with it is still flagged.
-  edited.competitive_bullets = edited.competitive_bullets.map((b, i) => (i === 1 ? { ...b, text: 'Fakeexamplesenior.com appears among the top domains at 142 retrievals.' } : b))
+  edited.competitive_bullets = edited.competitive_bullets.map((b, i) => (i === 0 ? { ...b, text: 'Fakeexamplesenior.com appears in 142 retrieved citations.' } : b))
   expect(groundingFlags(edited, prefix, dataBlock(prefix)).map((n) => n.text)).toContain('"Fakeexamplesenior.com" is not a domain in the Peec data')
 })
 
@@ -395,13 +395,13 @@ test('an edited code sentence that changes a count word is flagged; the same wor
   const d = newRow()
   const edit = (text: string) => {
     const s = slotsFor(d)
-    s.competitive_bullets = s.competitive_bullets.map((b, i) => (i === 0 ? { ...b, text } : b))
+    s.sources_bullets = s.sources_bullets.map((b, i) => (i === 1 ? { ...b, text } : b))
     return groundingFlags(s, d, dataBlock(d))
   }
-  expect(edit('Example Senior Living ranks third among the nine brands tracked, with 1.1% visibility and 0.1% share of voice.')).toEqual([
-    { kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"nine" does not match Peec\'s number in this sentence' },
+  expect(edit('Example Senior Living is 32.0 percentage points below the top-nine average visibility of 33.1%.')).toEqual([
+    { kind: 'number_not_in_data', path: 'sources_bullets.1.text', text: '"nine" does not match Peec\'s number in this sentence' },
   ])
-  expect(edit('Among the five brands tracked, Example Senior Living ranks third, with 1.1% visibility and 0.1% share of voice.')).toEqual([])
+  expect(edit('Against the top-three average visibility of 33.1%, Example Senior Living is 32.0 percentage points below.')).toEqual([])
 })
 
 test('a row without sentences keeps today\'s flags: a Glean number is number_not_in_data, never unchecked_number', () => {
@@ -431,14 +431,14 @@ test('peec_recommends ignores common words: only words of five letters or more, 
 test('a code-written sentence Ryan edits is compared with Peec\'s sentence: a changed number or rank word is flagged', () => {
   const d = newRow()
   const edited = slotsFor(d)
-  edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Example Senior Living ranks second among the five brands tracked, with 1.3% visibility and 0.1% share of voice.' }, ...edited.competitive_bullets.slice(1)]
+  edited.sources_bullets = [{ ...edited.sources_bullets[0], text: 'Example Senior Living is 0.4 percentage points behind Caringly in visibility, second from the top.' }, ...edited.sources_bullets.slice(1)]
   expect(groundingFlags(edited, d, dataBlock(d))).toEqual([
-    { kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"1.3%" does not match Peec\'s number in this sentence' },
-    { kind: 'number_not_in_data', path: 'competitive_bullets.0.text', text: '"second" does not match Peec\'s rank in this sentence' },
+    { kind: 'number_not_in_data', path: 'sources_bullets.0.text', text: '"0.4" does not match Peec\'s number in this sentence' },
+    { kind: 'number_not_in_data', path: 'sources_bullets.0.text', text: '"second" does not match Peec\'s rank in this sentence' },
   ])
   // A rewording with the same numbers is fine; a bullet whose lead Ryan changed is checked against all of Peec's numbers.
   const reworded = slotsFor(d)
-  reworded.competitive_bullets = [{ ...reworded.competitive_bullets[0], text: 'With 1.1% visibility and 0.1% share of voice, Example Senior Living is third of five.' }, { lead: 'My own lead:', text: 'It has 26% of answers.' }]
+  reworded.sources_bullets = [{ ...reworded.sources_bullets[0], text: 'Behind Caringly by 0.2 percentage points in visibility: Example Senior Living.' }, { lead: 'My own lead:', text: 'It has 26% of answers.' }]
   expect(groundingFlags(reworded, d, dataBlock(d))).toEqual([])
 })
 
@@ -461,9 +461,9 @@ test('a number token is read whole: H10 is a word, 10x and 10K are numbers named
 test('the exact sentence check runs only for rows written by the current sentences version', () => {
   const d = { ...newRow(), sentences: 99 } as unknown as SnapshotData
   const edited = slotsFor(newRow())
-  edited.competitive_bullets = [{ ...edited.competitive_bullets[0], text: 'Example Senior Living ranks second, with 1.3% visibility.' }, ...edited.competitive_bullets.slice(1)]
+  edited.sources_bullets = [{ ...edited.sources_bullets[0], text: 'Example Senior Living trails Caringly at 1.3% visibility.' }, ...edited.sources_bullets.slice(1)]
   // Another version's sentences differ by design, so they are checked against every Peec number instead (1.3% is Caringly's).
-  expect(groundingFlags(edited, d, dataBlock(d)).filter((n) => n.path === 'competitive_bullets.0.text')).toEqual([])
+  expect(groundingFlags(edited, d, dataBlock(d)).filter((n) => n.path === 'sources_bullets.0.text')).toEqual([])
   // It is still a new row: a number in Glean's words is still an unchecked_number item.
   expect(groundingFlags({ ...edited, why: 'It rose 4.4%.' }, d, dataBlock(d)).filter((n) => n.path === 'why').map((n) => n.kind)).toEqual(['unchecked_number'])
 })

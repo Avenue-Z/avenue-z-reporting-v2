@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData, type MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
-import { boxesV2, countText, dataSentences, listText, ordinal, pctText } from './sentences'
+import { boxesV2, countText, dataSentences, listText, ordinal, ownDomainText, pctText } from './sentences'
 
 const AT = '2026-10-14T13:00:00Z'
 const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' }
@@ -11,6 +11,8 @@ const build = (p: PeecPull = LIVE_SHAPE_PULL, decisions: MetricDecisions = DEFAU
 // The tests below pin today's boxes, which stay as boxesV2 for rows written before version 3 (spec 2026-10-22 B3): the
 // context and methodology come from today's writer, the boxes from boxesV2.
 const sent = (p: PeecPull = LIVE_SHAPE_PULL, decisions?: MetricDecisions, used?: typeof USED) => { const d = build(p, decisions, used); return { ...dataSentences(d), ...boxesV2(d) } }
+// Today's writer (spec 2026-10-22): the boxes as Ryan worded them.
+const now = (p: PeecPull = LIVE_SHAPE_PULL, decisions?: MetricDecisions, used?: typeof USED) => dataSentences(build(p, decisions, used))
 
 // Small pulls for the edge cases: brands by [id, name, visibility, share of voice].
 const brandPull = (rows: [string, string, number, number | null][], extra: Partial<PeecPull> = {}): PeecPull => {
@@ -244,4 +246,146 @@ test('2026-10-20 amendment: a source-mix whole number rounds the exact share, as
   expect(mixOf([['INSTITUTIONAL', 6000], ['CORPORATE', 2446], ['EDITORIAL', 1000], ['UGC', 554]])).toEqual({
     lead: 'Source mix:', text: 'The domain mix is led by Institutional sources at 60% and Corporate sources at 24%; Editorial represents 10% and UGC 5.5%.',
   })
+})
+
+// Ryan's PocketGuard example, rebuilt from the values measured read only on 2026-10-22 (spec §3).
+const POCKETGUARD: PeecPull = (() => {
+  const vis: [string, string, number][] = [['ynab', 'YNAB', 0.575], ['monarch', 'Monarch', 0.528], ['monarch_money', 'Monarch Money', 0.512], ['everydollar', 'EveryDollar', 0.394], ['quicken', 'Quicken', 0.387], ['own', 'PocketGuard', 0.333], ['you_need', 'You Need A Budget', 0.309], ['rocket', 'Rocket Money', 0.264]]
+  const roster = vis.map(([id, name]) => ({ id, name, is_own: id === 'own', domains: id === 'own' ? ['pocketguard.com'] : [`${id}.example`] }))
+  const row = (domain: string, classification: string, weight: number, extra: Record<string, unknown> = {}) => ({ domain, classification, retrieved_chat_count: 10, retrieval_count: weight, usage_rate: weight, mentioned_brands: [], ...extra })
+  return {
+    ...LIVE_SHAPE_PULL,
+    roster,
+    ownBrand: roster.find((r) => r.is_own)!,
+    brands: vis.map(([id, name, v]) => ({ brand: { id, name }, visibility: v, share_of_voice: 0.1, position: 2 })),
+    domains: [
+      row('pocketguard.com', 'OWN', 41, { retrieved_chat_count: 678, retrieved_percentage: 0.11758584807492195 }),
+      row('corp.example', 'CORPORATE', 367), row('news.example', 'EDITORIAL', 188), row('rival.example', 'COMPETITOR', 171),
+      row('gov.example', 'INSTITUTIONAL', 91), row('forum.example', 'UGC', 80), row('wiki.example', 'REFERENCE', 62),
+    ],
+  }
+})()
+
+test('round 3: Ryan\'s PocketGuard example reads word for word as he wrote it', () => {
+  const s = now(POCKETGUARD)
+  expect(s.competitive_bullets).toEqual([
+    { lead: 'Citation volume:', text: 'PocketGuard.com appears in 678 retrieved citations.' },
+    { lead: 'Citation rate:', text: 'PocketGuard is cited in 12% of tracked answers.' },
+    { lead: 'Source-type mix:', text: 'Corporate sources account for 37% of citations, followed by Editorial sources at 19%; UGC accounts for 8%.' },
+  ])
+  expect(s.sources_bullets).toEqual([
+    { lead: 'Next-tier gap:', text: 'PocketGuard is 5.4 percentage points behind Quicken in visibility.' },
+    { lead: 'Top-tier distance:', text: 'PocketGuard is 20.5 percentage points below the top-three average visibility of 53.8%.' },
+    { lead: 'Peer cluster:', text: 'PocketGuard sits within a 7.8-point visibility range alongside Quicken and You Need A Budget.' },
+  ])
+})
+
+test('round 3: the live-shape fixture in the new boxes', () => {
+  const s = now()
+  expect(s.competitive_bullets).toEqual([
+    { lead: 'Citation volume:', text: 'Examplesenior.com appears in 142 retrieved citations.' },
+    { lead: 'Citation rate:', text: 'Example Senior Living is cited in 26% of tracked answers.' },
+    { lead: 'Source-type mix:', text: 'Institutional sources account for 62% of citations, followed by Corporate sources at 22%; Editorial accounts for 3% and UGC for 4%.' },
+  ])
+  expect(s.sources_bullets).toEqual([
+    { lead: 'Next-tier gap:', text: 'Example Senior Living is 0.2 percentage points behind Caringly in visibility.' },
+    { lead: 'Top-tier distance:', text: 'Example Senior Living is 32.0 percentage points below the top-three average visibility of 33.1%.' },
+    { lead: 'Peer cluster:', text: 'Example Senior Living sits within a 1.1-point visibility range alongside Caringly and Seniorway.' },
+    { lead: 'Competitor domain gaps:', text: 'The largest gaps include health-institute.gov at 115 retrievals, medicare-info.gov at 90, retiree-benefits.gov at 60, and seniornews.example at 55.' },
+  ])
+})
+
+const cv = (rows: [string, string, number, number | null][], extra: Partial<PeecPull> = {}) => now(brandPull(rows, extra)).sources_bullets.map((b) => b.text)
+
+test('round 3, Competitive Visibility box: first, level at the top, last, ties above, inside the top three', () => {
+  expect(cv([['own', 'Own', 0.5, 0.3], ['a', 'A', 0.4, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
+    'Own is 10.0 percentage points ahead of A in visibility.',
+    'Own is 15.0 percentage points above the top-two average visibility of 35.0%.',
+    'Own sits within a 20.0-point visibility range alongside A and B.',
+  ])
+  expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.5, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
+    'Own is level with A at the top in visibility.',
+    'Own is 10.0 percentage points above the top-two average visibility of 40.0%.',
+    'Own sits within a 20.0-point visibility range alongside A and B.',
+  ])
+  expect(cv([['a', 'A', 0.5, 0.3], ['b', 'B', 0.4, 0.2], ['own', 'Own', 0.2, 0.1]])).toEqual([
+    'Own is 20.0 percentage points behind B in visibility.',
+    'Own is 25.0 percentage points below the top-two average visibility of 45.0%.',
+    'Own sits within a 30.0-point visibility range alongside A and B.',
+  ])
+  expect(cv([['a', 'A', 0.5, 0.3], ['b', 'B', 0.4, 0.2], ['c', 'C', 0.4, 0.2], ['own', 'Own', 0.2, 0.1]])[0]).toBe('Own is 20.0 percentage points behind B and C in visibility.')
+  expect(cv([['a', 'A', 0.6, 0.3], ['own', 'Own', 0.5, 0.2], ['b', 'B', 0.4, 0.1], ['c', 'C', 0.3, 0.1], ['d', 'D', 0.2, 0.1]])[1]).toBe('Own is 6.7 percentage points above the top-three average visibility of 43.3%.')
+})
+
+test('round 3, Competitive Visibility box: one competitor, none tracked, none with data, all at zero, the brand at zero', () => {
+  expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.2, 0.1]])).toEqual(['Own is 30.0 percentage points behind A in visibility.'])
+  expect(now(brandPull([['own', 'Own', 0.2, 1]])).sources_bullets).toEqual([{ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers.' }])
+  const noData = { brands: [{ brand: { id: 'own', name: 'Own' }, visibility: 0.2, share_of_voice: 1, position: 2 }] }
+  expect(now(brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]], noData)).sources_bullets).toEqual([{ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers; no other brand tracked has Peec data in this window.' }])
+  expect(cv([['a', 'A', 0, 0], ['own', 'Own', 0, 0]])).toEqual(['No brand tracked shows visibility in this window.'])
+  expect(cv([['a', 'A', 0.3, 0.3], ['b', 'B', 0.1, 0.1], ['own', 'Own', 0, 0]])).toEqual([
+    'Own is 10.0 percentage points behind B in visibility.',
+    'Own is 20.0 percentage points below the top-two average visibility of 20.0%.',
+    'Own sits within a 30.0-point visibility range alongside A and B.',
+  ])
+})
+
+test('round 3, Competitive Visibility box: equal peers, a top-two average at a half tenth, a brand below tenth', () => {
+  expect(cv([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.3, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
+    'Own is level with A and B at the top in visibility.',
+    'Own matches the top-two average visibility of 30.0%.',
+    'Own sits at the same visibility as A and B.',
+  ])
+  expect(cv([['a', 'A', 0.501, 0.3], ['b', 'B', 0.502, 0.2], ['own', 'Own', 0.2, 0.1]])[1]).toBe('Own is 30.2 percentage points below the top-two average visibility of 50.2%.')
+  const many = Array.from({ length: 12 }, (_, i) => [`c${String(i).padStart(2, '0')}`, `C${i}`, 0.7 - i * 0.05, 0.1] as [string, string, number, number])
+  const low = cv([...many, ['own', 'Own', 0.1, 0.05]])
+  expect(low[0]).toBe('Own is 5.0 percentage points behind C11 in visibility.')
+  expect(low[2]).toBe('Own sits within a 10.0-point visibility range alongside C10 and C11.')
+})
+
+test('round 3, Cited Sources box: no own site retrieved; two own sites print the domain the same way in both bullets', () => {
+  const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
+  expect(now({ ...base, domains: base.domains.filter((r) => r.classification !== 'OWN') }).competitive_bullets.slice(0, 1)).toEqual([{ lead: 'Citation volume:', text: 'Own\'s own site does not appear in any retrieved citations in this window.' }])
+  expect(now({ ...base, domains: base.domains.filter((r) => r.classification !== 'OWN') }).competitive_bullets.map((b) => b.lead)).toEqual(['Citation volume:', 'Source-type mix:'])
+  const pg = brandPull([['a', 'A', 0.3, 0.3], ['own', 'PocketGuard', 0.2, 0.2]])
+  const two: PeecPull = {
+    ...pg,
+    roster: pg.roster.map((r) => (r.is_own ? { ...r, domains: ['pocketguard.com'] } : r)),
+    ownBrand: { ...pg.ownBrand, domains: ['pocketguard.com'] },
+    domains: [
+      { domain: 'pocketguard.com', classification: 'OWN', retrieved_chat_count: 50, retrieval_count: 60, usage_rate: 60, retrieved_percentage: 0.25, mentioned_brands: [] },
+      { domain: 'blog.pocketguard.com', classification: 'OWN', retrieved_chat_count: 20, retrieval_count: 20, usage_rate: 20, mentioned_brands: [] },
+      { domain: 'paper.example', classification: 'EDITORIAL', retrieved_chat_count: 40, retrieval_count: 40, usage_rate: 40, mentioned_brands: [] },
+    ],
+  }
+  expect(now(two).competitive_bullets.slice(0, 2).map((b) => b.text)).toEqual(['PocketGuard.com appears in 50 retrieved citations.', 'PocketGuard.com is cited in 25% of tracked answers.'])
+})
+
+test('round 3, the own-domain rule (D6): the brand\'s casing only for a one-word capitalised brand on the first label', () => {
+  expect(ownDomainText('pocketguard.com', 'PocketGuard')).toBe('PocketGuard.com')
+  expect(ownDomainText('www.pocketguard.com', 'PocketGuard')).toBe('PocketGuard.com')
+  expect(ownDomainText('blog.pocketguard.com', 'PocketGuard')).toBe('Blog.pocketguard.com')
+  expect(ownDomainText('monarchmoney.com', 'Monarch Money')).toBe('Monarchmoney.com')
+  expect(ownDomainText('bunq.com', 'bunq')).toBe('Bunq.com')
+  expect(ownDomainText('example.com', 'PocketGuard')).toBe('Example.com')
+})
+
+const nowMix = (rows: [string, number][]) => now({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: rows.map(([c, w], i) => ({ domain: `d${i}.example`, classification: c, retrieved_chat_count: 1, retrieval_count: w, usage_rate: w, mentioned_brands: [] })) }).competitive_bullets.at(-1)
+
+test('round 3, Source-type mix: edge lines, the own-site type first, and D5\'s whole percents', () => {
+  expect(nowMix([])).toEqual({ lead: 'Source-type mix:', text: 'Peec reported no source types for this window.' })
+  expect(nowMix([['CORPORATE', 100]])).toEqual({ lead: 'Source-type mix:', text: 'All citations come from Corporate sources.' })
+  expect(nowMix([['CORPORATE', 9996], ['OWN', 4]])).toEqual({ lead: 'Source-type mix:', text: 'Almost all citations come from Corporate sources.' })
+  expect(nowMix([['OWN', 60], ['CORPORATE', 40]])!.text).toBe('Own-site sources account for 60% of citations, followed by Corporate sources at 40%; Editorial accounts for 0.0% and UGC for 0.0%.')
+  expect(nowMix([['CORPORATE', 60], ['INSTITUTIONAL', 39.5], ['EDITORIAL', 0.4], ['UGC', 0.1]])!.text).toBe('Corporate sources account for 60% of citations, followed by Institutional sources at 40%; Editorial accounts for 0.4% and UGC for 0.1%.')
+  expect(nowMix([['CORPORATE', 60], ['INSTITUTIONAL', 28], ['EDITORIAL', 6.4], ['UGC', 5.6]])!.text).toBe('Corporate sources account for 60% of citations, followed by Institutional sources at 28%; Editorial accounts for 6.4% and UGC for 5.6%.')
+  expect(nowMix([['CORPORATE', 99.9], ['UGC', 0.1]])!.text).toBe('Corporate sources account for 99.9% of citations, followed by UGC sources at 0.1%; Editorial accounts for 0.0%.')
+})
+
+test('round 3: each new box holds 1 to 4 bullets in every edge case above', () => {
+  const pulls = [LIVE_SHAPE_PULL, POCKETGUARD, brandPull([['own', 'Own', 0.2, 1]]), brandPull([['a', 'A', 0, 0], ['own', 'Own', 0, 0]]), brandPull([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.2, 0.1]]), { ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: [] }]
+  for (const p of pulls) for (const box of [now(p).competitive_bullets, now(p).sources_bullets]) {
+    expect(box.length).toBeGreaterThanOrEqual(1)
+    expect(box.length).toBeLessThanOrEqual(4)
+  }
 })

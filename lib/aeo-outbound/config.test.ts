@@ -18,6 +18,6 @@ test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Pe
   expect(DECISIONS.sourceMixWeight).toBe('usage_rate')
 })
 
-test('2026-10-20 amendment: the code-written sentences are version 2, since the source-mix rounding changed', () => {
-  expect(SENTENCES_VERSION).toBe(2)
+test('2026-10-22: the code-written sentences are version 3, since the findings bullets follow Ryan\'s per-page wording', () => {
+  expect(SENTENCES_VERSION).toBe(3)
 })
