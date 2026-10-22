@@ -356,7 +356,7 @@ test('spec v1.1 §19.2: a reply with only the opinion fields makes a draft', asy
   expect(glean).toHaveBeenCalledTimes(1)
 })
 
-test('a project with no competitors gives 1 to 3 bullets per box and a draft', async () => {
+test('a project with no competitors gives 1 to 4 bullets per box and a draft', async () => {
   const solo: Record<string, Route> = {
     ...base,
     '/brands': () => [ROSTER[0]],
@@ -364,7 +364,7 @@ test('a project with no competitors gives 1 to 3 bullets per box and a draft', a
   }
   const r = await generateSnapshot('or_a', { peec: fakePeec(solo).client, glean: vi.fn(async () => reply(GOOD)), deadline: NOW + 270_000, now: () => NOW })
   if (!r.ok) throw new Error(r.error)
-  for (const box of [r.slots.competitive_bullets, r.slots.sources_bullets]) expect(box.length >= 1 && box.length <= 3).toBe(true)
+  for (const box of [r.slots.competitive_bullets, r.slots.sources_bullets]) expect(box.length >= 1 && box.length <= 4).toBe(true)
   expect(r.slots.context).toBe('No competitors are tracked in this Peec project.')
 })
 

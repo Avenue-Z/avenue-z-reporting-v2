@@ -19,8 +19,8 @@ test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Pe
   expect(DECISIONS.sourceMixWeight).toBe('usage_rate')
 })
 
-test('the code-written sentences stay version 2: the pillar lines are new and told apart by their marker (Paul, #415 review)', () => {
-  expect(SENTENCES_VERSION).toBe(2)
+test('2026-10-22: the code-written sentences are version 3, since the findings bullets follow Ryan\'s per-page wording; the pillar lines are told apart by their marker', () => {
+  expect(SENTENCES_VERSION).toBe(3)
 })
 
 test('the three pillars (Ryan, round 3): the slide names in its order, descriptions and title in the slide\'s own casing', () => {

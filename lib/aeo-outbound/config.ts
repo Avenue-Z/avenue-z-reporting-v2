@@ -34,10 +34,15 @@ export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 /** Spec v1.1 §19.5, §19.11: the version of the code-written sentences (sentences.ts). Bump it whenever their wording or
  *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. Version 2
- *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). The pillar data
- *  lines (round 3) do not use it: grounding tells a pillar row apart by its opportunities_layout marker, so changing their
- *  wording later needs a check of its own (Paul, #415 review). */
-export const SENTENCES_VERSION = 2
+ *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). Version 3
+ *  (2026-10-22): the findings bullets follow Ryan's per-page wording (spec 2026-10-22). The pillar data lines (round 3)
+ *  do not use it: grounding tells a pillar row apart by its opportunities_layout marker, so changing their wording later
+ *  needs a check of its own (Paul, #415 review). */
+export const SENTENCES_VERSION = 3
+/** The first sentences version whose context and methodology read as they do today (Paul, #417 review). A row from this
+ *  version on keeps the word-for-word check on those two, whatever SENTENCES_VERSION is. Set it to the new
+ *  SENTENCES_VERSION whenever context() or methodology() changes. Their wording has not changed since version 1. */
+export const CONTEXT_WORDING_SINCE = 2
 /** Round 3 (Ryan, 2026-10-21): the three pillars of the Avenue Z audit slide, in its order, shown on the Opportunities
  *  page of every new report with one data line each (sentences.ts pillars). The Content description completes the
  *  slide's sentence, which is cut off after "LLMs for". */
