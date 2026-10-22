@@ -236,7 +236,7 @@ test('the stored slots contract reads a box of 1 to 6 bullets, and refuses 0 or 
   }
 })
 
-test('spec v1.1 §19.2: the Glean reply needs only headline, summary, why and opportunities; code writes the rest', () => {
+test('spec v1.1 §19.2, round 3: the Glean reply needs only headline, summary and why; code writes the rest', () => {
   const reply = { headline: 'H', summary: 'S', why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })) }
   expect(checkContract('glean.slots', GLEAN_SLOTS, reply, 'enforce').ok).toBe(true)
   // Old keys Glean may still send are ignored, whatever their shape.

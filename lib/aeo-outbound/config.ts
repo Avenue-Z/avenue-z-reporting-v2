@@ -42,8 +42,8 @@ export const PILLARS = [
   { name: 'Content and Creative', description: 'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.' },
   { name: 'Technical Optimizations', description: 'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.' },
 ] as const
-/** The Opportunities page title on a new report: the slide's title, in its own casing (my decision, 2026-10-21: Ryan's
- *  client-facing copy keeps the slide's case, as with "Executive Summary"). */
+/** The Opportunities page title on a new report: the slide's title, in its own casing (my decision, 2026-10-21:
+ *  client-facing copy keeps the slide's case). */
 export const PILLARS_TITLE = 'The Pillars of AI Search'
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000

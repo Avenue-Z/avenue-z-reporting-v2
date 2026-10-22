@@ -1056,6 +1056,16 @@ test('the button keeps its state after a 400 or a 409', async () => {
   expect(oppsBtn()).toBeDisabled()
 })
 
+test('a refused opportunity cell keeps the switch disabled until it is fixed (spec S3, review round 1 M1)', async () => {
+  patch = async () => json(400, { error: 'Keep this under 1000 characters.' })
+  const { iframe } = await setup()
+  await fromFrame(iframe, { type: 'dirty', path: 'opportunities.0.signal' })
+  await fromFrame(iframe, { type: 'edit', path: 'opportunities.0.signal', value: 'x' })
+  await screen.findByText(/Keep this under 1000 characters/)
+  expect(oppsBtn()).toBeDisabled()
+  expect(oppsBtn().getAttribute('title')).toBe(approveBtn().getAttribute('title'))
+})
+
 test("disabled while an edit is unsaved, with Approve's title; a click that lands before that renders sends nothing (spec r2-1)", async () => {
   const { iframe } = await setup()
   act(() => {

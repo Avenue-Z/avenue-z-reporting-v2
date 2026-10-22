@@ -1,5 +1,6 @@
 // The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
-// methodology, written by code from a row's data so every number is Peec's. Glean writes only the opinion (§19.2).
+// methodology, and since round 3 the pillar data lines, written by code from a row's data so every number is Peec's.
+// Glean writes only the opinion (§19.2).
 import { PILLARS } from './config'
 import { pyRound, settingsUsedOf, tenths, type SnapshotData } from './metrics'
 import type { Bullet, Opportunity } from './slots'

@@ -134,7 +134,7 @@ test('the prompt and the Data block follow the settings the row was generated wi
   expect(p).not.toContain('the prompt count and the AI models covered')
 })
 
-test('Q5: with 0 Peec rows the prompt says nothing about actions; Q3: the category line names the 80-character limit', () => {
+test('Q5: the prompt says nothing about Peec actions, whatever the setting; Q3: the category line names the 80-character limit', () => {
   const zero = { ...D2, settingsUsed: { rankAmong: null, peecOpportunityRows: 0, methodologyStatesPromptsAndModels: true, fixedNextStep: null } } as unknown as SnapshotData
   const p = buildPrompt(zero, [])
   expect(p).not.toContain('Peec recommends')

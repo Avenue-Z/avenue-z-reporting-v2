@@ -230,7 +230,8 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   const brand = esc(s.brand)
   const chartMark = attr('data-locked', 'chart')
   // Round 3 (Ryan, 2026-10-21): the Opportunities page can be turned off per report. Off, its menu item and section are
-  // not written and Methodology moves up to 04; on, every byte is as before.
+  // not written and Methodology moves up to 04; on, the section is written as before (the table, or the pillar cards on
+  // a pillar row).
   const oppsShown = s.opportunities_page !== 'hidden'
   const methodNum = oppsShown ? '05' : '04'
   const oppsNav = oppsShown ? `\n    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>` : ''
