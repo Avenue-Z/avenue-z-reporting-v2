@@ -72,7 +72,7 @@ function sharePctAll(items: { pct: number; exact: number }[]): string[] {
   return items.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && items[j].pct !== v.pct) ? `${v.pct.toFixed(1)}%` : text[i]))
 }
 
-export function dataSentences(d: SnapshotData): DataSentences {
+function write(d: SnapshotData) {
   const brand = d.brand
   const own = d.own
   const N = d.rankN
@@ -236,7 +236,18 @@ export function dataSentences(d: SnapshotData): DataSentences {
     return `Snapshot based on Peec AI data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
   }
 
-  return { context: context(), competitive_bullets: firstBox(), sources_bullets: secondBox(), methodology: methodology() }
+  return { context: context(), methodology: methodology(), v2: { competitive_bullets: firstBox(), sources_bullets: secondBox() } }
+}
+
+export function dataSentences(d: SnapshotData): DataSentences {
+  const w = write(d)
+  return { context: w.context, competitive_bullets: w.v2.competitive_bullets, sources_bullets: w.v2.sources_bullets, methodology: w.methodology }
+}
+
+/** Spec 2026-10-22 B3: the version 2 boxes, kept unchanged so grounding can still allow the numbers that a row written with
+ *  them prints. Rows of today's version never use them. */
+export function boxesV2(d: SnapshotData): Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'> {
+  return write(d).v2
 }
 
 /** The own-site slice reads "own-site" in a sentence; every other type as the donut shows it. */

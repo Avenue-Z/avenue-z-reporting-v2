@@ -2,13 +2,15 @@ import { expect, test } from 'vitest'
 import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData, type MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
-import { countText, dataSentences, listText, ordinal, pctText } from './sentences'
+import { boxesV2, countText, dataSentences, listText, ordinal, pctText } from './sentences'
 
 const AT = '2026-10-14T13:00:00Z'
 const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' }
 const USED = { peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, fixedNextStep: null }
 const build = (p: PeecPull = LIVE_SHAPE_PULL, decisions: MetricDecisions = DEFAULTS, used = USED) => buildSnapshotData(p, AT, decisions, used)
-const sent = (p: PeecPull = LIVE_SHAPE_PULL, decisions?: MetricDecisions, used?: typeof USED) => dataSentences(build(p, decisions, used))
+// The tests below pin today's boxes, which stay as boxesV2 for rows written before version 3 (spec 2026-10-22 B3): the
+// context and methodology come from today's writer, the boxes from boxesV2.
+const sent = (p: PeecPull = LIVE_SHAPE_PULL, decisions?: MetricDecisions, used?: typeof USED) => { const d = build(p, decisions, used); return { ...dataSentences(d), ...boxesV2(d) } }
 
 // Small pulls for the edge cases: brands by [id, name, visibility, share of voice].
 const brandPull = (rows: [string, string, number, number | null][], extra: Partial<PeecPull> = {}): PeecPull => {
