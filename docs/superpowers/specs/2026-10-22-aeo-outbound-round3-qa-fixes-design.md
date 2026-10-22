@@ -39,13 +39,14 @@ competitors tracked). The Data block's gap line reads the same list, so Glean se
 Next-tier gap, Top-tier distance and the gaps bullet, still 1 to 4 bullets. PocketGuard's 7.8 keeps its bullet; a
 range of exactly 10.0 keeps it; 0 keeps "sits at the same visibility as".
 
-**F3. Pillar lines round like the source-mix bullet.** `pillarLines()` formats its shares with `mixPctAll` instead of
-`sharePctAll`, each share on its own: whole numbers from 1% rounding the exact share, one decimal below 1%, and "under
-0.1%" for a share that stores as 0.0 (unchanged). No tie rule across the three lines: on the dev click-through, A Place
-for Mom's Editorial (2.6) and own site (3.3) both round to 3%, and the tie rule turned them into "2.6%" beside the
-donut's "3%". The pillars are three separate facts, not a ranking, so they read as their donut slices do; this
-replaces the single rounding pass of the pillars spec §9 m1. So A Place for Mom's lines
-read 2%, 3% and 0.6%, and PocketGuard's Content line reads 4%.
+**F3. Pillar lines read exactly as the donut.** `pillarLines()` labels each share with the donut's own function,
+`sliceLabel` (`charts.ts`): the whole number of the exact share, with the donut's edge labels in words ("<1%" reads
+"under 1%", ">99%" reads "over 99%"). No tie rule across the three lines: they are separate facts, not a ranking, so two
+may read alike, as their slices do. History: the first version used `mixPctAll` (bullets spec D5); on the dev
+click-through A Place for Mom's Editorial (2.6) and own site (3.3) both round to 3%, its tie rule turned them into
+"2.6%" and "3.3%" beside the donut's 3%, and its one decimal below 1% read "0.6%" beside the donut's "1%". This
+replaces the single rounding pass of the pillars spec §9 m1. The source-mix bullet and the citation rate keep their
+own rules (D5, "under 0.1%").
 
 **Not changed:** the donut, every other sentence, the chart itself, stored contracts, the Settings form, the prompt.
 
@@ -74,7 +75,7 @@ only at generation, so older rows keep their stored gaps.
 | Editorial or UGC absent from the mix (source-mix bullet) | No clause for it, never "accounts for 0.0%"; one stored as 0.0 reads "under 0.1%" (adversarial review, M3; a dev defect from #417) |
 | Peer range 10.0 / 10.1 | Kept / dropped |
 | Brand first or last | Its two neighbours on one side, same width rule |
-| Pillar share 0.4% / 1.0% / 2.4% / 2.6% beside 3.3% | "0.4%" / "1%" / "2%" / "3%" and "3%", as the donut reads them |
+| Pillar share 0.3% / 0.6% / 2.4% / 2.6% beside 3.3% / 99.6% | "under 1%" / "1%" / "2%" / "3%" and "3%" / "over 99%", as the donut labels them |
 | The Editorial pillar beside the source-mix bullet | Usually the same reading. They can still differ: the pillar's Editorial excludes the brand's own rows (`ownMixByType`), and the source-mix sentence keeps its own tie rule (`sentences.ts:286`) |
 
 ## 5. Tests (written first)
@@ -84,7 +85,8 @@ only at generation, so older rows keep their stored gaps.
 - `metrics.test.ts`: an 11th-ranked competitor's own site is not a gap; a charted one's is; a cut parent with a
   charted subdomain; the PocketGuard shape (18 brands, gaps from charted competitors only).
 - `sentences.test.ts`: peer cluster at 7.8 kept, 10.0 kept, 10.1 dropped, 96.4 dropped (the A Place for Mom shape);
-  pillar lines at 2.4, 3.2, 0.6, 4.1 read 2%, 3%, 0.6%, 4%, and 2.6 beside 3.3 read 3% and 3%; Ryan's PocketGuard
+  pillar lines at 2.4, 3.2, 0.6, 4.1 read 2%, 3%, 1%, 4%, 2.6 beside 3.3 read 3% and 3%, 0.3 and 99.6 read "under 1%"
+  and "over 99%"; Ryan's PocketGuard
   sentences unchanged.
 - `metrics.test.ts`: a no-row competitor's site is no longer a gap; competitors tied at the 10th bar give the same set
   to the chart and the gaps.

@@ -290,26 +290,26 @@ test('pillars: an own site filed as Editorial or Competitor counts in the Conten
 })
 
 // Round 3 QA (spec 2026-10-22 F3): the pillar lines round like the source-mix bullet (D5), so one number reads one way.
-test('pillars: whole numbers from 1%, one decimal below 1%, each rounded on its own as the donut does', () => {
+test('pillars: each share reads exactly as its donut slice (sliceLabel), never a decimal', () => {
   expect(pillarsOf([['ed.example', 'EDITORIAL', 2.4], ['own.example', 'OWN', 3.2], ['rival.example', 'COMPETITOR', 0.6], ['corp.example', 'CORPORATE', 93.8]]).map((o) => o.signal)).toEqual([
     'Editorial sites make up 2% of citations in this window.',
     "Own's own site makes up 3% of citations in this window.",
-    "Competitors' own websites make up 0.6% of citations in this window.",
+    "Competitors' own websites make up 1% of citations in this window.",
   ])
   expect(pillarsOf([['own.example', 'OWN', 4.1], ['corp.example', 'CORPORATE', 95.9]])[1].signal).toBe("Own's own site makes up 4% of citations in this window.")
   // Each pillar rounds on its own, as the donut does: two pillars may read alike, but a pillar never reads differently
   // from its donut slice. Dev click-through (A Place for Mom): Editorial 2.6% and own 3.3% read "3%" each, as the donut.
   const alike = pillarsOf([['ed.example', 'EDITORIAL', 2.6], ['own.example', 'OWN', 3.3], ['rival.example', 'COMPETITOR', 0.6], ['corp.example', 'CORPORATE', 93.5]]).map((o) => o.signal)
-  expect(alike).toEqual(['Editorial sites make up 3% of citations in this window.', "Own's own site makes up 3% of citations in this window.", "Competitors' own websites make up 0.6% of citations in this window."])
+  expect(alike).toEqual(['Editorial sites make up 3% of citations in this window.', "Own's own site makes up 3% of citations in this window.", "Competitors' own websites make up 1% of citations in this window."])
 })
 
-test('pillars: absent slices, a share under 0.1%, an empty mix', () => {
+test('pillars: absent slices, a share the donut shows as <1%, an empty mix', () => {
   expect(pillarsOf([['corp.example', 'CORPORATE', 100]]).map((o) => o.signal)).toEqual([
     "Editorial sites don't appear among citations in this window.",
     "Own's own site doesn't appear among citations in this window.",
     "Competitors' own websites don't appear among citations in this window.",
   ])
-  expect(pillarsOf([['ed.example', 'EDITORIAL', 0.04], ['corp.example', 'CORPORATE', 99.96]])[0].signal).toBe('Editorial sites make up under 0.1% of citations in this window.')
+  expect(pillarsOf([['ed.example', 'EDITORIAL', 0.04], ['corp.example', 'CORPORATE', 99.96]])[0].signal).toBe('Editorial sites make up under 1% of citations in this window.')
   expect(pillarsOf([['corp.example', 'CORPORATE', 0]]).map((o) => o.signal)).toEqual(Array(3).fill('Peec reported no source types for this window.'))
 })
 
@@ -324,6 +324,11 @@ test('pillars: two distinct own domains read "sites"; a repeated or empty entry 
   expect(pillarsOf([['own.example', 'OWN', 10], ['corp.example', 'CORPORATE', 90]], own(['own.example', 'own2.example']))[1].signal).toBe("Own's own sites make up 10% of citations in this window.")
   expect(pillarsOf([['corp.example', 'CORPORATE', 100]], own(['own.example', 'own2.example']))[1].signal).toBe("Own's own sites don't appear among citations in this window.")
   expect(pillarsOf([['own.example', 'OWN', 10], ['corp.example', 'CORPORATE', 90]], own(['own.example', 'own.example', '']))[1].signal).toBe("Own's own site makes up 10% of citations in this window.")
+})
+
+test('pillars: the donut\'s edge labels read in words: under 1% and over 99%', () => {
+  expect(pillarsOf([['ed.example', 'EDITORIAL', 0.3], ['corp.example', 'CORPORATE', 99.7]])[0].signal).toBe('Editorial sites make up under 1% of citations in this window.')
+  expect(pillarsOf([['ed.example', 'EDITORIAL', 99.6], ['corp.example', 'CORPORATE', 0.4]])[0].signal).toBe('Editorial sites make up over 99% of citations in this window.')
 })
 
 test('pillars: shares that differ but round alike read alike, as their donut slices do (round 3 QA, replacing spec §9 m1)', () => {

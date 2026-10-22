@@ -1,6 +1,7 @@
 // The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
 // methodology, and since round 3 the pillar data lines, written by code from a row's data so every number is Peec's.
 // Glean writes only the opinion (§19.2).
+import { sliceLabel } from './charts'
 import { PILLARS } from './config'
 import { pyRound, settingsUsedOf, tenths, type SnapshotData } from './metrics'
 import type { Bullet, Opportunity } from './slots'
@@ -267,7 +268,7 @@ function write(d: SnapshotData) {
       const domain = ownDomainText(site.domain, brand)
       const n = site.retrievedChats
       out.push({ lead: 'Citation volume:', text: `${domain} appears in ${n >= 1000 ? 'approximately ' : ''}${countText(n)} retrieved ${n === 1 ? 'citation' : 'citations'}.` })
-      // A rate that rounds to 0.0 after a count above zero reads "under 0.1%", as the pillar lines do (Paul, #417 review).
+      // A rate that rounds to 0.0 after a count above zero reads "under 0.1%" (Paul, #417 review).
       const rate = site.retrievedPct === 0 ? 'under 0.1%' : site.retrievedPct === null ? null : pctText(site.retrievedPct)
       if (rate !== null) out.push({ lead: 'Citation rate:', text: `${d.ownSites!.length === 1 ? brand : domain} is cited in ${rate} of tracked answers.` })
     }
@@ -284,7 +285,7 @@ function write(d: SnapshotData) {
     const [t1, t2] = mix
     const named = new Set([t1.label, t2.label])
     // An Editorial or UGC type Peec does not report gets no clause, so the sentence never says "accounts for 0.0%"
-    // (adversarial review of #420, M3); one stored as 0.0 reads "under 0.1%", as the pillars do.
+    // (adversarial review of #420, M3); one stored as 0.0 reads "under 0.1%", as the citation rate does.
     const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l) && mix.some((m) => m.label === l))
     const total = mix.reduce((s, m) => s + m.weight, 0)
     const share = (l: string) => { const m = mix.find((x) => x.label === l); return { pct: m?.pct ?? 0, exact: m && total ? (m.weight / total) * 100 : 0 } }
@@ -383,12 +384,13 @@ function write(d: SnapshotData) {
     const competitor = outside('Competitor')
     const ownWeight = d.ownMixWeight ?? 0
     const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
-    // The shares shown, each rounded on its own below (round 3 QA replaced the single pass of pillars spec §9 m1).
-    const shown = [editorial, own, competitor].filter((x): x is { weight: number; pct: number } => !!x)
-    // Round 3 QA (spec 2026-10-22 F3): the source-mix bullet's rounding (D5), each share on its own, so a pillar reads as
-    // its donut slice does. The three are separate facts, not a ranking, so two may read alike (dev click-through).
-    const texts = shown.map((x) => mixPctAll([{ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 }])[0])
-    const share = (x: { weight: number; pct: number }) => (x.pct === 0 ? 'under 0.1%' : texts[shown.indexOf(x)])
+    // Round 3 QA (spec 2026-10-22 F3): each share reads exactly as the donut labels a slice (charts.ts sliceLabel), in
+    // words at the edges ("<1%" is "under 1%"), so a pillar never reads differently from its slice. The three are
+    // separate facts, not a ranking, so two may read alike; this replaced the single rounding pass of pillars spec §9 m1.
+    const share = (x: { weight: number; pct: number }) => {
+      const l = sliceLabel(total ? (x.weight / total) * 100 : 0)
+      return l === '<1%' ? 'under 1%' : l === '>99%' ? 'over 99%' : l
+    }
     // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
     const tail = 'of citations in this window.'
     const missing = 'among citations in this window.'
