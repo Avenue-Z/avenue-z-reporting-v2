@@ -934,13 +934,16 @@ From the review of the lock every number build. None blocks the October set.
      deliverable branch.
 
   **The manual way out, as far as reading the code gets us.** Delete that client's rows for the
-  month from `dash_response_locks` (`lib/db/schema.ts:421`: keyed by `client_id` + `request_key`,
-  with `period_end` the column to filter the month on), then let the next render or the next lock
-  sweep capture it again. Two things make that plausible rather than hopeful: `readLock`
-  (`lib/organic-social/response-lock-store.ts`) is a plain database select with no persistent cache
-  wrapper, so a deleted row is gone on the very next render; and the re-capture goes through the
-  uncached capture client (`lib/organic-social/base.ts`), so the replacement numbers come from Dash
-  now rather than from whatever Next's data cache still holds.
+  month from `dash_response_locks` (`lib/db/schema.ts:468`: keyed by `client_id` + `request_key`,
+  with `period_end` the column to filter the month on), then let the next render capture it again.
+  The lock sweep only runs from a month's lock day through two days after
+  (`lib/organic-social/lock-sweep.ts`), so outside that window the re-capture is the next view,
+  logged as a late lock. Two things make that plausible rather than hopeful: `readLock`
+  (`lib/organic-social/response-lock-store.ts`) looks the row up in the database on every read and
+  caches only the answer, keyed by the row's id, so a deleted row is gone on the very next render
+  and its recapture (a new row, a new id) is never served from the old cache entry; and the
+  re-capture goes through the uncached capture client (`lib/organic-social/base.ts`), so the
+  replacement numbers come from Dash now rather than from whatever Next's data cache still holds.
 
   **Unverified, and it is Paul's open question:** none of that has been executed end to end against
   a real deployment, so it is not known whether anything else in front of the page keeps serving
@@ -978,10 +981,11 @@ From the review of the lock every number build. None blocks the October set.
   to `null` in the same pass (a lock day is at most the 28th, so the month before last has always
   locked). The plan's own test asserts today's behaviour, so changing it is a deliberate decision,
   not a silent fix.
-- [ ] **The lock sweep runs on every hourly warmer run, not only on lock days**
-  (`app/api/cache-warm/route.ts:133`). It adds two months times the client's tabs of full report
-  renders per opted-in client to every run. Cheap once a month is captured (every read is a lock
-  hit), but worth a ceiling before the opted-in client count grows.
+- [x] **RESOLVED in #407: the lock sweep runs only from a month's lock day through two days after**
+  (`lib/organic-social/lock-sweep.ts`, `SWEEP_DAYS`). It had run on every hourly run, re-rendering two
+  months of tabs per opted-in client, and "cheap once captured" was not true: every lock hit pulled
+  the stored answer from Neon, about 9.5 MB a run, which used up the project's 5 GB monthly network
+  transfer on 2026-10-21. Lock reads are now also cached by row id (`response-lock-store.ts`).
 - [ ] **The cache-warm `ok` count cannot show whether a month was captured.** A report page
   returns 200 even when one part of it errored, so the count the cron reports says nothing about
   whether the lock sweep actually stored anything (`app/api/lock-sweep/route.ts`, which reports
