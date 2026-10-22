@@ -194,3 +194,16 @@ F8 (review log) are accepted as written and carried into the plan. The trial
 `lib/aeo-outbound/aivx/*` (AIVx CSS, script, template, favicon, share), the separate `Avenue-Z/aivx-reports` repo, bar
 colours, sort and height, donut colours, hole, slice labels and hover, the phone relabelling, the sentences, the
 prompt, the editor.
+
+## 10. Paul's review (2026-10-22)
+
+Both found in a real browser (Plotly 3.5.0, this branch's renderer, a local static page) before the fix and checked again
+after it. The same check confirmed `.legend .traces` and `.legendtext` match Plotly's legend and `entrywidth: 0.5` draws two
+columns.
+
+- **Fixed.** With an odd count the last name sits alone in its row, but `fits()` measured it against the second
+  column's start, so a long last name made the whole legend fall back (seven slices, the last one long: right edge 1173
+  against the second column at 1103). Each name is now limited by the next name in its own row, or by the chart's edge.
+- **Fixed.** A slice the viewer hid came back when the page redrew the legend after a fallback (`hiddenlabels` went to
+  null). The donut's layout now carries `uirevision: 'aeo-sources'`, which keeps it hidden through both redraws.
+- **Unchanged (FYI from Paul).** A chart drawn while hidden measures 0 by 0 and stays flowing until its width changes.

@@ -101,7 +101,9 @@ export function sourceDonutFigure(mix: { label: string; weight: number; pct: num
       hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
     }],
     // Sides of 24px (AIVx: 90) so two legend columns fit at the editor's width (round 3, spec C4).
-    layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 24, r: 24, t: 28, b: 64 } },
+    // uirevision: a slice the viewer hid by clicking its legend entry stays hidden when the page redraws the legend
+    // (Paul, #410 review; checked in Plotly 3.5.0, 2026-10-22).
+    layout: { template: AIVX_PLOTLY_TEMPLATE, ...PLOTLY_BASE, showlegend: true, legend: donutLegend(), height: 420, margin: { l: 24, r: 24, t: 28, b: 64 }, uirevision: 'aeo-sources' },
     config: CONFIG,
   }
 }

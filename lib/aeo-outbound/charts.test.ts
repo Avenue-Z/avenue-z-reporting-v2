@@ -47,7 +47,11 @@ for (const name of ['sources_8_types', 'sources_3_types']) {
     expect(ours.layout.margin).toEqual({ l: 24, r: 24, t: 28, b: 64 })
     expect(gold.layout.margin).toEqual({ l: 90, r: 90, t: 28, b: 64 })
     expect(ours.layout.plot_bgcolor).toBe('#1a1a1a')
+    // Paul, #410 review: a uirevision keeps the slices a viewer hid when the page redraws the legend (checked in Plotly 3.5.0).
+    expect(ours.layout.uirevision).toBe('aeo-sources')
+    expect(gold.layout.uirevision).toBeUndefined()
     for (const f of [ours, gold]) { delete f.data[0].hovertemplate; delete f.data[0].textinfo; delete f.data[0].text; delete f.layout.margin }
+    delete ours.layout.uirevision
     delete ours.layout.legend.entrywidth
     delete ours.layout.legend.entrywidthmode
     expect(ours).toEqual(gold)

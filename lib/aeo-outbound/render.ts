@@ -139,7 +139,8 @@ export const PAGE_CSS = [
  *  the phone donut shows each slice's own label (§17.2; since 2026-10-19 the figure's text, charts.ts sliceLabel, so
  *  phone, desktop and the source-mix sentence round a slice the same way), and the menu marks 05 at the bottom of the
  *  page, where AIVx's scroll-spy never reaches the short last section (§17.12). The donut's two legend columns fall back
- *  to Plotly's flowing legend wherever a name would run into the next column: checked once at load on a desktop width,
+ *  to Plotly's flowing legend wherever a name would run into the next name in its row (or past the chart's edge, for a
+ *  name with nothing to its right, Paul's #410 review): checked once at load on a desktop width,
  *  after each two-column draw, when a font still loading at load arrives, and 150ms after the last resize that changed
  *  the chart's width (round 3, spec 2026-10-21 C5). Registered before the frame script's
  *  listener, so it runs first. */
@@ -158,7 +159,7 @@ var el=document.getElementById('aeo-chart-sources'),orig=null,cur=null,restored=
 function copy(x){return JSON.parse(JSON.stringify(x))}
 function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
 function draw(d,l,after){try{var p=window.Plotly.react(el,d,l);if(p&&p.then)p.then(after,restore);else if(after)after()}catch(err){restore()}}
-function fits(){var it=el.querySelectorAll('.legend .traces');if(it.length<2)return true;var e=[],s=[];for(var i=0;i<it.length;i++){var x=Math.round(it[i].getBoundingClientRect().left),t=it[i].querySelector('.legendtext')||it[i];e.push([x,t.getBoundingClientRect().right]);if(s.indexOf(x)<0)s.push(x)}s.sort(function(a,b){return a-b});var edge=el.getBoundingClientRect().right;for(var j=0;j<e.length;j++){var lim=edge;for(var k=0;k<s.length;k++)if(s[k]>e[j][0]){lim=s[k];break}if(e[j][1]>lim-2)return false}return true}
+function fits(){var it=el.querySelectorAll('.legend .traces');if(it.length<2)return true;var e=[];for(var i=0;i<it.length;i++){var r=it[i].getBoundingClientRect(),t=it[i].querySelector('.legendtext')||it[i];e.push([Math.round(r.left),t.getBoundingClientRect().right,Math.round(r.top)])}var edge=el.getBoundingClientRect().right;for(var j=0;j<e.length;j++){var lim=edge;for(var k=0;k<e.length;k++)if(Math.abs(e[k][2]-e[j][2])<=2&&e[k][0]>e[j][0]&&e[k][0]<lim)lim=e[k][0];if(e[j][1]>lim-2)return false}return true}
 function check(){try{w=el.clientWidth;if(fallen||!cur||!cur.l.legend||!cur.l.legend.entrywidth||fits())return;fallen=true;var l=copy(cur.l);delete l.legend.entrywidth;delete l.legend.entrywidthmode;draw(copy(cur.d),l)}catch(err){}}
 function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){cur=orig;fallen=false;draw(copy(orig.d),copy(orig.l),check);return}
 var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],tx=t.text,total=0;if(!Array.isArray(tx)||tx.length!==v.length)return;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];

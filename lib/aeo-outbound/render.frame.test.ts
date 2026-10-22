@@ -320,15 +320,15 @@ test('donut: no Plotly or no element means no throw and no call', () => {
 })
 
 // The legend check (spec 2026-10-21 C5): Plotly's legend nodes are stand-ins whose boxes the test sets.
-type Box = [left: number, textRight: number]
-const rect = (left: number, right: number) => ({ left, right, top: 0, bottom: 10, width: right - left, height: 10, x: left, y: 0, toJSON: () => ({}) }) as DOMRect
+type Box = [left: number, textRight: number, top?: number]
+const rect = (left: number, right: number, top = 0) => ({ left, right, top, bottom: top + 10, width: right - left, height: 10, x: left, y: top, toJSON: () => ({}) }) as DOMRect
 function setLegend(el: HTMLElement, boxes: Box[], right = 300, width = 300) {
   el.querySelector('.legend')?.remove()
   const d = el.ownerDocument
   const lg = d.createElement('div'); lg.className = 'legend'
-  for (const [left, textRight] of boxes) {
-    const tr = d.createElement('div'); tr.className = 'traces'; tr.getBoundingClientRect = () => rect(left, left + 20)
-    const tx = d.createElement('div'); tx.className = 'legendtext'; tx.getBoundingClientRect = () => rect(left + 20, textRight)
+  for (const [left, textRight, top = 0] of boxes) {
+    const tr = d.createElement('div'); tr.className = 'traces'; tr.getBoundingClientRect = () => rect(left, left + 20, top)
+    const tx = d.createElement('div'); tx.className = 'legendtext'; tx.getBoundingClientRect = () => rect(left + 20, textRight, top)
     tr.appendChild(tx); lg.appendChild(tr)
   }
   el.appendChild(lg)
@@ -355,6 +355,20 @@ test('legend on a desktop width: names that fit draw nothing; names that overlap
   expect(layout).toEqual(flowing(over.fig.layout))
   await vi.advanceTimersByTimeAsync(1000)
   expect(over.react).toHaveBeenCalledTimes(1)
+})
+
+// Paul, #410 review: with an odd count the last name sits alone in its row, so only a name to its right in the same row
+// (or the chart's edge) limits it. Measured in Plotly 3.5.0 (2026-10-22): seven slices, the last one long, fell back.
+test('legend: a long last name alone in its row fits; the same name with a neighbour to its right falls back', async () => {
+  const alone = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 220, 20]]) })
+  await flush()
+  expect(alone.react).not.toHaveBeenCalled()
+  const beside = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 220, 20], [150, 200, 20]]) })
+  await flush()
+  expect(beside.react).toHaveBeenCalledTimes(1)
+  const past = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 320, 20]]) })
+  await flush()
+  expect(past.react).toHaveBeenCalledTimes(1)
 })
 
 test('legend: with no matchMedia the desktop check still runs once and falls back where names overlap', async () => {
