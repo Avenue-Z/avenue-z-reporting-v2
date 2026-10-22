@@ -369,7 +369,19 @@ test('a project with no competitors gives 1 to 3 bullets per box and a draft', a
 })
 
 test('codeSetPath: code-written and settings-set paths never ask Glean for another attempt', () => {
-  for (const p of ['context', 'methodology', 'competitive_bullets.0.lead', 'sources_bullets.2.text', 'brand', 'window_label', 'market', 'page.series', 'kpis.1.value']) expect(codeSetPath(p, null), p).toBe(true)
+  for (const p of ['context', 'methodology', 'competitive_bullets.0.lead', 'sources_bullets.2.text', 'brand', 'window_label', 'market', 'page.series', 'kpis.1.value', 'opportunities.0.signal', 'opportunities.2.workstream']) expect(codeSetPath(p, null), p).toBe(true)
   expect(codeSetPath('next_step', 'Fixed.')).toBe(true)
-  for (const p of ['headline', 'summary', 'why', 'opportunities.0.signal', 'category', 'next_step']) expect(codeSetPath(p, null), p).toBe(false)
+  for (const p of ['headline', 'summary', 'why', 'category', 'next_step']) expect(codeSetPath(p, null), p).toBe(false)
+})
+
+test('pillars (Ryan, round 3): a generated row carries the marker, the code-written pillars and the pillar title, whatever Glean sends', async () => {
+  const r = await generateSnapshot('or_a', deps(vi.fn(async () => reply(GOOD))))
+  if (!r.ok) throw new Error(r.error)
+  expect(r.slots.opportunities_layout).toBe('pillars')
+  expect(r.slots.opportunities).toEqual(dataSentences(r.data).opportunities)
+  expect(r.slots.opportunities.map((o) => o.workstream)).toEqual(['Earned & Affiliate Media', 'Content and Creative', 'Technical Optimizations'])
+  expect(r.slots.page.opps_title).toBe('The Pillars of AI Search')
+  const { opportunities: _o, ...noOpps } = JSON.parse(GOOD)
+  const r2 = await generateSnapshot('or_a', deps(vi.fn(async () => reply(JSON.stringify(noOpps)))))
+  expect(r2.ok).toBe(true)
 })

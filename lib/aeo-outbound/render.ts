@@ -109,6 +109,11 @@ export const PAGE_CSS = [
   '#methodology .method-note{background:none;border:none;border-radius:0;padding:0;margin-top:16px;max-width:none;font-style:normal;font-size:15px;line-height:1.75;color:rgba(255,255,255,0.75)}',
   '#methodology .method-note>div+div{margin-top:14px}',
   '#methodology .method-note strong{color:var(--white);font-weight:800;font-style:normal}',
+  // Round 3 (Ryan, 2026-10-21): the pillar cards, one column on a phone; three from 901px (below).
+  '.aeo-pillars{display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px}',
+  '.aeo-pillar{display:flex;flex-direction:column;padding:24px}',
+  '.aeo-pillar-desc{font-size:14px;line-height:1.6;color:rgba(255,255,255,0.6);margin:10px 0 18px}',
+  '.aeo-pillar-line{margin:auto 0 0;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);font-size:16px;line-height:1.5;font-weight:600;color:#fff}',
   '@media (max-width: 900px){',
   '.hero-industry{font-size:clamp(40px,11vw,64px)!important;line-height:1.1}',
   '.exec-summary{padding:40px 24px}',
@@ -131,6 +136,7 @@ export const PAGE_CSS = [
   '#opportunities .leaderboard tbody tr:nth-child(even) td{background:rgba(255,255,255,0.035)}',
   '#opportunities .leaderboard tbody tr:hover{background:none}',
   '#opportunities .chart-takeaway{border-top:none;padding:16px 0 0;margin:0;color:rgba(255,255,255,0.6)}',
+  '#opportunities .aeo-pillars{grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px}',
   '}',
 ].join('\n')
 
@@ -228,17 +234,23 @@ export function renderSnapshotHtml(data: SnapshotData, stored: Slots, mode: Rend
   const oppsShown = s.opportunities_page !== 'hidden'
   const methodNum = oppsShown ? '05' : '04'
   const oppsNav = oppsShown ? `\n    <a href="#opportunities"><span class="nav-num"${fixedMark}>04</span> ${mirror('page.opps_label', p.opps_label, false, true)}</a>` : ''
-  const oppsSection = oppsShown ? `
-<section id="opportunities" class="section">
-  <div class="section-label">${fixed('04 / ')}${wrap('page.opps_label', p.opps_label)}</div>
-  ${slot('h2', 'page.opps_title', p.opps_title, 'section-title')}
-  <div class="leaderboard-wrap">
+  // Round 3 (Ryan, 2026-10-21): a pillar row shows three cards (name, description, data line) in place of the table and
+  // its footnote; a table row is byte-identical to before.
+  const oppsBody = s.opportunities_layout === 'pillars'
+    ? `<div class="aeo-pillars">${s.opportunities.map((o, i) => `<div class="cluster-card aeo-pillar">${slot('div', `opportunities.${i}.workstream`, o.workstream, 'cluster-name')}${slot('p', `opportunities.${i}.opportunity`, o.opportunity, 'aeo-pillar-desc')}${slot('p', `opportunities.${i}.signal`, o.signal, 'aeo-pillar-line')}</div>`).join('')}</div>`
+    : `<div class="leaderboard-wrap">
     <table class="leaderboard">
       <thead><tr>${slot('th', 'page.opps_col_1', p.opps_col_1)}${slot('th', 'page.opps_col_2', p.opps_col_2)}${slot('th', 'page.opps_col_3', p.opps_col_3)}</tr></thead>
       <tbody>${s.opportunities.map((o, i) => `<tr>${slot('td', `opportunities.${i}.signal`, o.signal, '', label(p.opps_col_1))}${slot('td', `opportunities.${i}.opportunity`, o.opportunity, '', label(p.opps_col_2))}${slot('td', `opportunities.${i}.workstream`, o.workstream, '', label(p.opps_col_3))}</tr>`).join('')}</tbody>
     </table>
   </div>
-  ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}
+  ${slot('p', 'page.opps_takeaway', p.opps_takeaway, 'chart-takeaway')}`
+  // Shown: the section with the table or the pillar cards. Hidden: nothing, whatever the layout.
+  const oppsSection = oppsShown ? `
+<section id="opportunities" class="section">
+  <div class="section-label">${fixed('04 / ')}${wrap('page.opps_label', p.opps_label)}</div>
+  ${slot('h2', 'page.opps_title', p.opps_title, 'section-title')}
+  ${oppsBody}
 </section>` : ''
 
   const sidebar = `

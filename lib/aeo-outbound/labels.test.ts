@@ -50,3 +50,11 @@ test('bullet 6 is labelled, for its lead, text and Remove, in both boxes (spec v
 test('every editable path of a hidden Opportunities page still has a label', () => {
   for (const [p] of slotEntries({ ...FULL, opportunities_page: 'hidden' })) expect(fieldLabel(p, T), p).not.toBe(p)
 })
+
+test('pillar rows name their fields as pillars (Ryan, round 3); a table row keeps its labels', () => {
+  expect(fieldLabel('opportunities.0.workstream', T, true)).toBe('Pillar 1, name')
+  expect(fieldLabel('opportunities.1.opportunity', T, true)).toBe('Pillar 2, description')
+  expect(fieldLabel('opportunities.2.signal', T, true)).toBe('Pillar 3, data line')
+  expect(fieldLabel('opportunities.2.signal', T)).toBe('Opportunity 3, signal')
+  for (const [p] of slotEntries({ ...FULL, opportunities_layout: 'pillars' })) expect(fieldLabel(p, T, true), p).not.toBe(p)
+})

@@ -55,6 +55,7 @@ export default async function NewBusinessEditorPage({
       notes={row.unreadable ? [] : (row.notes ?? [])}
       needsValidation={full ? needsValidationPaths(full) : []}
       opportunitiesHidden={full?.opportunities_page === 'hidden'}
+      pillars={full?.opportunities_layout === 'pillars'}
       token={row.status === 'approved' && !row.shareRevokedAt ? row.shareToken : null}
       error={failureReason(row, now)}
       errorCode={failureCode(row, now)}

@@ -102,11 +102,12 @@ export function peecContract<T>(boundary: PeecBoundary, value: T): T {
 export const REPORT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const copyText = z.string().min(1)
-/** The Glean reply's shape (spec §6; v1.1 §19.2: code writes the context, both boxes and the methodology, so any of those
- *  keys Glean still sends are ignored). validateGeneratedSlots still cleans and length-checks every value afterwards. */
+/** The Glean reply's shape (spec §6; v1.1 §19.2: code writes the context, both boxes and the methodology; round 3: and
+ *  the pillar rows, so any of those keys Glean still sends are ignored, whatever their shape). validateGeneratedSlots
+ *  still cleans and length-checks every value afterwards. */
 export const GLEAN_SLOTS = z.looseObject({
   headline: copyText, summary: copyText,
-  why: copyText, opportunities: z.array(z.looseObject({ signal: copyText, opportunity: copyText, workstream: copyText })).length(3),
+  why: copyText,
   // validateGeneratedSlots owns next_step and enforces it only when no fixed sentence is set.
   next_step: z.unknown().optional(),
 })
@@ -162,6 +163,8 @@ export const STORED_DATA = z.looseObject({
   noDataBrands: z.array(z.string()).optional(),
   // 2026-10-19 Peec parity: the source-mix weighting a row was generated with; absent on older rows (retrieval_count).
   sourceMixWeight: z.enum(['retrieval_count', 'retrieved_chat_count', 'usage_rate']).optional(),
+  // Round 3 (pillars): the own rows' source-mix weight; absent on older rows.
+  ownMixWeight: z.number().min(0).optional(),
 })
 const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })
 /** Stored slots: the copy keys always, the v1.1 keys when the row has them. */
@@ -175,4 +178,6 @@ export const STORED_SLOTS = z.looseObject({
   page: z.partialRecord(z.enum(PAGE_KEYS), z.string()).optional(),
   // Round 3 (Ryan, 2026-10-21): the Opportunities page switch; absent reads shown.
   opportunities_page: z.enum(['shown', 'hidden']).optional(),
+  // Round 3 (Ryan, 2026-10-21): the pillar layout marker; absent reads today's table.
+  opportunities_layout: z.literal('pillars').optional(),
 })

@@ -55,3 +55,13 @@ test('2026-10-19 (Ryan): the same-day data note is a Check these item with its o
   fireEvent.click(screen.getByRole('checkbox', { name: 'Looks right' }))
   expect(screen.getByTestId('count')).toHaveTextContent('0')
 })
+
+test('pillar rows label a Needs validation item as a pillar field (Ryan, round 3)', () => {
+  render(
+    <BeforeYouSend
+      needsValidation={['opportunities.1.opportunity']} notes={[]} titles={['A', 'B']} about={null} ticks={new Set()} ownTicks={new Set()} highlight={null}
+      onTick={() => {}} onOwnTick={() => {}} onGoTo={() => {}} onMinimize={() => {}} pillars
+    />,
+  )
+  expect(screen.getByText(/Pillar 2, description/)).toBeInTheDocument()
+})

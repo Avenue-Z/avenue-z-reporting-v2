@@ -2,7 +2,7 @@
 // sources_bullets the second (gaps), as spec §5 rows 5-6 say. v1.1 makes every visible word a slot: brand,
 // window_label, kpis and the page words. A row from before v1.1 lacks those keys; withDefaults fills them from the row's
 // own data and the v1.0 words, never from live settings, so a settings change never alters an existing row.
-import { NEEDS_VALIDATION, PAGE_WORDS_V1 } from './config'
+import { NEEDS_VALIDATION, PAGE_WORDS_V1, PILLARS_TITLE } from './config'
 import type { Kpi } from './metrics'
 
 export interface Bullet { lead: string; text: string }
@@ -36,6 +36,8 @@ export interface Slots {
   page?: Partial<PageWords>
   /** Round 3 (Ryan, 2026-10-21): the Opportunities page per report. Absent reads shown, so every older row is unchanged. */
   opportunities_page?: 'shown' | 'hidden'
+  /** Round 3 (Ryan, 2026-10-21): every report generated after the pillars change; absent reads today's table. */
+  opportunities_layout?: 'pillars'
 }
 /** Every key present: what saves, grounding and render work on. */
 export type FullSlots = Omit<Slots, 'brand' | 'window_label' | 'kpis' | 'page' | 'opportunities_page'> & { brand: string; window_label: string; kpis: Kpi[]; page: PageWords; opportunities_page: 'shown' | 'hidden' }
@@ -80,9 +82,10 @@ export function limitFor(path: string): number {
   return path.endsWith('.lead') || path === 'category' ? MAX_LEAD : MAX_VALUE
 }
 
-/** The page words a new row is created with: v1.0's, with the section titles, wordmark and report name from settings (v1.1 §3). */
+/** The page words a new row is created with: v1.0's, with the section titles, wordmark and report name from settings
+ *  (v1.1 §3) and the pillar title (round 3). */
 export function pageDefaults(s: { sectionTitles: readonly string[]; sidebarWordmark: string; series: string }): PageWords {
-  return { ...V1_WORDS, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series }
+  return { ...V1_WORDS, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series, opps_title: PILLARS_TITLE }
 }
 
 /** Every key filled. Missing keys read the row's own data (brand, window label, KPIs), the v1.0 words, and a shown
@@ -154,7 +157,9 @@ export function slotEntries(s: FullSlots): [string, string][] {
   if (shown) s.opportunities.forEach((o, i) => { out.push([`opportunities.${i}.signal`, o.signal], [`opportunities.${i}.opportunity`, o.opportunity], [`opportunities.${i}.workstream`, o.workstream]) })
   out.push(['brand', s.brand], ['window_label', s.window_label])
   s.kpis.forEach((k, i) => { out.push([`kpis.${i}.label`, k.label], [`kpis.${i}.value`, k.value]) })
-  const skip: readonly string[] = shown ? [] : OPPS_PAGE_KEYS
+  // Round 3: a hidden Opportunities page shows none of its six words. A shown pillar row shows no table, so its column
+  // words and footnote are not on the page either.
+  const skip: readonly string[] = !shown ? OPPS_PAGE_KEYS : s.opportunities_layout === 'pillars' ? ['opps_col_1', 'opps_col_2', 'opps_col_3', 'opps_takeaway'] : []
   for (const k of PAGE_KEYS) if (!skip.includes(k)) out.push([`page.${k}`, s.page[k]])
   return out
 }
@@ -163,7 +168,7 @@ export function slotEntries(s: FullSlots): [string, string][] {
 export const needsValidationPaths = (s: FullSlots): string[] => slotEntries(s).filter(([, v]) => v.toLowerCase().includes(NEEDS_VALIDATION.toLowerCase())).map(([p]) => p)
 
 /** The slots code writes at generation (spec §6; v1.1 §19.2): category, market, an optional fixed next_step, and the
- *  data sentences (context, both boxes, methodology) when given. */
+ *  data sentences (context, both boxes, methodology) when given, and, since round 3, the pillar rows. */
 export interface FixedSlots {
   category: string
   market: string
@@ -172,6 +177,7 @@ export interface FixedSlots {
   methodology?: string
   competitive_bullets?: Bullet[]
   sources_bullets?: Bullet[]
+  opportunities?: Opportunity[]
 }
 
 /** Shape and limits for a model reply (spec §6). A field in `fixed` comes from code and is checked for length only; a
@@ -195,13 +201,20 @@ export function validateGeneratedSlots(raw: unknown, fixed: FixedSlots): { ok: t
     if (!Array.isArray(v) || v.length < 2 || v.length > 3) { errors.push(`${key}: needs 2 or 3 bullets`); return [] }
     return v.map((b, i) => ({ lead: text(`${key}.${i}.lead`, (b as Bullet)?.lead, MAX_LEAD), text: text(`${key}.${i}.text`, (b as Bullet)?.text) }))
   }
-  const opps = Array.isArray(o.opportunities) && o.opportunities.length === 3
-    ? o.opportunities.map((x, i) => ({
-        signal: text(`opportunities.${i}.signal`, (x as Opportunity)?.signal),
-        opportunity: text(`opportunities.${i}.opportunity`, (x as Opportunity)?.opportunity),
-        workstream: text(`opportunities.${i}.workstream`, (x as Opportunity)?.workstream),
+  // Round 3: code writes the pillar rows; a reply's opportunities are then ignored, as its boxes are.
+  const opps = fixed.opportunities
+    ? fixed.opportunities.map((x, i) => ({
+        signal: text(`opportunities.${i}.signal`, x.signal),
+        opportunity: text(`opportunities.${i}.opportunity`, x.opportunity),
+        workstream: text(`opportunities.${i}.workstream`, x.workstream),
       }))
-    : (errors.push('opportunities: needs exactly 3'), [])
+    : Array.isArray(o.opportunities) && o.opportunities.length === 3
+      ? o.opportunities.map((x, i) => ({
+          signal: text(`opportunities.${i}.signal`, (x as Opportunity)?.signal),
+          opportunity: text(`opportunities.${i}.opportunity`, (x as Opportunity)?.opportunity),
+          workstream: text(`opportunities.${i}.workstream`, (x as Opportunity)?.workstream),
+        }))
+      : (errors.push('opportunities: needs exactly 3'), [])
   const slots: Slots = {
     category: text('category', fixed.category),
     market: text('market', fixed.market),

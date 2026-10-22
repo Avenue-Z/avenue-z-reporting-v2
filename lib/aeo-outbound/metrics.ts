@@ -50,6 +50,9 @@ export interface SnapshotData {
   ownRetrievedChats: number
   /** The own site's percentage when exactly one own domain has retrievals (version 2), else null. */
   ownRetrievedPct: number | null
+  /** Round 3 (pillars D3 (a)): the source-mix weight of the brand's own rows (OWN class or own-domain match, weight above
+   *  0), the Content pillar's share. Absent on older rows, which are never pillar rows. */
+  ownMixWeight?: number
   sourceMix: SourceSlice[]
   gapDomains: { domain: string; retrievedChats: number }[]
   actions: { title: string; impact: string; type: string }[]
@@ -63,7 +66,7 @@ export interface SnapshotData {
   ownSites?: OwnSite[]
   /** Version 2: the settings this generation used. */
   settingsUsed?: SettingsUsed
-  /** Spec v1.1 §19.5: the SENTENCES_VERSION of rows whose context, findings and methodology code wrote (sentences.ts).
+  /** Spec v1.1 §19.5: the SENTENCES_VERSION of rows whose context, findings, methodology and pillar lines code wrote (sentences.ts).
    *  Absent on older rows, whose Glean text and grounding stay exactly as they were. */
   sentences?: number
   /** Spec v1.1 §19.5: 1 plus the domains with more retrieved chats than the most retrieved own site; null when none. */
@@ -238,6 +241,8 @@ export function buildSnapshotData(
     const label = titleClassification(r.classification)
     weights.set(label, (weights.get(label) ?? 0) + w)
   }
+  // Round 3 (pillars spec D3 (a)): the Content pillar counts the brand's own rows the way the own-site bullet does.
+  const ownMixWeight = ownRows.reduce((s, r) => { const w = r[decisions.sourceMixWeight] ?? 0; return w > 0 ? s + w : s }, 0)
   const total = [...weights.values()].reduce((s, w) => s + w, 0)
   const sourceMix = [...weights.entries()]
     .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))
@@ -282,6 +287,7 @@ export function buildSnapshotData(
     ownDomains,
     ownRetrievedChats,
     ownRetrievedPct,
+    ownMixWeight,
     sourceMix,
     sourceMixWeight: decisions.sourceMixWeight,
     gapDomains,

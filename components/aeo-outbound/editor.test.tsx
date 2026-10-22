@@ -47,7 +47,7 @@ const views = () => fetchMock.mock.calls.filter(([u]) => u.includes('/view')).ma
 type Props = Parameters<typeof OutboundEditor>[0]
 const base: Props = {
   id: ID, brand: 'Acme', linkBrand: null, shareOrigin: null, projectId: 'p1', status: 'draft', revision: 4,
-  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], opportunitiesHidden: false, token: null, error: null, errorCode: null, recipient: null,
+  notes: ['Window used: Sep 1, 2026 to Sep 30, 2026'], needsValidation: [], opportunitiesHidden: false, pillars: false, token: null, error: null, errorCode: null, recipient: null,
   sectionTitles: ['Category data', 'Competitive visibility'], about: null, opens: [], openCount: 0,
   needsValidationBlocksApprove: true, unreadable: false, progressStep: 0, createdAt: '2026-10-08T15:00:00.000Z',
 }
@@ -1086,4 +1086,12 @@ test('the button re-seeds from newer props, never from props older than a save i
   expect(oppsBtn()).toHaveTextContent('Opportunities page: on')
   rerender(<OutboundEditor {...base} revision={8} opportunitiesHidden />)
   expect(oppsBtn()).toHaveTextContent('Opportunities page: off')
+})
+
+test('on a pillar row a refused opportunity field is named as a pillar (Ryan, round 3)', async () => {
+  patch = async () => json(400, { error: 'Keep this under 1000 characters.' })
+  const { iframe } = await setup({ pillars: true })
+  await fromFrame(iframe, { type: 'dirty', path: 'opportunities.0.signal' })
+  await fromFrame(iframe, { type: 'edit', path: 'opportunities.0.signal', value: 'x' })
+  expect(await screen.findByText('Pillar 1, data line: Keep this under 1000 characters.')).toBeInTheDocument()
 })
