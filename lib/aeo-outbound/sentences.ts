@@ -283,10 +283,13 @@ function write(d: SnapshotData) {
     if (mix[1].pct === 0) return { lead, text: `Almost all citations come from ${label(mix[0].label)} sources.` }
     const [t1, t2] = mix
     const named = new Set([t1.label, t2.label])
-    const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l))
+    // An Editorial or UGC type Peec does not report gets no clause, so the sentence never says "accounts for 0.0%"
+    // (adversarial review of #420, M3); one stored as 0.0 reads "under 0.1%", as the pillars do.
+    const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l) && mix.some((m) => m.label === l))
     const total = mix.reduce((s, m) => s + m.weight, 0)
     const share = (l: string) => { const m = mix.find((x) => x.label === l); return { pct: m?.pct ?? 0, exact: m && total ? (m.weight / total) * 100 : 0 } }
-    const [p1, p2, ...pe] = mixPctAll([share(t1.label), share(t2.label), ...extras.map(share)])
+    const [p1, p2, ...pe0] = mixPctAll([share(t1.label), share(t2.label), ...extras.map(share)])
+    const pe = pe0.map((t, i) => (share(extras[i]).pct === 0 ? 'under 0.1%' : t))
     const tail = extras.length === 2 ? `; ${extras[0]} accounts for ${pe[0]} and ${extras[1]} for ${pe[1]}` : extras.length === 1 ? `; ${extras[0]} accounts for ${pe[0]}` : ''
     return { lead, text: `${upper(label(t1.label))} sources account for ${p1} of citations, followed by ${label(t2.label)} sources at ${p2}${tail}.` }
   }

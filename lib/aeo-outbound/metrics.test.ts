@@ -362,6 +362,21 @@ test('F1: a COMPETITOR page that mentions an off-chart competitor is not a gap; 
   expect(gapsOf({ ...p, roster, domains })).toEqual(['compare.com'])
 })
 
+// Adversarial review of #420 (I1): a COMPETITOR page off every roster belongs to the tracked competitor whose name its
+// domain spells (ynab.com is YNAB), so a charted competitor with a missing roster domain keeps its site, whatever else
+// the page mentions, and an off-chart competitor's site found by name is never listed.
+test('F1: an off-roster COMPETITOR page goes to the competitor its domain names; mentions decide only when no name does', () => {
+  const p = wide(12, 0)
+  const roster = p.roster.map((r) => (r.id === 'kw_1' || r.id === 'kw_11' ? { ...r, domains: [] } : r))
+  const domains = [
+    gapRow('rival1.com', 'COMPETITOR', 100, ['kw_1', 'kw_11']),
+    gapRow('www.rival11.com', 'COMPETITOR', 90, ['kw_2']),
+    gapRow('vs-page.com', 'COMPETITOR', 80, ['kw_11', 'kw_2']),
+    gapRow('compare.com', 'COMPETITOR', 70, ['kw_2']),
+  ]
+  expect(gapsOf({ ...p, roster, domains })).toEqual(['rival1.com', 'compare.com'])
+})
+
 test('F1: a cut parent domain never hides a charted competitor\'s subdomain', () => {
   const p = wide(12, 0)
   const roster = p.roster.map((r) => (r.id === 'kw_11' ? { ...r, domains: ['parent.com'] } : r.id === 'kw_1' ? { ...r, domains: ['one.parent.com'] } : r))

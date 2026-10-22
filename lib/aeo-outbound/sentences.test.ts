@@ -365,6 +365,14 @@ test('round 3: Ryan\'s PocketGuard example reads word for word as he wrote it', 
 })
 
 // Paul, #417 review: a rate that rounds to 0.0 after a count above zero reads "under 0.1%", as the pillar lines do.
+// Adversarial review of #420 (M3): an Editorial or UGC type that is not in the mix gets no "accounts for 0.0%" clause.
+test('round 3: the source-type mix leaves out Editorial or UGC when Peec reports none', () => {
+  const noUgc = { ...POCKETGUARD, domains: POCKETGUARD.domains.filter((r) => r.classification !== 'UGC') }
+  const text = now(noUgc).competitive_bullets[2].text
+  expect(text).not.toMatch(/UGC|0\.0%/)
+  expect(text).toMatch(/^Corporate sources account for \d+% of citations, followed by Editorial sources at \d+%\.$/)
+})
+
 test('round 3: a citation rate that rounds to 0.0% reads "under 0.1%"', () => {
   const rate = (pct: number) => now({ ...POCKETGUARD, domains: POCKETGUARD.domains.map((r) => (r.domain === 'pocketguard.com' ? { ...r, retrieved_chat_count: 3, retrieved_percentage: pct } : r)) }).competitive_bullets.slice(0, 2).map((b) => b.text)
   expect(rate(0.0004)).toEqual(['PocketGuard.com appears in 3 retrieved citations.', 'PocketGuard is cited in under 0.1% of tracked answers.'])
@@ -475,10 +483,10 @@ test('round 3, Source-type mix: edge lines, the own-site type first, and D5\'s w
   expect(nowMix([])).toEqual({ lead: 'Source-type mix:', text: 'Peec reported no source types for this window.' })
   expect(nowMix([['CORPORATE', 100]])).toEqual({ lead: 'Source-type mix:', text: 'All citations come from Corporate sources.' })
   expect(nowMix([['CORPORATE', 9996], ['OWN', 4]])).toEqual({ lead: 'Source-type mix:', text: 'Almost all citations come from Corporate sources.' })
-  expect(nowMix([['OWN', 60], ['CORPORATE', 40]])!.text).toBe('Own-site sources account for 60% of citations, followed by Corporate sources at 40%; Editorial accounts for 0.0% and UGC for 0.0%.')
+  expect(nowMix([['OWN', 60], ['CORPORATE', 40]])!.text).toBe('Own-site sources account for 60% of citations, followed by Corporate sources at 40%.')
   expect(nowMix([['CORPORATE', 60], ['INSTITUTIONAL', 39.5], ['EDITORIAL', 0.4], ['UGC', 0.1]])!.text).toBe('Corporate sources account for 60% of citations, followed by Institutional sources at 40%; Editorial accounts for 0.4% and UGC for 0.1%.')
   expect(nowMix([['CORPORATE', 60], ['INSTITUTIONAL', 28], ['EDITORIAL', 6.4], ['UGC', 5.6]])!.text).toBe('Corporate sources account for 60% of citations, followed by Institutional sources at 28%; Editorial accounts for 6.4% and UGC for 5.6%.')
-  expect(nowMix([['CORPORATE', 99.9], ['UGC', 0.1]])!.text).toBe('Corporate sources account for 99.9% of citations, followed by UGC sources at 0.1%; Editorial accounts for 0.0%.')
+  expect(nowMix([['CORPORATE', 99.9], ['UGC', 0.1]])!.text).toBe('Corporate sources account for 99.9% of citations, followed by UGC sources at 0.1%.')
 })
 
 test('round 3: each new box holds 1 to 4 bullets in every edge case above', () => {

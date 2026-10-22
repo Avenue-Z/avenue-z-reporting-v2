@@ -69,7 +69,9 @@ only at generation, so older rows keep their stored gaps.
 | `rankAmong` set | The chart is drawn from the compared brands, so charted is a subset of compared |
 | Cut parent, charted subdomain (and reverse) | The closest roster domain decides (#413 D3) |
 | One domain on a charted and an off-chart competitor's roster | A gap: the charted competitor's site |
-| A COMPETITOR page off every roster that mentions a charted and an off-chart competitor | Not a gap (it may be the off-chart competitor's page); an untracked id in the mentions does not count |
+| A COMPETITOR page off every roster whose domain spells a tracked competitor's name (ynab.com: YNAB) | That competitor's site: a gap when it is charted, whatever else the page mentions; never when it is off the chart (adversarial review, I1) |
+| A COMPETITOR page off every roster that names no competitor and mentions a charted and an off-chart competitor | Not a gap (it may be the off-chart competitor's page); an untracked id in the mentions does not count |
+| Editorial or UGC absent from the mix (source-mix bullet) | No clause for it, never "accounts for 0.0%"; one stored as 0.0 reads "under 0.1%" (adversarial review, M3; a dev defect from #417) |
 | Peer range 10.0 / 10.1 | Kept / dropped |
 | Brand first or last | Its two neighbours on one side, same width rule |
 | Pillar share 0.4% / 1.0% / 2.4% / 2.6% beside 3.3% | "0.4%" / "1%" / "2%" / "3%" and "3%", as the donut reads them |

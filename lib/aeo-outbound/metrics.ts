@@ -268,6 +268,17 @@ export function buildSnapshotData(
   const chartedIds = new Set(chartedBrands(brands).filter((b) => !b.isOwn).map((b) => b.id))
   // Every tracked competitor (roster or Peec's brands report) the chart does not show.
   const offChartIds = new Set([...pull.roster.map((b) => b.id), ...entries.map((e) => e.id)].filter((id) => id !== pull.ownBrand.id && !chartedIds.has(id)))
+  // A tracked competitor's name, letters and digits only ("You Need A Budget" -> "youneedabudget"), to find whose site an
+  // off-roster page is from its domain (adversarial review of #420, I1).
+  const nameKey = (s: string | null | undefined) => (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const namedBy = new Map<string, Set<string>>()
+  for (const b of [...pull.roster.map((r) => ({ id: r.id, name: r.name })), ...entries.map((e) => ({ id: e.id, name: e.name }))]) {
+    const k = nameKey(b.name)
+    if (!k || b.id === pull.ownBrand.id) continue
+    namedBy.set(k, (namedBy.get(k) ?? new Set()).add(b.id))
+  }
+  /** The tracked competitors whose name a label of the domain spells exactly (ynab.com: YNAB), the last label aside. */
+  const ownersByName = (d: string) => new Set(d.split('.').slice(0, -1).flatMap((l) => [...(namedBy.get(nameKey(l)) ?? [])]))
   const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
   const keptSites = rosterSites((id) => chartedIds.has(id))
   const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !chartedIds.has(id))
@@ -288,9 +299,14 @@ export function buildSnapshotData(
       const ids = new Set(r.mentioned_brands.map((m) => m.id))
       if (ids.has(pull.ownBrand.id)) return false
       if (kept >= 0) return true
-      // Off every roster: a COMPETITOR page counts when it mentions a charted competitor and no tracked competitor off the
-      // chart, so an off-chart competitor's own page is never listed (round 3 QA review). Untracked ids do not matter.
-      return r.classification === 'COMPETITOR' && [...ids].some((id) => chartedIds.has(id)) && ![...ids].some((id) => offChartIds.has(id))
+      if (r.classification !== 'COMPETITOR') return false
+      // Off every roster: the page belongs to the tracked competitor its domain names, so it counts when that competitor
+      // is charted, whatever else it mentions (a roster missing the live domain: ynab.com for YNAB), and never when the
+      // competitor is off the chart (copilot.money for Copilot Money). With no name match, it counts when it mentions a
+      // charted competitor and no tracked competitor off the chart (round 3 QA review). Untracked ids do not matter.
+      const owners = ownersByName(d)
+      if (owners.size) return [...owners].some((id) => chartedIds.has(id))
+      return [...ids].some((id) => chartedIds.has(id)) && ![...ids].some((id) => offChartIds.has(id))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))
     .slice(0, 4)
