@@ -117,13 +117,15 @@ the Data block lists, share-of-voice gaps), so an older row would gain flags. To
 function, `boxesV2(d)` in `sentences.ts`, which keeps today's helpers (`sharePctAll`, `capital`, `label`, `pctAll`); D5
 and D6 are new helpers, so nothing `boxesV2` uses changes. For a row whose `sentences` is a number below this PR's
 `SENTENCES_VERSION` (whatever it is when this merges, 3 off `dev`), grounding allows the numbers of `boxesV2(d)` as well
-as today's sentences: the union, so no flag such a row raises today goes away and none is added. A row with no
+as today's sentences: the union, so no flag is added. Such a row is checked by the allowed-numbers rule, not against
+today's sentence (as any older row is), so an edited rank or count word on it is no longer flagged. A row with no
 `sentences` (version 1) is unchanged: it allows no sentence numbers, as today. Rows of today's version use only the new
 writer.
 
 **B4. The rename note ignores the own domain.** With D6 the volume bullet prints "PocketGuard.com", which contains the
 brand's name. The `brand_changed` count (`grounding.ts:253-255`) would then ask for a real domain to be renamed. It counts
-a slot only when the old name appears outside the row's own domains (compared ignoring case).
+a slot only when the old name appears outside the row's own domains and the domains its bullets print (compared ignoring
+case), except a domain equal to the brand's name ("Care.com"), which keeps every mention counted (final review).
 
 **Not touched:** the context, the methodology, the Data block and the prompt, the gaps computation (#413), the page
 order and names (#414), the pillars (#415), the KPI cards (the rank card stays).
