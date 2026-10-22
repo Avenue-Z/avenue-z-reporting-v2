@@ -8,9 +8,9 @@ const SCALAR_LABELS: Record<string, string> = {
   why: 'Why it matters', methodology: 'Methodology', next_step: 'Next step', brand: 'Brand name', window_label: 'Data window',
 }
 const PAGE_LABELS: Record<PageKey, string> = {
-  series: 'Report name', headline_label: 'Headline label', section_1_title: 'First section title', section_2_title: 'Second section title',
+  series: 'Report name', headline_label: 'Headline label', section_1_title: 'Sources section title', section_2_title: 'Visibility section title',
   opps_label: 'Opportunities label', method_nav: 'Methodology menu item', category_label: 'Category label', market_label: 'Market label',
-  window_prefix: 'Data window label', chart_1_title: 'First chart title', chart_2_title: 'Second chart title', why_title: 'Why it matters title',
+  window_prefix: 'Data window label', chart_1_title: 'Domain types chart title', chart_2_title: 'Visibility chart title', why_title: 'Why it matters title',
   opps_title: 'Opportunities title', opps_col_1: 'Opportunities table, first column', opps_col_2: 'Opportunities table, second column',
   opps_col_3: 'Opportunities table, third column', opps_takeaway: 'Opportunities footnote', method_label: 'Methodology label',
   next_label: 'Next step label', prepared_label: 'Prepared label', footer_name: 'Footer name', footer_desc: 'Footer description',
@@ -18,8 +18,10 @@ const PAGE_LABELS: Record<PageKey, string> = {
   sidebar_link: 'Menu link text', method_title: 'Methodology title',
 }
 const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k)
+const PILLAR_FIELDS: Record<string, string> = { workstream: 'name', opportunity: 'description', signal: 'data line' }
 
-export function fieldLabel(path: string, titles: readonly [string, string]): string {
+/** On a pillar row (round 3) an opportunity field reads as a pillar's. */
+export function fieldLabel(path: string, titles: readonly [string, string], pillars = false): string {
   if (has(SCALAR_LABELS, path)) return SCALAR_LABELS[path]
   let m = /^page\.([a-z0-9_]+)$/.exec(path)
   if (m && has(PAGE_LABELS, m[1])) return PAGE_LABELS[m[1] as PageKey]
@@ -32,7 +34,7 @@ export function fieldLabel(path: string, titles: readonly [string, string]): str
   m = /^(competitive_bullets|sources_bullets)\.add$/.exec(path)
   if (m) return `${section(m[1])}, add a bullet`
   m = /^opportunities\.(\d)\.(signal|opportunity|workstream)$/.exec(path)
-  if (m) return `Opportunity ${Number(m[1]) + 1}, ${m[2]}`
+  if (m) return pillars ? `Pillar ${Number(m[1]) + 1}, ${PILLAR_FIELDS[m[2]]}` : `Opportunity ${Number(m[1]) + 1}, ${m[2]}`
   m = /^kpis\.(\d)\.(label|value)$/.exec(path)
   if (m) return `Metric card ${Number(m[1]) + 1}, ${m[2]}`
   return path

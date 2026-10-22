@@ -278,3 +278,11 @@ test('spec v1.1 §19.7 (A3): with the settings unreadable, a Settings-only user 
   setHost('https://evil.example')
   for (const r of await callAll()) expect(r).toEqual(FORBIDDEN)
 })
+
+test('approve: a hidden Opportunities page with Needs validation in it approves, and the frozen page has no Opportunities section (Ryan, round 3)', async () => {
+  vi.mocked(store.getReport).mockResolvedValueOnce({ ...DRAFT, slots: { ...SLOTS, opportunities_page: 'hidden', page: { opps_title: 'Needs validation' } } } as never)
+  expect(await approveSnapshotAction(ID, 1, 'Ada')).toMatchObject({ ok: true })
+  const html = vi.mocked(store.approveQuery).mock.calls[0][2].html
+  expect(html).not.toContain('id="opportunities"')
+  expect(html).toContain('04 / Methodology')
+})

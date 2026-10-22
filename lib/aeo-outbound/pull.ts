@@ -26,7 +26,6 @@ export interface DomainRow {
   usage_rate: number
   mentioned_brands: { id: string }[]
 }
-export interface ActionRow { id: string; title?: string | null; impact?: string | null; type?: string | null; status?: string | null }
 export interface PeecPull {
   project: PeecProject
   roster: RosterBrand[]
@@ -42,17 +41,12 @@ export interface PeecPull {
   pulledDay: string
   brands: BrandReportRow[]
   domains: DomainRow[]
-  actions: ActionRow[]
   promptCount: number | null
   models: string[]
   /** Non-fatal problems for the notes panel. */
   warnings: string[]
 }
 
-/** /actions/list paging (v1.1 §9): pages of 50, stopping at 10 PENDING actions, a short page, or 5 pages. */
-const ACTION_PAGE = 50
-const ACTION_PAGES = 5
-const ACTIONS_WANTED = 10
 /** An optional call's failure becomes a warning, except a spent deadline or a broken contract. A per-call timeout
  *  with budget left is a warning too (spec 18.3). */
 const mustRethrow = (e: unknown): boolean => isPeecDeadline(e) || isPeecContractViolation(e)
@@ -133,21 +127,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   const domains = peecContract('peec.domains_report', await client.all<DomainRow>('POST', '/reports/domains', W, (r) => r.domain, 10_000))
   if (domains.reduce((s, r) => s + (r.retrieved_chat_count ?? 0), 0) <= 0) throw new PeecError('Peec returned zero retrievals across every domain for this window', false, false, 'zero_retrievals')
 
-  onStep?.(8)
-  // Default order impact desc; non-fatal, since actions are optional.
-  let actions: ActionRow[] = []
-  try {
-    for (let page = 0; page < ACTION_PAGES && actions.length < ACTIONS_WANTED; page++) {
-      const rows = peecContract('peec.actions', rowsOf<ActionRow>(await client.call('POST', '/actions/list', { body: { project_id: projectId, limit: ACTION_PAGE, offset: page * ACTION_PAGE } })))
-      actions.push(...rows.filter((a) => a.status === 'PENDING'))
-      if (rows.length < ACTION_PAGE) break
-    }
-    actions = actions.slice(0, ACTIONS_WANTED)
-  } catch (e) {
-    if (mustRethrow(e)) throw e
-    actions = []
-    warnings.push('Peec actions could not be loaded, so opportunities come from the data only.')
-  }
+  // Round 3 (Paul, #415 review): Peec's recommended actions are no longer read, since pillar reports do not use them.
   // Optional: the methodology leaves the count out when this fails.
   let prompts: { total_count?: number } | null = null
   try {
@@ -158,7 +138,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   }
 
   return {
-    project, roster, ownBrand: owned[0], profile, requested, rangePicked: range != null, window, pulledDay: todayUtc(nowMs), brands, domains, actions,
+    project, roster, ownBrand: owned[0], profile, requested, rangePicked: range != null, window, pulledDay: todayUtc(nowMs), brands, domains,
     promptCount: typeof prompts?.total_count === 'number' ? prompts.total_count : null,
     models,
     warnings,

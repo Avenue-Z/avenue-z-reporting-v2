@@ -1,9 +1,11 @@
 // The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
-// methodology, written by code from a row's data so every number is Peec's. Glean writes only the opinion (§19.2).
-import { settingsUsedOf, tenths, type SnapshotData } from './metrics'
-import type { Bullet } from './slots'
+// methodology, and since round 3 the pillar data lines, written by code from a row's data so every number is Peec's.
+// Glean writes only the opinion (§19.2).
+import { PILLARS } from './config'
+import { pyRound, settingsUsedOf, tenths, type SnapshotData } from './metrics'
+import type { Bullet, Opportunity } from './slots'
 
-export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string }
+export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string; opportunities: Opportunity[] }
 
 /** The slot paths these sentences fill (spec v1.1 §19.1), shared by generation and grounding. */
 export const isCodeSentencePath = (path: string): boolean => /^(?:context|methodology|(?:competitive|sources)_bullets\.\d\.(?:lead|text))$/.test(path)
@@ -72,7 +74,31 @@ function sharePctAll(items: { pct: number; exact: number }[]): string[] {
   return items.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && items[j].pct !== v.pct) ? `${v.pct.toFixed(1)}%` : text[i]))
 }
 
-export function dataSentences(d: SnapshotData): DataSentences {
+/** Spec 2026-10-22 D5: source shares in the source-type mix sentence. The stored one-decimal pct decides: below 1.0 one
+ *  decimal, else whole, rounding the exact share as the donut does; a whole 100 under 100 keeps one decimal; two values
+ *  that differ never read the same. */
+function mixPctAll(items: { pct: number; exact: number }[]): string[] {
+  const one = ({ pct, exact }: { pct: number; exact: number }) => {
+    if (pct < 1) return `${pct.toFixed(1)}%`
+    const whole = Math.round(exact)
+    return whole === 100 && pct < 100 ? `${pct.toFixed(1)}%` : `${whole}%`
+  }
+  const text = items.map(one)
+  return items.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && items[j].pct !== v.pct) ? `${v.pct.toFixed(1)}%` : text[i]))
+}
+
+/** Spec 2026-10-22 D6: an own domain in a sentence. Without www.; when the brand is one word starting with a capital and the
+ *  domain's first label is that word, the label takes the brand's casing ("PocketGuard.com"); otherwise today's capital. */
+export function ownDomainText(domain: string, brand: string): string {
+  const d = domain.replace(/^www\./i, '')
+  const first = d.split('.')[0]
+  if (/^[A-Z]\S*$/.test(brand) && first.toLowerCase() === brand.toLowerCase()) return brand + d.slice(first.length)
+  return capital(d)
+}
+
+const upper = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
+
+function write(d: SnapshotData) {
   const brand = d.brand
   const own = d.own
   const N = d.rankN
@@ -188,14 +214,18 @@ export function dataSentences(d: SnapshotData): DataSentences {
     return { lead: 'Leadership position:', text: `${brand} leads ${second.name} by ${points(tenths(own.visibilityPct, second.visibilityPct))} percentage points in visibility${sovClause(sov, false)}.` }
   }
 
+  function gapsBullet(): Bullet | null {
+    if (!d.gapDomains.length) return null
+    const items = d.gapDomains.map((g, i) => `${g.domain} at ${countText(g.retrievedChats)}${i === 0 ? ' retrievals' : ''}`)
+    return { lead: 'Competitor domain gaps:', text: `The largest gaps include ${listText(items)}.` }
+  }
+
   function secondBox(): Bullet[] {
     const out: Bullet[] = []
     const lead = leadership()
     if (lead) out.push(lead)
-    if (d.gapDomains.length) {
-      const items = d.gapDomains.map((g, i) => `${g.domain} at ${countText(g.retrievedChats)}${i === 0 ? ' retrievals' : ''}`)
-      out.push({ lead: 'Competitor domain gaps:', text: `The largest gaps include ${listText(items)}.` })
-    }
+    const gaps = gapsBullet()
+    if (gaps) out.push(gaps)
     const mix = d.sourceMix
     if (!mix.length) out.push({ lead: 'Source mix:', text: 'Peec reported no source types for this window.' })
     else if (mix.length === 1) out.push({ lead: 'Source mix:', text: `The domain mix is all ${label(mix[0].label)} sources.` })
@@ -224,6 +254,96 @@ export function dataSentences(d: SnapshotData): DataSentences {
     return out
   }
 
+  // Spec 2026-10-22 B1: the Cited Sources box, in Ryan's order.
+  function citedSourcesBox(): Bullet[] {
+    const out: Bullet[] = []
+    const site = d.ownSites?.[0]
+    if (!site || site.retrievedChats <= 0) {
+      out.push({ lead: 'Citation volume:', text: `${brand}'s own site does not appear in any retrieved citations in this window.` })
+    } else {
+      const domain = ownDomainText(site.domain, brand)
+      const n = site.retrievedChats
+      out.push({ lead: 'Citation volume:', text: `${domain} appears in ${n >= 1000 ? 'approximately ' : ''}${countText(n)} retrieved ${n === 1 ? 'citation' : 'citations'}.` })
+      // A rate that rounds to 0.0 after a count above zero reads "under 0.1%", as the pillar lines do (Paul, #417 review).
+      const rate = site.retrievedPct === 0 ? 'under 0.1%' : site.retrievedPct === null ? null : pctText(site.retrievedPct)
+      if (rate !== null) out.push({ lead: 'Citation rate:', text: `${d.ownSites!.length === 1 ? brand : domain} is cited in ${rate} of tracked answers.` })
+    }
+    out.push(sourceTypeMix())
+    return out
+  }
+
+  function sourceTypeMix(): Bullet {
+    const lead = 'Source-type mix:'
+    const mix = d.sourceMix
+    if (!mix.length) return { lead, text: 'Peec reported no source types for this window.' }
+    if (mix.length === 1) return { lead, text: `All citations come from ${label(mix[0].label)} sources.` }
+    if (mix[1].pct === 0) return { lead, text: `Almost all citations come from ${label(mix[0].label)} sources.` }
+    const [t1, t2] = mix
+    const named = new Set([t1.label, t2.label])
+    const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l))
+    const total = mix.reduce((s, m) => s + m.weight, 0)
+    const share = (l: string) => { const m = mix.find((x) => x.label === l); return { pct: m?.pct ?? 0, exact: m && total ? (m.weight / total) * 100 : 0 } }
+    const [p1, p2, ...pe] = mixPctAll([share(t1.label), share(t2.label), ...extras.map(share)])
+    const tail = extras.length === 2 ? `; ${extras[0]} accounts for ${pe[0]} and ${extras[1]} for ${pe[1]}` : extras.length === 1 ? `; ${extras[0]} accounts for ${pe[0]}` : ''
+    return { lead, text: `${upper(label(t1.label))} sources account for ${p1} of citations, followed by ${label(t2.label)} sources at ${p2}${tail}.` }
+  }
+
+  // Spec 2026-10-22 B2: the Competitive Visibility box, in Ryan's order, then the gaps (D1).
+  function competitiveBox(): Bullet[] {
+    const out: Bullet[] = []
+    if (solo) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers.` })
+    else if (!others.length) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers; no other brand tracked has Peec data in this window.` })
+    else {
+      out.push(nextTier())
+      if (!allZero) {
+        const t = topTier()
+        if (t) out.push(t)
+        const p = peerCluster()
+        if (p) out.push(p)
+      }
+    }
+    const gaps = gapsBullet()
+    if (gaps) out.push(gaps)
+    return out
+  }
+
+  function nextTier(): Bullet {
+    const lead = 'Next-tier gap:'
+    if (allZero) return { lead, text: 'No brand tracked shows visibility in this window.' }
+    const above = others.filter((b) => b.visibilityPct > own.visibilityPct)
+    if (above.length) {
+      const next = Math.min(...above.map((b) => b.visibilityPct))
+      return { lead, text: `${brand} is ${points(tenths(next, own.visibilityPct))} percentage points behind ${someNames(above.filter((b) => b.visibilityPct === next).map((b) => b.name))} in visibility.` }
+    }
+    if (level.length) return { lead, text: `${brand} is level with ${someNames(level.map((b) => b.name))} at the top in visibility.` }
+    const next = Math.max(...others.map((b) => b.visibilityPct))
+    return { lead, text: `${brand} is ${points(tenths(own.visibilityPct, next))} percentage points ahead of ${someNames(others.filter((b) => b.visibilityPct === next).map((b) => b.name))} in visibility.` }
+  }
+
+  function topTier(): Bullet | null {
+    const top3 = others.slice(0, 3)
+    if (top3.length < 2) return null
+    // In whole tenths, half up, so the average and the distance are exact on the printed one-decimal values (spec D3).
+    const avg = Math.round(top3.reduce((s, b) => s + Math.round(b.visibilityPct * 10), 0) / top3.length) / 10
+    const x = tenths(avg, own.visibilityPct)
+    const set = `top-${countWord(top3.length)} average visibility of ${avg.toFixed(1)}%`
+    if (x === 0) return { lead: 'Top-tier distance:', text: `${brand} matches the ${set}.` }
+    return { lead: 'Top-tier distance:', text: `${brand} is ${points(x)} percentage points ${x > 0 ? 'below' : 'above'} the ${set}.` }
+  }
+
+  function peerCluster(): Bullet | null {
+    if (others.length < 2) return null
+    const i = d.brands.findIndex((b) => b.isOwn)
+    const above = d.brands.slice(0, i)
+    const below = d.brands.slice(i + 1)
+    const peers = !above.length ? below.slice(0, 2) : !below.length ? above.slice(-2) : [above[above.length - 1], below[0]]
+    const values = [own.visibilityPct, ...peers.map((b) => b.visibilityPct)]
+    const x = tenths(Math.max(...values), Math.min(...values))
+    const [p1, p2] = peers
+    if (x === 0) return { lead: 'Peer cluster:', text: `${brand} sits at the same visibility as ${p1.name} and ${p2.name}.` }
+    return { lead: 'Peer cluster:', text: `${brand} sits within a ${points(x)}-point visibility range alongside ${p1.name} and ${p2.name}.` }
+  }
+
   function methodology(): string {
     const used = settingsUsedOf(d).methodologyStatesPromptsAndModels
     const parts = [
@@ -236,8 +356,67 @@ export function dataSentences(d: SnapshotData): DataSentences {
     return `Snapshot based on Peec AI data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
   }
 
-  return { context: context(), competitive_bullets: firstBox(), sources_bullets: secondBox(), methodology: methodology() }
+  /** Round 3 (Ryan, 2026-10-21; pillars spec P3): one data line per pillar from the source shares. */
+  function pillars(): Opportunity[] {
+    const none = 'Peec reported no source types for this window.'
+    const lines = d.sourceMix.length ? pillarLines() : [none, none, none]
+    return PILLARS.map((p, i) => ({ workstream: p.name, opportunity: p.description, signal: lines[i] }))
+  }
+  function pillarLines(): string[] {
+    const mix = d.sourceMix
+    const total = mix.reduce((s, m) => s + m.weight, 0)
+    // The brand's own site counts once, in the Content line: an own row Peec files as Editorial or Competitor comes out
+    // of that line (Paul, #415 review). A slice left with nothing reads as absent.
+    const outside = (label: string) => {
+      const m = mix.find((x) => x.label === label)
+      const weight = (m?.weight ?? 0) - (d.ownMixByType?.[label] ?? 0)
+      return m && weight > 0 ? { weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 } : undefined
+    }
+    const editorial = outside('Editorial')
+    const competitor = outside('Competitor')
+    const ownWeight = d.ownMixWeight ?? 0
+    const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
+    // One rounding pass over the shares shown, so two pillars never read alike when their values differ (spec §9 m1).
+    const shown = [editorial, own, competitor].filter((x): x is { weight: number; pct: number } => !!x)
+    const texts = sharePctAll(shown.map((x) => ({ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 })))
+    const share = (x: { weight: number; pct: number }) => (x.pct === 0 ? 'under 0.1%' : texts[shown.indexOf(x)])
+    // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
+    const tail = 'of citations in this window.'
+    const missing = 'among citations in this window.'
+    const plural = new Set(d.ownDomains.filter(Boolean)).size > 1
+    const ownSubject = `${brand}'s own ${plural ? 'sites' : 'site'}`
+    return [
+      editorial ? `Editorial sites make up ${share(editorial)} ${tail}` : `Editorial sites don't appear ${missing}`,
+      own ? `${ownSubject} ${plural ? 'make' : 'makes'} up ${share(own)} ${tail}` : `${ownSubject} ${plural ? "don't" : "doesn't"} appear ${missing}`,
+      competitor ? `Competitors' own websites make up ${share(competitor)} ${tail}` : solo ? 'No competitors are tracked in this Peec project.' : `Competitors' own websites don't appear ${missing}`,
+    ]
+  }
+
+  return {
+    context: context(),
+    methodology: methodology(),
+    current: { competitive_bullets: citedSourcesBox(), sources_bullets: competitiveBox() },
+    v2: { competitive_bullets: firstBox(), sources_bullets: secondBox() },
+    opportunities: pillars(),
+  }
 }
+
+export function dataSentences(d: SnapshotData): DataSentences {
+  const w = write(d)
+  return { context: w.context, competitive_bullets: w.current.competitive_bullets, sources_bullets: w.current.sources_bullets, methodology: w.methodology, opportunities: w.opportunities }
+}
+
+/** Spec 2026-10-22 B3: the version 2 boxes, kept unchanged so grounding can still allow the numbers that a row written with
+ *  them prints. Rows of today's version never use them. */
+export function boxesV2(d: SnapshotData): Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'> {
+  return write(d).v2
+}
+
+/** The boxes each earlier sentences version printed, by version (Paul, #417 review). A row written under version n also
+ *  allows the numbers OLDER_BOXES[n] prints. Bumping SENTENCES_VERSION means adding the outgoing version here, or its
+ *  rows gain flags on bullets they stored; grounding.test.ts fails until it is added. Version 1 keeps version 2's boxes,
+ *  as it did before this lookup. */
+export const OLDER_BOXES: Readonly<Record<number, (d: SnapshotData) => Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'>>> = { 1: boxesV2, 2: boxesV2 }
 
 /** The own-site slice reads "own-site" in a sentence; every other type as the donut shows it. */
 const label = (l: string): string => (l === 'You' ? 'own-site' : l)

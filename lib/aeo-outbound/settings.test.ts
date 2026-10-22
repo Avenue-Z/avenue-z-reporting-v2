@@ -5,14 +5,14 @@ beforeEach(() => { vi.spyOn(console, 'error').mockImplementation(() => {}) })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
 const INPUT: SettingsInput = {
-  users: 'ana@avenuez.com', admins: '', section1: 'Category data', section2: 'Competitive visibility',
+  users: 'ana@avenuez.com', admins: '', section1: 'Cited Sources', section2: 'Competitive Visibility',
   nextStepMode: 'fixed', nextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankMode: 'all', rankAmong: '', peecOpportunityRows: '1',
   methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot',
 }
 const ROW = { id: true, users: ['ana@avenuez.com'], admins: ['boss@avenuez.com'], sectionTitles: ['Strengths', 'Gaps'], fixedNextStep: null, rankAmong: 7, peecOpportunityRows: 2, methodologyStatesPromptsAndModels: false, sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report', updatedAt: new Date('2026-10-10T09:00:00.000Z'), updatedBy: 'boss@avenuez.com' }
 
 test('the defaults are the config.ts DECISIONS, and no row means the defaults', () => {
-  expect(SETTINGS_DEFAULTS).toEqual({ users: [], admins: [], sectionTitles: ['Category data', 'Competitive visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
+  expect(SETTINGS_DEFAULTS).toEqual({ users: [], admins: [], sectionTitles: ['Cited Sources', 'Competitive Visibility'], fixedNextStep: 'A comprehensive AEO audit can validate these patterns across prompt demand, citations, source influence, owned content, earned media, and technical readiness.', rankAmong: null, peecOpportunityRows: 1, methodologyStatesPromptsAndModels: true, sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
   expect(resolveSettings(null)).toEqual({ settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false })
   expect(resolveSettings(undefined)).toEqual({ settings: SETTINGS_DEFAULTS, updatedAt: null, invalid: false })
 })

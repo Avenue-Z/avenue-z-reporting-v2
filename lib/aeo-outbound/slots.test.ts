@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
-import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, MAX_BULLETS, MIN_BULLETS, needsValidationPaths, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
-import { PAGE_WORDS_V1 } from './config'
+import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, MAX_BULLETS, MIN_BULLETS, needsValidationPaths, OPPS_PAGE_KEYS, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
+import { HEADLINE_LABEL, PAGE_WORDS_V1 } from './config'
 
 const S0: Slots = {
   category: 'Fintech', market: 'United States', headline: 'H', summary: 'S', context: 'C',
@@ -136,8 +136,10 @@ test('every page key has a v1.0 default, and no default carries a number', () =>
   for (const v of Object.values(PAGE_WORDS_V1)) expect(v).not.toMatch(/\d/)
 })
 
-test('a new row takes the section titles and wordmark from settings and every other word from v1.0', () => {
-  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report' })
+test('a new row takes the section titles and wordmark from settings, "Executive Summary" as its headline label and the pillar title (Ryan, round 3), and every other word from v1.0', () => {
+  expect(HEADLINE_LABEL).toBe('Executive Summary')
+  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, headline_label: 'Executive Summary', section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report', opps_title: 'The Pillars of AI Search' })
+  expect(PAGE_WORDS_V1.headline_label).toBe('Headline signal')
 })
 
 test('every new path saves within its limit: 120 for page words, KPIs, brand and window label, 1,000 for the footer description and disclaimer', () => {
@@ -168,6 +170,19 @@ test('add and remove keep every list at one to six bullets; a new bullet says Ne
   expect(removed?.ok && removed.slots.competitive_bullets).toEqual([S.competitive_bullets[1], { lead: 'Needs validation', text: 'Needs validation' }])
   expect(applyStructure(S, 'competitive_bullets.add', '')).toEqual({ ok: false, error: "This field can't be empty." })
   expect(STRUCTURE_ERRORS).toEqual({ full: 'A list can have at most six bullets.', min: 'A list needs at least one bullet.' })
+})
+
+test('round 3: every save keeps the page-order marker, and a row without it never gains one', () => {
+  const marked = withDefaults({ ...S0, section_order: 'visibility_first' }, DATA_STUB)
+  expect(marked.section_order).toBe('visibility_first')
+  const edited = applySlotPatch(marked, 'headline', 'New headline')
+  expect(edited.ok && edited.slots.section_order).toBe('visibility_first')
+  const added = applyStructure(marked, 'sources_bullets.add', 'structure')
+  expect(added.ok && added.slots.section_order).toBe('visibility_first')
+  const removed = added.ok ? applyStructure(added.slots, 'sources_bullets.0.remove', 'structure') : null
+  expect(removed?.ok && removed.slots.section_order).toBe('visibility_first')
+  const plain = applySlotPatch(S, 'headline', 'New headline')
+  expect(plain.ok && 'section_order' in plain.slots).toBe(false)
 })
 
 const withList = (n: number) => ({ ...S, sources_bullets: Array.from({ length: n }, (_, i) => ({ lead: `G${i}`, text: `U${i}` })) })
@@ -218,4 +233,60 @@ test('method_title is a page word with its default, and an old row without it ge
   const r = applySlotPatch(full, 'page.method_title', 'How we measured')
   expect(r.ok && r.slots.page.method_title).toBe('How we measured')
   expect(limitFor('page.method_title')).toBe(120)
+})
+
+test('Opportunities page switch: absent reads shown; hide and show are structural, repeatable and need text (Ryan, round 3)', () => {
+  expect(S.opportunities_page).toBe('shown')
+  expect(withDefaults({ ...S0, opportunities_page: 'hidden' }, DATA_STUB).opportunities_page).toBe('hidden')
+  for (const p of ['opportunities_page.hide', 'opportunities_page.show']) expect(isStructuralPath(p)).toBe(true)
+  for (const p of ['opportunities.hide', 'opportunities_page', 'opportunities_page.toggle', 'opportunities_page.0.remove']) expect(isStructuralPath(p)).toBe(false)
+  const hidden = applyStructure(S, 'opportunities_page.hide', 'structure')
+  expect(hidden.ok && hidden.slots.opportunities_page).toBe('hidden')
+  expect(hidden.ok && hidden.slots.opportunities).toEqual(S.opportunities)
+  const again = hidden.ok ? applyStructure(hidden.slots, 'opportunities_page.hide', 'structure') : null
+  expect(again?.ok && again.slots).toEqual(hidden.ok && hidden.slots)
+  const shown = hidden.ok ? applyStructure(hidden.slots, 'opportunities_page.show', 'structure') : null
+  expect(shown?.ok && shown.slots).toEqual(S)
+  expect(applyStructure(S, 'opportunities_page.hide', '')).toEqual({ ok: false, error: "This field can't be empty." })
+  expect(S.opportunities_page).toBe('shown')
+})
+
+const HIDDEN_PATHS = [...[0, 1, 2].flatMap((i) => ['signal', 'opportunity', 'workstream'].map((k) => `opportunities.${i}.${k}`)), ...OPPS_PAGE_KEYS.map((k) => `page.${k}`)]
+test('a hidden Opportunities page leaves exactly its 15 paths out of slotEntries, so Needs validation there no longer blocks', () => {
+  expect(OPPS_PAGE_KEYS).toEqual(['opps_label', 'opps_title', 'opps_col_1', 'opps_col_2', 'opps_col_3', 'opps_takeaway'])
+  const marked = { ...S, opportunities: S.opportunities.map(() => ({ signal: 'Needs validation', opportunity: 'o', workstream: 'w' })), page: { ...S.page, opps_title: 'Needs validation' } }
+  expect(needsValidationPaths(marked)).toEqual(['opportunities.0.signal', 'opportunities.1.signal', 'opportunities.2.signal', 'page.opps_title'])
+  const hidden = { ...marked, opportunities_page: 'hidden' as const }
+  expect(needsValidationPaths(hidden)).toEqual([])
+  const shownPaths = slotEntries(marked).map(([p]) => p)
+  const hiddenPaths = slotEntries(hidden).map(([p]) => p)
+  expect(shownPaths.filter((p) => !hiddenPaths.includes(p)).sort()).toEqual([...HIDDEN_PATHS].sort())
+  expect(hiddenPaths.every((p) => shownPaths.includes(p))).toBe(true)
+})
+
+test('pillars: fixed opportunities replace the reply\'s with no count check (Ryan, round 3)', () => {
+  const pillars = [0, 1, 2].map((i) => ({ signal: `line ${i}`, opportunity: `desc ${i}`, workstream: `name ${i}` }))
+  // The other code-written fields too, as generation passes them (generate.ts fixed), so only the opportunities differ.
+  const fixed = { category: 'c', market: 'm', next_step: 'N', context: 'C', methodology: 'M', competitive_bullets: [{ lead: 'L', text: 'T' }], sources_bullets: [{ lead: 'L', text: 'T' }], opportunities: pillars }
+  const r = validateGeneratedSlots({ headline: 'H', summary: 'S', why: 'W' }, fixed)
+  expect(r.ok && r.slots.opportunities).toEqual(pillars)
+  const r2 = validateGeneratedSlots({ ...MODEL, opportunities: MODEL.opportunities.slice(0, 2) }, fixed)
+  expect(r2.ok && r2.slots.opportunities).toEqual(pillars)
+})
+
+test('a pillar row leaves the table words out of slotEntries; a table row keeps them', () => {
+  const words = ['page.opps_col_1', 'page.opps_col_2', 'page.opps_col_3', 'page.opps_takeaway']
+  const table = slotEntries(S).map(([p]) => p)
+  const pillar = slotEntries({ ...S, opportunities_layout: 'pillars' }).map(([p]) => p)
+  for (const w of words) { expect(table).toContain(w); expect(pillar).not.toContain(w) }
+  expect(table.filter((p) => !pillar.includes(p)).sort()).toEqual([...words].sort())
+})
+
+test('both round-3 markers on one row: hidden leaves out every Opportunities path and all six words; shown, only the four table words', () => {
+  const pillar = { ...S, opportunities_layout: 'pillars' as const }
+  const all = slotEntries(S).map(([p]) => p)
+  const shown = slotEntries(pillar).map(([p]) => p)
+  const hidden = slotEntries({ ...pillar, opportunities_page: 'hidden' as const }).map(([p]) => p)
+  expect(all.filter((p) => !shown.includes(p)).sort()).toEqual(['page.opps_col_1', 'page.opps_col_2', 'page.opps_col_3', 'page.opps_takeaway'])
+  expect(all.filter((p) => !hidden.includes(p)).sort()).toEqual([...HIDDEN_PATHS].sort())
 })

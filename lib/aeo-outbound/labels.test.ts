@@ -22,6 +22,13 @@ test('the label map names each field in plain words, a bullet by its current sec
   expect(fieldLabel('brand', T)).toBe('Brand name')
 })
 
+test('round 3: the section and chart fields are named by their content, since new rows swap their order', () => {
+  expect(fieldLabel('page.section_1_title', T)).toBe('Sources section title')
+  expect(fieldLabel('page.section_2_title', T)).toBe('Visibility section title')
+  expect(fieldLabel('page.chart_1_title', T)).toBe('Domain types chart title')
+  expect(fieldLabel('page.chart_2_title', T)).toBe('Visibility chart title')
+})
+
 test('every editable path has a label that is not the path itself', () => {
   for (const [p] of slotEntries(FULL)) expect(fieldLabel(p, T), p).not.toBe(p)
 })
@@ -45,4 +52,16 @@ test('bullet 6 is labelled, for its lead, text and Remove, in both boxes (spec v
   expect(fieldLabel('sources_bullets.5.remove', T)).toBe('Gaps, bullet 6, remove')
   const six = withDefaults({ ...S0, sources_bullets: Array.from({ length: 6 }, () => ({ lead: 'a', text: 'b' })) }, { brand: 'B', windowLabel: 'W', kpis: [] })
   for (const [p] of slotEntries(six)) expect(fieldLabel(p, T), p).not.toBe(p)
+})
+
+test('with the Opportunities page hidden, every remaining slotEntries path still has a label', () => {
+  for (const [p] of slotEntries({ ...FULL, opportunities_page: 'hidden' })) expect(fieldLabel(p, T), p).not.toBe(p)
+})
+
+test('pillar rows name their fields as pillars (Ryan, round 3); a table row keeps its labels', () => {
+  expect(fieldLabel('opportunities.0.workstream', T, true)).toBe('Pillar 1, name')
+  expect(fieldLabel('opportunities.1.opportunity', T, true)).toBe('Pillar 2, description')
+  expect(fieldLabel('opportunities.2.signal', T, true)).toBe('Pillar 3, data line')
+  expect(fieldLabel('opportunities.2.signal', T)).toBe('Opportunity 3, signal')
+  for (const [p] of slotEntries({ ...FULL, opportunities_layout: 'pillars' })) expect(fieldLabel(p, T, true), p).not.toBe(p)
 })

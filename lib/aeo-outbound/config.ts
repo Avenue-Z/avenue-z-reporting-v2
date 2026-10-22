@@ -1,12 +1,14 @@
 // Ryan's answers to the spec's §13 questions (docs/superpowers/specs/2026-10-08-aeo-outbound-snapshot-design.md).
 // Each default is the spec's assumption. When he answers, change the value here and nowhere else.
 export const DECISIONS = {
-  /** Q1: titles of the two data sections, first (strengths) then second (gaps). */
-  sectionTitles: ['Category data', 'Competitive visibility'] as readonly [string, string],
+  /** Q1: titles of the two data sections: first the sources section (the Domain Types donut), then the competitive
+   *  visibility section (the bars). Round 3 (Ryan, 2026-10-21): renamed, and new rows show the visibility section first. */
+  sectionTitles: ['Cited Sources', 'Competitive Visibility'] as readonly [string, string],
   /** Q2: null ranks the brand among every brand tracked in Peec. A number N (2 or more) ranks it among itself and
    *  the N - 1 competitors with the highest visibility, like the 7 brands Peec's dashboard shows. */
   rankAmong: null as number | null,
-  /** Q4: list the sites where competitors appear and the brand does not, ranked by AI answers that used them. */
+  /** Q4: list competitors' own sites where the brand does not appear, ranked by AI answers that used them (Ryan, round 3,
+   *  2026-10-21: "Only include competitor domains"; metrics.ts gapDomains). */
   competitorSiteGaps: true as boolean,
   /** The source-mix weighting. usage_rate is the field Peec's dashboard sums for its Domain types chart: on 2026-10-19
    *  it reproduced every slice and the Total retrievals on PocketGuard, which retrieval_count missed by up to 1.7
@@ -32,8 +34,26 @@ export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 /** Spec v1.1 §19.5, §19.11: the version of the code-written sentences (sentences.ts). Bump it whenever their wording or
  *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. Version 2
- *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). */
-export const SENTENCES_VERSION = 2
+ *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). Version 3
+ *  (2026-10-22): the findings bullets follow Ryan's per-page wording (spec 2026-10-22). The pillar data lines (round 3)
+ *  do not use it: grounding tells a pillar row apart by its opportunities_layout marker, so changing their wording later
+ *  needs a check of its own (Paul, #415 review). */
+export const SENTENCES_VERSION = 3
+/** The first sentences version whose context and methodology read as they do today (Paul, #417 review). A row from this
+ *  version on keeps the word-for-word check on those two, whatever SENTENCES_VERSION is. Set it to the new
+ *  SENTENCES_VERSION whenever context() or methodology() changes. Their wording has not changed since version 1. */
+export const CONTEXT_WORDING_SINCE = 2
+/** Round 3 (Ryan, 2026-10-21): the three pillars of the Avenue Z audit slide, in its order, shown on the Opportunities
+ *  page of every new report with one data line each (sentences.ts pillars). The Content description completes the
+ *  slide's sentence, which is cut off after "LLMs for". */
+export const PILLARS = [
+  { name: 'Earned & Affiliate Media', description: 'Quality Citations from Trusted Media Publications are a key factor in determining the credibility and authority of information.' },
+  { name: 'Content and Creative', description: 'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.' },
+  { name: 'Technical Optimizations', description: 'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.' },
+] as const
+/** The Opportunities page title on a new report: the slide's title, in its own casing (my decision, 2026-10-21:
+ *  client-facing copy keeps the slide's case). */
+export const PILLARS_TITLE = 'The Pillars of AI Search'
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
 /** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */
@@ -54,7 +74,6 @@ export const CONTRACT_MODES = {
   'peec.brands_by_model': 'enforce',
   'peec.model_channels': 'observe',
   'peec.domains_report': 'enforce',
-  'peec.actions': 'observe',
   'peec.prompts': 'enforce',
   'glean.slots': 'enforce',
   'request.generate': 'enforce',
@@ -72,8 +91,9 @@ export type ContractBoundary = keyof typeof CONTRACT_MODES
 export const PAGE_WORDS_V1 = {
   series: 'AI Visibility Snapshot',
   headline_label: 'Headline signal',
-  section_1_title: DECISIONS.sectionTitles[0],
-  section_2_title: DECISIONS.sectionTitles[1],
+  // The v1.0 words, frozen: DECISIONS.sectionTitles changed in round 3, and a row from before v1.1 keeps these.
+  section_1_title: 'Category data',
+  section_2_title: 'Competitive visibility',
   opps_label: 'Opportunities',
   method_nav: 'Methodology',
   category_label: 'Category:',
@@ -99,3 +119,6 @@ export const PAGE_WORDS_V1 = {
   sidebar_link: 'avenuez.com ↗',
   method_title: 'Methodology and next step',
 }
+/** Round 3 (Ryan, 2026-10-21): the headline section's label and menu item 01 on a new report. A row from before keeps
+ *  its stored word, or "Headline signal" from PAGE_WORDS_V1. */
+export const HEADLINE_LABEL = 'Executive Summary'

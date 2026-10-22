@@ -1,11 +1,11 @@
 // Post-generation checks (spec §6, v1.1 §3): numbers must appear in the Data block, domains must be Peec's, on every
 // slot. A KPI value is compared with Peec's value and the window label with Peec's label instead. Modeled on
 // lib/peec/content-impact-synopsis.ts:58-100. Runs on every save, so notes stay current. Flags are structured notes.
-import { NEEDS_VALIDATION, SENTENCES_VERSION } from './config'
+import { CONTEXT_WORDING_SINCE, NEEDS_VALIDATION, SENTENCES_VERSION } from './config'
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
 import { showsPowered } from './render'
-import { dataSentences, isCodeSentencePath, type DataSentences } from './sentences'
+import { dataSentences, isCodeSentencePath, OLDER_BOXES, type DataSentences } from './sentences'
 import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 
 /** Phrases that read as numbers but aren't figures, removed before the scan (Paul, #388 review). */
@@ -149,14 +149,25 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // Allowed numbers come from today's sentences on any new row; the word-for-word check needs the row's own version.
   const sentences: DataSentences | null = sentencesRow ? dataSentences(d) : null
   const sameVersion = d.sentences === SENTENCES_VERSION
+  // Round 3 (pillars spec P7): on a pillar row the data line is a code sentence and no opportunity field is Glean's.
+  // Table rows are checked exactly as before.
+  const pillarRow = full.opportunities_layout === 'pillars'
+  const pillarLine = (path: string): boolean => pillarRow && /^opportunities\.\d\.signal$/.test(path)
   if (sentences) {
     const s = sentences
-    const sentenceText = stripNames([s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | '))
+    // Spec 2026-10-22 B3: a row written with an earlier sentences version also allows the numbers its own version's boxes
+    // print (OLDER_BOXES), so the bullets it stored never gain a flag. A row with no sentences is unchanged.
+    const olderBoxes = typeof d.sentences === 'number' && d.sentences < SENTENCES_VERSION ? OLDER_BOXES[d.sentences] : undefined
+    const older = olderBoxes ? olderBoxes(d) : null
+    const boxes = [...s.competitive_bullets, ...s.sources_bullets, ...(older ? [...older.competitive_bullets, ...older.sources_bullets] : [])]
+    // A hidden Opportunities page is not on the page, so its pillar lines' numbers are not data for other fields (round 3).
+    const sentenceText = stripNames([s.context, s.methodology, ...boxes.flatMap((b) => [b.lead, b.text]), ...(pillarRow && full.opportunities_page !== 'hidden' ? s.opportunities.map((o) => o.signal) : [])].join(' | '))
     for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
   }
   const fixedNext = settingsUsedOf(d).fixedNextStep
   /** A field Glean wrote (v1.1 §19.3): the category only while it is not Peec's value, next_step only with no fixed sentence. */
   const gleanWrote = (path: string): boolean => {
+    if (pillarRow && path.startsWith('opportunities.')) return false
     if (/^(?:headline|summary|why|opportunities\.\d\.(?:signal|opportunity|workstream))$/.test(path)) return true
     if (path === 'category') return cleanValue(full.category) !== cleanValue(d.category ?? NEEDS_VALIDATION)
     return path === 'next_step' && fixedNext === null
@@ -171,6 +182,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (!sentences) return undefined
     if (path === 'context') return sentences.context
     if (path === 'methodology') return sentences.methodology
+    const line = pillarLine(path) ? /^opportunities\.(\d)\.signal$/.exec(path) : null
+    if (line) return sentences.opportunities[Number(line[1])]?.signal
     const m = /^(competitive_bullets|sources_bullets)\.(\d)\.(lead|text)$/.exec(path)
     if (!m) return undefined
     const key = m[1] as 'competitive_bullets' | 'sources_bullets'
@@ -211,9 +224,13 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       // A code-written sentence names brands, some shaped like domains (Care.com): check it with the names removed. Peec's
       // domains go first and in any case, so a brand that starts its own domain ("Giggle", "Gigglefinance.com") cannot
       // leave half a domain behind (final review I2).
-      const domainText = sentencesRow && isCodeSentencePath(path) ? stripBrandNames(withoutDomains(value)) : value
+      const domainText = sentencesRow && (isCodeSentencePath(path) || pillarLine(path)) ? stripBrandNames(withoutDomains(value)) : value
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
-      const ref = sameVersion && isCodeSentencePath(path) ? peecSentence(path) : undefined
+      // A pillar line is checked on any pillar row: the marker, not SENTENCES_VERSION, tells it apart (Paul, #415 review).
+      // Context and methodology keep the exact check on any row from CONTEXT_WORDING_SINCE on, since their wording did not
+      // change; the bullets only on today's version (Paul, #417 review).
+      const sameWording = (path === 'context' || path === 'methodology') && typeof d.sentences === 'number' && d.sentences >= CONTEXT_WORDING_SINCE
+      const ref = (sameVersion && isCodeSentencePath(path)) || pillarLine(path) || sameWording ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
         // Peec's own action titles (an "H1 heading") are not Glean's numbers.
         let words = text
@@ -242,7 +259,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       }
       for (const m of datesOutsideWindow(text, d.window)) add('date_not_in_window', path, `"${m}" is outside the data window (${d.windowLabel})`)
     }
-    if (sentencesRow && /^opportunities\.\d\.signal$/.test(path) && /peec\s+recommend/i.test(value)) {
+    if (sentencesRow && !pillarRow && /^opportunities\.\d\.signal$/.test(path) && /peec\s+recommend/i.test(value)) {
       const words = keyWords(value)
       const actionWords = d.actions.map((a) => keyWords(a.title))
       if (!d.actions.length) add('peec_recommends', path, 'Peec has no recommended actions for this project.')
@@ -251,7 +268,14 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }
   if (d.brand && full.brand !== d.brand) {
-    const n = entries.filter(([p, v]) => p !== 'brand' && v.split(full.brand).join(' ').includes(d.brand)).length
+    // Spec 2026-10-22 B4: the row's own domains and the domains its bullets print (any case, with or without www.) are not
+    // the brand's name. A brand named like one of them ("Care.com") keeps every mention counted.
+    const bare = (x: string) => x.toLowerCase().replace(/^www\./, '')
+    const name = bare(d.brand)
+    const domains = [...new Set([...d.ownDomains, ...(d.ownSites ?? []).map((site) => site.domain)].map(bare))].filter((x) => x && x !== name)
+    const own = domains.map((od) => new RegExp(`(?:www\\.)?${escapeRe(od)}`, 'gi'))
+    const withoutOwn = (v: string) => own.reduce((t, re) => t.replace(re, ' '), v)
+    const n = entries.filter(([p, v]) => p !== 'brand' && withoutOwn(v).split(full.brand).join(' ').includes(d.brand)).length
     if (n > 0) add('brand_changed', 'brand', `The copy still says ${d.brand} in ${n} ${n === 1 ? 'place' : 'places'}`)
   }
   return out
