@@ -10,6 +10,12 @@ page, or toggle off, depending on if they like the findings generated."
 Decided with Thomas (2026-10-21): every report starts with the page on; when it is off, Methodology moves up to 04;
 "Why it matters" stays. Nothing else is in scope: the pillars rework is a separate PR.
 
+**Combined with the pillars (2026-10-22).** The toggle and the pillars rebuild the same Opportunities section, so they
+ship as one PR (`feat/aeo-outbound-opportunities`, merge `95140bd5`). Three rules join them: the section wraps either
+body (table or pillar cards) and is written only when shown; a hidden page leaves out all six Opportunities words and
+every opportunities path, a shown pillar row only the four table words; a hidden pillar page's lines are not data for
+other fields. "Byte-identical to today" means except the shared stylesheet's pillar rules (pillars spec m6).
+
 ## 2. How the page works today
 
 - **Render.** `renderSnapshotHtml` (`lib/aeo-outbound/render.ts:173`) always writes menu item 04

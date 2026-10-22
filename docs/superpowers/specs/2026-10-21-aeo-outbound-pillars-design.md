@@ -145,8 +145,8 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
 - **Rollout:** an older build reading a pillar row shows it in the old table under the old headers (name, description
   and line in the Signal, Opportunity and Workstream columns). PR previews share the dev database (`ENGINEERS.md:501`):
   QA only on builds with this change.
-- **Other round-3 PRs:** the toggle (#411) moves this section into a constant. Whichever merges second resolves the
-  overlap; each PR stands alone off dev. This PR no longer bumps `SENTENCES_VERSION`.
+- **Other round-3 PRs:** the toggle (#411) moves this section into a constant. Combined with it in one PR on
+  2026-10-22 (`feat/aeo-outbound-opportunities`, merge `95140bd5`); the rules are in the toggle spec §1. This PR no longer bumps `SENTENCES_VERSION`.
 
 ## 5. Edge cases
 
