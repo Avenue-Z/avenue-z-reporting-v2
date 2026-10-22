@@ -262,14 +262,14 @@ test('pillars: the slide names and descriptions in order, and one data line each
   expect(p.map((o) => o.opportunity)).toEqual(PILLARS.map((x) => x.description))
   expect(p.map((o) => o.signal)).toEqual([
     'Editorial sites make up 19% of citations in this window.',
-    "Own's own site makes up 4.0% of citations in this window.",
+    "Own's own site makes up 4% of citations in this window.",
     "Competitors' own websites make up 17% of citations in this window.",
   ])
 })
 
 test('pillars D3 (a): an own subdomain Peec files under another type counts in the Content line, as the own-site bullet counts it', () => {
   expect(pillarsOf([['own.example', 'OWN', 4], ['blog.own.example', 'CORPORATE', 6], ['corp.example', 'CORPORATE', 90]])[1].signal).toBe("Own's own site makes up 10% of citations in this window.")
-  expect(pillarsOf([['blog.own.example', 'CORPORATE', 5], ['corp.example', 'CORPORATE', 95]])[1].signal).toBe("Own's own site makes up 5.0% of citations in this window.")
+  expect(pillarsOf([['blog.own.example', 'CORPORATE', 5], ['corp.example', 'CORPORATE', 95]])[1].signal).toBe("Own's own site makes up 5% of citations in this window.")
   const d = buildSnapshotData({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: [['own.example', 'OWN', 4], ['blog.own.example', 'CORPORATE', 6], ['corp.example', 'CORPORATE', 90]].map((r) => dom(r as [string, string, number])) }, AT, DEFAULTS, USED)
   expect(d.ownMixWeight).toBe(10)
 })
@@ -279,7 +279,7 @@ test('pillars D3 (a): an own subdomain Peec files under another type counts in t
 test('pillars: an own site filed as Editorial or Competitor counts in the Content line only', () => {
   expect(pillarsOf([['blog.own.example', 'EDITORIAL', 6], ['news.example', 'EDITORIAL', 14], ['corp.example', 'CORPORATE', 80]]).map((o) => o.signal)).toEqual([
     'Editorial sites make up 14% of citations in this window.',
-    "Own's own site makes up 6.0% of citations in this window.",
+    "Own's own site makes up 6% of citations in this window.",
     "Competitors' own websites don't appear among citations in this window.",
   ])
   expect(pillarsOf([['blog.own.example', 'EDITORIAL', 6], ['rival.own.example', 'COMPETITOR', 4], ['corp.example', 'CORPORATE', 90]]).map((o) => o.signal)).toEqual([
@@ -287,6 +287,18 @@ test('pillars: an own site filed as Editorial or Competitor counts in the Conten
     "Own's own site makes up 10% of citations in this window.",
     "Competitors' own websites don't appear among citations in this window.",
   ])
+})
+
+// Round 3 QA (spec 2026-10-22 F3): the pillar lines round like the source-mix bullet (D5), so one number reads one way.
+test('pillars: whole numbers from 1%, one decimal below 1% and where two different values would read alike', () => {
+  expect(pillarsOf([['ed.example', 'EDITORIAL', 2.4], ['own.example', 'OWN', 3.2], ['rival.example', 'COMPETITOR', 0.6], ['corp.example', 'CORPORATE', 93.8]]).map((o) => o.signal)).toEqual([
+    'Editorial sites make up 2% of citations in this window.',
+    "Own's own site makes up 3% of citations in this window.",
+    "Competitors' own websites make up 0.6% of citations in this window.",
+  ])
+  expect(pillarsOf([['own.example', 'OWN', 4.1], ['corp.example', 'CORPORATE', 95.9]])[1].signal).toBe("Own's own site makes up 4% of citations in this window.")
+  const tie = pillarsOf([['ed.example', 'EDITORIAL', 2.4], ['own.example', 'OWN', 10], ['rival.example', 'COMPETITOR', 1.6], ['corp.example', 'CORPORATE', 86]]).map((o) => o.signal)
+  expect([tie[0], tie[2]]).toEqual(['Editorial sites make up 2.4% of citations in this window.', "Competitors' own websites make up 1.6% of citations in this window."])
 })
 
 test('pillars: absent slices, a share under 0.1%, an empty mix', () => {
@@ -377,20 +389,29 @@ test('round 3, Competitive Visibility box: first, level at the top, last, ties a
   expect(cv([['own', 'Own', 0.5, 0.3], ['a', 'A', 0.4, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
     'Own is 10.0 percentage points ahead of A in visibility.',
     'Own is 15.0 percentage points above the top-two average visibility of 35.0%.',
-    'Own sits within a 20.0-point visibility range alongside A and B.',
   ])
   expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.5, 0.2], ['b', 'B', 0.3, 0.1]])).toEqual([
     'Own is level with A at the top in visibility.',
     'Own is 10.0 percentage points above the top-two average visibility of 40.0%.',
-    'Own sits within a 20.0-point visibility range alongside A and B.',
   ])
   expect(cv([['a', 'A', 0.5, 0.3], ['b', 'B', 0.4, 0.2], ['own', 'Own', 0.2, 0.1]])).toEqual([
     'Own is 20.0 percentage points behind B in visibility.',
     'Own is 25.0 percentage points below the top-two average visibility of 45.0%.',
-    'Own sits within a 30.0-point visibility range alongside A and B.',
   ])
   expect(cv([['a', 'A', 0.5, 0.3], ['b', 'B', 0.4, 0.2], ['c', 'C', 0.4, 0.2], ['own', 'Own', 0.2, 0.1]])[0]).toBe('Own is 20.0 percentage points behind B and C in visibility.')
   expect(cv([['a', 'A', 0.6, 0.3], ['own', 'Own', 0.5, 0.2], ['b', 'B', 0.4, 0.1], ['c', 'C', 0.3, 0.1], ['d', 'D', 0.2, 0.1]])[1]).toBe('Own is 6.7 percentage points above the top-three average visibility of 43.3%.')
+})
+
+// Round 3 QA (spec 2026-10-22 F2): a peer cluster wider than 10 points is not a cluster, so the bullet is left out.
+test('peer cluster: 10.0 points is kept, 10.1 and 96.4 are left out', () => {
+  expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.45, 0.2], ['b', 'B', 0.4, 0.1]])[2]).toBe('Own sits within a 10.0-point visibility range alongside A and B.')
+  const wide = cv([['a', 'A', 0.501, 0.3], ['own', 'Own', 0.45, 0.2], ['b', 'B', 0.4, 0.1]])
+  expect(wide).toHaveLength(2)
+  expect(wide.some((t) => t.includes('range alongside'))).toBe(false)
+  // The A Place for Mom shape from staging QA: Care 98.6, the brand 3.1, Caring 2.2.
+  const apfm = cv([['care', 'Care', 0.986, 0.9], ['own', 'Own', 0.031, 0.003], ['caring', 'Caring', 0.022, 0.002]])
+  expect(apfm.some((t) => t.includes('range alongside'))).toBe(false)
+  expect(apfm[0]).toBe('Own is 95.5 percentage points behind Care in visibility.')
 })
 
 test('round 3, Competitive Visibility box: one competitor, none tracked, none with data, all at zero, the brand at zero', () => {
@@ -402,7 +423,6 @@ test('round 3, Competitive Visibility box: one competitor, none tracked, none wi
   expect(cv([['a', 'A', 0.3, 0.3], ['b', 'B', 0.1, 0.1], ['own', 'Own', 0, 0]])).toEqual([
     'Own is 10.0 percentage points behind B in visibility.',
     'Own is 20.0 percentage points below the top-two average visibility of 20.0%.',
-    'Own sits within a 30.0-point visibility range alongside A and B.',
   ])
 })
 

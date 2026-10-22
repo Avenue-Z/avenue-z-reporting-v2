@@ -521,8 +521,9 @@ test('both round-3 markers on one row: a hidden pillar page is not checked, so a
 
 test('both round-3 markers on one row: a hidden pillar page\'s numbers no longer count as data for other fields', () => {
   // An own subdomain Peec files as Corporate makes the Content share differ from the donut's You slice (pillars D3 (a)),
-  // so the share is a number only the pillar line holds.
-  const blog = { domain: 'blog.examplesenior.com', classification: 'CORPORATE', retrieved_chat_count: 30, retrieval_count: 300, usage_rate: 300, mentioned_brands: [] }
+  // so the share is a number only the pillar line holds. 400 gives 9%; at 300 the whole-number share (round 3 QA, F3)
+  // reads 8%, which the Data block already holds inside another figure.
+  const blog = { domain: 'blog.examplesenior.com', classification: 'CORPORATE', retrieved_chat_count: 30, retrieval_count: 400, usage_rate: 400, mentioned_brands: [] }
   const d = newRow({ ...LIVE_SHAPE_PULL, domains: [...LIVE_SHAPE_PULL.domains, blog] })
   const n = dataSentences(d).opportunities[1].signal.match(/\d+(?:\.\d)?%/)![0]
   expect(dataBlock(d)).not.toContain(n)

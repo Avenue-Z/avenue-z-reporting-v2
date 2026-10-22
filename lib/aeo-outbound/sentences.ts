@@ -50,6 +50,9 @@ const points = (x: number): string => Math.abs(x).toFixed(1)
 const MAX_NAMED = 5
 /** Editorial and UGC each under this share (percent, as displayed) read as "limited" (Ryan's example: 6% and 3%). */
 const LIMITED_SHARE_PCT = 10
+/** A peer cluster wider than this many visibility points is not a cluster, so the bullet is left out (round 3 QA, spec
+ *  2026-10-22 F2: staging read "a 96.4-point visibility range"). Ryan's PocketGuard example is 7.8. */
+const PEER_CLUSTER_MAX_POINTS = 10
 
 /** At most five names, then "and k more" (k as a count word). */
 const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${countWord(names.length - MAX_NAMED)} more`] : names)
@@ -339,6 +342,7 @@ function write(d: SnapshotData) {
     const peers = !above.length ? below.slice(0, 2) : !below.length ? above.slice(-2) : [above[above.length - 1], below[0]]
     const values = [own.visibilityPct, ...peers.map((b) => b.visibilityPct)]
     const x = tenths(Math.max(...values), Math.min(...values))
+    if (x > PEER_CLUSTER_MAX_POINTS) return null
     const [p1, p2] = peers
     if (x === 0) return { lead: 'Peer cluster:', text: `${brand} sits at the same visibility as ${p1.name} and ${p2.name}.` }
     return { lead: 'Peer cluster:', text: `${brand} sits within a ${points(x)}-point visibility range alongside ${p1.name} and ${p2.name}.` }
@@ -378,7 +382,8 @@ function write(d: SnapshotData) {
     const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
     // One rounding pass over the shares shown, so two pillars never read alike when their values differ (spec §9 m1).
     const shown = [editorial, own, competitor].filter((x): x is { weight: number; pct: number } => !!x)
-    const texts = sharePctAll(shown.map((x) => ({ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 })))
+    // Round 3 QA (spec 2026-10-22 F3): the source-mix bullet's rounding (D5), so a share reads as the donut and bullet read it.
+    const texts = mixPctAll(shown.map((x) => ({ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 })))
     const share = (x: { weight: number; pct: number }) => (x.pct === 0 ? 'under 0.1%' : texts[shown.indexOf(x)])
     // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
     const tail = 'of citations in this window.'
