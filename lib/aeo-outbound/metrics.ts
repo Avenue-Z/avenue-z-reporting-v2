@@ -253,15 +253,22 @@ export function buildSnapshotData(
   const keptSites = rosterSites((id) => keptIds.has(id))
   const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !keptIds.has(id))
   const within = (d: string, sites: string[]) => sites.some((s) => d === s || d.endsWith(`.${s}`))
+  /** The length of the closest (longest) site the domain is or sits under; -1 when none. */
+  const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (d === s || d.endsWith(`.${s}`) ? Math.max(n, s.length) : n), -1)
   const gapDomains = !decisions.competitorSiteGaps || competitorsTracked === 0 ? [] : pull.domains
     .filter((r) => {
       // A domain no answer retrieved is not a gap worth naming (final review M3).
       if ((r.retrieved_chat_count ?? 0) <= 0) return false
       const d = bare(r.domain)
-      if (r.classification === 'OWN' || within(d, ownMatch) || within(d, cutSites)) return false
+      if (r.classification === 'OWN' || within(d, ownMatch)) return false
+      // The closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a kept
+      // competitor's subdomain; a domain on both rosters stays cut (Paul, #413 review).
+      const kept = closest(d, keptSites)
+      const cut = closest(d, cutSites)
+      if (cut >= 0 && cut >= kept) return false
       const ids = new Set(r.mentioned_brands.map((m) => m.id))
       if (ids.has(pull.ownBrand.id)) return false
-      return within(d, keptSites) || (r.classification === 'COMPETITOR' && [...ids].some((id) => keptIds.has(id)))
+      return kept >= 0 || (r.classification === 'COMPETITOR' && [...ids].some((id) => keptIds.has(id)))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))
     .slice(0, 4)

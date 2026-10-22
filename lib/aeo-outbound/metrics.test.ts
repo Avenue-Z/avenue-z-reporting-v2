@@ -290,6 +290,19 @@ test('a competitor cut by rankAmong never counts, even on a COMPETITOR page that
   expect(gapsOf({ ...PULL, domains }, { rankAmong: 2, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' })).toEqual(['alpha.com'])
 })
 
+// Paul, #413 review: the closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a
+// kept competitor's subdomain, and a kept parent never claims a cut competitor's subdomain.
+test('the closest roster domain decides between a kept and a cut competitor; a domain on both rosters stays cut', () => {
+  const roster = PULL.roster.map((b) => (b.id === 'kw_a' ? { ...b, domains: ['alpha.parent.com', 'parent2.com', 'both.com'] } : b.id === 'kw_b' ? { ...b, domains: ['parent.com', 'beta.parent2.com', 'both.com'] } : b))
+  const domains = [
+    gapRow('alpha.parent.com', 'CORPORATE', 100, []), gapRow('parent.com', 'CORPORATE', 90, []), gapRow('beta.parent2.com', 'CORPORATE', 85, []),
+    gapRow('shop.parent.com', 'CORPORATE', 80, []), gapRow('parent2.com', 'CORPORATE', 70, []), gapRow('deep.alpha.parent.com', 'CORPORATE', 60, []),
+    gapRow('both.com', 'CORPORATE', 50, []),
+  ]
+  // rankAmong 2 keeps the brand and Alpha (26.1%); Beta (18.5%) is cut.
+  expect(gapsOf({ ...PULL, roster, domains }, { rankAmong: 2, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' })).toEqual(['alpha.parent.com', 'parent2.com', 'deep.alpha.parent.com'])
+})
+
 test('with no competitors tracked no site is listed, even a COMPETITOR site naming a brand Peec still reports', () => {
   const brands = [PULL.brands[1], { brand: { id: 'kw_s', name: 'Strayco' }, visibility: 0.3, share_of_voice: 0.2, position: 2 }]
   expect(gapsOf({ ...PULL, roster: [PULL.roster[0]], brands, domains: [gapRow('stray.com', 'COMPETITOR', 100, ['kw_s'])] })).toEqual([])

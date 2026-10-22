@@ -157,3 +157,12 @@ Not touched:
 - r2-5: §8's mechanism: competitor domains are allowed because they are in `gapDomains` (`grounding.ts:131`), not
   because of the Data block.
 
+
+## 11. Paul's review (2026-10-22)
+
+- **Fixed.** With `rankAmong` set, a cut competitor's parent domain hid a kept competitor's subdomain (`intuit.com` cut,
+  `turbotax.intuit.com` kept). The closest (longest) roster domain now decides whose site it is; a domain on both rosters
+  stays cut, as before. Checking kept sites first would have let a kept parent claim a cut competitor's subdomain.
+- **Unchanged.** `bare()` keeps a trailing dot or a port: Peec sends plain hosts (measured), so this is a nit.
+- **Answered.** A rival's own site listed as a gap is what Ryan asked for: "some of the domains listed were not
+  competitors mentioned. Only include competitor domains" (§1).
