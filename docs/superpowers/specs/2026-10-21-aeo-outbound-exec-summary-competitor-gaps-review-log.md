@@ -12,5 +12,5 @@ The `gapKind` data field was dropped for a version gate on the Data line (m1). O
 
 ## Round 2 (changed lines only, `155476d8`)
 
-2 MAJOR, 3 MINOR. Not iterated: the MAJORs go to Thomas as D3 (an edge row that contradicts E2) and D4 (a competitor cut
+2 MAJOR, 3 MINOR. Not iterated: the MAJORs came to me as D3 (an edge row that contradicts E2) and D4 (a competitor cut
 by `rankAmong` reaching the list through Peec's class). MINORs in §10.

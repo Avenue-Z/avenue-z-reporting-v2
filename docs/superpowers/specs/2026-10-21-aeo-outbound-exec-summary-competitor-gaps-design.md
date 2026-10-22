@@ -1,6 +1,6 @@
 # AEO Outbound: Executive Summary, and competitor domains in the gaps bullet (design)
 
-Status: draft for review, 2026-10-21. Code cited at dev `5fedaa52`, read this session.
+Status: decided 2026-10-21 (D1 to D4, §7). Code cited at dev `5fedaa52`, read this session.
 
 ## 1. What Ryan asked (round 3, verbatim)
 
@@ -8,7 +8,8 @@ Status: draft for review, 2026-10-21. Code cited at dev `5fedaa52`, read this se
 2. "For the COMPETITOR DOMAIN GAPS: section on Competitive Visibility page, some of the domains listed were not
    competitors mentioned. Only include competitor domains"
 
-The page swap, the Cited Sources rename and the bullet wording wait on his answer to my question 1; they are not here.
+The page swap and the Cited Sources rename are in #414. The bullet wording waits on Ryan's answer to my question on how
+the bullets on each page should read. Neither is here.
 
 ## 2. How it works today
 
@@ -35,6 +36,9 @@ Rows store their own `gapDomains`, so a draft made earlier keeps its list.
 (Peec `COMPETITOR` or a roster competitor's domain, not the brand's) exist on 32 of 33; those where the brand is not
 mentioned exist on 31 of 33 (empty on PE Firms (Blue Owl), whose three competitor sites all mention the brand, and on
 Paycom - Branded, which has none). PocketGuard: ynab.com, monarchmoney.com, copilot.money, actualbudget.org.
+Also measured (2026-10-21, read only, every project's roster: 74 projects, 1,852 domain entries): every entry is a bare
+lowercase host (no scheme, path, port or blank), so the roster match needs no URL parsing; 6 projects list the same
+domain under two roster brands.
 
 ## 3. The changes
 
@@ -73,7 +77,7 @@ built from its own stored list.
 ## 4. Who sees it
 
 New reports: "Executive Summary" and competitor sites. Drafts in flight and approved reports: unchanged. No
-migration, no setting, no `PAGE_KEYS` change. Other round-3 PRs touch `pageDefaults` (#412) and the bullets (pending);
+migration, no setting, no `PAGE_KEYS` change. Other round-3 PRs touch `pageDefaults` (#415) and the bullets (pending);
 whichever merges second resolves the overlap.
 
 ## 5. Edge cases
@@ -99,10 +103,10 @@ whichever merges second resolves the overlap.
 | `metrics.test.ts` | Competitor sites by roster domain (with `www.`, and subdomain) and by class with a kept competitor mentioned; own sites never; brand-mentioned never; zero chats never; a `rankAmong`-cut competitor never; no competitors tracked gives `[]`; empty roster domain entries skipped; top 4. Rewritten: `:76-79` (now `alpha.com`), `:239-262` |
 | `prompt.test.ts` | New wording on a version 2 row (and "none" when empty), old wording on version 1; `v1-compat.test.ts` unchanged and passing |
 | `sentences.test.ts` | `:36` and `:149-156` rewritten with competitor rows; the live-shape fixture gains one roster-domain row and its header comment (`__fixtures__/sentences-live-shape.ts:1-3`) is updated |
-| `grounding.test.ts` | A fresh new row has no flags |
+| `grounding.test.ts` | A fresh new row has no flags; a Glean field naming a listed competitor site is not flagged, and on an older row whose list lacks it, it still is (§9 m8, §10 r2-4) |
 | `config.test.ts` | Unchanged (`competitorSiteGaps` still true) |
 
-## 7. Decisions for Thomas
+## 7. Decisions
 
 - **D1.** Keep "the brand isn't mentioned there" (a true gap, Ryan's heading; empty on 2 of 33) or list competitor
   sites regardless (empty on 1 of 33). Recommended: keep it.
@@ -116,14 +120,14 @@ whichever merges second resolves the overlap.
   domain or subdomain", as own wins; (b) let such pages count. Recommended (a). `rankAmong` is null today (every
   competitor kept), so this only matters if the setting is used.
 
-**Decided (Thomas, 2026-10-21):** D1 keep the gap condition; D2 "Executive Summary"; D3 the row reworded as above;
+**I decided (2026-10-21):** D1 keep the gap condition; D2 "Executive Summary"; D3 the row reworded as above;
 D4 (a).
 
 ## 8. Deliberate parity changes and not touched
 
-- A Glean field naming a listed competitor domain is no longer flagged `domain_not_in_data` (the domain is now in the
-  Data block, `grounding.ts:131`), so it no longer asks for a retry (review round 1, M4). Accepted: the Data line says
-  these are competitors' own sites; the pillars PR (#412) stops Glean writing opportunities altogether.
+- A Glean field naming a listed competitor domain is no longer flagged `domain_not_in_data` (the domain is now in
+  `gapDomains`, `grounding.ts:131`), so it no longer asks for a retry (review round 1, M4). Accepted: the Data line says
+  these are competitors' own sites; the pillars PR (#415) stops Glean writing opportunities altogether.
 - A Rerun of an older draft is a new generation (`generate/route.ts:59-91`): it gets "Executive Summary" and the new list.
 - The editor's field name for the label stays "Headline label" (`labels.ts:11`).
 
@@ -138,13 +142,13 @@ Not touched:
 - m4: own and competitor sharing a parent domain: own wins (E2). Roster `www.` is stripped on both sides (`bare`).
 - m5: the Data line wording follows D1; if D1 lists sites regardless, it reads "(competitors' own sites, by answers that
   used them)".
-- m6: §2's measurement came from a read-only scratch probe (session scratchpad `probe-r3/compgaps.mts`, last 90 days,
+- m6: §2's measurement came from a read-only probe, not kept in the repo (last 90 days,
   retrieved chats above 0); it did not apply the `rankAmong` or kept-competitor tie of E2. With `rankAmong` null (the
   current setting) every roster competitor is kept.
 - m8: a grounding test that a new row's Glean field naming a listed competitor domain is not flagged, and an older row's
   flags are unchanged.
 
-## 10. Review round 2 (changed lines only): two MAJORs to Thomas (D3, D4), minors to the plan
+## 10. Review round 2 (changed lines only): two MAJORs for me to decide (D3, D4), minors to the plan
 
 - r2-3: a kept id with no roster row (from the brands report, `metrics.ts:141-142`, `:147`) has no roster domains and
   can only match by Peec's class; test a non-roster kept brand mentioned on a COMPETITOR row.

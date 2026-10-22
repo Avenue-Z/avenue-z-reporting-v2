@@ -73,7 +73,7 @@ test('round 3: a new row reads Executive Summary in menu item 01 and as the head
 
 (AIVx's stylesheet already holds a `/* ── Executive Summary` comment, so the test asserts the two elements, not the bare words. Both strings were measured on a final render before writing this plan.)
 
-**Merging with #412.** #412 edits the same three places (`slots.ts:5`, the `pageDefaults` return, `slots.test.ts:139-141`). Whichever merges second keeps both: the import holds `HEADLINE_LABEL` and `PILLARS_TITLE`; `pageDefaults` returns `{ ...V1_WORDS, headline_label: HEADLINE_LABEL, section_1_title: ..., section_2_title: ..., sidebar_wordmark: ..., series: ..., opps_title: PILLARS_TITLE }`; the test expects both words.
+**Merging with #415.** #415 edits the same three places (`slots.ts:5`, the `pageDefaults` return, `slots.test.ts:139-141`). Whichever merges second keeps both: the import holds `HEADLINE_LABEL` and `PILLARS_TITLE`; `pageDefaults` returns `{ ...V1_WORDS, headline_label: HEADLINE_LABEL, section_1_title: ..., section_2_title: ..., sidebar_wordmark: ..., series: ..., opps_title: PILLARS_TITLE }`; the test expects both words.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -435,10 +435,10 @@ Fresh reviewer (model `opus`) over `git merge-base dev HEAD..HEAD`, with this pl
 
 Title: `AEO Outbound: Executive Summary, and competitor domains in the gaps bullet (Ryan, round 3) → dev`.
 
-The body states, in first person: what Ryan asked (both quotes); what changes for new reports; that drafts in flight and approved reports do not change; the design reversal (v1 listed third-party sites on purpose, 2026-10-08 spec line 218, and Ryan's feedback replaces it); decisions D1 to D4; that a Glean field naming a listed competitor site is no longer flagged (spec §8); the overlaps with #412 (`pageDefaults`) and the pending bullets PR; the raw test, typecheck and lint output; deferred minors (§9 m3: one competitor's subdomains can fill all four places).
+The body states, in first person: what Ryan asked (both quotes); what changes for new reports; that drafts in flight and approved reports do not change; the design reversal (v1 listed third-party sites on purpose, 2026-10-08 spec line 218, and Ryan's feedback replaces it); decisions D1 to D4; that a Glean field naming a listed competitor site is no longer flagged (spec §8); the overlaps with #415 (`pageDefaults`) and the pending bullets PR; the raw test, typecheck and lint output; deferred minors (§9 m3: one competitor's subdomains can fill all four places).
 
 ```bash
-gh pr create --draft --base dev --head feat/aeo-outbound-exec-summary-competitor-gaps --title "..." --body-file <scratchpad body file>
+gh pr create --draft --base dev --head feat/aeo-outbound-exec-summary-competitor-gaps --title "..." --body-file <body file>
 ```
 
 Then bind it with the ccd_pr tools. No reviewer is requested.
