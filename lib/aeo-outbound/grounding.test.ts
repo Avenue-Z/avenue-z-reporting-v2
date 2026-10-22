@@ -495,3 +495,27 @@ test('B4: the rename note does not count the own domain printed in the brand\'s 
   const without = { ...slots, competitive_bullets: [{ ...slots.competitive_bullets[0], text: 'It appears in 142 retrieved citations.' }, ...slots.competitive_bullets.slice(1)] }
   expect(note(slots)).toBe(note(without))
 })
+
+// Final review: B4 must not hide the old name of a brand named like its own domain, and must skip the domain the
+// bullets print even when Peec's OWN class, not the roster, made it the brand's.
+const renamedTo = (name: string, ownDomain: string, rosterDomains: string[]): PeecPull => ({
+  ...LIVE_SHAPE_PULL,
+  roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === 'kw_own' ? { ...b, name, domains: rosterDomains } : b)),
+  ownBrand: { ...LIVE_SHAPE_PULL.ownBrand, name, domains: rosterDomains },
+  brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === 'kw_own' ? { ...b, brand: { ...b.brand, name } } : b)),
+  domains: LIVE_SHAPE_PULL.domains.map((r) => (r.domain === 'examplesenior.com' ? { ...r, domain: ownDomain } : r)),
+})
+const renameNote = (d: SnapshotData, s: Slots) => groundingFlags({ ...s, brand: 'Renamed Co' }, d, dataBlock(d)).find((n) => n.kind === 'brand_changed')?.text
+
+test('B4 (final review): a brand named like its own domain still gets the rename note for every mention', () => {
+  const d = newRow(renamedTo('Care.com', 'care.com', ['care.com']))
+  expect(renameNote(d, slotsFor(d))).toMatch(/^The copy still says Care\.com in \d+ places$/)
+})
+
+test('B4 (final review): the domain the bullets print is skipped when only Peec\'s OWN class made it the brand\'s', () => {
+  const d = newRow(renamedTo('Examplesenior', 'www.examplesenior.com', []))
+  const slots = slotsFor(d)
+  expect(slots.competitive_bullets[0].text).toBe('Examplesenior.com appears in 142 retrieved citations.')
+  const without = { ...slots, competitive_bullets: [{ ...slots.competitive_bullets[0], text: 'It appears in 142 retrieved citations.' }, ...slots.competitive_bullets.slice(1)] }
+  expect(renameNote(d, slots)).toBe(renameNote(d, without))
+})

@@ -255,8 +255,12 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }
   if (d.brand && full.brand !== d.brand) {
-    // Spec 2026-10-22 B4: the row's own domains (any case, with or without www.) are not the brand's name.
-    const own = d.ownDomains.filter(Boolean).map((od) => new RegExp(`(?:www\\.)?${od.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi'))
+    // Spec 2026-10-22 B4: the row's own domains and the domains its bullets print (any case, with or without www.) are not
+    // the brand's name. A brand named like one of them ("Care.com") keeps every mention counted.
+    const bare = (x: string) => x.toLowerCase().replace(/^www\./, '')
+    const name = bare(d.brand)
+    const domains = [...new Set([...d.ownDomains, ...(d.ownSites ?? []).map((site) => site.domain)].map(bare))].filter((x) => x && x !== name)
+    const own = domains.map((od) => new RegExp(`(?:www\\.)?${escapeRe(od)}`, 'gi'))
     const withoutOwn = (v: string) => own.reduce((t, re) => t.replace(re, ' '), v)
     const n = entries.filter(([p, v]) => p !== 'brand' && withoutOwn(v).split(full.brand).join(' ').includes(d.brand)).length
     if (n > 0) add('brand_changed', 'brand', `The copy still says ${d.brand} in ${n} ${n === 1 ? 'place' : 'places'}`)
