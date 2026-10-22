@@ -6,7 +6,8 @@ export const DECISIONS = {
   /** Q2: null ranks the brand among every brand tracked in Peec. A number N (2 or more) ranks it among itself and
    *  the N - 1 competitors with the highest visibility, like the 7 brands Peec's dashboard shows. */
   rankAmong: null as number | null,
-  /** Q4: list the sites where competitors appear and the brand does not, ranked by AI answers that used them. */
+  /** Q4: list competitors' own sites where the brand does not appear, ranked by AI answers that used them (Ryan, round 3,
+   *  2026-10-21: "Only include competitor domains"; metrics.ts gapDomains). */
   competitorSiteGaps: true as boolean,
   /** The source-mix weighting. usage_rate is the field Peec's dashboard sums for its Domain types chart: on 2026-10-19
    *  it reproduced every slice and the Total retrievals on PocketGuard, which retrieval_count missed by up to 1.7
@@ -111,3 +112,6 @@ export const PAGE_WORDS_V1 = {
   sidebar_link: 'avenuez.com ↗',
   method_title: 'Methodology and next step',
 }
+/** Round 3 (Ryan, 2026-10-21): the headline section's label and menu item 01 on a new report. A row from before keeps
+ *  its stored word, or "Headline signal" from PAGE_WORDS_V1. */
+export const HEADLINE_LABEL = 'Executive Summary'

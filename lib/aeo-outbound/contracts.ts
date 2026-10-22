@@ -73,7 +73,8 @@ export const PEEC_CONTRACTS = {
   },
   'peec.model_channels': { observe: z.array(z.looseObject({ id: z.string(), description: z.string().nullish() })) },
   // classification decides the source mix and the donut (Peec also sends custom names, so any non-empty string);
-  // mentioned_brands decides the competitor domain gaps (often an empty array); the domain is printed in the sentences.
+  // mentioned_brands keeps a site the brand appears on out of the competitor domain gaps, and ties a COMPETITOR site off the
+  // roster to a compared competitor (often an empty array); the domain is printed in the sentences.
   'peec.domains_report': {
     enforce: z.array(z.looseObject({ domain: z.string().min(1), retrieved_chat_count: count, retrieval_count: count, usage_rate: z.number().min(0), retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
     observe: z.unknown(),

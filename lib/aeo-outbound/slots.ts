@@ -2,7 +2,7 @@
 // sources_bullets the second (gaps), as spec §5 rows 5-6 say. v1.1 makes every visible word a slot: brand,
 // window_label, kpis and the page words. A row from before v1.1 lacks those keys; withDefaults fills them from the row's
 // own data and the v1.0 words, never from live settings, so a settings change never alters an existing row.
-import { NEEDS_VALIDATION, PAGE_WORDS_V1, PILLARS_TITLE } from './config'
+import { HEADLINE_LABEL, NEEDS_VALIDATION, PAGE_WORDS_V1, PILLARS_TITLE } from './config'
 import type { Kpi } from './metrics'
 
 export interface Bullet { lead: string; text: string }
@@ -83,9 +83,9 @@ export function limitFor(path: string): number {
 }
 
 /** The page words a new row is created with: v1.0's, with the section titles, wordmark and report name from settings
- *  (v1.1 §3) and the pillar title (round 3). */
+ *  (v1.1 §3), "Executive Summary" as the headline label and the pillar title (round 3). */
 export function pageDefaults(s: { sectionTitles: readonly string[]; sidebarWordmark: string; series: string }): PageWords {
-  return { ...V1_WORDS, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series, opps_title: PILLARS_TITLE }
+  return { ...V1_WORDS, headline_label: HEADLINE_LABEL, section_1_title: s.sectionTitles[0], section_2_title: s.sectionTitles[1], sidebar_wordmark: s.sidebarWordmark, series: s.series, opps_title: PILLARS_TITLE }
 }
 
 /** Every key filled. Missing keys read the row's own data (brand, window label, KPIs), the v1.0 words, and a shown

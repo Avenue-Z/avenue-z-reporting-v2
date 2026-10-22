@@ -54,7 +54,7 @@ export function dataBlock(d: SnapshotData): string {
     `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${points(g.visibilityPoints)} points${typeof g.sovPoints === 'number' && g.sovPoints > 0 ? `, ${points(g.sovPoints)} points` : ''}`).join('; ') || 'none'}`,
     ownLine,
     `Source types by share of ${d.sourceMixWeight === 'usage_rate' ? "AI use (Peec's usage rate)" : 'retrievals'}: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
-    `Competitor domain gaps (sites where competitors appear and the brand does not, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
+    `Competitor domain gaps (${v2 ? "competitors' own sites where the brand does not appear" : 'sites where competitors appear and the brand does not'}, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
     // Round 3 (Paul, #415 review): new rows store no actions, so the line is only for an older row that stored some.
     ...(d.actions.length ? [`Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ')}`] : []),
   ]
