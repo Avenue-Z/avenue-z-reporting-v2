@@ -22,10 +22,13 @@ branch `docs/aeo-outbound-round3-staging-qa`). Each fix is my decision; nothing 
 ## 2. The changes
 
 **F1. Gaps list only competitors the chart shows.** One function decides the charted brands and both callers use it:
-`chartedBrands(brands)` in `charts.ts`, the existing rule moved out of `visibilityBarFigure` unchanged (the first 20
-by rank order, sorted by visibility, the top 10, the brand in place of the tenth when it is not among them).
-`buildSnapshotData` (`metrics.ts`) takes the charted competitors' ids (`chartedIds`) and uses them where the gap filter
-uses `keptIds` today (`metrics.ts:267-285`): a charted competitor's roster domain or subdomain, or a COMPETITOR page
+`chartedBrands<T extends { visibilityPct: number; isOwn?: boolean }>(brands: readonly T[]): T[]`, in a new module
+`lib/aeo-outbound/charted.ts` with no imports (`charts.ts:6` imports from `metrics.ts`, so it cannot live in
+`charts.ts` without a cycle). It is the existing rule moved out of `visibilityBarFigure` (`charts.ts:46-49`)
+unchanged and returns the same objects: the first 20 in rank order, sorted by visibility, the top 10, the brand in
+place of the tenth when it is not among them. `visibilityBarFigure` calls it. Inside `buildSnapshotData`
+(`metrics.ts`), after `brands` is built (`metrics.ts:158`), `chartedIds` is the ids of `chartedBrands(brands)` that
+are not the brand, and the gap filter uses it where it uses `keptIds` today (`metrics.ts:267-285`): a charted competitor's roster domain or subdomain, or a COMPETITOR page
 that mentions a charted competitor. Every other competitor's site counts as cut, so the closest-domain rule (#413 D3)
 keeps working. Everything else about the gaps is unchanged (own wins, mentions the brand, zero chats, top 4, no
 competitors tracked). The Data block's gap line reads the same list, so Glean sees only charted competitors' sites.
@@ -55,13 +58,16 @@ only at generation, so older rows keep their stored gaps.
 | Case | Expected |
 |---|---|
 | Brand outside the top 10 | It takes the tenth bar; the nine charted competitors give the gaps |
-| 10 or fewer brands with data | Every competitor is charted; gaps as before |
-| A competitor with no Peec row | Not charted (no bar), so its sites are not gaps |
+| 10 or fewer brands with data | Every competitor with a Peec row is charted; gaps as before, except row 3 |
+| A competitor with no Peec row | Not charted (no bar), so its sites are no longer gaps (today `keptIds` includes it, `metrics.ts:154`) |
+| A competitor named in a bullet but not charted (the brand ranks 11th or lower, so Next-tier gap or Peer cluster names a neighbour off the chart; or a no-data brand in the context) | Its sites are not gaps, on purpose: the list follows the chart |
+| Competitors tied at the 10th bar | The chart and the gaps agree, because both use `chartedBrands` on the same ordered list |
 | `rankAmong` set | The chart is drawn from the compared brands, so charted is a subset of compared |
 | Cut parent, charted subdomain (and reverse) | The closest roster domain decides (#413 D3) |
 | Peer range 10.0 / 10.1 | Kept / dropped |
 | Brand first or last | Its two neighbours on one side, same width rule |
-| Pillar share 0.4% / 1.0% / 2.4% / 19.4% and 19.6% | "0.4%" / "1%" / "2%" / two different values never read alike |
+| Pillar share 0.4% / 1.0% / 2.4% / 2.4% beside 1.6% | "0.4%" / "1%" / "2%" / "2.4%" and "1.6%" (two different values never read alike) |
+| The Editorial pillar beside the source-mix bullet | Usually the same reading. They can still differ: the pillar's Editorial excludes the brand's own rows (`ownMixByType`), and the tie rule runs within each sentence |
 
 ## 5. Tests (written first)
 
@@ -70,7 +76,13 @@ only at generation, so older rows keep their stored gaps.
 - `metrics.test.ts`: an 11th-ranked competitor's own site is not a gap; a charted one's is; a cut parent with a
   charted subdomain; the PocketGuard shape (18 brands, gaps from charted competitors only).
 - `sentences.test.ts`: peer cluster at 7.8 kept, 10.0 kept, 10.1 dropped, 96.4 dropped (the A Place for Mom shape);
-  pillar lines at 2.4, 3.2, 0.6, 4.1 read 2%, 3%, 0.6%, 4%; Ryan's PocketGuard sentences unchanged.
+  pillar lines at 2.4, 3.2, 0.6, 4.1 read 2%, 3%, 0.6%, 4%, and 2.4 beside 1.6 keep one decimal; Ryan's PocketGuard
+  sentences unchanged.
+- `metrics.test.ts`: a no-row competitor's site is no longer a gap; competitors tied at the 10th bar give the same set
+  to the chart and the gaps.
+- Existing tests whose expected output changes on purpose: the 20.0 and 30.0-point peer clusters
+  (`sentences.test.ts:380`, `:385`, `:390`, `:405`) are dropped, and the pillar lines that read "4.0%", "5.0%" and
+  "6.0%" (`:265`, `:272`, `:282`) read whole numbers.
 - The full suite, the type check and the RSC check.
 
 ## 6. After merge
