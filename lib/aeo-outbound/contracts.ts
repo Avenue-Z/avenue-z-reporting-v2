@@ -164,6 +164,8 @@ export const STORED_DATA = z.looseObject({
   sourceMixWeight: z.enum(['retrieval_count', 'retrieved_chat_count', 'usage_rate']).optional(),
   // Round 3 (pillars): the own rows' source-mix weight; absent on older rows.
   ownMixWeight: z.number().min(0).optional(),
+  // Paul, #415 review: the own rows' weight by source type; absent on older rows.
+  ownMixByType: z.record(z.string(), z.number().min(0)).optional(),
 })
 const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })
 /** Stored slots: the copy keys always, the v1.1 keys when the row has them. */

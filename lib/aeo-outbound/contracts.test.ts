@@ -284,6 +284,10 @@ test('stored slots: opportunities_page is absent, shown or hidden; anything else
   for (const v of ['off', true, null, 1]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, opportunities_page: v }, 'enforce').ok).toBe(false)
 })
 
+test('stored data: ownMixByType is absent or a map of weights of at least 0 (Paul, #415 review)', () => {
+  for (const v of [undefined, {}, { Editorial: 6, You: 4 }]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ...(v === undefined ? {} : { ownMixByType: v }) }, 'enforce').ok).toBe(true)
+  for (const v of [{ Editorial: -1 }, { Editorial: '3' }, null, [1]]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ownMixByType: v }, 'enforce').ok).toBe(false)
+})
 test('stored data: ownMixWeight is absent or a number of at least 0 (pillars)', () => {
   for (const v of [undefined, 0, 12.5]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ...(v === undefined ? {} : { ownMixWeight: v }) }, 'enforce')).toEqual({ ok: true })
   for (const v of [-1, '3', null]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ownMixWeight: v }, 'enforce').ok).toBe(false)

@@ -269,6 +269,21 @@ test('pillars D3 (a): an own subdomain Peec files under another type counts in t
   expect(d.ownMixWeight).toBe(10)
 })
 
+// Paul, #415 review: an own site Peec files as Editorial or Competitor counts once, in the Content line, never also as
+// earned media or a rival's site.
+test('pillars: an own site filed as Editorial or Competitor counts in the Content line only', () => {
+  expect(pillarsOf([['blog.own.example', 'EDITORIAL', 6], ['news.example', 'EDITORIAL', 14], ['corp.example', 'CORPORATE', 80]]).map((o) => o.signal)).toEqual([
+    'Editorial sites make up 14% of citations in this window.',
+    "Own's own site makes up 6.0% of citations in this window.",
+    "Competitors' own websites don't appear among citations in this window.",
+  ])
+  expect(pillarsOf([['blog.own.example', 'EDITORIAL', 6], ['rival.own.example', 'COMPETITOR', 4], ['corp.example', 'CORPORATE', 90]]).map((o) => o.signal)).toEqual([
+    "Editorial sites don't appear among citations in this window.",
+    "Own's own site makes up 10% of citations in this window.",
+    "Competitors' own websites don't appear among citations in this window.",
+  ])
+})
+
 test('pillars: absent slices, a share under 0.1%, an empty mix', () => {
   expect(pillarsOf([['corp.example', 'CORPORATE', 100]]).map((o) => o.signal)).toEqual([
     "Editorial sites don't appear among citations in this window.",

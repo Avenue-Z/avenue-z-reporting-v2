@@ -53,6 +53,9 @@ export interface SnapshotData {
   /** Round 3 (pillars D3 (a)): the source-mix weight of the brand's own rows (OWN class or own-domain match, weight above
    *  0), the Content pillar's share. Absent on older rows, which are never pillar rows. */
   ownMixWeight?: number
+  /** Paul, #415 review: the same own rows' weight by the source type Peec files them under (the donut's labels), so a
+   *  pillar line takes the brand's own site out of the Editorial and Competitor shares. Absent on older rows. */
+  ownMixByType?: Record<string, number>
   sourceMix: SourceSlice[]
   gapDomains: { domain: string; retrievedChats: number }[]
   actions: { title: string; impact: string; type: string }[]
@@ -244,6 +247,11 @@ export function buildSnapshotData(
   }
   // Round 3 (pillars spec D3 (a)): the Content pillar counts the brand's own rows the way the own-site bullet does.
   const ownMixWeight = ownRows.reduce((s, r) => { const w = r[decisions.sourceMixWeight] ?? 0; return w > 0 ? s + w : s }, 0)
+  const ownMixByType: Record<string, number> = {}
+  for (const r of ownRows) {
+    const w = r[decisions.sourceMixWeight] ?? 0
+    if (w > 0) { const label = titleClassification(r.classification); ownMixByType[label] = (ownMixByType[label] ?? 0) + w }
+  }
   const total = [...weights.values()].reduce((s, w) => s + w, 0)
   const sourceMix = [...weights.entries()]
     .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))
@@ -289,6 +297,7 @@ export function buildSnapshotData(
     ownRetrievedChats,
     ownRetrievedPct,
     ownMixWeight,
+    ownMixByType,
     sourceMix,
     sourceMixWeight: decisions.sourceMixWeight,
     gapDomains,

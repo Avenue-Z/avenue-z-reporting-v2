@@ -247,8 +247,15 @@ export function dataSentences(d: SnapshotData): DataSentences {
   function pillarLines(): string[] {
     const mix = d.sourceMix
     const total = mix.reduce((s, m) => s + m.weight, 0)
-    const editorial = mix.find((m) => m.label === 'Editorial')
-    const competitor = mix.find((m) => m.label === 'Competitor')
+    // The brand's own site counts once, in the Content line: an own row Peec files as Editorial or Competitor comes out
+    // of that line (Paul, #415 review). A slice left with nothing reads as absent.
+    const outside = (label: string) => {
+      const m = mix.find((x) => x.label === label)
+      const weight = (m?.weight ?? 0) - (d.ownMixByType?.[label] ?? 0)
+      return m && weight > 0 ? { weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 } : undefined
+    }
+    const editorial = outside('Editorial')
+    const competitor = outside('Competitor')
     const ownWeight = d.ownMixWeight ?? 0
     const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
     // One rounding pass over the shares shown, so two pillars never read alike when their values differ (spec §9 m1).

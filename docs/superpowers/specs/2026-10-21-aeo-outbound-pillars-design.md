@@ -196,6 +196,8 @@ settings contract, the database column and older rows' `settingsUsed` are unchan
   the page never denies a site it shows elsewhere, and it can read above the donut's "You" slice when Peec misclassifies
   a subdomain. (b) The `You` slice, as the donut shows it, with a different absent line when the box shows own
   retrievals. (c) The `You` slice as drafted, accepting the rare clash. Recommended: (a).
+  Added in Paul's review: an own row Peec files as Editorial or Competitor counts once, in the Content line, and comes
+  out of the Earned or Technical line (`ownMixByType`), so the brand's own blog is never credited as earned media.
 - **D4. Wording** changed in round 1 from the draft I approved: "of the domain mix in this window" in place of
   "of the sources AI drew on in this snapshot" (P3).
   Changed again on 2026-10-22 to "of citations in this window" ("among citations" when absent), Ryan's word in his
