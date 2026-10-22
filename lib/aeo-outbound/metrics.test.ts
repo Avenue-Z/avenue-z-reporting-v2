@@ -73,7 +73,7 @@ test('source mix weights by retrieval_count, drops zero weights, sorts by weight
   expect(d.sourceMix.reduce((t, s) => t + s.weight, 0)).toBe(11000)
 })
 
-test('competitor gap domains: a compared competitor\'s own site where the brand is absent, ranked by retrieved chats (Ryan, round 3)', () => {
+test('competitor gap domains: a compared competitor\'s own site where the brand is absent is listed; a third-party site and one the brand appears on are not (Ryan, round 3)', () => {
   const d = buildSnapshotData(PULL, '2026-10-08T15:00:00Z')
   expect(d.gapDomains).toEqual([{ domain: 'alpha.com', retrievedChats: 1250 }])
 })
@@ -257,13 +257,14 @@ test('a competitor site counts by its roster domain or a subdomain, whatever its
 
 test('a roster domain matches with or without www. on either side, and a blank roster entry matches nothing', () => {
   const roster = PULL.roster.map((b) => (b.id === 'kw_b' ? { ...b, domains: ['www.beta.com', ' '] } : b))
-  const domains = [gapRow('beta.com', 'CORPORATE', 90, []), gapRow('trailing.com.', 'CORPORATE', 80, [])]
-  expect(gapsOf({ ...PULL, roster, domains })).toEqual(['beta.com'])
+  const domains = [gapRow('beta.com', 'CORPORATE', 90, []), gapRow('www.alpha.com', 'CORPORATE', 70, []), gapRow('trailing.com.', 'CORPORATE', 80, [])]
+  expect(gapsOf({ ...PULL, roster, domains })).toEqual(['beta.com', 'www.alpha.com'])
 })
 
 test('the brand\'s own site never counts, and own wins when a competitor\'s roster shares its domain', () => {
   const roster = PULL.roster.map((b) => (b.id === 'kw_a' ? { ...b, domains: ['alpha.com', 'example.com'] } : b))
-  const domains = [gapRow('mine.com', 'OWN'), gapRow('blog.example.com', 'COMPETITOR', 90), gapRow('help.example.com', 'CORPORATE', 80, []), gapRow('alpha.com', 'COMPETITOR', 50)]
+  // shop.alpha.com is a compared competitor's subdomain that Peec files as OWN: the class alone keeps it out.
+  const domains = [gapRow('mine.com', 'OWN'), gapRow('blog.example.com', 'COMPETITOR', 90), gapRow('help.example.com', 'CORPORATE', 80, []), gapRow('shop.alpha.com', 'OWN', 70, []), gapRow('alpha.com', 'COMPETITOR', 50)]
   expect(gapsOf({ ...PULL, roster, domains })).toEqual(['alpha.com'])
 })
 
