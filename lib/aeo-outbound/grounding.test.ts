@@ -3,7 +3,7 @@ import { SENTENCES_VERSION } from './config'
 import { groundingFlags } from './grounding'
 import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData } from './metrics'
-import { dataSentences } from './sentences'
+import { boxesV2, dataSentences } from './sentences'
 import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
 import type { SnapshotData } from './metrics'
@@ -466,4 +466,32 @@ test('the exact sentence check runs only for rows written by the current sentenc
   expect(groundingFlags(edited, d, dataBlock(d)).filter((n) => n.path === 'sources_bullets.0.text')).toEqual([])
   // It is still a new row: a number in Glean's words is still an unchecked_number item.
   expect(groundingFlags({ ...edited, why: 'It rose 4.4%.' }, d, dataBlock(d)).filter((n) => n.path === 'why').map((n) => n.kind)).toEqual(['unchecked_number'])
+})
+
+// Spec 2026-10-22 B3: the brand at 33.3% visibility and 11.4% share of voice, six brands above it, share-of-voice gaps.
+const BIG: PeecPull = {
+  ...LIVE_SHAPE_PULL,
+  brands: [
+    ...([['kw_lead', 'Carefinder', 0.9, 0.4], ['kw_run', 'Caringly', 0.8, 0.2], ['kw_way', 'Seniorway', 0.7, 0.15], ['kw_pet', 'Petalcare', 0.6, 0.1], ['kw_x1', 'Xone', 0.5, 0.08], ['kw_x2', 'Xtwo', 0.45, 0.05]] as [string, string, number, number][])
+      .map(([id, name, v, s]) => ({ brand: { id, name }, visibility: v, share_of_voice: s, position: 2 })),
+    { brand: { id: 'kw_own', name: 'Example Senior Living' }, visibility: 0.333, share_of_voice: 0.114, position: 3 },
+  ],
+}
+
+test('B3: a row written with version 2 or 1 gains no flag on the bullets it stored, numbers only those bullets print included', () => {
+  for (const version of [2, 1]) {
+    const d = { ...newRow(BIG), sentences: version } as SnapshotData
+    expect(groundingFlags({ ...slotsFor(d), ...boxesV2(d) }, d, dataBlock(d))).toEqual([])
+  }
+})
+
+test('B4: the rename note does not count the own domain printed in the brand\'s casing', () => {
+  const name = 'Examplesenior'
+  const p: PeecPull = { ...LIVE_SHAPE_PULL, roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === 'kw_own' ? { ...b, name } : b)), ownBrand: { ...LIVE_SHAPE_PULL.ownBrand, name }, brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === 'kw_own' ? { ...b, brand: { ...b.brand, name } } : b)) }
+  const d = newRow(p)
+  const slots = { ...slotsFor(d), brand: 'New Co' }
+  expect(slots.competitive_bullets[0].text).toBe('Examplesenior.com appears in 142 retrieved citations.')
+  const note = (s: Slots) => groundingFlags(s, d, dataBlock(d)).find((n) => n.kind === 'brand_changed')?.text
+  const without = { ...slots, competitive_bullets: [{ ...slots.competitive_bullets[0], text: 'It appears in 142 retrieved citations.' }, ...slots.competitive_bullets.slice(1)] }
+  expect(note(slots)).toBe(note(without))
 })

@@ -5,7 +5,7 @@ import { NEEDS_VALIDATION, SENTENCES_VERSION } from './config'
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
 import { showsPowered } from './render'
-import { dataSentences, isCodeSentencePath, type DataSentences } from './sentences'
+import { boxesV2, dataSentences, isCodeSentencePath, type DataSentences } from './sentences'
 import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 
 /** Phrases that read as numbers but aren't figures, removed before the scan (Paul, #388 review). */
@@ -151,7 +151,11 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   const sameVersion = d.sentences === SENTENCES_VERSION
   if (sentences) {
     const s = sentences
-    const sentenceText = stripNames([s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text])].join(' | '))
+    // Spec 2026-10-22 B3: a row written with an earlier sentences version also allows the numbers its version 2 boxes
+    // print, so the bullets it stored never gain a flag. A row with no sentences (version 1) is unchanged.
+    const older = typeof d.sentences === 'number' && d.sentences < SENTENCES_VERSION ? boxesV2(d) : null
+    const boxes = [...s.competitive_bullets, ...s.sources_bullets, ...(older ? [...older.competitive_bullets, ...older.sources_bullets] : [])]
+    const sentenceText = stripNames([s.context, s.methodology, ...boxes.flatMap((b) => [b.lead, b.text])].join(' | '))
     for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
   }
   const fixedNext = settingsUsedOf(d).fixedNextStep
@@ -251,7 +255,10 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (!dashExempt(path, full, d) && DASHES.test(text)) add('long_dash', path, 'contains a long dash; use a period or comma')
   }
   if (d.brand && full.brand !== d.brand) {
-    const n = entries.filter(([p, v]) => p !== 'brand' && v.split(full.brand).join(' ').includes(d.brand)).length
+    // Spec 2026-10-22 B4: the row's own domains (any case, with or without www.) are not the brand's name.
+    const own = d.ownDomains.filter(Boolean).map((od) => new RegExp(`(?:www\\.)?${od.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi'))
+    const withoutOwn = (v: string) => own.reduce((t, re) => t.replace(re, ' '), v)
+    const n = entries.filter(([p, v]) => p !== 'brand' && withoutOwn(v).split(full.brand).join(' ').includes(d.brand)).length
     if (n > 0) add('brand_changed', 'brand', `The copy still says ${d.brand} in ${n} ${n === 1 ? 'place' : 'places'}`)
   }
   return out
