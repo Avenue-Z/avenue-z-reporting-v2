@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { SENTENCES_VERSION } from './config'
 import vectors from './round.vectors.json'
 import { buildSnapshotData, fmtDay, fmtEasternDateTime, fmtEasternDay, preparedDay, pyRound, titleClassification, V1_SETTINGS_USED } from './metrics'
+import { chartedBrands } from './charted'
 import type { MetricDecisions } from './metrics'
 import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
@@ -291,15 +292,95 @@ test('a competitor cut by rankAmong never counts, even on a COMPETITOR page that
 
 // Paul, #413 review: the closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a
 // kept competitor's subdomain, and a kept parent never claims a cut competitor's subdomain.
-test('the closest roster domain decides between a kept and a cut competitor; a domain on both rosters stays cut', () => {
+test('the closest roster domain decides between a kept and a cut competitor; a domain on both rosters goes to the charted one', () => {
   const roster = PULL.roster.map((b) => (b.id === 'kw_a' ? { ...b, domains: ['alpha.parent.com', 'parent2.com', 'both.com'] } : b.id === 'kw_b' ? { ...b, domains: ['parent.com', 'beta.parent2.com', 'both.com'] } : b))
   const domains = [
     gapRow('alpha.parent.com', 'CORPORATE', 100, []), gapRow('parent.com', 'CORPORATE', 90, []), gapRow('beta.parent2.com', 'CORPORATE', 85, []),
     gapRow('shop.parent.com', 'CORPORATE', 80, []), gapRow('parent2.com', 'CORPORATE', 70, []), gapRow('deep.alpha.parent.com', 'CORPORATE', 60, []),
     gapRow('both.com', 'CORPORATE', 50, []),
   ]
-  // rankAmong 2 keeps the brand and Alpha (26.1%); Beta (18.5%) is cut.
-  expect(gapsOf({ ...PULL, roster, domains }, { rankAmong: 2, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' })).toEqual(['alpha.parent.com', 'parent2.com', 'deep.alpha.parent.com'])
+  // rankAmong 2 keeps the brand and Alpha (26.1%); Beta (18.5%) is cut. both.com is on both rosters: since the round 3 QA
+  // review it goes to the charted competitor (Alpha), where it used to stay cut.
+  expect(gapsOf({ ...PULL, roster, domains }, { rankAmong: 2, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' })).toEqual(['alpha.parent.com', 'parent2.com', 'deep.alpha.parent.com', 'both.com'])
+})
+
+// Spec 2026-10-22 (round 3 QA) F1: the gaps list only the competitors the bar chart shows (the top 10 with the brand).
+const wide = (n: number, ownIndex: number, extra: Partial<PeecPull> = {}): PeecPull => {
+  const ids = Array.from({ length: n }, (_, i) => (i === ownIndex ? 'kw_own' : `kw_${i}`))
+  return {
+    ...PULL,
+    roster: ids.map((id, i) => ({ id, name: id === 'kw_own' ? 'Example Co' : `Rival${i}`, is_own: id === 'kw_own', domains: [id === 'kw_own' ? 'example.com' : `rival${i}.com`] })),
+    ownBrand: { id: 'kw_own', name: 'Example Co', is_own: true, domains: ['example.com'] },
+    brands: ids.map((id, i) => ({ brand: { id, name: id === 'kw_own' ? 'Example Co' : `Rival${i}` }, visibility: (60 - i) / 100, share_of_voice: 0.05, position: 3 })),
+    ...extra,
+  }
+}
+
+test('F1: an 11th-ranked competitor\'s own site is not a gap; a charted competitor\'s is', () => {
+  const domains = [gapRow('rival10.com', 'COMPETITOR', 100, ['kw_10']), gapRow('rival1.com', 'COMPETITOR', 50, ['kw_1']), gapRow('www.rival11.com', 'CORPORATE', 90, [])]
+  expect(gapsOf(wide(12, 0, { domains }))).toEqual(['rival1.com'])
+})
+
+test('F1: with the brand ranked 12th, the nine charted competitors give the gaps', () => {
+  const domains = [gapRow('rival9.com', 'CORPORATE', 100, []), gapRow('rival8.com', 'CORPORATE', 90, []), gapRow('rival10.com', 'CORPORATE', 80, [])]
+  expect(gapsOf(wide(12, 11, { domains }))).toEqual(['rival8.com'])
+})
+
+test('F1: a competitor with no Peec row is not charted, so its site is not a gap', () => {
+  const p = wide(3, 0)
+  const roster = [...p.roster, { id: 'kw_nodata', name: 'Nodata', is_own: false, domains: ['nodata.com'] }]
+  const domains = [gapRow('nodata.com', 'COMPETITOR', 100, ['kw_nodata']), gapRow('rival1.com', 'COMPETITOR', 50, ['kw_1'])]
+  expect(gapsOf({ ...p, roster, domains })).toEqual(['rival1.com'])
+})
+
+test('F1: competitors tied at the 10th bar give the chart and the gaps the same set', () => {
+  const p = wide(12, 0)
+  // Rival9, Rival10 and Rival11 tie for the 10th bar; only one is charted. The two left off get the most retrievals.
+  const brands = p.brands.map((b, i) => (i >= 9 ? { ...b, visibility: 0.4 } : b))
+  const domains = p.roster.filter((r) => !r.is_own).map((r, i) => gapRow(r.domains![0], 'CORPORATE', 10 + i, []))
+  const d = buildSnapshotData({ ...p, brands, domains }, '2026-10-08T15:00:00Z')
+  const charted = chartedBrands(d.brands).filter((b) => !b.isOwn).map((b) => `${b.name.toLowerCase()}.com`)
+  expect(charted).toHaveLength(9)
+  expect(d.gapDomains).toHaveLength(4)
+  for (const g of d.gapDomains) expect(charted).toContain(g.domain)
+  expect(['rival9.com', 'rival10.com', 'rival11.com'].filter((x) => d.gapDomains.some((g) => g.domain === x))).toHaveLength(1)
+})
+
+// Round 3 QA final review: a domain on a charted and an uncharted competitor's roster is the charted one's site.
+test('F1: a domain shared by a charted and an off-chart competitor is a gap', () => {
+  const p = wide(12, 0)
+  const roster = p.roster.map((r) => (r.id === 'kw_1' || r.id === 'kw_11' ? { ...r, domains: ['shared.com'] } : r))
+  expect(gapsOf({ ...p, roster, domains: [gapRow('shared.com', 'CORPORATE', 100, [])] })).toEqual(['shared.com'])
+})
+
+// Round 3 QA final review: a COMPETITOR page off every roster counts only when every tracked competitor it mentions is
+// charted, so an off-chart competitor's own page is never listed for mentioning a charted rival.
+test('F1: a COMPETITOR page that mentions an off-chart competitor is not a gap; an untracked mention does not matter', () => {
+  const p = wide(12, 0)
+  const roster = p.roster.map((r) => (r.id === 'kw_11' ? { ...r, domains: [] } : r))
+  const domains = [gapRow('vs-page.com', 'COMPETITOR', 100, ['kw_11', 'kw_1']), gapRow('compare.com', 'COMPETITOR', 90, ['kw_1', 'kw_untracked'])]
+  expect(gapsOf({ ...p, roster, domains })).toEqual(['compare.com'])
+})
+
+// Adversarial review of #420 (I1): a COMPETITOR page off every roster belongs to the tracked competitor whose name its
+// domain spells (ynab.com is YNAB), so a charted competitor with a missing roster domain keeps its site, whatever else
+// the page mentions, and an off-chart competitor's site found by name is never listed.
+test('F1: an off-roster COMPETITOR page goes to the competitor its domain names; mentions decide only when no name does', () => {
+  const p = wide(12, 0)
+  const roster = p.roster.map((r) => (r.id === 'kw_1' || r.id === 'kw_11' ? { ...r, domains: [] } : r))
+  const domains = [
+    gapRow('rival1.com', 'COMPETITOR', 100, ['kw_1', 'kw_11']),
+    gapRow('www.rival11.com', 'COMPETITOR', 90, ['kw_2']),
+    gapRow('vs-page.com', 'COMPETITOR', 80, ['kw_11', 'kw_2']),
+    gapRow('compare.com', 'COMPETITOR', 70, ['kw_2']),
+  ]
+  expect(gapsOf({ ...p, roster, domains })).toEqual(['rival1.com', 'compare.com'])
+})
+
+test('F1: a cut parent domain never hides a charted competitor\'s subdomain', () => {
+  const p = wide(12, 0)
+  const roster = p.roster.map((r) => (r.id === 'kw_11' ? { ...r, domains: ['parent.com'] } : r.id === 'kw_1' ? { ...r, domains: ['one.parent.com'] } : r))
+  expect(gapsOf({ ...p, roster, domains: [gapRow('one.parent.com', 'CORPORATE', 100, []), gapRow('parent.com', 'CORPORATE', 90, [])] })).toEqual(['one.parent.com'])
 })
 
 test('with no competitors tracked no site is listed, even a COMPETITOR site naming a brand Peec still reports', () => {
