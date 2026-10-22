@@ -75,7 +75,7 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
 }
 
 /** A slice's label (2026-10-19, Ryan: whole numbers, like Peec): the whole number of its exact share (weight over total),
- *  as Peec's dashboard rounds it and as the source-mix sentence rounds its whole numbers (sentences.ts sharePctAll), so a
+ *  as Peec's dashboard rounds it and as the source-mix sentence rounds its whole numbers (sentences.ts mixPctAll), so a
  *  slice never rounds differently on the chart and in the sentence (which may keep one decimal: under 10%, or when two
  *  values in it read alike). Amended 2026-10-20: the stored one-decimal pct rounded twice (24.46 stored 24.5 read 25).
  *  A stored slice always has a positive weight, so 0 reads "<1%"; a share under 100 never reads 100. */

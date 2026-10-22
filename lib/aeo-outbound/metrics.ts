@@ -266,6 +266,8 @@ export function buildSnapshotData(
   // a site of any other competitor: cut by rankAmong, ranked below the chart, or without a Peec row (spec 2026-10-21 E2,
   // D1, D3, D4 (a)). With no competitors tracked the report names no outside brand, so it lists none.
   const chartedIds = new Set(chartedBrands(brands).filter((b) => !b.isOwn).map((b) => b.id))
+  // Every tracked competitor (roster or Peec's brands report) the chart does not show.
+  const offChartIds = new Set([...pull.roster.map((b) => b.id), ...entries.map((e) => e.id)].filter((id) => id !== pull.ownBrand.id && !chartedIds.has(id)))
   const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
   const keptSites = rosterSites((id) => chartedIds.has(id))
   const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !chartedIds.has(id))
@@ -279,13 +281,16 @@ export function buildSnapshotData(
       const d = bare(r.domain)
       if (r.classification === 'OWN' || within(d, ownMatch)) return false
       // The closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a kept
-      // competitor's subdomain; a domain on both rosters stays cut (Paul, #413 review).
+      // competitor's subdomain (Paul, #413 review); a domain on both rosters is the charted competitor's (round 3 QA review).
       const kept = closest(d, keptSites)
       const cut = closest(d, cutSites)
-      if (cut >= 0 && cut >= kept) return false
+      if (cut > kept) return false
       const ids = new Set(r.mentioned_brands.map((m) => m.id))
       if (ids.has(pull.ownBrand.id)) return false
-      return kept >= 0 || (r.classification === 'COMPETITOR' && [...ids].some((id) => chartedIds.has(id)))
+      if (kept >= 0) return true
+      // Off every roster: a COMPETITOR page counts when it mentions a charted competitor and no tracked competitor off the
+      // chart, so an off-chart competitor's own page is never listed (round 3 QA review). Untracked ids do not matter.
+      return r.classification === 'COMPETITOR' && [...ids].some((id) => chartedIds.has(id)) && ![...ids].some((id) => offChartIds.has(id))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))
     .slice(0, 4)

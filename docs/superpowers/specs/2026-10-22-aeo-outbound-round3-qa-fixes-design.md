@@ -29,8 +29,9 @@ unchanged and returns the same objects: the first 20 in rank order, sorted by vi
 place of the tenth when it is not among them. `visibilityBarFigure` calls it. Inside `buildSnapshotData`
 (`metrics.ts`), after `brands` is built (`metrics.ts:158`), `chartedIds` is the ids of `chartedBrands(brands)` that
 are not the brand, and the gap filter uses it where it uses `keptIds` today (`metrics.ts:267-285`): a charted competitor's roster domain or subdomain, or a COMPETITOR page
-that mentions a charted competitor. Every other competitor's site counts as cut, so the closest-domain rule (#413 D3)
-keeps working. Everything else about the gaps is unchanged (own wins, mentions the brand, zero chats, top 4, no
+that mentions a charted competitor and no tracked competitor off the chart (final review). Every other competitor's
+site counts as cut, so the closest-domain rule (#413 D3) keeps working; a domain on both a charted and an off-chart
+competitor's roster is the charted one's (final review: it used to stay cut). Everything else about the gaps is unchanged (own wins, mentions the brand, zero chats, top 4, no
 competitors tracked). The Data block's gap line reads the same list, so Glean sees only charted competitors' sites.
 
 **F2. No peer cluster wider than 10 points.** `peerCluster()` (`sentences.ts:334-345`) returns null when the range
@@ -64,6 +65,8 @@ only at generation, so older rows keep their stored gaps.
 | Competitors tied at the 10th bar | The chart and the gaps agree, because both use `chartedBrands` on the same ordered list |
 | `rankAmong` set | The chart is drawn from the compared brands, so charted is a subset of compared |
 | Cut parent, charted subdomain (and reverse) | The closest roster domain decides (#413 D3) |
+| One domain on a charted and an off-chart competitor's roster | A gap: the charted competitor's site |
+| A COMPETITOR page off every roster that mentions a charted and an off-chart competitor | Not a gap (it may be the off-chart competitor's page); an untracked id in the mentions does not count |
 | Peer range 10.0 / 10.1 | Kept / dropped |
 | Brand first or last | Its two neighbours on one side, same width rule |
 | Pillar share 0.4% / 1.0% / 2.4% / 2.4% beside 1.6% | "0.4%" / "1%" / "2%" / "2.4%" and "1.6%" (two different values never read alike) |
