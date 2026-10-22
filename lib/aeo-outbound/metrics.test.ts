@@ -45,7 +45,6 @@ const PULL: PeecPull = {
     { domain: 'forum.com', classification: 'UGC', retrieved_chat_count: 300, retrieval_count: 400, usage_rate: 400, mentioned_brands: [{ id: 'kw_b' }] },
     { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, usage_rate: 0, mentioned_brands: [] },
   ],
-  actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
   promptCount: 100,
   models: ['ChatGPT UI', 'Google AI Overview'],
   warnings: [],

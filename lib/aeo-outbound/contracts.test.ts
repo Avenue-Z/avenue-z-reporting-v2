@@ -134,7 +134,7 @@ test('unused fields pass through untouched: the very same value comes back', () 
 test('every Peec boundary has a contract and starts in the documented mode', () => {
   expect(Object.keys(PEEC_CONTRACTS).sort()).toEqual(Object.keys(CONTRACT_MODES).filter((b) => b.startsWith('peec.')).sort())
   for (const b of ['peec.brands', 'peec.domains_by_date', 'peec.brands_report', 'peec.brands_by_model', 'peec.domains_report', 'peec.prompts'] as const) expect(CONTRACT_MODES[b]).toBe('enforce')
-  for (const b of ['peec.projects', 'peec.project_profile', 'peec.model_channels', 'peec.actions'] as const) expect(CONTRACT_MODES[b]).toBe('observe')
+  for (const b of ['peec.projects', 'peec.project_profile', 'peec.model_channels'] as const) expect(CONTRACT_MODES[b]).toBe('observe')
 })
 
 test('the generate body contract keeps the v1.0 rules: a non-empty projectId, and rerunOf null or a report id', () => {
@@ -160,11 +160,11 @@ test('the slots body contract: writer and seq are optional, both or neither, a U
     { writer: W, seq: 1.5 }, { writer: W, seq: 2147483648 }, { writer: null, seq: 1 }, { writer: W, seq: null },
   ]) expect(ok({ ...base, ...extra })).toBe(false)
 })
-test('the Glean reply contract: every copy key a non-empty string, 2 or 3 bullets, exactly 3 opportunities, next_step optional', () => {
+test('the Glean reply contract: every copy key a non-empty string, next_step optional, opportunities ignored', () => {
   const reply = { headline: 'H', summary: 'S', context: 'C', competitive_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], sources_bullets: [{ lead: 'L', text: 'T' }, { lead: 'L', text: 'T' }], why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })), methodology: 'M' }
   expect(checkContract('glean.slots', GLEAN_SLOTS, reply, 'enforce').ok).toBe(true)
   expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, headline: 5 }, 'enforce')).toEqual({ ok: false, issues: [{ field: 'headline', issue: 'invalid_type' }] })
-  expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, opportunities: reply.opportunities.slice(0, 2) }, 'enforce').ok).toBe(false)
+  expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, opportunities: reply.opportunities.slice(0, 2) }, 'enforce').ok).toBe(true)
 })
 
 test('the Glean reply contract still rejects a missing headline, and accepts any next_step or none', () => {
@@ -189,7 +189,6 @@ const PULL: PeecPull = {
     { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
     { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, mentioned_brands: [{ id: 'kw_a' }] },
   ],
-  actions: [{ id: 'x', title: 'Give this page an H1 heading', impact: 'HIGH', type: 'SEO_ISSUE', status: 'PENDING' }],
   promptCount: 100, models: ['ChatGPT UI'], warnings: [],
 }
 
@@ -236,12 +235,12 @@ test('the stored slots contract reads a box of 1 to 6 bullets, and refuses 0 or 
   }
 })
 
-test('spec v1.1 §19.2: the Glean reply needs only headline, summary, why and opportunities; code writes the rest', () => {
+test('spec v1.1 §19.2, round 3: the Glean reply needs only headline, summary and why; code writes the rest', () => {
   const reply = { headline: 'H', summary: 'S', why: 'W', opportunities: [0, 1, 2].map(() => ({ signal: 's', opportunity: 'o', workstream: 'w' })) }
   expect(checkContract('glean.slots', GLEAN_SLOTS, reply, 'enforce').ok).toBe(true)
   // Old keys Glean may still send are ignored, whatever their shape.
   expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, context: 5, competitive_bullets: [], sources_bullets: 'x', methodology: null }, 'enforce').ok).toBe(true)
-  for (const key of ['headline', 'summary', 'why', 'opportunities'] as const) {
+  for (const key of ['headline', 'summary', 'why'] as const) {
     const { [key]: _gone, ...missing } = reply
     expect(checkContract('glean.slots', GLEAN_SLOTS, missing, 'enforce').ok, key).toBe(false)
   }
@@ -278,4 +277,28 @@ test('2026-10-19 Peec parity: stored data records the source-mix weighting; abse
   expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
   for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce')).toEqual({ ok: true })
   for (const w of ['bogus', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok).toBe(false)
+})
+
+test('stored slots: opportunities_page is absent, shown or hidden; anything else breaks the contract (Ryan, round 3)', () => {
+  for (const v of [undefined, 'shown', 'hidden']) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, ...(v ? { opportunities_page: v } : {}) }, 'enforce')).toEqual({ ok: true })
+  for (const v of ['off', true, null, 1]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, opportunities_page: v }, 'enforce').ok).toBe(false)
+})
+
+test('stored data: ownMixByType is absent or a map of weights of at least 0 (Paul, #415 review)', () => {
+  for (const v of [undefined, {}, { Editorial: 6, You: 4 }]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ...(v === undefined ? {} : { ownMixByType: v }) }, 'enforce').ok).toBe(true)
+  for (const v of [{ Editorial: -1 }, { Editorial: '3' }, null, [1]]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ownMixByType: v }, 'enforce').ok).toBe(false)
+})
+test('stored data: ownMixWeight is absent or a number of at least 0 (pillars)', () => {
+  for (const v of [undefined, 0, 12.5]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ...(v === undefined ? {} : { ownMixWeight: v }) }, 'enforce')).toEqual({ ok: true })
+  for (const v of [-1, '3', null]) expect(checkContract('stored.data', STORED_DATA, { ...JSON.parse(JSON.stringify(V1_DATA)), ownMixWeight: v }, 'enforce').ok).toBe(false)
+})
+
+test('the Glean reply contract ignores opportunities of any shape, or none (pillars P4)', () => {
+  const reply = { headline: 'H', summary: 'S', why: 'W' }
+  for (const opportunities of [undefined, [], [{ signal: 5 }, null], 'x']) expect(checkContract('glean.slots', GLEAN_SLOTS, { ...reply, ...(opportunities === undefined ? {} : { opportunities }) }, 'enforce').ok).toBe(true)
+})
+
+test('stored slots: opportunities_layout is absent or pillars; anything else breaks the contract (pillars P1)', () => {
+  for (const v of [undefined, 'pillars']) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, ...(v ? { opportunities_layout: v } : {}) }, 'enforce')).toEqual({ ok: true })
+  for (const v of ['table', true, null]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, opportunities_layout: v }, 'enforce').ok).toBe(false)
 })

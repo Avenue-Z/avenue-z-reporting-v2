@@ -12,7 +12,7 @@ import { fmtEasternDateTime } from '@/lib/aeo-outbound/metrics'
 import { isStoredNotes, type StoredNote } from '@/lib/aeo-outbound/notes'
 import { MAX_RECIPIENT } from '@/lib/aeo-outbound/recipient'
 import { REPORT_SANDBOX } from '@/lib/aeo-outbound/sandbox'
-import { cleanValue, isStructuralPath } from '@/lib/aeo-outbound/slots'
+import { cleanValue, isStructuralPath, OPPS_HIDE, OPPS_SHOW } from '@/lib/aeo-outbound/slots'
 import type { DisplayStatus } from '@/lib/aeo-outbound/store'
 import { BeforeYouSend, openCount, type AboutInfo } from './before-you-send'
 import { ConfirmDialog } from './confirm-dialog'
@@ -24,7 +24,7 @@ import { StatusPill } from './hub'
 import {
   ACTION_FAILED, APPROVE_AND_CREATE, APPROVE_CONFIRM, AUTOMATED, BEFORE_YOU_SEND, CANCEL, DISCARD_SNAPSHOT, DONE_EDITING, EDIT,
   EDIT_BANNER, EDIT_COPY, EDIT_COPY_HINT, FLUSH_WAIT, GONE, KEEP_DRAFT, KEEP_LINK, KEEP_SNAPSHOT, LEAVE, LEAVE_UNSAVED, LOADING_REPORT,
-  LOCKED_CHART, LOCKED_FIXED, LOCKED_MIRROR, MAKE_NEW_DRAFT, NO_OPENS, OPENS_CAPPED, OPENS_CAVEAT, OPENS_TITLE, PERSON, RECIPIENT_EXAMPLE,
+  LOCKED_CHART, LOCKED_FIXED, LOCKED_MIRROR, MAKE_NEW_DRAFT, NO_OPENS, OPENS_CAPPED, OPPS_OFF, OPPS_ON, OPENS_CAVEAT, OPENS_TITLE, PERSON, RECIPIENT_EXAMPLE,
   RECIPIENT_LABEL, REVOKE_LINK, STALE, STAY, UNREADABLE, VIEW_FAILED, actionError, discardTitle, fillFirst, notClassified,
   rerunTitle, revokeTitle,
 } from './messages'
@@ -48,6 +48,10 @@ export interface OutboundEditorProps {
   revision: number
   notes: StoredNote[]
   needsValidation: string[]
+  /** Round 3: the draft's Opportunities page is off. */
+  opportunitiesHidden: boolean
+  /** Round 3: the draft's Opportunities page shows the pillars, so its fields are labeled as pillars. */
+  pillars: boolean
   token: string | null
   error: string | null
   errorCode: string | null
@@ -120,6 +124,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const [seenLinkBrand, setSeenLinkBrand] = useState(props.linkBrand)
   if (props.linkBrand !== seenLinkBrand) { setSeenLinkBrand(props.linkBrand); setLinkBrand(props.linkBrand) }
   const [titles, setTitles] = useState<[string, string]>(props.sectionTitles)
+  const [oppsHidden, setOppsHidden] = useState(props.opportunitiesHidden)
   const [save, setSave] = useState<SaveState | null>(null)
   const sync = `${props.status}|${props.revision}`
   const [seenSync, setSeenSync] = useState(sync)
@@ -128,7 +133,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
     // Paul's review of #388 (C5): props older than a save this page already made (a refresh that read the row before that
     // save landed) never reset the panel, or a filled item would come back. Newer props, or a status change, still do.
     const older = props.status === 'draft' && save !== null && props.revision < save.revision
-    if (!older) { setNotes(props.notes); setNeedsValidation(props.needsValidation); setBrand(props.brand); setTitles(props.sectionTitles) }
+    if (!older) { setNotes(props.notes); setNeedsValidation(props.needsValidation); setBrand(props.brand); setTitles(props.sectionTitles); setOppsHidden(props.opportunitiesHidden) }
   }
 
   const [html, setHtml] = useState<string | null>(null)
@@ -219,6 +224,8 @@ export function OutboundEditor(props: OutboundEditorProps) {
         if (isStoredNotes(b.notes)) setNotes(b.notes)
         if (isStrings(b.needsValidation)) setNeedsValidation(b.needsValidation)
         if (isStructuralPath(path)) {
+          if (path === OPPS_HIDE) setOppsHidden(true)
+          else if (path === OPPS_SHOW) setOppsHidden(false)
           // The list's indices changed: its Looks right ticks no longer point at the same bullets (v1.1 §3).
           dropTicksFor(path.split('.')[0])
           reloadPendingRef.current = true
@@ -338,8 +345,18 @@ export function OutboundEditor(props: OutboundEditorProps) {
   const refusedField = save && !save.stopped && save.error && save.error !== RETRY_MESSAGE ? save.badPaths.at(-1) : undefined
   const approveTitle = !busySaving ? undefined
     : save?.stopped ? save.error ?? FLUSH_WAIT
-      : refusedField ? `${fieldLabel(refusedField, titles)}: ${save!.error}`
+      : refusedField ? `${fieldLabel(refusedField, titles, props.pillars)}: ${save!.error}`
         : FLUSH_WAIT
+  // Round 3: the Opportunities page switch waits exactly when Approve waits for saving, and until the report has loaded,
+  // so an edit always lands before it and a refused cell is fixed before its page can be hidden (spec S3, r2-3).
+  const oppsDisabled = busySaving || busy || html === null
+  function onToggleOpps() {
+    const q = queueRef.current
+    // The queue's live state, not the rendered one: a frame dirty message can land before React re-renders (spec r2-1).
+    if (!q || q.state.dirty || q.state.saving || q.state.stopped || q.state.structuring) return
+    toFrame({ type: 'mode', edit: false })
+    q.structure(oppsHidden ? OPPS_SHOW : OPPS_HIDE)
+  }
 
   async function onApprove() {
     const q = queueRef.current
@@ -455,7 +472,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
   if (status === 'draft' && save && !save.stopped) {
     if (save.error) {
       const field = save.error !== RETRY_MESSAGE ? save.badPaths.at(-1) : undefined
-      saveText = field ? `${fieldLabel(field, titles)}: ${save.error}` : save.error
+      saveText = field ? `${fieldLabel(field, titles, props.pillars)}: ${save.error}` : save.error
     } else if (save.saving || save.dirty || save.structuring) saveText = 'Saving…'
     else if (save.revision !== openedRevision) saveText = 'Saved'
   }
@@ -491,6 +508,9 @@ export function OutboundEditor(props: OutboundEditorProps) {
                 <button type="button" className={primaryBtnCls} disabled={busy} title={EDIT_COPY_HINT} onClick={onEditCopy}>{EDIT_COPY}</button>
                 <span className="text-xs text-text-muted">{EDIT_COPY_HINT}</span>
               </>
+            )}
+            {status === 'draft' && !props.unreadable && (
+              <button type="button" className={btnCls} disabled={oppsDisabled} title={approveTitle} onClick={onToggleOpps}>{oppsHidden ? OPPS_OFF : OPPS_ON}</button>
             )}
             {status === 'draft' && !props.unreadable && (
               <button type="button" className={btnCls} disabled={approveDisabled} title={approveTitle} onClick={() => void onApprove()}>Approve</button>
@@ -538,7 +558,7 @@ export function OutboundEditor(props: OutboundEditorProps) {
           {html === null && !viewError && <div className="flex items-center justify-center rounded-lg bg-black text-sm text-text-muted" style={{ height: FRAME_HEIGHT, minHeight: FRAME_MIN_HEIGHT }}>{LOADING_REPORT}</div>}
           {panelOpen && (
             <BeforeYouSend
-              needsValidation={needsValidation} notes={notes} titles={titles} about={props.about} ticks={ticks} ownTicks={ownTicks} highlight={highlight}
+              needsValidation={needsValidation} notes={notes} titles={titles} pillars={props.pillars} about={props.about} ticks={ticks} ownTicks={ownTicks} highlight={highlight}
               onTick={(key) => setTicks((t) => { const n = new Set(t); if (n.has(key)) n.delete(key); else n.add(key); return n })}
               onOwnTick={(i) => setOwnTicks((t) => { const n = new Set(t); if (n.has(i)) n.delete(i); else n.add(i); return n })}
               onGoTo={goTo} onMinimize={() => setPanelOpen(false)}
