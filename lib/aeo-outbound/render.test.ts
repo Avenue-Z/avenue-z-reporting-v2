@@ -657,6 +657,8 @@ test('both round-3 markers on one row: hidden writes no Opportunities section, c
     expect(doc.querySelector('.aeo-pillars'), mode).toBeNull()
     expect(doc.querySelector('a[href="#opportunities"]'), mode).toBeNull()
     expect(doc.querySelector('#methodology .section-label')!.textContent, mode).toMatch(/^04 \/ /)
+    // Hidden, the layout leaves no trace: the page is the hidden table row's, byte for byte, so the hidden-page tests cover it.
+    expect(renderSnapshotHtml(DATA, { ...PILLAR_SLOTS, opportunities_page: 'hidden' }, mode, 'x'), mode).toBe(renderSnapshotHtml(DATA, { ...SLOTS, opportunities_page: 'hidden' }, mode, 'x'))
   }
   const shown = parse(renderSnapshotHtml(DATA, { ...PILLAR_SLOTS, opportunities_page: 'shown' }, 'final', 'x'))
   expect(shown.querySelectorAll('#opportunities .aeo-pillars > .cluster-card.aeo-pillar')).toHaveLength(3)

@@ -497,6 +497,18 @@ test('both round-3 markers on one row: a hidden pillar page is not checked, so a
   expect(pillarFlags(d, { opportunities: edited, opportunities_page: 'hidden' })).toEqual([])
 })
 
+test('both round-3 markers on one row: a hidden pillar page\'s numbers no longer count as data for other fields', () => {
+  // An own subdomain Peec files as Corporate makes the Content share differ from the donut's You slice (pillars D3 (a)),
+  // so the share is a number only the pillar line holds.
+  const blog = { domain: 'blog.examplesenior.com', classification: 'CORPORATE', retrieved_chat_count: 30, retrieval_count: 300, usage_rate: 300, mentioned_brands: [] }
+  const d = newRow({ ...LIVE_SHAPE_PULL, domains: [...LIVE_SHAPE_PULL.domains, blog] })
+  const n = dataSentences(d).opportunities[1].signal.match(/\d+(?:\.\d)?%/)![0]
+  expect(dataBlock(d)).not.toContain(n)
+  const over: Partial<Slots> = { page: { why_title: `Own site at ${n}` } }
+  expect(pillarFlags(d, over).some((f) => f.path === 'page.why_title')).toBe(false)
+  expect(pillarFlags(d, { ...over, opportunities_page: 'hidden' }).filter((f) => f.path === 'page.why_title').map((f) => f.kind)).toEqual(['number_not_in_data'])
+})
+
 test('pillar rows: a brand named like a domain raises no domain flag on its own pillar line', () => {
   const own = LIVE_SHAPE_PULL.ownBrand
   const n = 'Seniorcare.com'

@@ -155,7 +155,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   const pillarLine = (path: string): boolean => pillarRow && /^opportunities\.\d\.signal$/.test(path)
   if (sentences) {
     const s = sentences
-    const sentenceText = stripNames([s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text]), ...(pillarRow ? s.opportunities.map((o) => o.signal) : [])].join(' | '))
+    // A hidden Opportunities page is not on the page, so its pillar lines' numbers are not data for other fields (round 3).
+    const sentenceText = stripNames([s.context, s.methodology, ...[...s.competitive_bullets, ...s.sources_bullets].flatMap((b) => [b.lead, b.text]), ...(pillarRow && full.opportunities_page !== 'hidden' ? s.opportunities.map((o) => o.signal) : [])].join(' | '))
     for (const t of sentenceText.match(NUM) ?? []) allowed.add(`${kindOf(t)}:${digitsOf(t)}`)
   }
   const fixedNext = settingsUsedOf(d).fixedNextStep
