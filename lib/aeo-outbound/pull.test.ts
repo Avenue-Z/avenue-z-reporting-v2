@@ -279,3 +279,17 @@ test("2026-10-19: the pull records its own UTC day, which the same-day note comp
   expect((await pullSnapshot(client, 'or_a', Date.parse('2026-10-08T23:59:59Z'))).pulledDay).toBe('2026-10-08')
   expect((await pullSnapshot(client, 'or_a', Date.parse('2026-10-09T00:00:00Z'))).pulledDay).toBe('2026-10-09')
 })
+
+// Any-client sweep, 2026-10-22: SDEV's Peec name carries spaces (" Stablecoin Development "), which printed
+// " Stablecoin Development 's own site". Names are trimmed where they enter, so every sentence, chart and check agrees.
+test('brand names from Peec are trimmed in the roster, the own brand and the brands report', async () => {
+  const padded = fakePeec({
+    ...base,
+    '/brands': () => ROSTER.map((r) => ({ ...r, name: ` ${r.name}  ` })),
+    '/reports/brands': (u, b) => (b?.dimensions ? base['/reports/brands'](u, b) : (base['/reports/brands'](u, b) as { brand: { id: string; name: string } }[]).map((r) => ({ ...r, brand: { ...r.brand, name: ` ${r.brand.name} ` } }))),
+  })
+  const pull = await pullSnapshot(padded.client, 'or_a', NOW)
+  expect(pull.ownBrand.name).toBe('Example Co')
+  expect(pull.roster.map((r) => r.name)).toEqual(['Example Co', 'Rival'])
+  expect(pull.brands.map((r) => r.brand.name)).toEqual(['Example Co', 'Rival'])
+})
