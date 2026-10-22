@@ -34,7 +34,7 @@ export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 /** Spec v1.1 §19.5, §19.11: the version of the code-written sentences (sentences.ts). Bump it whenever their wording or
  *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. Version 2
- *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). Version 3
+ *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll, mixPctAll since version 3). Version 3
  *  (2026-10-22): the findings bullets follow Ryan's per-page wording (spec 2026-10-22). The pillar data lines (round 3)
  *  do not use it: grounding tells a pillar row apart by its opportunities_layout marker, so changing their wording later
  *  needs a check of its own (Paul, #415 review). */

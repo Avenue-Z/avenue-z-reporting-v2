@@ -1,6 +1,7 @@
 // Turns a Peec pull into the numbers the page shows and Glean writes from (spec §5a, §7; v1.1 §4, §9, §10).
 // It writes schema version 2: structured notes, each own domain on its own, the project status and the settings used.
 import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT, SENTENCES_VERSION } from './config'
+import { chartedBrands } from './charted'
 import type { Note, NoteKind, StoredNote } from './notes'
 import type { PeecPull } from './pull'
 
@@ -259,13 +260,28 @@ export function buildSnapshotData(
   if (!sourceMix.length) note('empty_source_mix', 'Peec reported no source weights for this window, so the source mix is empty.')
 
   // Round 3 (Ryan, 2026-10-21: "Only include competitor domains"): the gaps are the own sites of the competitors the
-  // report compares (keptIds), where the brand does not appear. A site is a compared competitor's when its domain is one
-  // of that competitor's roster domains or a subdomain of one, or Peec classifies it COMPETITOR and it mentions a
-  // compared competitor. The brand's own site never counts (own wins), nor does a site of a competitor cut by rankAmong
-  // (spec 2026-10-21 E2, D1, D3, D4 (a)). With no competitors tracked the report names no outside brand, so it lists none.
+  // bar chart shows (chartedIds, charted.ts; round 3 QA, spec 2026-10-22 F1), where the brand does not appear. A site is
+  // a charted competitor's when its domain is one of that competitor's roster domains or a subdomain of one, or Peec
+  // classifies it COMPETITOR and it mentions a charted competitor. The brand's own site never counts (own wins), nor does
+  // a site of any other competitor: cut by rankAmong, ranked below the chart, or without a Peec row (spec 2026-10-21 E2,
+  // D1, D3, D4 (a)). With no competitors tracked the report names no outside brand, so it lists none.
+  const chartedIds = new Set(chartedBrands(brands).filter((b) => !b.isOwn).map((b) => b.id))
+  // Every tracked competitor (roster or Peec's brands report) the chart does not show.
+  const offChartIds = new Set([...pull.roster.map((b) => b.id), ...entries.map((e) => e.id)].filter((id) => id !== pull.ownBrand.id && !chartedIds.has(id)))
+  // A tracked competitor's name, letters and digits only ("You Need A Budget" -> "youneedabudget"), to find whose site an
+  // off-roster page is from its domain (adversarial review of #420, I1).
+  const nameKey = (s: string | null | undefined) => (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const namedBy = new Map<string, Set<string>>()
+  for (const b of [...pull.roster.map((r) => ({ id: r.id, name: r.name })), ...entries.map((e) => ({ id: e.id, name: e.name }))]) {
+    const k = nameKey(b.name)
+    if (!k || b.id === pull.ownBrand.id) continue
+    namedBy.set(k, (namedBy.get(k) ?? new Set()).add(b.id))
+  }
+  /** The tracked competitors whose name a label of the domain spells exactly (ynab.com: YNAB), the last label aside. */
+  const ownersByName = (d: string) => new Set(d.split('.').slice(0, -1).flatMap((l) => [...(namedBy.get(nameKey(l)) ?? [])]))
   const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
-  const keptSites = rosterSites((id) => keptIds.has(id))
-  const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !keptIds.has(id))
+  const keptSites = rosterSites((id) => chartedIds.has(id))
+  const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !chartedIds.has(id))
   const within = (d: string, sites: string[]) => sites.some((s) => d === s || d.endsWith(`.${s}`))
   /** The length of the closest (longest) site the domain is or sits under; -1 when none. */
   const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (d === s || d.endsWith(`.${s}`) ? Math.max(n, s.length) : n), -1)
@@ -276,13 +292,21 @@ export function buildSnapshotData(
       const d = bare(r.domain)
       if (r.classification === 'OWN' || within(d, ownMatch)) return false
       // The closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a kept
-      // competitor's subdomain; a domain on both rosters stays cut (Paul, #413 review).
+      // competitor's subdomain (Paul, #413 review); a domain on both rosters is the charted competitor's (round 3 QA review).
       const kept = closest(d, keptSites)
       const cut = closest(d, cutSites)
-      if (cut >= 0 && cut >= kept) return false
+      if (cut > kept) return false
       const ids = new Set(r.mentioned_brands.map((m) => m.id))
       if (ids.has(pull.ownBrand.id)) return false
-      return kept >= 0 || (r.classification === 'COMPETITOR' && [...ids].some((id) => keptIds.has(id)))
+      if (kept >= 0) return true
+      if (r.classification !== 'COMPETITOR') return false
+      // Off every roster: the page belongs to the tracked competitor its domain names, so it counts when that competitor
+      // is charted, whatever else it mentions (a roster missing the live domain: ynab.com for YNAB), and never when the
+      // competitor is off the chart (copilot.money for Copilot Money). With no name match, it counts when it mentions a
+      // charted competitor and no tracked competitor off the chart (round 3 QA review). Untracked ids do not matter.
+      const owners = ownersByName(d)
+      if (owners.size) return [...owners].some((id) => chartedIds.has(id))
+      return [...ids].some((id) => chartedIds.has(id)) && ![...ids].some((id) => offChartIds.has(id))
     })
     .sort((a, b) => ((b.retrieved_chat_count ?? 0) - (a.retrieved_chat_count ?? 0)) || (a.domain < b.domain ? -1 : 1))
     .slice(0, 4)

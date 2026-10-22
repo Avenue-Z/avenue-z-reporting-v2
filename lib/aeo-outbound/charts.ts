@@ -3,6 +3,7 @@
 // build_earned_breakdown_chart (:2721-2763). Golden fixtures prove the JSON matches.
 import { AIVX_PLOTLY_TEMPLATE } from './aivx/plotly-template'
 import { jsonForScript, stripTags } from './html'
+import { chartedBrands } from './charted'
 import { pyRound } from './metrics'
 
 export interface Figure { data: unknown[]; layout: Record<string, unknown>; config: Record<string, unknown> }
@@ -43,11 +44,8 @@ function cycledDonutPalette(n: number): string[] {
 const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top', entrywidth: 0.5, entrywidthmode: 'fraction' })
 
 export function visibilityBarFigure(brands: { name: string; visibilityPct: number; isOwn?: boolean }[]): Figure {
-  let top10 = [...brands.slice(0, 20)].sort((a, b) => b.visibilityPct - a.visibilityPct).slice(0, 10)
-  // v1.1 §9: the prospect always shows on its own chart, in place of the tenth bar.
-  const own = brands.find((b) => b.isOwn)
-  if (own && !top10.includes(own)) top10 = [...top10.slice(0, 9), own]
-  const rev = [...top10].reverse()
+  // v1.1 §9: the prospect always shows on its own chart, in place of the tenth bar (charted.ts).
+  const rev = [...chartedBrands(brands)].reverse()
   const n = rev.length
   const x = rev.map((b) => b.visibilityPct)
   return {
@@ -66,7 +64,7 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
       // JSON), and an 8px top margin in place of Plotly's default 100, so the bars start right under the chart title.
       // Left, right and bottom keep Plotly's defaults.
       plot_bgcolor: '#000000',
-      height: Math.max(420, top10.length * 38),
+      height: Math.max(420, n * 38),
       xaxis: { title: { text: '' }, gridcolor: 'rgba(255,255,255,0.06)', showgrid: true, zeroline: false, tickfont: { color: '#A6A6A6', size: 11 } },
       yaxis: { title: { text: '' }, showgrid: false, tickfont: { color: '#FFFFFF', size: 12, family: 'Avenir' } },
       bargap: 0.38,
@@ -77,7 +75,7 @@ export function visibilityBarFigure(brands: { name: string; visibilityPct: numbe
 }
 
 /** A slice's label (2026-10-19, Ryan: whole numbers, like Peec): the whole number of its exact share (weight over total),
- *  as Peec's dashboard rounds it and as the source-mix sentence rounds its whole numbers (sentences.ts sharePctAll), so a
+ *  as Peec's dashboard rounds it and as the source-mix sentence rounds its whole numbers (sentences.ts mixPctAll), so a
  *  slice never rounds differently on the chart and in the sentence (which may keep one decimal: under 10%, or when two
  *  values in it read alike). Amended 2026-10-20: the stored one-decimal pct rounded twice (24.46 stored 24.5 read 25).
  *  A stored slice always has a positive weight, so 0 reads "<1%"; a share under 100 never reads 100. */

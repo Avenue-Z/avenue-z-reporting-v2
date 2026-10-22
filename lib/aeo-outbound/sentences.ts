@@ -1,6 +1,7 @@
 // The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
 // methodology, and since round 3 the pillar data lines, written by code from a row's data so every number is Peec's.
 // Glean writes only the opinion (§19.2).
+import { sliceLabel } from './charts'
 import { PILLARS } from './config'
 import { pyRound, settingsUsedOf, tenths, type SnapshotData } from './metrics'
 import type { Bullet, Opportunity } from './slots'
@@ -50,6 +51,9 @@ const points = (x: number): string => Math.abs(x).toFixed(1)
 const MAX_NAMED = 5
 /** Editorial and UGC each under this share (percent, as displayed) read as "limited" (Ryan's example: 6% and 3%). */
 const LIMITED_SHARE_PCT = 10
+/** A peer cluster wider than this many visibility points is not a cluster, so the bullet is left out (round 3 QA, spec
+ *  2026-10-22 F2: staging read "a 96.4-point visibility range"). Ryan's PocketGuard example is 7.8. */
+const PEER_CLUSTER_MAX_POINTS = 10
 
 /** At most five names, then "and k more" (k as a count word). */
 const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${countWord(names.length - MAX_NAMED)} more`] : names)
@@ -264,7 +268,7 @@ function write(d: SnapshotData) {
       const domain = ownDomainText(site.domain, brand)
       const n = site.retrievedChats
       out.push({ lead: 'Citation volume:', text: `${domain} appears in ${n >= 1000 ? 'approximately ' : ''}${countText(n)} retrieved ${n === 1 ? 'citation' : 'citations'}.` })
-      // A rate that rounds to 0.0 after a count above zero reads "under 0.1%", as the pillar lines do (Paul, #417 review).
+      // A rate that rounds to 0.0 after a count above zero reads "under 0.1%" (Paul, #417 review).
       const rate = site.retrievedPct === 0 ? 'under 0.1%' : site.retrievedPct === null ? null : pctText(site.retrievedPct)
       if (rate !== null) out.push({ lead: 'Citation rate:', text: `${d.ownSites!.length === 1 ? brand : domain} is cited in ${rate} of tracked answers.` })
     }
@@ -280,10 +284,13 @@ function write(d: SnapshotData) {
     if (mix[1].pct === 0) return { lead, text: `Almost all citations come from ${label(mix[0].label)} sources.` }
     const [t1, t2] = mix
     const named = new Set([t1.label, t2.label])
-    const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l))
+    // An Editorial or UGC type Peec does not report gets no clause, so the sentence never says "accounts for 0.0%"
+    // (adversarial review of #420, M3); one stored as 0.0 reads "under 0.1%", as the citation rate does.
+    const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l) && mix.some((m) => m.label === l))
     const total = mix.reduce((s, m) => s + m.weight, 0)
     const share = (l: string) => { const m = mix.find((x) => x.label === l); return { pct: m?.pct ?? 0, exact: m && total ? (m.weight / total) * 100 : 0 } }
-    const [p1, p2, ...pe] = mixPctAll([share(t1.label), share(t2.label), ...extras.map(share)])
+    const [p1, p2, ...pe0] = mixPctAll([share(t1.label), share(t2.label), ...extras.map(share)])
+    const pe = pe0.map((t, i) => (share(extras[i]).pct === 0 ? 'under 0.1%' : t))
     const tail = extras.length === 2 ? `; ${extras[0]} accounts for ${pe[0]} and ${extras[1]} for ${pe[1]}` : extras.length === 1 ? `; ${extras[0]} accounts for ${pe[0]}` : ''
     return { lead, text: `${upper(label(t1.label))} sources account for ${p1} of citations, followed by ${label(t2.label)} sources at ${p2}${tail}.` }
   }
@@ -339,6 +346,7 @@ function write(d: SnapshotData) {
     const peers = !above.length ? below.slice(0, 2) : !below.length ? above.slice(-2) : [above[above.length - 1], below[0]]
     const values = [own.visibilityPct, ...peers.map((b) => b.visibilityPct)]
     const x = tenths(Math.max(...values), Math.min(...values))
+    if (x > PEER_CLUSTER_MAX_POINTS) return null
     const [p1, p2] = peers
     if (x === 0) return { lead: 'Peer cluster:', text: `${brand} sits at the same visibility as ${p1.name} and ${p2.name}.` }
     return { lead: 'Peer cluster:', text: `${brand} sits within a ${points(x)}-point visibility range alongside ${p1.name} and ${p2.name}.` }
@@ -376,10 +384,13 @@ function write(d: SnapshotData) {
     const competitor = outside('Competitor')
     const ownWeight = d.ownMixWeight ?? 0
     const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
-    // One rounding pass over the shares shown, so two pillars never read alike when their values differ (spec §9 m1).
-    const shown = [editorial, own, competitor].filter((x): x is { weight: number; pct: number } => !!x)
-    const texts = sharePctAll(shown.map((x) => ({ pct: x.pct, exact: total ? (x.weight / total) * 100 : 0 })))
-    const share = (x: { weight: number; pct: number }) => (x.pct === 0 ? 'under 0.1%' : texts[shown.indexOf(x)])
+    // Round 3 QA (spec 2026-10-22 F3): each share reads exactly as the donut labels a slice (charts.ts sliceLabel), in
+    // words at the edges ("<1%" is "under 1%"), so a pillar never reads differently from its slice. The three are
+    // separate facts, not a ranking, so two may read alike; this replaced the single rounding pass of pillars spec §9 m1.
+    const share = (x: { weight: number; pct: number }) => {
+      const l = sliceLabel(total ? (x.weight / total) * 100 : 0)
+      return l === '<1%' ? 'under 1%' : l === '>99%' ? 'over 99%' : l
+    }
     // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
     const tail = 'of citations in this window.'
     const missing = 'among citations in this window.'
