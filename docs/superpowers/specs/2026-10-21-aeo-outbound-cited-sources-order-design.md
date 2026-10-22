@@ -1,6 +1,6 @@
 # AEO Outbound: Competitive Visibility before Cited Sources (design)
 
-Status: draft for review, 2026-10-21. Code cited at dev `5fedaa52`, read this session.
+Status: decided 2026-10-21 (review log). Code cited at dev `5fedaa52`, read this session.
 
 ## 1. What Ryan asked (round 3, verbatim)
 
@@ -106,6 +106,9 @@ in the source ecosystem", "Source-use signal"); that is what Q1 regroups.
 
 ## 7. Overlaps
 
+#411 (the Opportunities toggle) and #412 (the pillars) were combined into #415 after this was written; read #411
+and #412 below as #415.
+
 #411 and #412 also edit `render.ts` near the menu (for #411, the Opportunities link: see O1), `slots.ts` (`Slots`), `contracts.ts` (`STORED_SLOTS`) and
 `generate.ts:101-102` (pillars sets its marker there). Each is an addition beside another; whichever merges second keeps
 both. #413 edits `pageDefaults`, not touched here.
@@ -117,8 +120,10 @@ both. #413 edits `pageDefaults`, not touched here.
 - r1-4: on marker rows Before you send, Needs validation and Approve's first highlighted item keep storage order
   (`slots.ts:137`, `:146`, `editor.tsx:350`), so a Cited Sources bullet is listed before a Competitive Visibility one;
   Settings keeps Sources first (`settings-form.tsx:100`, `:104`). Accepted; the labels name the section (O4).
-- r1-5: the frame test uses a marker row whose stubbed tops follow its DOM order (Competitive Visibility above Cited
-  Sources) and expects `#competitive-visibility` active on scroll; a click test alone proves nothing about order.
+- r1-5: the frame test uses a marker row whose stubbed tops follow its page order (Competitive Visibility above Cited
+  Sources, Cited Sources at the top of the view) and expects `#category-data` active on scroll; with the old DOM order
+  AIVx would pick `#competitive-visibility`, so the test fails if the swap is lost. A click test alone proves nothing
+  about order.
 - r1-6: the render tests assert marker order in final, draft and preview; in draft, the editable menu copies list
   `page.section_2_title` before `page.section_1_title` (counterpart of `render.test.ts:222`).
 - r1-8: "Competitive Visibility" recased on my decision (Ryan's casing, 2026-10-21); the PR says so.
