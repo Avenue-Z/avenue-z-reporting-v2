@@ -50,6 +50,12 @@ export interface SnapshotData {
   ownRetrievedChats: number
   /** The own site's percentage when exactly one own domain has retrievals (version 2), else null. */
   ownRetrievedPct: number | null
+  /** Round 3 (pillars D3 (a)): the source-mix weight of the brand's own rows (OWN class or own-domain match, weight above
+   *  0), the Content pillar's share. Absent on older rows, which are never pillar rows. */
+  ownMixWeight?: number
+  /** Paul, #415 review: the same own rows' weight by the source type Peec files them under (the donut's labels), so a
+   *  pillar line takes the brand's own site out of the Editorial and Competitor shares. Absent on older rows. */
+  ownMixByType?: Record<string, number>
   sourceMix: SourceSlice[]
   gapDomains: { domain: string; retrievedChats: number }[]
   actions: { title: string; impact: string; type: string }[]
@@ -63,8 +69,9 @@ export interface SnapshotData {
   ownSites?: OwnSite[]
   /** Version 2: the settings this generation used. */
   settingsUsed?: SettingsUsed
-  /** Spec v1.1 §19.5: the SENTENCES_VERSION of rows whose context, findings and methodology code wrote (sentences.ts).
-   *  Absent on older rows, whose Glean text and grounding stay exactly as they were. */
+  /** Spec v1.1 §19.5: the SENTENCES_VERSION of rows whose context, findings and methodology code wrote (sentences.ts). The
+   *  pillar lines are not versioned: a pillar row is told apart by its marker (Paul, #415 review). Absent on older rows,
+   *  whose Glean text and grounding stay exactly as they were. */
   sentences?: number
   /** Spec v1.1 §19.5: 1 plus the domains with more retrieved chats than the most retrieved own site; null when none. */
   ownSiteRank?: number | null
@@ -238,6 +245,13 @@ export function buildSnapshotData(
     const label = titleClassification(r.classification)
     weights.set(label, (weights.get(label) ?? 0) + w)
   }
+  // Round 3 (pillars spec D3 (a)): the Content pillar counts the brand's own rows the way the own-site bullet does.
+  const ownMixWeight = ownRows.reduce((s, r) => { const w = r[decisions.sourceMixWeight] ?? 0; return w > 0 ? s + w : s }, 0)
+  const ownMixByType: Record<string, number> = {}
+  for (const r of ownRows) {
+    const w = r[decisions.sourceMixWeight] ?? 0
+    if (w > 0) { const label = titleClassification(r.classification); ownMixByType[label] = (ownMixByType[label] ?? 0) + w }
+  }
   const total = [...weights.values()].reduce((s, w) => s + w, 0)
   const sourceMix = [...weights.entries()]
     .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1))
@@ -282,10 +296,13 @@ export function buildSnapshotData(
     ownDomains,
     ownRetrievedChats,
     ownRetrievedPct,
+    ownMixWeight,
+    ownMixByType,
     sourceMix,
     sourceMixWeight: decisions.sourceMixWeight,
     gapDomains,
-    actions: pull.actions.map((a) => ({ title: String(a.title ?? ''), impact: String(a.impact ?? ''), type: String(a.type ?? '') })).filter((a) => a.title).slice(0, 10),
+    // Round 3 (Paul, #415 review): the pull no longer reads Peec's actions. Older rows keep the ones they stored.
+    actions: [],
     promptCount: pull.promptCount,
     models: pull.models,
     notes,

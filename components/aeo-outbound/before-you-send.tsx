@@ -37,6 +37,8 @@ export interface BeforeYouSendProps {
   needsValidation: string[]
   notes: StoredNote[]
   titles: readonly [string, string]
+  /** Round 3: label opportunity paths as pillar fields. */
+  pillars?: boolean
   about: AboutInfo | null
   ticks: ReadonlySet<string>
   ownTicks: ReadonlySet<number>
@@ -49,7 +51,7 @@ export interface BeforeYouSendProps {
 
 const itemBtn = 'text-left text-xs text-white underline-offset-2 hover:underline'
 export function BeforeYouSend(p: BeforeYouSendProps) {
-  const label = (path: string) => fieldLabel(path, p.titles)
+  const label = (path: string) => fieldLabel(path, p.titles, p.pillars ?? false)
   const about = p.notes.filter((n) => noteGroup(n) === 'about' && !(typeof n !== 'string' && n.kind === 'project'))
   const check = checkItems(p.notes)
   const checkKeys = checkTickKeys(p.notes)

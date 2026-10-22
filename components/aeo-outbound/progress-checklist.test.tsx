@@ -9,13 +9,13 @@ afterEach(() => { cleanup(); vi.useRealTimers() })
 const box = () => screen.getByRole('status', { name: 'Generation progress' }).closest('.max-w-sm') as HTMLElement
 const states = () => within(box()).getAllByRole('listitem').map((li) => li.getAttribute('data-state'))
 
-test('the current step, the clock, the bar, eight rows by state, the usual time and the keep-open advice (spec v1.1 §16.3)', () => {
+test('the current step, the clock, the bar, seven rows by state, the usual time and the keep-open advice (spec v1.1 §16.3)', () => {
   render(<ProgressChecklist step={5} startedAtMs={START} />)
   expect(within(box()).getByText('Loading brand visibility and AI models…')).toBeInTheDocument()
   expect(within(box()).getByText('0:12')).toBeInTheDocument()
-  expect(states()).toEqual(['done', 'done', 'done', 'done', 'current', 'waiting', 'waiting', 'waiting'])
+  expect(states()).toEqual(['done', 'done', 'done', 'done', 'current', 'waiting', 'waiting'])
   expect(within(box()).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '4')
-  expect(within(box()).getByRole('progressbar')).toHaveAttribute('aria-valuemax', '8')
+  expect(within(box()).getByRole('progressbar')).toHaveAttribute('aria-valuemax', '7')
   expect(within(box()).getByText('Usually 35 to 45 seconds')).toBeInTheDocument()
   expect(within(box()).getByText('Keep this tab open until it finishes.')).toBeInTheDocument()
 })
@@ -23,7 +23,7 @@ test('the current step, the clock, the bar, eight rows by state, the usual time 
 test('step 0 reads Starting with every row waiting; step 10 names the second attempt', () => {
   const { rerender } = render(<ProgressChecklist step={0} startedAtMs={START} />)
   expect(within(box()).getByText('Starting…')).toBeInTheDocument()
-  expect(states()).toEqual(Array(8).fill('waiting'))
+  expect(states()).toEqual(Array(7).fill('waiting'))
   rerender(<ProgressChecklist step={10} startedAtMs={START} />)
   expect(within(box()).getAllByText('Writing the copy, second attempt').length).toBeGreaterThan(0)
 })

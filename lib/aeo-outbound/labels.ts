@@ -18,8 +18,10 @@ const PAGE_LABELS: Record<PageKey, string> = {
   sidebar_link: 'Menu link text', method_title: 'Methodology title',
 }
 const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k)
+const PILLAR_FIELDS: Record<string, string> = { workstream: 'name', opportunity: 'description', signal: 'data line' }
 
-export function fieldLabel(path: string, titles: readonly [string, string]): string {
+/** On a pillar row (round 3) an opportunity field reads as a pillar's. */
+export function fieldLabel(path: string, titles: readonly [string, string], pillars = false): string {
   if (has(SCALAR_LABELS, path)) return SCALAR_LABELS[path]
   let m = /^page\.([a-z0-9_]+)$/.exec(path)
   if (m && has(PAGE_LABELS, m[1])) return PAGE_LABELS[m[1] as PageKey]
@@ -32,7 +34,7 @@ export function fieldLabel(path: string, titles: readonly [string, string]): str
   m = /^(competitive_bullets|sources_bullets)\.add$/.exec(path)
   if (m) return `${section(m[1])}, add a bullet`
   m = /^opportunities\.(\d)\.(signal|opportunity|workstream)$/.exec(path)
-  if (m) return `Opportunity ${Number(m[1]) + 1}, ${m[2]}`
+  if (m) return pillars ? `Pillar ${Number(m[1]) + 1}, ${PILLAR_FIELDS[m[2]]}` : `Opportunity ${Number(m[1]) + 1}, ${m[2]}`
   m = /^kpis\.(\d)\.(label|value)$/.exec(path)
   if (m) return `Metric card ${Number(m[1]) + 1}, ${m[2]}`
   return path

@@ -32,8 +32,21 @@ export const PITCH_STATUSES: readonly string[] = ['PITCH', 'PITCH_ENDED']
 export const NEEDS_VALIDATION = 'Needs validation'
 /** Spec v1.1 §19.5, §19.11: the version of the code-written sentences (sentences.ts). Bump it whenever their wording or
  *  rounding changes, so an edited sentence on an older row is never compared word for word with today's. Version 2
- *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). */
+ *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll). The pillar data
+ *  lines (round 3) do not use it: grounding tells a pillar row apart by its opportunities_layout marker, so changing their
+ *  wording later needs a check of its own (Paul, #415 review). */
 export const SENTENCES_VERSION = 2
+/** Round 3 (Ryan, 2026-10-21): the three pillars of the Avenue Z audit slide, in its order, shown on the Opportunities
+ *  page of every new report with one data line each (sentences.ts pillars). The Content description completes the
+ *  slide's sentence, which is cut off after "LLMs for". */
+export const PILLARS = [
+  { name: 'Earned & Affiliate Media', description: 'Quality Citations from Trusted Media Publications are a key factor in determining the credibility and authority of information.' },
+  { name: 'Content and Creative', description: 'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.' },
+  { name: 'Technical Optimizations', description: 'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.' },
+] as const
+/** The Opportunities page title on a new report: the slide's title, in its own casing (my decision, 2026-10-21:
+ *  client-facing copy keeps the slide's case). */
+export const PILLARS_TITLE = 'The Pillars of AI Search'
 export const GENERATION_DEADLINE_MS = 270_000
 export const STALE_GENERATING_MS = 6 * 60_000
 /** Report window, in UTC calendar days (spec §7 step 4). With no dates picked the report asks for MAX_LOOKBACK_DAYS back. */
@@ -54,7 +67,6 @@ export const CONTRACT_MODES = {
   'peec.brands_by_model': 'enforce',
   'peec.model_channels': 'observe',
   'peec.domains_report': 'enforce',
-  'peec.actions': 'observe',
   'peec.prompts': 'enforce',
   'glean.slots': 'enforce',
   'request.generate': 'enforce',

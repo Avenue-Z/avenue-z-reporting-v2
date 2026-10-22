@@ -477,11 +477,12 @@ test('legend: a font still loading re-checks when it arrives; a loaded font adds
 // The menu highlights 05 at the bottom of the page (v1.1 §17.12). AIVx's real scroll-spy runs first, then PAGE_JS, as in
 // the page. getBoundingClientRect is stubbed so the sections sit where the test says; the scroll metrics are stubbed too.
 const SECTION_IDS = ['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology']
-function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean }) {
-  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, mode, 'Oct 8, 2026'), 'text/html')
+function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean; hidden?: boolean }) {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, o.hidden ? { ...V1_SLOTS, opportunities_page: 'hidden' as const } : V1_SLOTS, mode, 'Oct 8, 2026'), 'text/html')
   if (o.edit) doc.querySelector('[data-slot]')!.setAttribute('contenteditable', 'true')
-  const tops = o.tops ?? [-900, -600, 0, 400, 700]
-  SECTION_IDS.forEach((id, i) => {
+  const ids = o.hidden ? SECTION_IDS.filter((id) => id !== 'opportunities') : SECTION_IDS
+  const tops = o.tops ?? (o.hidden ? [-900, -600, 0, 400] : [-900, -600, 0, 400, 700])
+  ids.forEach((id, i) => {
     const el = doc.getElementById(id)!
     el.classList.add('section')
     el.getBoundingClientRect = () => ({ top: tops[i] }) as DOMRect
@@ -661,4 +662,11 @@ test('scrolling posts the frame\'s position at most every 200 ms, and a scroll m
   expect(scrollTo).toHaveBeenCalledTimes(1)
   fromParent({ type: 'scroll', y: 50 }, null)
   expect(scrollTo).toHaveBeenCalledTimes(1)
+})
+
+test('hidden Opportunities page: the page scripts run, and at the bottom only the 04 Methodology link is active', () => {
+  bootSpy('final', { bottom: true, hidden: true })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#methodology'])
+  expect(doc.querySelector('a[href="#methodology"] .nav-num')!.textContent).toBe('04')
 })

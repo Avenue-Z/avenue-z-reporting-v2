@@ -45,7 +45,6 @@ export const LIVE_SHAPE_PULL: PeecPull = {
     row('misc.example', 'OTHER', 10, 89, []),
     row('rival-landing.example', 'COMPETITOR', 5, 37, ['kw_lead']),
   ],
-  actions: [],
   promptCount: 104,
   models: ['Google AI Overview', 'Gemini UI', 'ChatGPT UI'],
   warnings: [],
