@@ -277,3 +277,24 @@ you send, Open full size; after approval Copy link, Revoke, Edit a copy. Every V
   "leads its tracked category".
 - "Crocs's own site" possessive.
 - V1 editor menu highlights "05 Methodology" when the report is at the top.
+
+## Fixes and re-check on staging (2026-10-22, after #422)
+
+My triage of the failures above: four real fixes, the rest read the scorecard stricter than Ryan wrote it. #422
+(spec `docs/superpowers/specs/2026-10-22-aeo-outbound-round3-scorecard-fixes-design.md`) shipped three of them; dev
+`25d99335`, promoted in #423 to staging `2e0e0163`. Fresh staging reports, read from each report's own page:
+
+| Check | Report | Now reads | Result |
+|---|---|---|---|
+| 11.x exact count | Crocs, full history (`669f1d85`) | "Crocs.com appears in 1,421 retrieved citations." No "approximately" on the page | PASS |
+| 12.8 / 12.9 top three, prospect included | A Place for Mom, full history (`b589c1bb`) | "A Place for Mom is 31.5 percentage points below the top-three average visibility of 34.6%." (98.6 + 3.1 + 2.2) / 3 = 34.6 | PASS |
+| 12.12 to 12.15 peers | A Place for Mom (`b589c1bb`) | "A Place for Mom sits within a 3.1-point visibility range alongside Caring and Petunia." (was no bullet) | PASS |
+| No regression | PocketGuard, Oct 19 (`480544af`, rerun of `0197d0ef`) | "5.4 ... behind Quicken", "20.5 ... below the top-three average visibility of 53.8%", "7.8-point ... alongside Quicken and You Need A Budget", "PocketGuard.com appears in 678 retrieved citations." Word for word as before | PASS |
+
+A Place for Mom's Before you send panel shows only the existing note on Care's 98.6% visibility; no wording flags.
+
+**Still open: 9.5 / 13.2, the editor bar chart labels.** At 1440 the editor (V1) cuts the bar labels; the full-size
+preview and the shared page are clean, so a prospect never sees it. Two fixes were tried in #422 and neither changed
+the real editor, so both were taken out (`8065fda3`). Tracked as its own fix.
+
+**Not changed, my call:** the source-mix bullet keeps both Editorial and UGC (S5 in the spec).
