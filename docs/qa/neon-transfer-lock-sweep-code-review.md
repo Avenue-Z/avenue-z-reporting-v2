@@ -93,11 +93,11 @@ Sev: **●** correctness · **○** cleanup/convention. Status: CONFIRMED (prove
 | 2 | ● | CONFIRMED | `response-lock-store.ts` at `651cd21e`, `CLAUDE.md` | The first version needed a manual Vercel Data Cache purge after an unlock, or the old numbers showed for up to 24 h. **Fixed in `0c0de4a2`**: a deleted row is gone on the next render, and the purge step was removed from CLAUDE.md. Raised by the automated security review. |
 | 3 | ○ | CONFIRMED | `response-lock-store.ts:22` at `0c0de4a2` | The answer cache called `unstable_cache` directly, so `CACHE_DISABLE=1`, the documented escape for every cache, did not cover it, and lock reads wrote no PERF line. **Fixed in `c6edad3b`** (through `cached()`). Thomas. |
 | 4 | ○ | CONFIRMED | `CLAUDE.md` | The unlock note cited `lib/db/schema.ts:421` for `dash_response_locks`; it is at `:468`. **Fixed in `c6edad3b`.** Thomas. |
-| 5 | ○ | CONFIRMED | `response-lock-store.ts:22` | `healthCritical` is left at its default `true`; Thomas suggested `false`. Open: decide together (§4). |
+| 5 | ○ | CONFIRMED | `response-lock-store.ts:22` | `healthCritical` is left at its default `true`; Thomas first suggested `false`. **Closed: keep it on** (Thomas, #407 approval, 2026-10-22; §4). |
 | 6 | ○ | PLAUSIBLE | `response-lock-store.ts:24-27` | The id lookup still reaches Neon on every read, including every page view. A uuid per read against about 35 kB per answer before, so small, but unmeasured. |
 | 7 | ● | PLAUSIBLE | `response-lock-store.ts:22` | Vercel's data cache rejects entries over 2 MB. An answer that large is not cached and falls back to a Neon read per render, as before this PR; it is never a wrong number. The largest today is 1.4 MB. |
 
-Not a finding: Thomas's nit on `response-lock-store.test.ts:65` ("the deleted row half isn't asserted"). It is asserted at `:68`, between `row = null` and the re-capture; `:65` is the test's title. Replied on the PR.
+Not a finding: Thomas's nit on `response-lock-store.test.ts:65` ("the deleted row half isn't asserted"). It is asserted at `:68`, between `row = null` and the re-capture; `:65` is the test's title. Thomas withdrew it.
 
 ---
 
@@ -111,7 +111,7 @@ A failed lock answer read is not a garnish. The locking client fails closed (`lo
 
 One wrinkle supports Thomas's side: on Overview, `channelErrorPolicy` (`metrics.ts:66`) swallows the throw and drops the platform, an open CLAUDE.md follow-up. There the page renders with no error card, yet the beacon would still record a failure. The three October clients hide Overview, so nobody is exposed today.
 
-**Suggested resolution.** Keep `true` unless the health sweep should treat a lock store outage as degraded rather than down; that is a call about what pages Slack, not about this code.
+**Resolution.** Keep `true`. Agreed by Thomas on the #407 approval (2026-10-22).
 
 ### Finding 6: the id lookup per read
 
@@ -131,10 +131,9 @@ Tracked separately; none applied in this record.
 1. **On staging:** confirm that repeat renders of a locked month stop reading `response` from Neon (PERF lines with `fn: dashResponseLock`, `cached: true`), and that a deleted lock is re-captured on the next view. The second also answers the open question in CLAUDE.md's locked-months unlock entry.
 2. **After prod deploy:** watch Neon's network transfer for a day or two (finding 6). The sweep's share should drop to the three days after each lock day.
 
-**Decide together**
-3. **Finding 5:** `healthCritical` for lock reads, Thomas and Paul.
-
 **Watch**
-4. **Finding 7:** the 2 MB entry limit, if a heavier client goes onto locked months.
+3. **Finding 7:** the 2 MB entry limit, if a heavier client goes onto locked months.
 
-**Blocking the ship:** none in this diff. CI's `checks / checks` SCA gate is red on every PR off `dev` because of GHSA-587h-7wmj-h5pm in vite; #408 bumps it, and #407 needs that merged to go green. This does not restore prod's Neon access this month: the allowance resets on the billing date unless the plan is upgraded.
+Finding 5 (`healthCritical`) is closed: keep it on.
+
+**Blocking the ship:** none. This does not restore prod's Neon access this month: the allowance resets on the billing date unless the plan is upgraded.
