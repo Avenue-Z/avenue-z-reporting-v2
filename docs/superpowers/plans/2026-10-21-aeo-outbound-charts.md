@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Branch `feat/aeo-outbound-charts` off `dev`; the PR targets `dev`, titled "... → dev". Nothing merges without Thomas's "merge"; Paul reviews the code.
+- Branch `feat/aeo-outbound-charts` off `dev`; the PR targets `dev`, titled "... → dev". Nothing merges without my "merge"; Paul reviews the code.
 - Never edit `lib/aeo-outbound/aivx/*` or `PLOTLY_BASE` (`charts.ts:12-17`).
 - Bar layout: `plot_bgcolor: '#000000'` after the `...PLOTLY_BASE` spread; `margin: { t: 8 }` as the last key. Grid lines stay (D1).
 - Donut legend: `entrywidth: 0.5, entrywidthmode: 'fraction'` appended after `yanchor`, in that order; donut margin `{ l: 24, r: 24, t: 28, b: 64 }`.

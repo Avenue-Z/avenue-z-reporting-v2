@@ -3,7 +3,7 @@
 **Question.** Does spec C5 (`docs/superpowers/specs/2026-10-21-aeo-outbound-charts-design.md`), with the round 2
 fixes F1 to F7 (review log), keep two columns where they fit and fall back without overlap or loops?
 
-**How.** Throwaway script (session scratchpad, not in the repo) injected into a staging draft preview in a browser tab,
+**How.** A throwaway script, not in the repo, injected into a staging draft preview in a browser tab,
 PocketGuard `4e160c91`, read only, nothing saved. It rebuilt the donut fresh with C4's layout (`entrywidth: 0.5`,
 `entrywidthmode: 'fraction'`, side margins 24) and ran the C5 logic: `cur`, `fallen`, `fits()`, `draw(d,l,after)`
 with one `then(after, restore)` chain, the debounced resize retry, and the init check only where `apply(true)` is not

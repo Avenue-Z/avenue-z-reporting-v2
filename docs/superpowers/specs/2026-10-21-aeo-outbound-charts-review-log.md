@@ -11,7 +11,7 @@ MINORs carried to §8a of the spec.
 
 ## Round 2 (changed lines only, `e69c9294`)
 
-3 MAJOR, 5 MINOR. Not fixed: a MAJOR in round 2 goes to Thomas as a decision.
+3 MAJOR, 5 MINOR. Not fixed: a MAJOR in round 2 comes to me as a decision.
 
 - **F1 MAJOR.** `draw()` (`render.ts:156`) returns nothing, so "after the draw resolves" needs `draw(d,l,after)`:
   `p.then(after,restore)` on one chain when `p` is thenable, `after()` synchronously when not, `restore()` only on a

@@ -1,6 +1,6 @@
 # AEO Outbound: chart fixes from Ryan's round 3 (design)
 
-Status: draft for review, 2026-10-21. Code cited at dev `5fedaa52`. Every number below was measured on staging on
+Status: decided 2026-10-21 (D1 to D3, §8). Code cited at dev `5fedaa52`. Every number below was measured on staging on
 2026-10-21 (read only: report previews via `GET /api/aeo-outbound/reports/{id}/view?mode=preview`, and scratch figures
 drawn with the page's own Plotly 3.5.0 in a browser tab; nothing saved).
 
@@ -104,6 +104,9 @@ and falls back. Precisely (review round 1, M1 to M4):
   Both are measured with `getBoundingClientRect()`. Fewer than 2 entries: fits. Column starts are the distinct `left`
   values of the entry rects. For each entry the limit is the smallest column start greater than its own `left`, else
   `el.getBoundingClientRect().right`. It overlaps when `text.right > limit - 2`.
+- **Changed by the round 2 fixes and the trial** (review log F2, F5; §8), and `render.ts` PAGE_JS is the reference: the
+  check at load runs only where `apply(true)` does not, a resize redraws two columns only after a fallback and otherwise
+  only checks, and `document.fonts.ready` is awaited only when fonts are still loading at load.
 - **When it runs.** In `init()` before the existing `matchMedia` guard (`render.ts:161`), so desktop gets checked too;
   after each `apply()` draw resolves; after the resize retry's draw resolves; once on `document.fonts.ready` when
   `document.fonts` exists (Avenir is a swapped webfont, `aivx/css.ts`). Never after the fallback draw and never after
@@ -135,7 +138,7 @@ and falls back. Precisely (review round 1, M1 to M4):
 |---|---|
 | `charts.test.ts` bar goldens (`:10-20`) | Ours equals AIVx's bar except, now also, `plot_bgcolor` and `margin`; asserts `plot_bgcolor === '#000000'` and `margin` equals `{ t: 8 }` |
 | `charts.test.ts` donut goldens (`:22-37`) | Ours equals AIVx's donut except, now also, the legend's two keys and the side margins; asserts those values |
-| `charts.test.ts` new | `PLOTLY_BASE` still has `plot_bgcolor: '#1a1a1a'` and the donut layout has no `plot_bgcolor` override (the change is the bar's alone) |
+| `charts.test.ts` donut golden (m4) | `PLOTLY_BASE` still has `plot_bgcolor: '#1a1a1a'` and the donut layout has no `plot_bgcolor` override (the change is the bar's alone) |
 | `v1-compat.test.ts` `v11()` | Three new deliberate differences, each with `once()`: the bar's `plot_bgcolor` value, the bar's `margin` key, the donut's legend keys and side margins. Every other byte of the v1.0 page unchanged |
 | `render.test.ts` `CHART_SPACING_RULES` (`:371-383`) | Rule 4 is the donut-only centring rule, verbatim; the spacing tests at `:454-461` still pass (no rule names a chart id, no sizing on chart-wrap) |
 | `render.frame.test.ts` new (C5, `getBoundingClientRect` stubbed on `.traces` and `.legendtext`) | Overlapping boxes on desktop: one extra `react`, layout without the two legend keys, data equal to `orig`. On a phone: the fallback keeps "Reference 5%" labels and customdata. Boxes that still overlap after the fallback: exactly one extra `react`. A rejected fallback: the existing single `restore()` and nothing more. Fitting boxes, or no legend nodes: no extra call. Five resizes within 100ms: one redraw. A resize with unchanged `clientWidth`: no call. A resize after a fallback: two-column redraw, then the check. Crossing 900px (`change`): the check runs after `apply()`'s draw. Existing donut tests (`:247-315`) unchanged |
@@ -157,7 +160,7 @@ two do not fit.
 | Plotly fails to load | No chart at all, as today; C5 finds no legend and does nothing |
 | A report approved before this ships | Unchanged forever (frozen HTML) |
 
-## 8. Decisions for Thomas
+## 8. Decisions
 
 - **D1. Grid lines on the bar chart:** keep the faint vertical lines (proposed; Ryan named only the grey), or remove
   them (`showgrid: false`, one more key).
@@ -168,7 +171,7 @@ two do not fit.
   is worse. Alternatives, each needing its own trial: a smaller legend font, or wrapping long names (a wrap trial on
   2026-10-21 still overlapped at 15 entries and cut the legend off at 14 characters).
 
-**Decided (Thomas, 2026-10-21):** D1 keep the grid lines, D2 8px, D3 accept the fallback. The round 2 findings F1 to
+**I decided (2026-10-21):** D1 keep the grid lines, D2 8px, D3 accept the fallback. The round 2 findings F1 to
 F8 (review log) are accepted as written and carried into the plan. The trial
 (`docs/findings/2026-10-21-aeo-outbound-charts-trial.md`) confirmed C5 with them, plus one refinement: the
 `document.fonts.ready` check is registered only when `document.fonts.status === 'loading'` at init.
