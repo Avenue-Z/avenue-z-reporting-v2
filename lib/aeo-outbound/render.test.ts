@@ -140,6 +140,14 @@ test('round 3: a row without the marker keeps today\'s order', () => {
   expect(sectionIds(doc)).toEqual(['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology'])
 })
 
+test('round 3, both features: a row with Competitive Visibility first and the Opportunities page hidden keeps Methodology right after 03', () => {
+  for (const mode of ['final', 'preview', 'draft'] as const) {
+    const doc = parse(renderSnapshotHtml(DATA, { ...VIS_FIRST, opportunities_page: 'hidden' }, mode, 'x'))
+    expect(menuOf(doc), mode).toEqual([['#headline', '01'], ['#competitive-visibility', '02'], ['#category-data', '03'], ['#methodology', '04']])
+    expect(sectionIds(doc), mode).toEqual(['headline', 'competitive-visibility', 'category-data', 'methodology'])
+  }
+})
+
 test('a short brand name is bolded only as a whole word', () => {
   const brands = [...BRANDS, { id: 's', name: 'amp', isOwn: false, visibilityPct: 1, sovPct: 1, position: 5, rank: 3 }]
   const h = renderSnapshotHtml({ ...DATA, brands }, { ...SLOTS, context: 'Tom & Jerry vs amp and camping.' }, 'final', 'x')
