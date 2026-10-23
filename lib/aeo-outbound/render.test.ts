@@ -420,7 +420,7 @@ test('PAGE_CSS and PAGE_JS have no phone Share rules or proxy (v1.1 §17.11)', (
  *  (Ryan, 2026-10-21) the bar chart is left out of it, so it starts right under its title. */
 const CHART_SPACING_RULES = [
   '#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}',
-  '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
+  '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column;min-width:0}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
   '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
@@ -523,7 +523,7 @@ test('the chart card rules (spec v1.1 18.12): the three rules replace the first-
   expect(PAGE_CSS).not.toContain('#category-data .two-col>div:first-child,#competitive-visibility .two-col>div:first-child{display:flex}')
   const at = out.indexOf('#category-data .two-col,#competitive-visibility .two-col{margin-bottom:0}')
   expect(out.slice(at + 1, at + 5)).toEqual([
-    '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
+    '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column;min-width:0}',
     '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
     '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
     '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
@@ -720,4 +720,9 @@ test('pillar rules: verbatim after the Methodology rules, the 3-column rule in t
     const h = renderSnapshotHtml(DATA, SLOTS, mode, 'x')
     for (const r of PILLAR_RULES) expect(h.split(r).length - 1, `${mode} ${r.slice(0, 40)}`).toBe(1)
   }
+})
+
+// Spec 2026-10-22-aeo-outbound-chart-drawn-hidden: a chart drawn at the wrong width can't prop its column open.
+test('the chart columns can shrink below their content, so a mis-drawn chart never widens the page', () => {
+  expect(PAGE_CSS).toContain('#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column;min-width:0}')
 })
