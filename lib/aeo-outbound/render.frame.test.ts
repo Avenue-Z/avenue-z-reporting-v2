@@ -678,3 +678,56 @@ test('hidden Opportunities page: the page scripts run, and at the bottom only th
   expect(actives()).toEqual(['#methodology'])
   expect(doc.querySelector('a[href="#methodology"] .nav-num')!.textContent).toBe('04')
 })
+
+// A chart drawn while its frame had no layout (the report loaded hidden, then shown) keeps Plotly's default 700px and
+// props its card open, so its labels are cut and the page scrolls sideways; no window resize comes to correct it
+// (measured in headless Chrome, 2026-10-22, spec 2026-10-22-aeo-outbound-chart-drawn-hidden). The page watches each
+// chart and sends one resize when its box and its drawn width disagree.
+function bootFit(over: { noObserver?: boolean } = {}) {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'final', 'x'), 'text/html')
+  const charts = [...doc.querySelectorAll('.plotly-graph-div')] as (HTMLElement & { _fullLayout?: { width: number } })[]
+  const observed: Element[] = []
+  let fire: (entries: { target: Element }[]) => void = () => {}
+  class RO { constructor(cb: (entries: { target: Element }[]) => void) { fire = cb } observe(t: Element) { observed.push(t) } }
+  win = Object.assign(new EventTarget(), over.noObserver ? {} : { ResizeObserver: RO })
+  const resizes = vi.fn()
+  win.addEventListener('resize', resizes)
+  new Function('window', 'document', PAGE_JS)(win, doc)
+  const size = (el: HTMLElement & { _fullLayout?: { width: number } }, box: number, drawn: number) => {
+    Object.defineProperty(el, 'clientWidth', { configurable: true, value: box })
+    el._fullLayout = { width: drawn }
+  }
+  return { charts, observed, resizes, size, fire: (els: Element[]) => fire(els.map((target) => ({ target }))) }
+}
+
+test('a chart drawn wider or narrower than its box gets one resize; a chart that fits, or is still hidden, gets none', () => {
+  const t = bootFit()
+  expect(t.charts).toHaveLength(2)
+  expect(t.observed).toEqual(t.charts)
+  const [bars, donut] = t.charts
+  t.size(bars, 335, 335); t.size(donut, 335, 335.4)
+  t.fire(t.charts)
+  vi.advanceTimersByTime(500)
+  expect(t.resizes).not.toHaveBeenCalled()
+  t.size(bars, 0, 700)
+  t.fire([bars])
+  vi.advanceTimersByTime(500)
+  expect(t.resizes).not.toHaveBeenCalled()
+  t.size(bars, 335, 700); t.size(donut, 335, 700)
+  t.fire(t.charts)
+  t.fire(t.charts)
+  vi.advanceTimersByTime(99)
+  expect(t.resizes).not.toHaveBeenCalled()
+  vi.advanceTimersByTime(1)
+  expect(t.resizes).toHaveBeenCalledTimes(1)
+  t.size(bars, 335, 214)
+  t.fire([bars])
+  vi.advanceTimersByTime(100)
+  expect(t.resizes).toHaveBeenCalledTimes(2)
+})
+
+test('without ResizeObserver the page runs and sends nothing', () => {
+  const t = bootFit({ noObserver: true })
+  vi.advanceTimersByTime(500)
+  expect(t.resizes).not.toHaveBeenCalled()
+})
