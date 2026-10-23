@@ -317,3 +317,17 @@ were fixed in #424 (dev `54f89bf6`), promoted in #425 to staging `1b2d6426`:
 **Open for Ryan:** the Content pillar's description ends with my wording ("how LLMs answer the questions buyers ask")
 because the slide's sentence is cut off after "LLMs for...". Ask him to confirm it or give his own.
 **Kept, my call:** the peer cluster's 10-point rule (left out on 17 of 48 projects with competitors).
+
+## Editor chart and Content pillar (2026-10-22, after #427 and #428)
+
+Promoted in #429 to staging `05b399cc`; `npm run aeo:sweep` on dev first: ok 60, failed 0, no data 1.
+
+- **9.5 / 13.2, editor bar labels cut: fixed (#427).** Root cause measured in real headless Chrome with the editor's
+  sandbox: a chart drawn while the report has no layout (hidden, then shown) keeps Plotly's 700px default and props its
+  column open (labels cut 29px, page 1288px in a 1105px frame); a frame sized normally was always fine. Our automated
+  checks ran in a hidden browser pane, which is how they kept seeing it. After the fix every case reads 335px, labels
+  22px inside, page 1105px. The automated pane itself still can't show the fix live (it never lays out), so this is
+  verified in headless Chrome, not in that pane.
+- **Content pillar sentence: Avenue Z's own ending (#428).** "...rather than keyword stuffed blogs, to better influence
+  LLMs.", as two Avenue Z decks from the Barilla engagement end it (checked in the full documents). Fresh staging report
+  `fca4a049` reads it; Ryan should still confirm.
