@@ -28,7 +28,7 @@ export function wordingProblems(texts: string[], brandNames: string[]): string[]
     }
     let stripped = text
     for (const name of [...brandNames].sort((a, b) => b.length - a.length)) if (name) stripped = stripped.split(name).join(' ')
-    if (/[–—]/.test(stripped)) out.add('long dash')
+    if (/[\u2013\u2014]/.test(stripped)) out.add('long dash')
   }
   return [...out]
 }
