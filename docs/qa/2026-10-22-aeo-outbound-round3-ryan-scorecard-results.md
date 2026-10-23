@@ -298,3 +298,22 @@ preview and the shared page are clean, so a prospect never sees it. Two fixes we
 the real editor, so both were taken out (`8065fda3`). Tracked as its own fix.
 
 **Not changed, my call:** the source-mix bullet keeps both Editorial and UGC (S5 in the spec).
+
+## Any-client sweep and wording fixes (2026-10-22, after #424)
+
+A read-only sweep ran all 61 Peec pitch projects (full history) through the generation steps before Glean: pull,
+numbers, sentences, the grounding check, chart and page render. 59 of 61 passed every check; the other two have no Peec
+data and get the `no_data` message. No client name appears in any line of logic. A fresh agent read the output against
+Ryan's thread and the pillars slide; I verified its findings in the code. Four wording problems a prospect would read
+were fixed in #424 (dev `54f89bf6`), promoted in #425 to staging `1b2d6426`:
+
+| Fix | Checked on | Now reads | Result |
+|---|---|---|---|
+| Trimmed Peec names | SDEV, staging (`053a995a`) | "Stablecoin Development's own site" (was " Stablecoin Development 's") | PASS |
+| One period after a name ending in "." | The Mad Hatter, staging (`d5ef569a`) | "alongside Banded and Lost Hat Co." (was "Co..") | PASS |
+| "an" before 8 | Alts AIVx, staging (`0f5ae3dd`) | "Moonfare sits within an 8.7-point visibility range" | PASS |
+| Singular count | Abbvie, sweep on the fixed code | "emsculpt.me at 1 retrieval" | PASS |
+
+**Open for Ryan:** the Content pillar's description ends with my wording ("how LLMs answer the questions buyers ask")
+because the slide's sentence is cut off after "LLMs for...". Ask him to confirm it or give his own.
+**Kept, my call:** the peer cluster's 10-point rule (left out on 17 of 48 projects with competitors).
