@@ -44,11 +44,12 @@ export const SENTENCES_VERSION = 3
  *  SENTENCES_VERSION whenever context() or methodology() changes. Their wording has not changed since version 1. */
 export const CONTEXT_WORDING_SINCE = 2
 /** Round 3 (Ryan, 2026-10-21): the three pillars of the Avenue Z audit slide, in its order, shown on the Opportunities
- *  page of every new report with one data line each (sentences.ts pillars). The Content description completes the
- *  slide's sentence, which is cut off after "LLMs for". */
+ *  page of every new report with one data line each (sentences.ts pillars). The slide cuts the Content sentence off after
+ *  "LLMs for"; it ends as Avenue Z's own pillars slides end it ("AVZ - Barilla - AIO Presentation - 9Dec2025",
+ *  "AI Meeting Comms 1", found in Glean 2026-10-22), replacing my earlier wording. */
 export const PILLARS = [
   { name: 'Earned & Affiliate Media', description: 'Quality Citations from Trusted Media Publications are a key factor in determining the credibility and authority of information.' },
-  { name: 'Content and Creative', description: 'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.' },
+  { name: 'Content and Creative', description: 'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence LLMs.' },
   { name: 'Technical Optimizations', description: 'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.' },
 ] as const
 /** The Opportunities page title on a new report: the slide's title, in its own casing (my decision, 2026-10-21:

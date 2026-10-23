@@ -97,7 +97,7 @@ export const PAGE_CSS = [
   // Spec v1.1 18.12: both columns are flex columns, so the chart card grows with a tall findings box. The donut sits
   // centred below its title; the bar chart starts right under its title (round 3, Ryan, 2026-10-21). No rule here
   // sizes a figure.
-  '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column}',
+  '#category-data .two-col>div,#competitive-visibility .two-col>div{display:flex;flex-direction:column;min-width:0}',
   '#category-data .chart-wrap,#competitive-visibility .chart-wrap{flex:1;display:flex;flex-direction:column}',
   '#category-data .chart-wrap>.chart-title~*{margin-top:auto;margin-bottom:auto}',
   '#category-data .insight-box,#competitive-visibility .insight-box{flex:1;margin:24px 0 0;display:flex;flex-direction:column;padding:28px 32px}',
@@ -149,7 +149,10 @@ export const PAGE_CSS = [
  *  name with nothing to its right, Paul's #410 review): checked once at load on a desktop width,
  *  after each two-column draw, when a font still loading at load arrives, and 150ms after the last resize that changed
  *  the chart's width (round 3, spec 2026-10-21 C5). Registered before the frame script's
- *  listener, so it runs first. */
+ *  listener, so it runs first. A chart drawn while the report had no layout (loaded hidden, then shown) keeps Plotly's
+ *  default 700px and no window resize arrives to correct it, so each chart is watched and one resize is sent when its
+ *  box and its drawn width disagree; Plotly (responsive) and the legend check answer it (spec 2026-10-22
+ *  aeo-outbound-chart-drawn-hidden). */
 export const PAGE_JS = String.raw`(function(){
 var nav=document.querySelectorAll('.sidebar-nav a[href^="#"]');
 function setActive(h){for(var i=0;i<nav.length;i++){if(nav[i].getAttribute('href')===h)nav[i].classList.add('active');else nav[i].classList.remove('active')}}
@@ -174,6 +177,7 @@ if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%
 function resized(){clearTimeout(tmr);tmr=setTimeout(function(){try{if(el.clientWidth===w)return;if(!fallen){check();return}restored=false;fallen=false;draw(copy(cur.d),copy(cur.l),check)}catch(err){}},150)}
 function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};cur=orig;w=el.clientWidth;window.addEventListener('resize',resized);var f=document.fonts;if(f&&f.status==='loading'&&f.ready&&f.ready.then)f.ready.then(check);if(!window.matchMedia){check();return}var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);else check();var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}
+if(window.ResizeObserver){var fitT=null;var fitRo=new window.ResizeObserver(function(es){for(var i=0;i<es.length;i++){var g=es[i].target,fl=g._fullLayout;if(fl&&g.clientWidth>0&&Math.abs(g.clientWidth-Math.round(fl.width))>1){clearTimeout(fitT);fitT=setTimeout(function(){window.dispatchEvent(new Event('resize'))},100);return}}});var gds=document.querySelectorAll('.plotly-graph-div');for(var gi=0;gi<gds.length;gi++)fitRo.observe(gds[gi])}
 })();`
 const PAGE_SCRIPT = `<script>${PAGE_JS}</script>`
 

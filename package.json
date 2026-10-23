@@ -18,7 +18,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "test:watch": "vitest",
-    "e2e:export": "tsx --env-file-if-exists=.env.local e2e/export/acceptance.mts"
+    "e2e:export": "tsx --env-file-if-exists=.env.local e2e/export/acceptance.mts",
+    "aeo:sweep": "tsx --env-file-if-exists=.env.local scripts/aeo-outbound-sweep.ts"
   },
   "dependencies": {
     "@auth/core": "0.41.3",

@@ -27,7 +27,7 @@ test('the three pillars (Ryan, round 3): the slide names in its order, descripti
   expect(PILLARS.map((p) => p.name)).toEqual(['Earned & Affiliate Media', 'Content and Creative', 'Technical Optimizations'])
   expect(PILLARS.map((p) => p.description)).toEqual([
     'Quality Citations from Trusted Media Publications are a key factor in determining the credibility and authority of information.',
-    'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence how LLMs answer the questions buyers ask.',
+    'Publish high quality content that mimics natural language, rather than keyword stuffed blogs, to better influence LLMs.',
     'Technical data structuring ensures your brand authority is optimized for AI crawlability and visibility across LLMs.',
   ])
   expect(PILLARS_TITLE).toBe('The Pillars of AI Search')
