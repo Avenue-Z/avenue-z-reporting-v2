@@ -525,3 +525,21 @@ test('round 3: each new box holds 1 to 4 bullets in every edge case above', () =
     expect(box.length).toBeLessThanOrEqual(4)
   }
 })
+
+// Any-client sweep, 2026-10-22: wording that broke on real Peec projects (spec 2026-10-22-aeo-outbound-sentence-wording).
+test('a single retrieval or prompt reads singular', () => {
+  const base = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
+  const gap = { domain: 'one.example', classification: 'COMPETITOR', retrieved_chat_count: 1, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'a' }] }
+  expect(now({ ...base, domains: [...base.domains, gap] }).sources_bullets.at(-1)!.text).toBe('The largest gaps include one.example at 1 retrieval.')
+  expect(now({ ...base, promptCount: 1, models: [] }).methodology).toContain('two brands compared and 1 prompt tracked.')
+})
+test('a point range that starts with an 8 reads "an"', () => {
+  expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.45, 0.2], ['b', 'B', 0.413, 0.1]])).toContain('Own sits within an 8.7-point visibility range alongside A and B.')
+  expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.45, 0.2], ['b', 'B', 0.43, 0.1]])).toContain('Own sits within a 7.0-point visibility range alongside A and B.')
+})
+test('a name that ends in a period never gets a second one', () => {
+  const s = now(brandPull([['a', 'Banded', 0.5, 0.3], ['own', 'Own', 0.49, 0.2], ['b', 'Lost Hat Co.', 0.45, 0.1]]))
+  expect(s.sources_bullets).toContainEqual({ lead: 'Peer cluster:', text: 'Own sits within a 5.0-point visibility range alongside Banded and Lost Hat Co.' })
+  expect(s.context.endsWith('ranks ahead of Lost Hat Co.')).toBe(true)
+  expect([s.context, s.methodology, ...s.competitive_bullets.map((b) => b.text), ...s.sources_bullets.map((b) => b.text)].join(' ')).not.toMatch(/[^.]\.\.(\s|$)/)
+})

@@ -101,6 +101,11 @@ export function ownDomainText(domain: string, brand: string): string {
 }
 
 const upper = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
+/** "an" before a number said with a vowel sound (8, 11, 18, 80 to 89, 8.7), else "a" (any-client sweep, 2026-10-22). */
+const article = (num: string): string => (/^(?:8|1[18](?:\.|$))/.test(num) ? 'an' : 'a')
+/** A sentence that ends on a name ending in a period gets no second one ("Lost Hat Co.", any-client sweep, 2026-10-22). */
+const tidy = (s: string): string => s.replace(/([^.])\.\.(?=\s|$)/g, '$1.')
+const tidyBullets = (bs: Bullet[]): Bullet[] => bs.map((b) => ({ ...b, text: tidy(b.text) }))
 
 function write(d: SnapshotData) {
   const brand = d.brand
@@ -220,7 +225,7 @@ function write(d: SnapshotData) {
 
   function gapsBullet(): Bullet | null {
     if (!d.gapDomains.length) return null
-    const items = d.gapDomains.map((g, i) => `${g.domain} at ${countText(g.retrievedChats)}${i === 0 ? ' retrievals' : ''}`)
+    const items = d.gapDomains.map((g, i) => `${g.domain} at ${countText(g.retrievedChats)}${i === 0 ? (g.retrievedChats === 1 ? ' retrieval' : ' retrievals') : ''}`)
     return { lead: 'Competitor domain gaps:', text: `The largest gaps include ${listText(items)}.` }
   }
 
@@ -357,13 +362,13 @@ function write(d: SnapshotData) {
     if (x > PEER_CLUSTER_MAX_POINTS) return null
     const [p1, p2] = peers
     if (x === 0) return { lead: 'Peer cluster:', text: `${brand} sits at the same visibility as ${p1.name} and ${p2.name}.` }
-    return { lead: 'Peer cluster:', text: `${brand} sits within a ${points(x)}-point visibility range alongside ${p1.name} and ${p2.name}.` }
+    return { lead: 'Peer cluster:', text: `${brand} sits within ${article(points(x))} ${points(x)}-point visibility range alongside ${p1.name} and ${p2.name}.` }
   }
 
   function methodology(): string {
     const used = settingsUsedOf(d).methodologyStatesPromptsAndModels
     const parts = [
-      used && d.promptCount !== null ? `${d.promptCount.toLocaleString('en-US')} prompts tracked` : null,
+      used && d.promptCount !== null ? `${d.promptCount.toLocaleString('en-US')} ${d.promptCount === 1 ? 'prompt' : 'prompts'} tracked` : null,
       used && d.models.length ? `answers from ${listText(d.models)}` : null,
     ].filter((p): p is string => p !== null)
     const end = 'Results are directional and intended to identify areas for deeper analysis.'
@@ -412,11 +417,11 @@ function write(d: SnapshotData) {
   }
 
   return {
-    context: context(),
-    methodology: methodology(),
-    current: { competitive_bullets: citedSourcesBox(), sources_bullets: competitiveBox() },
-    v2: { competitive_bullets: firstBox(), sources_bullets: secondBox() },
-    opportunities: pillars(),
+    context: tidy(context()),
+    methodology: tidy(methodology()),
+    current: { competitive_bullets: tidyBullets(citedSourcesBox()), sources_bullets: tidyBullets(competitiveBox()) },
+    v2: { competitive_bullets: tidyBullets(firstBox()), sources_bullets: tidyBullets(secondBox()) },
+    opportunities: pillars().map((o) => ({ ...o, signal: tidy(o.signal) })),
   }
 }
 
