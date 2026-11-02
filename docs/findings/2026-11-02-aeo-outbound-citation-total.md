@@ -40,7 +40,7 @@ Live, read only, A Place for Mom, Sep 17 to 29, 2026 (the report shows 479 and 2
 | Answers that cited it inline | 441 (22.0%) |
 | Inline citations of aplaceformom.com | 731 |
 | All inline citations in the window | 16,287 |
-| Citation share | 4.5% (today's pillar reads 3%, from `usage_rate`) |
+| Citation share | 4.488% (the donut would label it 4%; today's pillar reads 3%, from `usage_rate`) |
 
 The 16,287 and 731 are identical summed from the domains report (1,383 rows) and the URLs report (4,867 page rows).
 By `citation_count`, Institutional is 45.7% and Corporate 34.2%; by `usage_rate` they read 59.4% and 24.5%.
@@ -58,8 +58,8 @@ rows (2 projects), several own domains (12 projects, up to 29 for Crocs), shares
 Count Peec's real citations across the whole Cited Sources section:
 
 - **Citation volume** becomes the brand's share of all citations, summed over every own domain (the same own match the
-  pillar uses): "COSRX.com earned 731 of the 16,287 citations in AI answers this window (4.5%)"; several sites: "COSRX's
-  own sites earned ..."; under 0.1%: "(under 0.1%)"; retrieved but never cited: "AI answers used COSRX.com as a source
+  pillar uses): "COSRX.com earned 731 of the 16,287 citations in AI answers this window (4%)"; several sites: "COSRX's
+  own sites earned ..."; the percent printed exactly as the donut labels the "You" slice (`sliceLabel`: a whole number, "under 1%" below 1, as the pillar lines already do), so 731 of 16,287 reads "(4%)", never "(4.5%)"; retrieved but never cited: "AI answers used COSRX.com as a source
   3 times but never cited it among the 3,740 citations this window"; no own rows: "COSRX's own site earned none of the
   13,549 citations ...".
 - **Citation rate** prints `cited_percentage` (answers that cite the site), so "cited in" is true.
@@ -77,6 +77,18 @@ pitch projects with data: the brand's citation share (every own domain) equals t
 own domain as OWN, so the two sets are the same; examples: Crocs 8.1% and 8.1% over 29 own domains, A Place for Mom
 4.5% and 4.5%). So after the change the source-type mix equals the donut's slices (same weights, as today) and the
 citation share equals the "You" slice. Citation rate stays a share of answers, a different measure, and is not on the
-chart. The donut labels whole numbers (`charts.ts` sliceLabel), so the citation share should print the same way
-("4.5%" would sit beside a "5%" slice), as the pillar lines already do. Nothing in the section would match Peec's own
+chart. The donut labels whole numbers (`charts.ts` sliceLabel), so the citation share must print the same way, as the pillar
+lines already do: A Place for Mom is 4.488%, which the slice labels "4%"; the house style `pctText` would print "4.5%". Nothing in the section would match Peec's own
 Domain types chart once it stops using `usage_rate`.
+
+## Second fresh review (2026-11-02)
+
+Confirmed the alignment on the data and corrected one error in this note (A Place for Mom's slice reads 4%, not 5%).
+Caveats it raised, kept here: the citation share equals the "You" slice because Peec files every own domain as OWN
+(measured on all 62 projects, not guaranteed by the code: an own subdomain Peec filed as another type would break it);
+brands with zero own citations have no "You" slice; Citation rate (a share of answers, `cited_percentage` after the
+change, 22.0% against 23.9% today on A Place for Mom) is not on the donut; and "Peec's chart counts sources used" rests
+on one 2026-10-19 reproduction (PocketGuard), so it is unverified. The simulation behind the alignment
+(`align-sim`, the tool's own `buildSnapshotData`, `dataSentences` and `sourceDonutFigure` with the weight switched to
+`citation_count`, all 62 projects): 0 mix mismatches today; 1 after the change, SDEV Institutional "12.5%" beside a
+"12%" slice, both correct roundings of 12.496%.
