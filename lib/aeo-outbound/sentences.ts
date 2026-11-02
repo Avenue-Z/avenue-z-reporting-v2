@@ -300,8 +300,9 @@ function write(d: SnapshotData) {
     const top = ownDomainText(c.topSite.domain, brand)
     // Several cited own sites: the citations are summed, but the rank stays the top site's own, as Peec ranks domains
     // (spec review r1-5: a pooled rank overstated it).
+    // "alone" says the top site on its own, not pooled; a tie drops it, since another site is level (Paul, #431 review).
     return c.ownSitesCited > 1
-      ? `${brand}'s own sites together earned ${count(c.own)} of the ${all} (${share}); ${top} alone is ${place}.`
+      ? `${brand}'s own sites together earned ${count(c.own)} of the ${all} (${share}); ${top} ${tied ? 'is' : 'alone is'} ${place}.`
       : `${top} earned ${count(c.own)} of the ${all} (${share}), ${place}.`
   }
 

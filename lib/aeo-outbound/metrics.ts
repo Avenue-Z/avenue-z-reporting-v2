@@ -255,8 +255,9 @@ export function buildSnapshotData(
   // Spec 2026-11-02 S1, S2: the brand's citations against every citation, the top own site's rank as Peec ranks domains,
   // and the answers that cite any own site (the pull counts those when several own sites are cited).
   const citedOwn = ownRows.filter((r) => r.citation_count > 0)
-  const topCited = [...citedOwn].sort((a, b) => (b.citation_count - a.citation_count) || (a.domain < b.domain ? -1 : 1))[0]
-  const ownSet = new Set(ownRows)
+  // On a tie the brand's main domain (an own domain itself, not a subdomain) is the one named (Paul, #431 review).
+  const isMain = (r: { domain: string }) => ownMatch.includes(bareDomain(r.domain))
+  const topCited = [...citedOwn].sort((a, b) => (b.citation_count - a.citation_count) || (Number(isMain(b)) - Number(isMain(a))) || (a.domain < b.domain ? -1 : 1))[0]
   const citations: Citations = {
     own: citedOwn.reduce((s, r) => s + r.citation_count, 0),
     total: pull.domains.reduce((s, r) => s + r.citation_count, 0),
@@ -267,7 +268,9 @@ export function buildSnapshotData(
     topSite: topCited ? {
       domain: topCited.domain,
       rank: 1 + pull.domains.filter((r) => r.citation_count > topCited.citation_count).length,
-      tied: pull.domains.every((r) => r.citation_count <= topCited.citation_count) && pull.domains.some((r) => !ownSet.has(r) && r.citation_count === topCited.citation_count),
+      // At rank 1, any other site level with it, the brand's own included, so a sentence never calls it "alone" beside an
+      // equal sibling (Paul, #431 review). Below rank 1 a level site shares the rank, as Peec ranks domains.
+      tied: pull.domains.every((r) => r.citation_count <= topCited.citation_count) && pull.domains.some((r) => r !== topCited && r.citation_count === topCited.citation_count),
     } : null,
   }
   if (!ownRows.length) note('own_domains', "No retrievals of the brand's own site in this window.")

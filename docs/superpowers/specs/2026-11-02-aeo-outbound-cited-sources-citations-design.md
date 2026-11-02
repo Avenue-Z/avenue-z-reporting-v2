@@ -21,8 +21,9 @@ weight by `usage_rate` (`metrics.ts:242-253`), which Peec's spec marks deprecate
 `metrics.ts:223-230`): X = sum of `citation_count` over own rows; Y = sum of `citation_count` over every row. The rank
 is the top own site's own rank, as Peec ranks domains (review r1-5: a pooled rank overstated it, Hooker 11th pooled
 against 29th for its best site): R = 1 + the number of rows (any, own included) with `citation_count` above the top own
-row's; N = rows with `citation_count` above 0. A tie at R = 1 (a non-own row level with the top own row; another own row never counts as a tie) reads
-"tied for most cited". The share prints with the donut's own label
+row's; N = rows with `citation_count` above 0. A tie at R = 1 (any other row level with the top own row, the brand's own
+included; changed 2026-11-02 on Paul's #431 review, since "alone is the most-cited" beside an equal own sibling is false)
+reads "tied for most cited", and on a tie the top own row named is the brand's main domain. The share prints with the donut's own label
 (`charts.ts` `sliceLabel`; "<1%" reads "under 1%", ">99%" reads "over 99%"), so it always reads as the "You" slice does.
 
 | Case | Sentence |
@@ -31,7 +32,7 @@ row's; N = rows with `citation_count` above 0. A tie at R = 1 (a non-own row lev
 | Several own sites cited | "Crocs's own sites together earned 2,572 of the 31,821 citations in AI answers (8%); Crocs.com alone is the second most-cited site of <N>." |
 | R = 1, no tie | "... (35%), the most-cited site of <N>." |
 | R = 1, tied | "... (35%), tied for most cited of <N> sites." |
-| Several own sites, R = 1 (decided 2026-11-02) | "UnitedHealth Group's own sites together earned 916 of the 3,921 citations in AI answers (23%); Optum.com alone is the most-cited site of <N>." Tied: "...; Optum.com alone is tied for most cited of <N> sites." |
+| Several own sites, R = 1 (decided 2026-11-02) | "UnitedHealth Group's own sites together earned 916 of the 3,921 citations in AI answers (23%); Optum.com alone is the most-cited site of <N>." Tied (a non-own or another own site level with it): "...; Optum.com is tied for most cited of <N> sites." |
 | Own sites never cited (X = 0) | "Milkmakeup.com earned none of the 3,740 citations in AI answers this window." (no own rows: "<Brand>'s own site ...") |
 | No citations at all (Y = 0) | "Peec recorded no citations in AI answers this window." |
 
@@ -40,7 +41,7 @@ The subject is the domain (`ownDomainText`, as today) when one own row has citat
 **S2. Citation rate = answers that cite the brand, out of all answers.** C = answers citing any own site, counted once;
 T = `total_chat_count` (one value per window on every row, measured on all 62 projects). One own row cited: C is that
 row's `cited_chat_count`. Several: one extra POST `/reports/domains` over the window with `dimensions: ["chat_id"]` and
-`filters: [{field: "domain", operator: "in", values: <own rows' domains>}]`; C = distinct `chat.id` with `citation_count`
+`filters: [{field: "domain", operator: "in", values: <cited own rows' domains>}]` (cited only, Paul's #431 review); C = distinct `chat.id` with `citation_count`
 above 0 (measured: United Health 177, where the largest single site is 98 and the per-site sum 220 double counts). Its
 rows are one per domain and answer (541 for United Health, no repeats under the key `domain|chat.id`, each with
 `total_chat_count` 1, so T always comes from the main report). It gets its own contract, `peec.own_cited_chats`:
@@ -48,10 +49,11 @@ an array of `{ domain: string, chat: { id: string }, citation_count: count }`, p
 own-row match moves to one helper that `pull.ts` and `metrics.ts` both call.
 "<Brand> is cited in 441 of 2,004 tracked answers (22%)." Percent via `pctText` (one decimal under 10), except that 0 < C/T below 0.05% reads "under 0.1%" (review r1-4:
 `pctText` would print "0.0%"; Brandy Melville is 1 of 2,295). C = 0: "<Brand>
-isn't cited in any of the 636 tracked answers." If the extra call fails for any reason but a spent deadline,
-including a contract violation (caught at the call, not through `mustRethrow`, `pull.ts:52`), C is `null`: the Citation
-rate bullet is left out and a note says why, and the report still generates. A spent deadline fails the report as
-today.
+isn't cited in any of the 636 tracked answers." The extra call runs with its own 30s budget and 30,000-row cap,
+never past the report's deadline (Paul's #431 review). If it fails for any reason but the report's own deadline spent,
+its own budget or cap and a contract violation included (caught at the call, not through `mustRethrow`), C is `null`:
+the Citation rate bullet is left out, a note says why, a log line names the project and the reason, and the report
+still generates. The report's own deadline spent fails the report as today.
 
 **S3. The section counts citations throughout.** `sourceMixWeight` becomes `citation_count` (`config.ts:16`), so the
 Source-type mix sentence, the donut and the three pillar lines are shares of citations. Measured on all 62 projects

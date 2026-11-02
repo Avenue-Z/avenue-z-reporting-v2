@@ -589,7 +589,10 @@ test('S1: rank 1, alone or tied with a site that is not the brand\'s, for one ow
   expect(one(35)).toBe('Example.com earned 35 of the 100 citations in AI answers (35%), tied for most cited of 3 sites.')
   const several = (rival: number) => texts4(citedPull('Northwind Health', 'northwind.example', [['northwind.example', 'OWN', 98, 60], ['shop.northwind.example', 'OWN', 20, 15], ['rival.example', 'COMPETITOR', rival, 9]], 300, { ownCitedAnswers: 70 }))[0]
   expect(several(50)).toBe("Northwind Health's own sites together earned 118 of the 168 citations in AI answers (70%); Northwind.example alone is the most-cited site of 3.")
-  expect(several(98)).toBe("Northwind Health's own sites together earned 118 of the 216 citations in AI answers (55%); Northwind.example alone is tied for most cited of 3 sites.")
+  // Paul, #431 review: tied, the top site is not "alone".
+  expect(several(98)).toBe("Northwind Health's own sites together earned 118 of the 216 citations in AI answers (55%); Northwind.example is tied for most cited of 3 sites.")
+  const siblings = texts4(citedPull('Northwind Health', 'northwind.example', [['shop.northwind.example', 'OWN', 98, 15], ['northwind.example', 'OWN', 98, 60], ['rival.example', 'COMPETITOR', 20, 9]], 300, { ownCitedAnswers: 70 }))[0]
+  expect(siblings).toBe("Northwind Health's own sites together earned 196 of the 216 citations in AI answers (91%); Northwind.example is tied for most cited of 3 sites.")
 })
 
 test('S1, S2: own sites never cited, no own rows, and no citations at all', () => {

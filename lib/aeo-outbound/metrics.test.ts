@@ -634,11 +634,22 @@ test('S1, S2: citations sums own rows against every row; the rank counts every r
   expect(c).toEqual({ own: 30, total: 150, answers: 200, citedAnswers: 21, citedSites: 4, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 3, tied: false } })
 })
 
-test('S1: at rank 1 a non-own site level with the top own site is a tie; another own site level with it is not', () => {
+// Paul, #431 review: any other site level with the top own site at rank 1 is a tie, the brand's own included, so the
+// sentence never says "alone" beside an equal sibling; and on a tie the brand's main domain is the one named.
+test('S1: at rank 1 any other site level with the top own site is a tie, own sites included', () => {
   expect(citationsOf([site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true })
-  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: false })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 20), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: false })
   // Below rank 1 a level site shares the rank and is never called a tie.
   expect(citationsOf([site('beta.com', 'COMPETITOR', 90), site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 2, tied: false })
+})
+
+test('S1: when own sites tie at the top, the brand\'s main domain is named, not the first alphabetically', () => {
+  // "blog.example.com" sorts before "example.com".
+  const rows = [site('blog.example.com', 'CORPORATE', 30), site('www.example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 10)]
+  expect(citationsOf(rows, { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'www.example.com', rank: 1, tied: true })
+  // Without a main domain among the tied rows, the first alphabetically, as before.
+  expect(citationsOf([site('blog.example.com', 'CORPORATE', 30), site('shop.example.com', 'CORPORATE', 30)], { ownCitedAnswers: 2 })?.topSite?.domain).toBe('blog.example.com')
 })
 
 test('S2: several cited own sites take the pull\'s count by answer, null included; uncited own rows never count as several', () => {
