@@ -118,3 +118,14 @@ tracked answers (0.4%)").
 6. The mix matches the donut on every project but one (SDEV "12.5%" beside "12%", the same 12.496%).
 7. Run the extra call across the 12 multi-site projects with `npm run aeo:sweep` before staging.
 8. Weights block is `metrics.ts:241-256`.
+
+## Review round 2 (changed lines only)
+
+All five round 1 MAJORs resolved. One new MAJOR, brought to me as a decision (no round 3): several own sites with R = 1
+has no sentence, and leaving the subject implicit would bring back the pooled claim. Proposed: add the row "Several own
+sites, R = 1: '<Brand>'s own sites together earned X of the Y citations in AI answers (Z%); <top domain> alone is the
+most-cited site of <N>.'" and its tied variant, with ties counted against non-own rows only. New minors for the plan:
+ties count non-own rows only; tests for "under 0.1%", "tied for most cited", `topSite` null and the optional
+`citations` in `STORED_DATA`; name the shared own-match helper and its file, with a test; the table's example numbers
+come from the trial and are illustrative until re-derived under the final rank rule (A Place for Mom: rank 4 of 1,118,
+measured); cite `sentences.ts:435-437` for `boxesV2`.
