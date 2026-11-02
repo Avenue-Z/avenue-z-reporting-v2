@@ -289,13 +289,15 @@ test('spec 2026-11-02 S2: the own-site report by answer needs a domain, an answe
   }
 })
 
-test('stored data records the source-mix weighting: citation_count today (spec 2026-11-02 S3); absent on older rows, refused when unknown', () => {
+// Paul, #431 review: a build must read rows a later build wrote, so a rollback never strands them (#434 ships this
+// reader ahead of this PR). The weighting is any non-empty name; only the code that reads it decides what a name means.
+test('stored data records the source-mix weighting: citation_count today (spec 2026-11-02 S3); absent on older rows, any non-empty name readable', () => {
   const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
   expect(v2.sourceMixWeight).toBe('citation_count')
   const { sourceMixWeight: _w, ...older } = v2
   expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
-  for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate', 'citation_count']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce')).toEqual({ ok: true })
-  for (const w of ['bogus', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok).toBe(false)
+  for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate', 'citation_count', 'a_later_weighting']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce'), w).toEqual({ ok: true })
+  for (const w of ['', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok, String(w)).toBe(false)
 })
 
 test('stored data: citations is absent on older rows, or the spec 2026-11-02 S4 shape; anything else is refused', () => {

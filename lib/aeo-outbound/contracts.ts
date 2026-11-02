@@ -176,7 +176,9 @@ export const STORED_DATA = z.looseObject({
   ownSiteRank: z.number().int().min(1).nullable().optional(),
   noDataBrands: z.array(z.string()).optional(),
   // 2026-10-19 Peec parity: the source-mix weighting a row was generated with; absent on older rows (retrieval_count).
-  sourceMixWeight: z.enum(['retrieval_count', 'retrieved_chat_count', 'usage_rate', 'citation_count']).optional(),
+  // Any non-empty name, so a build reads rows a later build wrote and a rollback never strands them (Paul, #431 review);
+  // only the code that reads it decides what a name means.
+  sourceMixWeight: z.string().min(1).optional(),
   // Spec 2026-11-02 S4: what Cited Sources prints; absent on older rows, which keep their version 3 box.
   citations: z.looseObject({
     own: z.number().int().min(0), total: z.number().int().min(0), answers: z.number().int().min(0), citedAnswers: z.number().int().min(0).nullable(),
