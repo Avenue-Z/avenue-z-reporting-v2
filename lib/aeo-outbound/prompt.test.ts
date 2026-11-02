@@ -162,13 +162,13 @@ test('2026-10-19 Peec parity: a usage-rate row names its source shares so; any o
 
 // Spec 2026-11-02 S3 and minor 3: a row with citations gives Glean the citations, the rank and the answers instead of
 // retrievals; a row without keeps every line it had.
-const CITED = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'aplaceformom.com', rank: 4, tied: false } }
+const CITED = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'aplaceformom.com', rank: 4, tied: false, ownLevel: false } }
 test('S3: a row with citations names citations, its rank and the answers citing the brand, and no own-site retrievals', () => {
   const b = dataBlock({ ...D, sourceMixWeight: 'citation_count', citations: CITED } as unknown as SnapshotData)
   expect(b).toContain('Own site citations: 731 of 16,287 citations in AI answers; top own site aplaceformom.com ranks 4 of 1,118 cited sites; answers citing the brand: 441 of 2,004')
   expect(b).toContain('Source types by share of citations: Corporate 45.0%')
   expect(b).not.toContain('retriev')
-  const tied = dataBlock({ ...D, citations: { ...CITED, topSite: { domain: 'aplaceformom.com', rank: 1, tied: true }, citedAnswers: null } } as unknown as SnapshotData)
+  const tied = dataBlock({ ...D, citations: { ...CITED, topSite: { domain: 'aplaceformom.com', rank: 1, tied: true, ownLevel: false }, citedAnswers: null } } as unknown as SnapshotData)
   expect(tied).toContain('top own site aplaceformom.com ranks 1 (tied) of 1,118 cited sites; answers citing the brand: not loaded of 2,004')
   const never = dataBlock({ ...D, citations: { ...CITED, own: 0, ownSitesCited: 0, topSite: null, citedAnswers: 0 } } as unknown as SnapshotData)
   expect(never).toContain('Own site citations: 0 of 16,287 citations in AI answers; answers citing the brand: 0 of 2,004')

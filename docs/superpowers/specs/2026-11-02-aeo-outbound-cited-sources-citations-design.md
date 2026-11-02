@@ -23,7 +23,8 @@ is the top own site's own rank, as Peec ranks domains (review r1-5: a pooled ran
 against 29th for its best site): R = 1 + the number of rows (any, own included) with `citation_count` above the top own
 row's; N = rows with `citation_count` above 0. A tie at R = 1 (any other row level with the top own row, the brand's own
 included; changed 2026-11-02 on Paul's #431 review, since "alone is the most-cited" beside an equal own sibling is false)
-reads "tied for most cited", and on a tie the top own row named is the brand's main domain. The share prints with the donut's own label
+reads "tied for most cited", and on a tie the top own row named is the brand's main domain. With several own sites,
+"alone" is dropped whenever another own site is level with the top one, at any rank (`ownLevel`). The share prints with the donut's own label
 (`charts.ts` `sliceLabel`; "<1%" reads "under 1%", ">99%" reads "over 99%"), so it always reads as the "You" slice does.
 
 | Case | Sentence |
@@ -66,7 +67,7 @@ with data: the mix matches the donut on every project (one SDEV case prints "12.
 `usage_rate` optional (no longer read). `PeecPull` gains `ownCitedAnswers?: number | null` (C from the extra call;
 absent when one own row is cited). `SnapshotData` gains one optional field, absent on every older row:
 `citations?: { own: number; total: number; answers: number; citedAnswers: number | null; citedSites: number;
-ownSitesCited: number; topSite: { domain: string; rank: number; tied: boolean } | null }` (X, Y, T, C, N, the count of
+ownSitesCited: number; topSite: { domain: string; rank: number; tied: boolean; ownLevel: boolean } | null }` (X, Y, T, C, N, the count of
 cited own rows, and the top own row; `topSite` null when X = 0; `citedAnswers` null only when the extra call failed).
 The stored-data contract (`contracts.ts:145-170`) adds it as optional. The weight value `citation_count` is
 added to the allowed list (`config.ts:16`, `contracts.ts:165`).

@@ -232,7 +232,8 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       for (const m of domainText.match(DOMAIN) ?? []) if (!allowedDomains.has(m.toLowerCase())) add('domain_not_in_data', path, `"${m}" is not a domain in the Peec data`)
       // A pillar line is checked on any pillar row: the marker, not SENTENCES_VERSION, tells it apart (Paul, #415 review).
       // Context and methodology keep the exact check on any row from CONTEXT_WORDING_SINCE on, since their wording did not
-      // change; the bullets only on today's version (Paul, #417 review).
+      // change; the bullets on today's version and, against their own version's boxes, on older rows from
+      // EXACT_OLDER_BOXES_SINCE on (bulletRef above; Paul, #417 and #431 reviews).
       const sameWording = (path === 'context' || path === 'methodology') && typeof d.sentences === 'number' && d.sentences >= CONTEXT_WORDING_SINCE
       const ref = (bulletRef && isCodeSentencePath(path)) || pillarLine(path) || sameWording ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {

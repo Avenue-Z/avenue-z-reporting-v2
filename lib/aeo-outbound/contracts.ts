@@ -187,7 +187,7 @@ export const STORED_DATA = z.looseObject({
   citations: z.looseObject({
     own: z.number().int().min(0), total: z.number().int().min(0), answers: z.number().int().min(0), citedAnswers: z.number().int().min(0).nullable(),
     citedSites: z.number().int().min(0), ownSitesCited: z.number().int().min(0),
-    topSite: z.looseObject({ domain: z.string(), rank: z.number().int().min(1), tied: z.boolean() }).nullable(),
+    topSite: z.looseObject({ domain: z.string(), rank: z.number().int().min(1), tied: z.boolean(), ownLevel: z.boolean() }).nullable(),
   }).optional(),
 })
 const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })

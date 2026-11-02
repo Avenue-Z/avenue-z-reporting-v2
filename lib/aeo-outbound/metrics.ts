@@ -100,9 +100,10 @@ export interface Citations {
   citedSites: number
   /** How many own rows have a citation: more than one reads "<Brand>'s own sites". */
   ownSitesCited: number
-  /** The most-cited own row, its rank as Peec ranks domains (1 + the rows above it), and whether a non-own site is
-   *  level with it at rank 1. Null when no own row is cited. */
-  topSite: { domain: string; rank: number; tied: boolean } | null
+  /** The most-cited own row (the brand's main domain on a tie), its rank as Peec ranks domains (1 + the rows above it),
+   *  whether any other site is level with it at rank 1 (tied), and whether another own site is level with it at any rank
+   *  (ownLevel). Null when no own row is cited. */
+  topSite: { domain: string; rank: number; tied: boolean; ownLevel: boolean } | null
 }
 
 /** Python's round(x, dp): correctly rounded from the exact binary value, ties to even (symmetric for negatives). */
@@ -271,6 +272,8 @@ export function buildSnapshotData(
       // At rank 1, any other site level with it, the brand's own included, so a sentence never calls it "alone" beside an
       // equal sibling (Paul, #431 review). Below rank 1 a level site shares the rank, as Peec ranks domains.
       tied: pull.domains.every((r) => r.citation_count <= topCited.citation_count) && pull.domains.some((r) => r !== topCited && r.citation_count === topCited.citation_count),
+      // At any rank: the sentence then never calls the top own site "alone" beside an equal sibling.
+      ownLevel: citedOwn.some((r) => r !== topCited && r.citation_count === topCited.citation_count),
     } : null,
   }
   if (!ownRows.length) note('own_domains', "No retrievals of the brand's own site in this window.")

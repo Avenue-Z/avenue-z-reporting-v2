@@ -583,7 +583,7 @@ test('S1, S2: several own sites cited: the sum is pooled, the rank is the top si
   ])
 })
 
-test('S1: rank 1, alone or tied with a site that is not the brand\'s, for one own site and for several', () => {
+test('S1: rank 1, alone or tied with another site, the brand\'s own included, for one own site and for several', () => {
   const one = (rival: number) => texts4(citedPull('Example', 'example.com', [['example.com', 'OWN', 35, 10], ['rival.example', 'COMPETITOR', rival, 9], ['other.example', 'UGC', 30, 8]], 100))[0]
   expect(one(20)).toBe('Example.com earned 35 of the 85 citations in AI answers (41%), the most-cited site of 3.')
   expect(one(35)).toBe('Example.com earned 35 of the 100 citations in AI answers (35%), tied for most cited of 3 sites.')
@@ -593,6 +593,9 @@ test('S1: rank 1, alone or tied with a site that is not the brand\'s, for one ow
   expect(several(98)).toBe("Northwind Health's own sites together earned 118 of the 216 citations in AI answers (55%); Northwind.example is tied for most cited of 3 sites.")
   const siblings = texts4(citedPull('Northwind Health', 'northwind.example', [['shop.northwind.example', 'OWN', 98, 15], ['northwind.example', 'OWN', 98, 60], ['rival.example', 'COMPETITOR', 20, 9]], 300, { ownCitedAnswers: 70 }))[0]
   expect(siblings).toBe("Northwind Health's own sites together earned 196 of the 216 citations in AI answers (91%); Northwind.example is tied for most cited of 3 sites.")
+  // Below rank 1, an own site level with the top one: "alone" would be false, so it is dropped (verification of #431 fixes).
+  const secondPlace = texts4(citedPull('Northwind Health', 'northwind.example', [['rival.example', 'COMPETITOR', 120, 9], ['shop.northwind.example', 'OWN', 50, 15], ['northwind.example', 'OWN', 50, 40]], 300, { ownCitedAnswers: 50 }))[0]
+  expect(secondPlace).toBe("Northwind Health's own sites together earned 100 of the 220 citations in AI answers (45%); Northwind.example is the second most-cited site of 3.")
 })
 
 test('S1, S2: own sites never cited, no own rows, and no citations at all', () => {

@@ -327,11 +327,11 @@ test('spec 2026-11-02 S2: the own-site report by answer needs a domain, an answe
 
 test('stored data: citations is absent on older rows, or the spec 2026-11-02 S4 shape; anything else is refused', () => {
   const base = JSON.parse(JSON.stringify(V1_DATA))
-  const c = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 4, tied: false } }
+  const c = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 4, tied: false, ownLevel: false } }
   for (const citations of [undefined, c, { ...c, citedAnswers: null }, { ...c, own: 0, ownSitesCited: 0, topSite: null }]) {
     expect(checkContract('stored.data', STORED_DATA, { ...base, ...(citations ? { citations } : {}) }, 'enforce'), JSON.stringify(citations)).toEqual({ ok: true })
   }
-  for (const citations of [null, {}, { ...c, own: -1 }, { ...c, total: '3' }, { ...c, citedAnswers: 1.5 }, { ...c, topSite: { domain: 'a', rank: 0, tied: false } }, { ...c, topSite: { domain: 'a', rank: 1 } }]) {
+  for (const citations of [null, {}, { ...c, own: -1 }, { ...c, total: '3' }, { ...c, citedAnswers: 1.5 }, { ...c, topSite: { domain: 'a', rank: 0, tied: false } }, { ...c, topSite: { domain: 'a', rank: 1 } }, { ...c, topSite: { domain: 'a', rank: 1, tied: false } }]) {
     expect(checkContract('stored.data', STORED_DATA, { ...base, citations }, 'enforce').ok, JSON.stringify(citations)).toBe(false)
   }
 })

@@ -631,23 +631,25 @@ const citationsOf = (domains: PeecPull['domains'], extra: Partial<PeecPull> = {}
 
 test('S1, S2: citations sums own rows against every row; the rank counts every row strictly above the top own site', () => {
   const c = citationsOf([site('alpha.com', 'COMPETITOR', 50), site('news.com', 'EDITORIAL', 40), site('example.com', 'OWN', 30, 21), site('forum.com', 'UGC', 30), site('quiet.com', 'OTHER', 0)])
-  expect(c).toEqual({ own: 30, total: 150, answers: 200, citedAnswers: 21, citedSites: 4, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 3, tied: false } })
+  expect(c).toEqual({ own: 30, total: 150, answers: 200, citedAnswers: 21, citedSites: 4, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 3, tied: false, ownLevel: false } })
 })
 
 // Paul, #431 review: any other site level with the top own site at rank 1 is a tie, the brand's own included, so the
 // sentence never says "alone" beside an equal sibling; and on a tie the brand's main domain is the one named.
 test('S1: at rank 1 any other site level with the top own site is a tie, own sites included', () => {
-  expect(citationsOf([site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true })
-  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true })
-  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 20), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: false })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true, ownLevel: false })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true, ownLevel: true })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 20), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: false, ownLevel: false })
   // Below rank 1 a level site shares the rank and is never called a tie.
-  expect(citationsOf([site('beta.com', 'COMPETITOR', 90), site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 2, tied: false })
+  expect(citationsOf([site('beta.com', 'COMPETITOR', 90), site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 2, tied: false, ownLevel: false })
+  // Below rank 1 another own site level with it is recorded, so the sentence does not call the top one "alone".
+  expect(citationsOf([site('beta.com', 'COMPETITOR', 90), site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 2, tied: false, ownLevel: true })
 })
 
 test('S1: when own sites tie at the top, the brand\'s main domain is named, not the first alphabetically', () => {
   // "blog.example.com" sorts before "example.com".
   const rows = [site('blog.example.com', 'CORPORATE', 30), site('www.example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 10)]
-  expect(citationsOf(rows, { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'www.example.com', rank: 1, tied: true })
+  expect(citationsOf(rows, { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'www.example.com', rank: 1, tied: true, ownLevel: true })
   // Without a main domain among the tied rows, the first alphabetically, as before.
   expect(citationsOf([site('blog.example.com', 'CORPORATE', 30), site('shop.example.com', 'CORPORATE', 30)], { ownCitedAnswers: 2 })?.topSite?.domain).toBe('blog.example.com')
 })
