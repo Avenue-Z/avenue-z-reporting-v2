@@ -3,7 +3,7 @@
 import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT, SENTENCES_VERSION } from './config'
 import { chartedBrands } from './charted'
 import type { Note, NoteKind, StoredNote } from './notes'
-import { ownDomainMatch, ownRowsOf } from './own-rows'
+import { bareDomain, ownDomainMatch, ownRowsOf, sameOrSubdomain } from './own-rows'
 import type { PeecPull } from './pull'
 
 /** The three DECISIONS this file reads; a parameter so tests can cover both settings of each. */
@@ -153,7 +153,6 @@ export const titleClassification = (c: string): string => TITLE[c] ?? c
 const pct1 = (ratio: number) => pyRound(ratio * 100, 1)
 /** a minus b for two 1-decimal values, exact to the tenth (spec v1.1 §19.4). */
 export const tenths = (a: number, b: number): number => Math.round((a - b) * 10) / 10
-const bare = (d: string) => d.trim().toLowerCase().replace(/^www\./, '')
 
 export function buildSnapshotData(
   pull: PeecPull,
@@ -241,7 +240,7 @@ export function buildSnapshotData(
   const noDataBrands = ranked.filter((e) => !e.hasRow && e.id !== pull.ownBrand.id).map((e) => e.name)
 
   // v1.1 §9: each own domain keeps its own count and percentage; the sum is never paired with one domain's percentage.
-  const ownDomains = (pull.ownBrand.domains ?? []).map(bare)
+  const ownDomains = (pull.ownBrand.domains ?? []).map(bareDomain)
   // A row is own when Peec classifies it OWN, or its domain is an own domain or a subdomain of one, the same
   // match the gap filter uses below and the pull's own-site call uses (own-rows.ts, spec 18.2).
   const ownMatch = ownDomainMatch(pull.ownBrand.domains)
@@ -315,17 +314,17 @@ export function buildSnapshotData(
   }
   /** The tracked competitors whose name a label of the domain spells exactly (ynab.com: YNAB), the last label aside. */
   const ownersByName = (d: string) => new Set(d.split('.').slice(0, -1).flatMap((l) => [...(namedBy.get(nameKey(l)) ?? [])]))
-  const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
+  const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bareDomain)).filter(Boolean)
   const keptSites = rosterSites((id) => chartedIds.has(id))
   const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !chartedIds.has(id))
-  const within = (d: string, sites: string[]) => sites.some((s) => d === s || d.endsWith(`.${s}`))
+  const within = (d: string, sites: string[]) => sites.some((s) => sameOrSubdomain(d, s))
   /** The length of the closest (longest) site the domain is or sits under; -1 when none. */
-  const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (d === s || d.endsWith(`.${s}`) ? Math.max(n, s.length) : n), -1)
+  const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (sameOrSubdomain(d, s) ? Math.max(n, s.length) : n), -1)
   const gapDomains = !decisions.competitorSiteGaps || competitorsTracked === 0 ? [] : pull.domains
     .filter((r) => {
       // A domain no answer retrieved is not a gap worth naming (final review M3).
       if ((r.retrieved_chat_count ?? 0) <= 0) return false
-      const d = bare(r.domain)
+      const d = bareDomain(r.domain)
       if (r.classification === 'OWN' || within(d, ownMatch)) return false
       // The closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a kept
       // competitor's subdomain (Paul, #413 review); a domain on both rosters is the charted competitor's (round 3 QA review).
