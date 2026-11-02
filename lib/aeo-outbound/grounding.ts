@@ -5,7 +5,7 @@ import { CONTEXT_WORDING_SINCE, NEEDS_VALIDATION, SENTENCES_VERSION } from './co
 import { settingsUsedOf, type SnapshotData } from './metrics'
 import type { Note, NoteKind } from './notes'
 import { showsPowered } from './render'
-import { dataSentences, isCodeSentencePath, OLDER_BOXES, type DataSentences } from './sentences'
+import { dataSentences, EXACT_OLDER_BOXES_SINCE, isCodeSentencePath, OLDER_BOXES, type DataSentences } from './sentences'
 import { cleanValue, slotEntries, withDefaults, type Slots } from './slots'
 
 /** Phrases that read as numbers but aren't figures, removed before the scan (Paul, #388 review). */
@@ -148,9 +148,13 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // Every number of the code-written sentences is allowed (whole percents, points, counts), read the same way as a slot.
   // Allowed numbers come from today's sentences on any new row; the word-for-word check needs the row's own version.
   const sentences: DataSentences | null = sentencesRow ? dataSentences(d) : null
-  // Spec 2026-11-02 S5: a version 3 row has no citations, so today's writer prints its boxes exactly as version 3 did,
-  // and its bullets keep the word-for-word check (final review of the citations branch).
-  const sameVersion = d.sentences === SENTENCES_VERSION || (d.sentences === 3 && !d.citations)
+  // Spec 2026-10-22 B3: a row written with an earlier sentences version also gets the boxes its own version printed.
+  const olderBoxes = typeof d.sentences === 'number' && d.sentences < SENTENCES_VERSION ? OLDER_BOXES[d.sentences] : undefined
+  const older = sentences && olderBoxes ? olderBoxes(d) : null
+  // The bullets a row's own version printed, for the word-for-word check: today's on a row of today's version, the frozen
+  // ones on an older row from EXACT_OLDER_BOXES_SINCE on, so a version bump never drops the check (Paul, #431 review);
+  // none on versions 1 and 2, which keep the number check only (Paul, #417 review).
+  const bulletRef = d.sentences === SENTENCES_VERSION ? sentences : older && (d.sentences ?? 0) >= EXACT_OLDER_BOXES_SINCE ? older : null
   // Round 3 (pillars spec P7): on a pillar row the data line is a code sentence and no opportunity field is Glean's.
   // Table rows are checked exactly as before.
   const pillarRow = full.opportunities_layout === 'pillars'
@@ -159,8 +163,6 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     const s = sentences
     // Spec 2026-10-22 B3: a row written with an earlier sentences version also allows the numbers its own version's boxes
     // print (OLDER_BOXES), so the bullets it stored never gain a flag. A row with no sentences is unchanged.
-    const olderBoxes = typeof d.sentences === 'number' && d.sentences < SENTENCES_VERSION ? OLDER_BOXES[d.sentences] : undefined
-    const older = olderBoxes ? olderBoxes(d) : null
     const boxes = [...s.competitive_bullets, ...s.sources_bullets, ...(older ? [...older.competitive_bullets, ...older.sources_bullets] : [])]
     // A hidden Opportunities page is not on the page, so its pillar lines' numbers are not data for other fields (round 3).
     const sentenceText = stripNames([s.context, s.methodology, ...boxes.flatMap((b) => [b.lead, b.text]), ...(pillarRow && full.opportunities_page !== 'hidden' ? s.opportunities.map((o) => o.signal) : [])].join(' | '))
@@ -190,7 +192,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
     if (!m) return undefined
     const key = m[1] as 'competitive_bullets' | 'sources_bullets'
     const lead = full[key][Number(m[2])]?.lead
-    const gen = lead === undefined ? undefined : sentences[key].find((b) => cleanValue(b.lead) === cleanValue(lead))
+    const gen = lead === undefined || !bulletRef ? undefined : bulletRef[key].find((b) => cleanValue(b.lead) === cleanValue(lead))
     return gen ? (m[3] === 'lead' ? gen.lead : gen.text) : undefined
   }
   const grounded = (t: string) => {
@@ -232,7 +234,7 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
       // Context and methodology keep the exact check on any row from CONTEXT_WORDING_SINCE on, since their wording did not
       // change; the bullets only on today's version (Paul, #417 review).
       const sameWording = (path === 'context' || path === 'methodology') && typeof d.sentences === 'number' && d.sentences >= CONTEXT_WORDING_SINCE
-      const ref = (sameVersion && isCodeSentencePath(path)) || pillarLine(path) || sameWording ? peecSentence(path) : undefined
+      const ref = (bulletRef && isCodeSentencePath(path)) || pillarLine(path) || sameWording ? peecSentence(path) : undefined
       if (sentencesRow && gleanWrote(path)) {
         // Peec's own action titles (an "H1 heading") are not Glean's numbers.
         let words = text

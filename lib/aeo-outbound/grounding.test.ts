@@ -592,6 +592,31 @@ test('spec 2026-11-02 S5: a version 3 row keeps the word-for-word check on its b
   }
 })
 
+// Paul, #431 review: an older row is checked against its own version's frozen boxes, not a hard-coded version, so the next
+// version bump keeps the check. A version 3 row that also holds citations stands in for a version 4 row after a bump to
+// 5: today's writer prints the version 4 box for it, while the row stored the version 3 box.
+test('an older row keeps the word-for-word check against its own version\'s boxes, whatever today\'s writer prints', () => {
+  const d: SnapshotData = { ...newRow(), sentences: 3 }
+  expect(dataSentences(d).competitive_bullets[0].text).toMatch(/^Examplesenior\.com earned 165 of /)
+  const stored = { ...slotsFor(d), ...boxesV3(d) }
+  expect(stored.competitive_bullets[0].text).toBe('Examplesenior.com appears in 142 retrieved citations.')
+  expect(groundingFlags(stored, d, dataBlock(d))).toEqual([])
+  // 165 is elsewhere on the row (today's Citation volume), so only the check against the row's own sentence catches it.
+  const edited = { ...stored, competitive_bullets: stored.competitive_bullets.map((b, i) => (i === 0 ? { ...b, text: b.text.replace('142', '165') } : b)) }
+  expect(groundingFlags(edited, d, dataBlock(d)).map((n) => `${n.path} ${n.kind}`)).toEqual(['competitive_bullets.0.text number_not_in_data'])
+})
+
+test('versions 1 and 2 keep the number check only on their bullets (Paul, #417 review)', () => {
+  for (const version of [1, 2]) {
+    const d = olderRow(LIVE_SHAPE_PULL, version)
+    const s = { ...slotsFor(d), ...boxesV2(d) }
+    // 1.1 is elsewhere in the data, so the number check allows it.
+    const edited = { ...s, sources_bullets: s.sources_bullets.map((b, i) => (i === 0 ? { ...b, text: b.text.replace(/\d+\.\d percentage/, '1.1 percentage') } : b)) }
+    expect(s.sources_bullets[0].text).toMatch(/\d+\.\d percentage/)
+    expect(groundingFlags(edited, d, dataBlock(d)).filter((n) => n.path?.startsWith('sources_bullets')), `version ${version}`).toEqual([])
+  }
+})
+
 test('spec 2026-11-02 S1: on a version 4 row an edited Citation volume number is flagged; the sentence as written is not', () => {
   const d = newRow()
   expect(d.sentences).toBe(SENTENCES_VERSION)

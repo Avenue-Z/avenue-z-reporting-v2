@@ -492,5 +492,10 @@ export function boxesV3(d: SnapshotData): Pick<DataSentences, 'competitive_bulle
  *  as it did before this lookup. */
 export const OLDER_BOXES: Readonly<Record<number, (d: SnapshotData) => Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'>>> = { 1: boxesV2, 2: boxesV2, 3: boxesV3 }
 
+/** From this version on, OLDER_BOXES[v] prints byte for byte what version v printed, so grounding keeps the word-for-word
+ *  check on an older row's bullets against its own version's boxes (Paul, #431 review). Versions 1 and 2 keep the number
+ *  check only (Paul, #417 review): both print through boxesV2, which is version 2's wording, not version 1's. */
+export const EXACT_OLDER_BOXES_SINCE = 3
+
 /** The own-site slice reads "own-site" in a sentence; every other type as the donut shows it. */
 const label = (l: string): string => (l === 'You' ? 'own-site' : l)
