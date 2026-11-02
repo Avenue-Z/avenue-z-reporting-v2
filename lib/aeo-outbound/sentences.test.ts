@@ -587,25 +587,25 @@ test('S1: rank 1, alone or tied with a site that is not the brand\'s, for one ow
   const one = (rival: number) => texts4(citedPull('Example', 'example.com', [['example.com', 'OWN', 35, 10], ['rival.example', 'COMPETITOR', rival, 9], ['other.example', 'UGC', 30, 8]], 100))[0]
   expect(one(20)).toBe('Example.com earned 35 of the 85 citations in AI answers (41%), the most-cited site of 3.')
   expect(one(35)).toBe('Example.com earned 35 of the 100 citations in AI answers (35%), tied for most cited of 3 sites.')
-  const several = (rival: number) => texts4(citedPull('UnitedHealth Group', 'optum.com', [['optum.com', 'OWN', 98, 60], ['uhc.optum.com', 'OWN', 20, 15], ['rival.example', 'COMPETITOR', rival, 9]], 300, { ownCitedAnswers: 70 }))[0]
-  expect(several(50)).toBe("UnitedHealth Group's own sites together earned 118 of the 168 citations in AI answers (70%); Optum.com alone is the most-cited site of 3.")
-  expect(several(98)).toBe("UnitedHealth Group's own sites together earned 118 of the 216 citations in AI answers (55%); Optum.com alone is tied for most cited of 3 sites.")
+  const several = (rival: number) => texts4(citedPull('Northwind Health', 'northwind.example', [['northwind.example', 'OWN', 98, 60], ['shop.northwind.example', 'OWN', 20, 15], ['rival.example', 'COMPETITOR', rival, 9]], 300, { ownCitedAnswers: 70 }))[0]
+  expect(several(50)).toBe("Northwind Health's own sites together earned 118 of the 168 citations in AI answers (70%); Northwind.example alone is the most-cited site of 3.")
+  expect(several(98)).toBe("Northwind Health's own sites together earned 118 of the 216 citations in AI answers (55%); Northwind.example alone is tied for most cited of 3 sites.")
 })
 
 test('S1, S2: own sites never cited, no own rows, and no citations at all', () => {
-  const never = texts4(citedPull('Milk Makeup', 'milkmakeup.com', [['milkmakeup.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 3740, 500]], 600))
-  expect(never.slice(0, 2)).toEqual(['Milkmakeup.com earned none of the 3,740 citations in AI answers this window.', "Milk Makeup isn't cited in any of the 600 tracked answers."])
-  const twoNever = texts4(citedPull('Milk Makeup', 'milkmakeup.com', [['milkmakeup.com', 'OWN', 0, 0], ['blog.milkmakeup.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 40, 5]], 600))
-  expect(twoNever[0]).toBe("Milk Makeup's own sites earned none of the 40 citations in AI answers this window.")
-  const noOwn = texts4(citedPull('Milk Makeup', 'milkmakeup.com', [['rival.example', 'COMPETITOR', 40, 5]], 600))
-  expect(noOwn[0]).toBe("Milk Makeup's own site earned none of the 40 citations in AI answers this window.")
-  const none = texts4(citedPull('Milk Makeup', 'milkmakeup.com', [['milkmakeup.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 0, 0]], 600))
-  expect(none.slice(0, 2)).toEqual(['Peec recorded no citations in AI answers this window.', "Milk Makeup isn't cited in any of the 600 tracked answers."])
+  const never = texts4(citedPull('Example Beauty', 'examplebeauty.com', [['examplebeauty.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 3740, 500]], 600))
+  expect(never.slice(0, 2)).toEqual(['Examplebeauty.com earned none of the 3,740 citations in AI answers this window.', "Example Beauty isn't cited in any of the 600 tracked answers."])
+  const twoNever = texts4(citedPull('Example Beauty', 'examplebeauty.com', [['examplebeauty.com', 'OWN', 0, 0], ['blog.examplebeauty.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 40, 5]], 600))
+  expect(twoNever[0]).toBe("Example Beauty's own sites earned none of the 40 citations in AI answers this window.")
+  const noOwn = texts4(citedPull('Example Beauty', 'examplebeauty.com', [['rival.example', 'COMPETITOR', 40, 5]], 600))
+  expect(noOwn[0]).toBe("Example Beauty's own site earned none of the 40 citations in AI answers this window.")
+  const none = texts4(citedPull('Example Beauty', 'examplebeauty.com', [['examplebeauty.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 0, 0]], 600))
+  expect(none.slice(0, 2)).toEqual(['Peec recorded no citations in AI answers this window.', "Example Beauty isn't cited in any of the 600 tracked answers."])
 })
 
 test('S1: the share reads as the donut slice does, "under 1%" and "over 99%"; the only cited site; ranks past twenty', () => {
-  const tiny = texts4(citedPull('ColourPop', 'colourpop.com', [['colourpop.com', 'OWN', 1, 1], ...filler(105, 10), ...filler(59, 0, 'quiet'), ['rest.example', 'UGC', 35, 2]], 272))
-  expect(tiny.slice(0, 2)).toEqual(['ColourPop.com earned 1 of the 1,086 citations in AI answers (under 1%), the 107th most-cited site of 107.', 'ColourPop is cited in 1 of 272 tracked answers (0.4%).'])
+  const tiny = texts4(citedPull('GlowCo', 'glowco.com', [['glowco.com', 'OWN', 1, 1], ...filler(105, 10), ...filler(59, 0, 'quiet'), ['rest.example', 'UGC', 35, 2]], 272))
+  expect(tiny.slice(0, 2)).toEqual(['GlowCo.com earned 1 of the 1,086 citations in AI answers (under 1%), the 107th most-cited site of 107.', 'GlowCo is cited in 1 of 272 tracked answers (0.4%).'])
   expect(texts4(citedPull('Example', 'example.com', [['example.com', 'OWN', 995, 9], ['rival.example', 'COMPETITOR', 5, 1]], 10))[0]).toBe('Example.com earned 995 of the 1,000 citations in AI answers (over 99%), the most-cited site of 2.')
   expect(texts4(citedPull('Example', 'example.com', [['example.com', 'OWN', 5, 4], ['quiet.example', 'COMPETITOR', 0, 0]], 10))[0]).toBe('Example.com earned 5 of the 5 citations in AI answers (100%), the only cited site.')
   expect(texts4(citedPull('Example', 'example.com', [['example.com', 'OWN', 1, 1]], 1))).toEqual(['Example.com earned 1 of the 1 citation in AI answers (100%), the only cited site.', 'Example is cited in 1 of 1 tracked answer (100%).', expect.any(String)])

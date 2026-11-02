@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest'
 import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData } from './metrics'
-import { checkReport, wordingProblems } from './sweep-checks'
+import { checkReport, sentenceCountProblems, wordingProblems } from './sweep-checks'
+import { dataSentences } from './sentences'
 import type { PeecPull } from './pull'
 
 const AT = '2026-10-22T13:00:00Z'
@@ -71,4 +72,14 @@ test('S2: a count by answer that failed, or more citing answers than own citatio
   const d = cited([['examplesenior.com', 'OWN', 3], ['rival.example', 'COMPETITOR', 70]])
   expect(checkReport({ ...d, citations: { ...d.citations!, citedAnswers: 4 } })).toContain('4 answers cite the brand but it has 3 citations')
   expect(checkReport({ ...d, citations: { ...d.citations!, citedAnswers: 51, own: 60 } })).toContain('51 answers cite the brand of 50 answers')
+})
+
+// Final review of #431 (plan Task 6, spec minor 2): the printed counts are the stored ones.
+test('S1, S2: a Citation volume or Citation rate sentence whose counts are not the stored citations is named', () => {
+  const d = cited([['examplesenior.com', 'OWN', 30], ['rival.example', 'COMPETITOR', 70]])
+  const s = dataSentences(d)
+  const swap = (lead: string, from: RegExp, to: string) => ({ ...s, competitive_bullets: s.competitive_bullets.map((b) => (b.lead === lead ? { ...b, text: b.text.replace(from, to) } : b)) })
+  expect(sentenceCountProblems(d, s)).toEqual([])
+  expect(sentenceCountProblems(d, swap('Citation volume:', /earned 30 of/, 'earned 31 of'))).toEqual(['Citation volume prints 31 of 100, stored 30 of 100'])
+  expect(sentenceCountProblems(d, swap('Citation rate:', /cited in 2 of 50/, 'cited in 2 of 51'))).toEqual(['Citation rate prints 2 of 51, stored 2 of 50'])
 })

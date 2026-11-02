@@ -53,7 +53,13 @@ fields on every row (0 missing); one `total_chat_count` per window everywhere; b
 rows (2 projects), several own domains (12 projects, up to 29 for Crocs), shares under 0.1% (Brandy Melville, 1 of
 6,212). A fresh-eyes review (2026-11-02) confirmed every fact above and found the contradiction with the pillar.
 
-## Proposed change (pending my decision and Ryan's)
+## Proposed change (superseded by the spec)
+
+Superseded by `docs/superpowers/specs/2026-11-02-aeo-outbound-cited-sources-citations-design.md`, which Ryan approved:
+Citation rate there counts distinct answers citing any own site (not `cited_percentage`), and Citation volume adds the
+top own site's rank. The examples below are illustrations that put COSRX's name on other projects' numbers (A Place
+for Mom's 731 of 16,287, Milk Makeup's 3,740). COSRX's own citation numbers were never measured: its Peec project was
+gone before the first probe.
 
 Count Peec's real citations across the whole Cited Sources section:
 

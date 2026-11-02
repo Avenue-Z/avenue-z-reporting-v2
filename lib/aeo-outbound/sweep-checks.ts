@@ -7,7 +7,7 @@ import { groundingFlags } from './grounding'
 import type { SnapshotData } from './metrics'
 import { dataBlock } from './prompt'
 import { renderSnapshotHtml } from './render'
-import { dataSentences } from './sentences'
+import { dataSentences, type DataSentences } from './sentences'
 import type { Slots } from './slots'
 
 const WORDING: { kind: string; re: RegExp; excerpt: boolean }[] = [
@@ -33,6 +33,21 @@ export function wordingProblems(texts: string[], brandNames: string[]): string[]
   return [...out]
 }
 
+/** Spec 2026-11-02 S1, S2 (minor 2): the counts the Citation volume and Citation rate sentences print are the stored ones,
+ *  read back from the text, so a wording change that drops or swaps a number is caught. */
+export function sentenceCountProblems(d: SnapshotData, s: Pick<DataSentences, 'competitive_bullets'>): string[] {
+  const c = d.citations
+  if (!c) return []
+  const num = (t: string) => Number(t.replace(/,/g, ''))
+  const text = (lead: string) => s.competitive_bullets.find((b) => b.lead === lead)?.text ?? ''
+  const out: string[] = []
+  const v = text('Citation volume:').match(/earned ([\d,]+) of the ([\d,]+) citations?/)
+  if (v && (num(v[1]) !== c.own || num(v[2]) !== c.total)) out.push(`Citation volume prints ${v[1]} of ${v[2]}, stored ${c.own} of ${c.total}`)
+  const r = text('Citation rate:').match(/cited in ([\d,]+) of ([\d,]+) tracked/)
+  if (r && (num(r[1]) !== c.citedAnswers || num(r[2]) !== c.answers)) out.push(`Citation rate prints ${r[1]} of ${r[2]}, stored ${c.citedAnswers} of ${c.answers}`)
+  return out
+}
+
 /** Every problem with one project's report, as generation would build it before Glean writes its fields. */
 export function checkReport(d: SnapshotData): string[] {
   const problems: string[] = []
@@ -49,6 +64,7 @@ export function checkReport(d: SnapshotData): string[] {
   // mix sums the same field by type); the share is the donut's "You" slice, which counts only rows Peec files as OWN, so a
   // difference means an own subdomain filed under another type (minor 4); an answer citing the brand holds at least one
   // of its citations and is one of the window's answers.
+  problems.push(...sentenceCountProblems(d, s))
   const c = d.citations
   if (c) {
     const donutTotal = d.sourceMix.reduce((s, m) => s + m.weight, 0)

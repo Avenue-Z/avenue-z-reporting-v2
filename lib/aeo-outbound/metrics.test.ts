@@ -220,7 +220,7 @@ test('more than one own domain: each is listed with its own count and percentage
   expect(d.ownSites).toEqual([{ domain: 'example.com', retrievedChats: 1989, retrievedPct: 22.4 }, { domain: 'shop.example.com', retrievedChats: 11, retrievedPct: 1 }])
   expect(d.ownRetrievedChats).toBe(2000)
   expect(d.ownRetrievedPct).toBeNull()
-  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 2 own domains with retrievals; each is listed with its own count and percentage.' })
+  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 2 own domains; Cited Sources adds up their citations and ranks the most-cited one.' })
 })
 
 test('one own domain adds no own-domains note', () => {
@@ -572,7 +572,7 @@ test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row
   ])
   expect(d.ownRetrievedChats).toBe(147)
   expect(d.ownRetrievedPct).toBeNull()
-  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 3 own domains with retrievals; each is listed with its own count and percentage.' })
+  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 3 own domains; Cited Sources adds up their citations and ranks the most-cited one.' })
   expect(texts(d.notes).join(' ')).not.toContain("No retrievals of the brand's own site")
   expect(d.ownDomains).toEqual(['brand.com', ''])
 })

@@ -145,13 +145,27 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   // (cited_chat_count); several need the report by answer, since one answer can cite two own sites. Only the Citation rate
   // bullet depends on it, so any failure but a spent deadline leaves that bullet out, a broken contract included.
   const ownRows = ownRowsOf(domains, owned[0].domains)
+  const citedOwn = ownRows.filter((r) => r.citation_count > 0)
   let ownCitedAnswers: number | null | undefined
-  if (ownRows.filter((r) => r.citation_count > 0).length > 1) {
+  if (citedOwn.length > 1) {
     try {
+      // A row with no answer id has no key, so the contract names the field rather than the client calling it a repeat
+      // (Paul, #388 review).
       const byAnswer = peecContract('peec.own_cited_chats', await client.all<{ domain: string; chat: { id: string }; citation_count: number }>(
         'POST', '/reports/domains', { ...W, dimensions: ['chat_id'], filters: [{ field: 'domain', operator: 'in', values: ownRows.map((r) => r.domain) }] },
-        (r) => `${r.domain}|${r.chat?.id}`, 10_000))
-      ownCitedAnswers = new Set(byAnswer.filter((r) => r.citation_count > 0).map((r) => r.chat.id)).size
+        (r) => (r.chat?.id ? `${r.domain}|${r.chat.id}` : null), 10_000))
+      // Only own domains count, whatever the filter matched. The distinct count must lie between the most-cited own site's
+      // answers and the sum over the own sites; outside that the filter did not do what was asked, so the rate is left out.
+      const own = new Set(ownRows.map((r) => r.domain))
+      const count = new Set(byAnswer.filter((r) => own.has(r.domain) && r.citation_count > 0).map((r) => r.chat.id)).size
+      const least = Math.max(...citedOwn.map((r) => r.cited_chat_count))
+      const most = citedOwn.reduce((s, r) => s + r.cited_chat_count, 0)
+      if (count >= least && count <= most) ownCitedAnswers = count
+      else {
+        ownCitedAnswers = null
+        warnings.push("Peec's answers by own site did not match the own sites' counts, so the citation rate is left out.")
+        console.warn(`[aeo-outbound] own cited answers out of range count=${count} least=${least} most=${most}`)
+      }
     } catch (e) {
       if (isPeecDeadline(e)) throw e
       ownCitedAnswers = null

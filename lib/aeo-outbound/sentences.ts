@@ -278,7 +278,7 @@ function write(d: SnapshotData) {
     if (c.citedAnswers !== null && c.answers > 0) {
       const tracked = `${count(c.answers)} tracked ${c.answers === 1 ? 'answer' : 'answers'}`
       const exact = (c.citedAnswers / c.answers) * 100
-      // pctText would print "0.0%" for a count above zero (Brandy Melville: 1 of 2,295, spec review r1-4).
+      // pctText would print "0.0%" for a count above zero (1 of 2,295 on one measured project, spec review r1-4).
       out.push({ lead: 'Citation rate:', text: c.citedAnswers === 0 ? `${brand} isn't cited in any of the ${tracked}.` : `${brand} is cited in ${count(c.citedAnswers)} of ${tracked} (${exact < 0.05 ? 'under 0.1%' : pctText(exact)}).` })
     }
     out.push(sourceTypeMix())

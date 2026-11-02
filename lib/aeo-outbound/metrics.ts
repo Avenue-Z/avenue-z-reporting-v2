@@ -272,7 +272,7 @@ export function buildSnapshotData(
     } : null,
   }
   if (!ownRows.length) note('own_domains', "No retrievals of the brand's own site in this window.")
-  if (ownRows.length > 1) note('own_domains', `The brand has ${ownRows.length} own domains with retrievals; each is listed with its own count and percentage.`)
+  if (ownRows.length > 1) note('own_domains', `The brand has ${ownRows.length} own domains; Cited Sources adds up their citations and ranks the most-cited one.`)
 
   const weights = new Map<string, number>()
   for (const r of pull.domains) {

@@ -363,3 +363,31 @@ test('S2: a per-call timeout with budget left is a warning; one the deadline cap
   const err = await pullSnapshot(fakePeec(withDomains(MULTI, abort), CAPPED).client, 'or_a', NOW).catch((e: unknown) => e)
   expect(isPeecDeadline(err)).toBe(true)
 })
+
+// Final review of #431: the answer rows are counted only for own domains, and a count outside what the own rows allow
+// (at least the most-cited own site's answers, at most their sum) is treated as a failed call.
+const ODD_WARNING = "Peec's answers by own site did not match the own sites' counts, so the citation rate is left out."
+test('S2: answer rows for a site that is not the brand\'s are not counted', async () => {
+  const stray = () => [...BY_ANSWER, { domain: 'rival.com', chat: { id: 'ch_9' }, citation_count: 4, total_chat_count: 1 }]
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, stray)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBe(2)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: a count below the most-cited own site\'s answers, or above their sum, leaves the rate out with a warning', async () => {
+  const tooFew = () => [BY_ANSWER[0]]
+  const tooMany = () => ['ch_1', 'ch_2', 'ch_3', 'ch_4'].map((id) => ({ domain: 'example.com', chat: { id }, citation_count: 1, total_chat_count: 1 }))
+  for (const [name, route] of [['too few', tooFew], ['too many', tooMany], ['none', () => []]] as [string, Route][]) {
+    const pull = await pullSnapshot(fakePeec(withDomains(MULTI, route)).client, 'or_a', NOW)
+    expect(pull.ownCitedAnswers, name).toBeNull()
+    expect(pull.warnings, name).toEqual([ODD_WARNING])
+  }
+})
+
+test('S2: answer rows without an answer id fail the contract by name, not as repeated rows (Paul, #388 rule)', async () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const noId = () => [{ domain: 'example.com', chat: null, citation_count: 1 }, { domain: 'example.com', chat: null, citation_count: 2 }]
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, noId)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBeNull()
+  expect(err.mock.calls.map((c) => String(c[0])).some((l) => l.includes('boundary=peec.own_cited_chats field=chat'))).toBe(true)
+})
