@@ -44,7 +44,7 @@ const PULL: PeecPull = {
     { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, citation_count: 5902, cited_chat_count: 1250, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_a' }] },
     { domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 900, retrieval_count: 1000, usage_rate: 1000, citation_count: 1000, cited_chat_count: 900, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_own' }, { id: 'kw_a' }] },
     { domain: 'forum.com', classification: 'UGC', retrieved_chat_count: 300, retrieval_count: 400, usage_rate: 400, citation_count: 400, cited_chat_count: 300, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_b' }] },
-    { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, usage_rate: 0, citation_count: 0, cited_chat_count: 5, total_chat_count: 10000, mentioned_brands: [] },
+    { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, usage_rate: 0, citation_count: 0, cited_chat_count: 0, total_chat_count: 10000, mentioned_brands: [] },
   ],
   promptCount: 100,
   models: ['ChatGPT UI', 'Google AI Overview'],
@@ -622,4 +622,44 @@ test("2026-10-19 (Ryan): a report whose window ends on the pull's own UTC day sa
     const later = buildSnapshotData({ ...PULL, pulledDay }, '2026-10-08T15:00:00Z')
     expect(later.notes.some((x) => typeof x !== 'string' && x.kind === 'same_day_data'), pulledDay).toBe(false)
   }
+})
+
+// Spec 2026-11-02 S1, S2: what Cited Sources prints. Own rows: example.com (OWN) and any subdomain of it.
+const site = (domain: string, classification: string, citations: number, cited = citations ? 1 : 0) =>
+  ({ domain, classification, retrieved_chat_count: 3, retrieval_count: 3, citation_count: citations, cited_chat_count: cited, total_chat_count: 200, mentioned_brands: [] })
+const citationsOf = (domains: PeecPull['domains'], extra: Partial<PeecPull> = {}) => buildSnapshotData({ ...PULL, domains, ...extra }, '2026-10-08T15:00:00Z').citations
+
+test('S1, S2: citations sums own rows against every row; the rank counts every row strictly above the top own site', () => {
+  const c = citationsOf([site('alpha.com', 'COMPETITOR', 50), site('news.com', 'EDITORIAL', 40), site('example.com', 'OWN', 30, 21), site('forum.com', 'UGC', 30), site('quiet.com', 'OTHER', 0)])
+  expect(c).toEqual({ own: 30, total: 150, answers: 200, citedAnswers: 21, citedSites: 4, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 3, tied: false } })
+})
+
+test('S1: at rank 1 a non-own site level with the top own site is a tie; another own site level with it is not', () => {
+  expect(citationsOf([site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: false })
+  // Below rank 1 a level site shares the rank and is never called a tie.
+  expect(citationsOf([site('beta.com', 'COMPETITOR', 90), site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 2, tied: false })
+})
+
+test('S2: several cited own sites take the pull\'s count by answer, null included; uncited own rows never count as several', () => {
+  const two = [site('shop.example.com', 'EDITORIAL', 12, 7), site('example.com', 'OWN', 20, 9), site('alpha.com', 'COMPETITOR', 5)]
+  expect(citationsOf(two, { ownCitedAnswers: 13 })).toMatchObject({ own: 32, citedAnswers: 13, ownSitesCited: 2, topSite: { domain: 'example.com', rank: 1, tied: false } })
+  expect(citationsOf(two, { ownCitedAnswers: null })?.citedAnswers).toBeNull()
+  const oneCited = [site('example.com', 'OWN', 20, 9), site('blog.example.com', 'CORPORATE', 0), site('alpha.com', 'COMPETITOR', 5)]
+  expect(citationsOf(oneCited)).toMatchObject({ own: 20, citedAnswers: 9, ownSitesCited: 1 })
+})
+
+test('S1: an own site never cited gives a null top site and no cited own sites; no citations at all gives zeros', () => {
+  expect(citationsOf([site('example.com', 'OWN', 0), site('alpha.com', 'COMPETITOR', 7)])).toEqual({ own: 0, total: 7, answers: 200, citedAnswers: 0, citedSites: 1, ownSitesCited: 0, topSite: null })
+  expect(citationsOf([site('alpha.com', 'COMPETITOR', 7)])).toMatchObject({ own: 0, ownSitesCited: 0, topSite: null })
+  expect(citationsOf([site('example.com', 'OWN', 0), site('alpha.com', 'COMPETITOR', 0)])).toMatchObject({ own: 0, total: 0, citedSites: 0, topSite: null })
+})
+
+// Spec minor 4: the "You" slice counts the rows Peec files as OWN; the own citations count every own-matched row, as the
+// Content pillar does. They differ only when an own subdomain is filed under another type (equal on all 62 projects, measured).
+test('S3: the own citations and the Content pillar follow the own match; the "You" slice counts only rows Peec files as OWN', () => {
+  const d = buildSnapshotData({ ...PULL, domains: [site('alpha.com', 'COMPETITOR', 50), site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 20)], ownCitedAnswers: 25 }, '2026-10-08T15:00:00Z')
+  expect(d.ownMixWeight).toBe(50)
+  expect(d.citations?.own).toBe(50)
+  expect(d.sourceMix.find((s) => s.label === 'You')?.weight).toBe(30)
 })

@@ -82,6 +82,27 @@ export interface SnapshotData {
   /** 2026-10-19 Peec parity: the source-mix weighting this row was generated with. Absent on older rows, which weighted
    *  by retrieval_count; prompt.ts keeps their Data line as it was. */
   sourceMixWeight?: MetricDecisions['sourceMixWeight']
+  /** Spec 2026-11-02 S4: what Cited Sources prints. Absent on rows from before it, which keep their version 3 box. */
+  citations?: Citations
+}
+
+/** Spec 2026-11-02 S1, S2. */
+export interface Citations {
+  /** X: the citations of every own-matched row. */
+  own: number
+  /** Y: every citation in the window. */
+  total: number
+  /** T: every answer in the window (Peec's total_chat_count). */
+  answers: number
+  /** C: answers citing any own site, counted once; null when the report by answer failed. */
+  citedAnswers: number | null
+  /** N: the sites with at least one citation, own sites included. */
+  citedSites: number
+  /** How many own rows have a citation: more than one reads "<Brand>'s own sites". */
+  ownSitesCited: number
+  /** The most-cited own row, its rank as Peec ranks domains (1 + the rows above it), and whether a non-own site is
+   *  level with it at rank 1. Null when no own row is cited. */
+  topSite: { domain: string; rank: number; tied: boolean } | null
 }
 
 /** Python's round(x, dp): correctly rounded from the exact binary value, ties to even (symmetric for negatives). */
@@ -232,6 +253,24 @@ export function buildSnapshotData(
   const ownRetrievedPct = ownSites.length === 1 ? ownSites[0].retrievedPct : null
   const topOwn = ownSites[0]
   const ownSiteRank = topOwn && topOwn.retrievedChats > 0 ? 1 + pull.domains.filter((r) => (r.retrieved_chat_count ?? 0) > topOwn.retrievedChats).length : null
+  // Spec 2026-11-02 S1, S2: the brand's citations against every citation, the top own site's rank as Peec ranks domains,
+  // and the answers that cite any own site (the pull counts those when several own sites are cited).
+  const citedOwn = ownRows.filter((r) => r.citation_count > 0)
+  const topCited = [...citedOwn].sort((a, b) => (b.citation_count - a.citation_count) || (a.domain < b.domain ? -1 : 1))[0]
+  const ownSet = new Set(ownRows)
+  const citations: Citations = {
+    own: citedOwn.reduce((s, r) => s + r.citation_count, 0),
+    total: pull.domains.reduce((s, r) => s + r.citation_count, 0),
+    answers: pull.domains[0]?.total_chat_count ?? 0,
+    citedAnswers: citedOwn.length > 1 ? (pull.ownCitedAnswers ?? null) : (citedOwn[0]?.cited_chat_count ?? 0),
+    citedSites: pull.domains.filter((r) => r.citation_count > 0).length,
+    ownSitesCited: citedOwn.length,
+    topSite: topCited ? {
+      domain: topCited.domain,
+      rank: 1 + pull.domains.filter((r) => r.citation_count > topCited.citation_count).length,
+      tied: pull.domains.every((r) => r.citation_count <= topCited.citation_count) && pull.domains.some((r) => !ownSet.has(r) && r.citation_count === topCited.citation_count),
+    } : null,
+  }
   if (!ownRows.length) note('own_domains', "No retrievals of the brand's own site in this window.")
   if (ownRows.length > 1) note('own_domains', `The brand has ${ownRows.length} own domains with retrievals; each is listed with its own count and percentage.`)
 
@@ -336,6 +375,7 @@ export function buildSnapshotData(
     ownMixByType,
     sourceMix,
     sourceMixWeight: decisions.sourceMixWeight,
+    citations,
     gapDomains,
     // Round 3 (Paul, #415 review): the pull no longer reads Peec's actions. Older rows keep the ones they stored.
     actions: [],
