@@ -4,6 +4,7 @@
 import { DECISIONS, MAX_WINDOW_DAYS, PITCH_STATUSES } from './config'
 import { peecContract } from './contracts'
 import { isPeecContractViolation, isPeecDeadline, isPeecRowCap, PeecClient, PeecError, rowsOf } from './peec'
+import { ownRowsOf } from './own-rows'
 import { defaultRange, todayUtc, type DayRange } from './range'
 
 export interface PeecProject { id: string; name: string; status: string }
@@ -51,6 +52,9 @@ export interface PeecPull {
   models: string[]
   /** Non-fatal problems for the notes panel. */
   warnings: string[]
+  /** Spec 2026-11-02 S2: answers citing any own site, counted once, from the report by answer. Present only when several
+   *  own sites are cited; null when that call failed, so the Citation rate is left out. */
+  ownCitedAnswers?: number | null
 }
 
 /** An optional call's failure becomes a warning, except a spent deadline or a broken contract. A per-call timeout
@@ -137,6 +141,24 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
   const domains = peecContract('peec.domains_report', await client.all<DomainRow>('POST', '/reports/domains', W, (r) => r.domain, 10_000))
   if (domains.reduce((s, r) => s + (r.retrieved_chat_count ?? 0), 0) <= 0) throw new PeecError('Peec returned zero retrievals across every domain for this window', false, false, 'zero_retrievals')
 
+  // Spec 2026-11-02 S2: answers citing any own site, counted once. One cited own row carries that count itself
+  // (cited_chat_count); several need the report by answer, since one answer can cite two own sites. Only the Citation rate
+  // bullet depends on it, so any failure but a spent deadline leaves that bullet out, a broken contract included.
+  const ownRows = ownRowsOf(domains, owned[0].domains)
+  let ownCitedAnswers: number | null | undefined
+  if (ownRows.filter((r) => r.citation_count > 0).length > 1) {
+    try {
+      const byAnswer = peecContract('peec.own_cited_chats', await client.all<{ domain: string; chat: { id: string }; citation_count: number }>(
+        'POST', '/reports/domains', { ...W, dimensions: ['chat_id'], filters: [{ field: 'domain', operator: 'in', values: ownRows.map((r) => r.domain) }] },
+        (r) => `${r.domain}|${r.chat?.id}`, 10_000))
+      ownCitedAnswers = new Set(byAnswer.filter((r) => r.citation_count > 0).map((r) => r.chat.id)).size
+    } catch (e) {
+      if (isPeecDeadline(e)) throw e
+      ownCitedAnswers = null
+      warnings.push("Peec's answers by own site could not be loaded, so the citation rate is left out.")
+    }
+  }
+
   // Round 3 (Paul, #415 review): Peec's recommended actions are no longer read, since pillar reports do not use them.
   // Optional: the methodology leaves the count out when this fails.
   let prompts: { total_count?: number } | null = null
@@ -152,5 +174,6 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
     promptCount: typeof prompts?.total_count === 'number' ? prompts.total_count : null,
     models,
     warnings,
+    ...(ownCitedAnswers !== undefined ? { ownCitedAnswers } : {}),
   }
 }

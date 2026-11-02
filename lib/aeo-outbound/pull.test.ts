@@ -293,3 +293,73 @@ test('brand names from Peec are trimmed in the roster, the own brand and the bra
   expect(pull.roster.map((r) => r.name)).toEqual(['Example Co', 'Rival'])
   expect(pull.brands.map((r) => r.brand.name)).toEqual(['Example Co', 'Rival'])
 })
+
+// Spec 2026-11-02 S2: answers citing any own site, counted once. Own rows here: example.com (OWN), shop.example.com
+// (a subdomain Peec files as Editorial) and blog.example.com (never cited).
+const dom = (domain: string, classification: string, citations: number, cited: number) =>
+  ({ domain, classification, retrieved_chat_count: 4, retrieval_count: 6, citation_count: citations, cited_chat_count: cited, total_chat_count: 40, mentioned_brands: [] })
+const MULTI = [dom('example.com', 'OWN', 5, 2), dom('shop.example.com', 'EDITORIAL', 2, 1), dom('blog.example.com', 'CORPORATE', 0, 0), dom('rival.com', 'COMPETITOR', 9, 3)]
+const BY_ANSWER = [
+  { domain: 'example.com', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 },
+  { domain: 'example.com', chat: { id: 'ch_2' }, citation_count: 3, total_chat_count: 1 },
+  { domain: 'shop.example.com', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 },
+  { domain: 'blog.example.com', chat: { id: 'ch_3' }, citation_count: 0, total_chat_count: 1 },
+]
+const dated = base['/reports/domains']
+const withDomains = (main: unknown[], byAnswer: Route = () => BY_ANSWER): Record<string, Route> => ({
+  ...base,
+  '/reports/domains': (u, b) => {
+    const dims = b?.dimensions as string[] | undefined
+    if (dims?.includes('chat_id')) return byAnswer(u, b)
+    return dims ? dated(u, b) : main
+  },
+})
+const byAnswerCalls = (seen: { path: string; body: Record<string, unknown> | null }[]) =>
+  seen.filter((s) => s.path === '/reports/domains' && (s.body?.dimensions as string[] | undefined)?.includes('chat_id'))
+const RATE_WARNING = "Peec's answers by own site could not be loaded, so the citation rate is left out."
+
+test('S2: with one cited own site, no call by answer is made and the pull carries no count of its own', async () => {
+  const { client, seen } = fakePeec(withDomains([MULTI[0], MULTI[2], MULTI[3]]))
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(byAnswerCalls(seen)).toEqual([])
+  expect('ownCitedAnswers' in pull).toBe(false)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: with several cited own sites, one call by answer over every own domain counts each citing answer once', async () => {
+  const { client, seen } = fakePeec(withDomains(MULTI))
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  // The client pages until an empty page, so one call is its first page plus the empty one that ends it.
+  const calls = byAnswerCalls(seen)
+  expect(calls.filter((c) => Number(c.body?.offset ?? 0) === 0)).toHaveLength(1)
+  for (const c of calls) {
+    expect(c.body).toMatchObject({ project_id: 'or_a', start_date: '2026-10-05', end_date: '2026-10-06', dimensions: ['chat_id'] })
+    expect(c.body?.filters).toEqual([{ field: 'domain', operator: 'in', values: ['example.com', 'shop.example.com', 'blog.example.com'] }])
+  }
+  // ch_1 cites two own sites and counts once; ch_3 cites none.
+  expect(pull.ownCitedAnswers).toBe(2)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: a failed call by answer, or one that breaks its contract, leaves the count null with a warning, and the pull completes', async () => {
+  for (const [name, route] of [
+    ['http 500', () => { throw { status: 500 } }],
+    ['row without an answer id', () => [...BY_ANSWER, { domain: 'example.com', chat: null, citation_count: 1 }]],
+    ['negative count', () => [{ ...BY_ANSWER[0], citation_count: -1 }]],
+  ] as [string, Route][]) {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const pull = await pullSnapshot(fakePeec(withDomains(MULTI, route)).client, 'or_a', NOW)
+    expect(pull.ownCitedAnswers, name).toBeNull()
+    expect(pull.warnings, name).toEqual([RATE_WARNING])
+    expect(pull.promptCount, name).toBe(100)
+  }
+})
+
+test('S2: a per-call timeout with budget left is a warning; one the deadline capped fails the pull', async () => {
+  const abort: Route = () => { throw { abort: true } }
+  const roomy = await pullSnapshot(fakePeec(withDomains(MULTI, abort), ROOMY).client, 'or_a', NOW)
+  expect(roomy.ownCitedAnswers).toBeNull()
+  expect(roomy.warnings).toEqual([RATE_WARNING])
+  const err = await pullSnapshot(fakePeec(withDomains(MULTI, abort), CAPPED).client, 'or_a', NOW).catch((e: unknown) => e)
+  expect(isPeecDeadline(err)).toBe(true)
+})
