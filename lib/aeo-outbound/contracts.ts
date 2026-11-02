@@ -179,16 +179,16 @@ export const STORED_DATA = z.looseObject({
   // Any non-empty name, so a build reads rows a later build wrote and a rollback never strands them (Paul, #431 review);
   // only the code that reads it decides what a name means.
   sourceMixWeight: z.string().min(1).optional(),
+  // Round 3 (pillars): the own rows' source-mix weight; absent on older rows.
+  ownMixWeight: z.number().min(0).optional(),
+  // Paul, #415 review: the own rows' weight by source type; absent on older rows.
+  ownMixByType: z.record(z.string(), z.number().min(0)).optional(),
   // Spec 2026-11-02 S4: what Cited Sources prints; absent on older rows, which keep their version 3 box.
   citations: z.looseObject({
     own: z.number().int().min(0), total: z.number().int().min(0), answers: z.number().int().min(0), citedAnswers: z.number().int().min(0).nullable(),
     citedSites: z.number().int().min(0), ownSitesCited: z.number().int().min(0),
     topSite: z.looseObject({ domain: z.string(), rank: z.number().int().min(1), tied: z.boolean() }).nullable(),
   }).optional(),
-  // Round 3 (pillars): the own rows' source-mix weight; absent on older rows.
-  ownMixWeight: z.number().min(0).optional(),
-  // Paul, #415 review: the own rows' weight by source type; absent on older rows.
-  ownMixByType: z.record(z.string(), z.number().min(0)).optional(),
 })
 const storedBullet = z.looseObject({ lead: z.string(), text: z.string() })
 /** Stored slots: the copy keys always, the v1.1 keys when the row has them. */
