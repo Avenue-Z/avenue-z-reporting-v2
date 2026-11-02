@@ -24,7 +24,7 @@ check that settles it.
   hourly, and `main` lacks `651cd21e`, which the commit records as the cause of the Neon project using its 5 GB monthly
   transfer on 2026-10-21 (about 9.5 MB a run, every hour). **Unverified:** whether production's database is in the same
   Neon project (and quota) as dev and staging, and whether production's sweep has opted-in clients to sweep. This is a
-  production risk today, independent of the tool, and the promotion fixes it.
+  production risk today, independent of the tool. The tool-only release (step 1) does not change it.
 
 ## 2. What the tool needs at runtime (read from staging's code)
 
@@ -83,8 +83,38 @@ Plus, in Vercel and Neon (names only, never values):
 I compare the hashes against the journal (`drizzle/meta/_journal.json`, entries 0 to 25 on `main`) and report exactly
 which migrations production is missing before anything is applied.
 
-**Step 1. Decide the promotion's scope.** The branch flow promotes all of staging. Confirm with Tina's QA status that
-bulk PDF export and the other staging changes in section 1 are ready for production too; otherwise they ship with the tool.
+**Step 1. Build a release branch with the tool only (decided 2026-11-02: only Ryan's tool goes to production).** The
+documented flow promotes all of staging to `main`; this is a deliberate exception. Cut `release/aeo-outbound` from
+`main` and bring over only what the tool needs, read from the code:
+
+- The tool's own folders, whole, from staging after #434, #431 and #432 land there: `lib/aeo-outbound/`,
+  `components/aeo-outbound/`, `app/tools/new-business/`, `app/api/aeo-outbound/`, `app/actions/aeo-outbound.ts`,
+  `app/snapshot/`, `scripts/aeo-outbound-sweep.ts`, `drizzle/0026` to `0029` and their journal entries and snapshots.
+- The tool's lines in shared files, by hand, not the whole files:
+  - `lib/db/schema.ts`: the `aeo_outbound_status` enum and the four tables (staging's only schema change; nothing removed).
+  - `package.json`: declare `"zod": "4.6.6"` (`main` does not declare zod at all; the tool imports it in
+    `contracts.ts` and `store.ts`, and it only resolves today because another package pulls 4.3.6 in) and the
+    `aeo:sweep` script. Not `next` 16.4.1 and not `pdf-lib` (bulk export). The lockfile is regenerated from that.
+  - `lib/constants.ts`: the New Business entry in the Tools list (`2a994744`), or the tool has no menu link.
+  - `app/tools/layout.tsx`: the editor-space change (#396, #399), which only applies inside the report editor.
+  - `vitest.config.ts`: the tool's test globs, not the bulk export test's.
+  - `lib/auth/api-routes.test.ts`: the tool's routes in the list of routes that check their own session.
+  - `.env.example`: `GLEAN_ACT_AS`, `AEO_OUTBOUND_USERS`, `VERCEL_TARGET_ENV`.
+- Checked: of every module the tool imports from outside its folders, only `lib/db/schema.ts` differs between `main`
+  and staging (`auth.ts`, `lib/auth/page-access.ts`, `lib/auth/route-access.ts`, `lib/commentary/permissions.ts`,
+  `lib/db/client.ts` and `lib/glean.ts` are identical). Its outside packages (`drizzle-orm`, `lucide-react`, `next`,
+  `react`, `zod`, `node:crypto`) are all on `main`.
+
+This build (main plus the tool) has never run as a whole on staging, so before it merges: the full test suite,
+type-check and `check:rsc` on the release branch, its Vercel preview checked by hand (previews use the dev database,
+which has `0026` to `0029`), and `npm run aeo:sweep`. It goes through its own PR into `main` with the self-review label
+and your go-ahead.
+
+**Not shipping, and what that leaves on production:**
+- The Neon transfer fix for the lock sweep (`651cd21e`, `0c0de4a2`, `c6edad3b`): production keeps running the pre-fix
+  sweep every hour (section 1). Ship it on its own if step 0 shows production shares the quota or is near it.
+- The Next.js security bump (`4603ae7c`): production stays on 16.3.8. A candidate for its own small release.
+- Bulk PDF export (#386) and the puppeteer bump (#433): stay on staging.
 
 **Step 2. Migrate production, before the code.** `CACHE_DISABLE=1 npx tsx --env-file=<production env file>
 scripts/migrate-http.ts`, with production's own connection string, never by editing the staging guard. It applies what
@@ -95,15 +125,14 @@ result before step 4. `0026` to `0029` only add the tool's own tables, so nothin
 `GLEAN_ACT_AS` to match staging's Glean token type. Each value also goes in a local gitignored env file, per the
 credentials rule.
 
-**Step 4. Promote staging to main.** One PR, with the self-review comment and `self-reviewed` label, local checks if CI
-minutes are out, and your explicit go-ahead. Vercel deploys `main` to production.
+**Step 4. Merge the release branch into main.** One PR, with the self-review comment and `self-reviewed` label, local
+checks if CI minutes are out, and your explicit go-ahead. Vercel deploys `main` to production.
 
 **Step 5. Verify on production.**
 - Read only first: the hub loads for Ryan; Settings shows the defaults; `/snapshot/<anything>` answers "not available".
 - Then one real report (a write): generate a draft from a live Peec project and check its Cited Sources and notes.
 - Approve it and confirm the `reporting.avenuez.com` link opens signed out, and counts one open from another browser.
-- One signed-in PDF export on a Renaissance page (#433's follow-up: Chrome 153 on Vercel with puppeteer 25.16).
-- Neon transfer the next day, to confirm the lock sweep fix is holding.
+- Neon transfer the next day (the pre-fix lock sweep is still running on production, section 1).
 
 **Step 6. Ryan's setup on production.** Re-enter any settings he changed on staging (section titles, wordmark, report
 name, users). Staging links keep working where they are; final links come from production from then on.
@@ -117,6 +146,7 @@ opening** until the tool is restored. That is the reason to send production link
 ## 6. Open questions (yours)
 
 1. Does production's database share a Neon transfer quota with dev and staging, and is it near the limit now?
-2. Promote all of staging, or should anything in section 1 wait?
+2. ~~Promote all of staging?~~ Decided 2026-11-02: only the tool (step 1). Open instead: ship the lock sweep fix and the
+   Next.js security bump to production separately?
 3. Who goes on `AEO_OUTBOUND_USERS` for production?
 4. Which Glean token type does staging use (`GLEAN_ACT_AS`)?
