@@ -281,14 +281,6 @@ test('spec 2026-11-02 S4: the citation fields are enforced on every domains row;
   expect(() => peecContract('peec.domains_report', [{ ...dom, usage_rate: -0.1 }])).toThrow('peec.domains_report.usage_rate')
 })
 
-test('spec 2026-11-02 S2: the own-site report by answer needs a domain, an answer id and a citation count on every row', () => {
-  const row = { domain: 'a.example', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 }
-  expect(peecContract('peec.own_cited_chats', [row, { ...row, chat: { id: 'ch_2' }, citation_count: 0 }])).toHaveLength(2)
-  for (const [bad, field] of [[{ chat: null }, 'chat'], [{ chat: {} }, 'chat.id'], [{ chat: { id: '' } }, 'chat.id'], [{ citation_count: -1 }, 'citation_count'], [{ citation_count: undefined }, 'citation_count'], [{ domain: '' }, 'domain']] as const) {
-    expect(() => peecContract('peec.own_cited_chats', [{ ...row, ...bad }]), field).toThrow(`peec.own_cited_chats.${field}`)
-  }
-})
-
 // Paul, #431 review: a build must read rows a later build wrote, so a rollback never strands them. The weighting is any
 // non-empty name; only the code that reads it decides what a name means (prompt.ts gives an unknown one its fallback label).
 test('stored data records the source-mix weighting: absent on older rows, any non-empty name readable, so a rollback can read newer rows', () => {
@@ -299,17 +291,6 @@ test('stored data records the source-mix weighting: absent on older rows, any no
   expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
   for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate', 'citation_count', 'a_later_weighting']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce'), w).toEqual({ ok: true })
   for (const w of ['', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok, String(w)).toBe(false)
-})
-
-test('stored data: citations is absent on older rows, or the spec 2026-11-02 S4 shape; anything else is refused', () => {
-  const base = JSON.parse(JSON.stringify(V1_DATA))
-  const c = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 4, tied: false } }
-  for (const citations of [undefined, c, { ...c, citedAnswers: null }, { ...c, own: 0, ownSitesCited: 0, topSite: null }]) {
-    expect(checkContract('stored.data', STORED_DATA, { ...base, ...(citations ? { citations } : {}) }, 'enforce'), JSON.stringify(citations)).toEqual({ ok: true })
-  }
-  for (const citations of [null, {}, { ...c, own: -1 }, { ...c, total: '3' }, { ...c, citedAnswers: 1.5 }, { ...c, topSite: { domain: 'a', rank: 0, tied: false } }, { ...c, topSite: { domain: 'a', rank: 1 } }]) {
-    expect(checkContract('stored.data', STORED_DATA, { ...base, citations }, 'enforce').ok, JSON.stringify(citations)).toBe(false)
-  }
 })
 
 test('stored slots: opportunities_page is absent, shown or hidden; anything else breaks the contract (Ryan, round 3)', () => {
@@ -334,4 +315,23 @@ test('the Glean reply contract ignores opportunities of any shape, or none (pill
 test('stored slots: opportunities_layout is absent or pillars; anything else breaks the contract (pillars P1)', () => {
   for (const v of [undefined, 'pillars']) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, ...(v ? { opportunities_layout: v } : {}) }, 'enforce')).toEqual({ ok: true })
   for (const v of ['table', true, null]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, opportunities_layout: v }, 'enforce').ok).toBe(false)
+})
+
+test('spec 2026-11-02 S2: the own-site report by answer needs a domain, an answer id and a citation count on every row', () => {
+  const row = { domain: 'a.example', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 }
+  expect(peecContract('peec.own_cited_chats', [row, { ...row, chat: { id: 'ch_2' }, citation_count: 0 }])).toHaveLength(2)
+  for (const [bad, field] of [[{ chat: null }, 'chat'], [{ chat: {} }, 'chat.id'], [{ chat: { id: '' } }, 'chat.id'], [{ citation_count: -1 }, 'citation_count'], [{ citation_count: undefined }, 'citation_count'], [{ domain: '' }, 'domain']] as const) {
+    expect(() => peecContract('peec.own_cited_chats', [{ ...row, ...bad }]), field).toThrow(`peec.own_cited_chats.${field}`)
+  }
+})
+
+test('stored data: citations is absent on older rows, or the spec 2026-11-02 S4 shape; anything else is refused', () => {
+  const base = JSON.parse(JSON.stringify(V1_DATA))
+  const c = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 4, tied: false } }
+  for (const citations of [undefined, c, { ...c, citedAnswers: null }, { ...c, own: 0, ownSitesCited: 0, topSite: null }]) {
+    expect(checkContract('stored.data', STORED_DATA, { ...base, ...(citations ? { citations } : {}) }, 'enforce'), JSON.stringify(citations)).toEqual({ ok: true })
+  }
+  for (const citations of [null, {}, { ...c, own: -1 }, { ...c, total: '3' }, { ...c, citedAnswers: 1.5 }, { ...c, topSite: { domain: 'a', rank: 0, tied: false } }, { ...c, topSite: { domain: 'a', rank: 1 } }]) {
+    expect(checkContract('stored.data', STORED_DATA, { ...base, citations }, 'enforce').ok, JSON.stringify(citations)).toBe(false)
+  }
 })
