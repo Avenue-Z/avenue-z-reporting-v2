@@ -148,7 +148,9 @@ export function groundingFlags(slots: Slots, d: SnapshotData, dataText: string):
   // Every number of the code-written sentences is allowed (whole percents, points, counts), read the same way as a slot.
   // Allowed numbers come from today's sentences on any new row; the word-for-word check needs the row's own version.
   const sentences: DataSentences | null = sentencesRow ? dataSentences(d) : null
-  const sameVersion = d.sentences === SENTENCES_VERSION
+  // Spec 2026-11-02 S5: a version 3 row has no citations, so today's writer prints its boxes exactly as version 3 did,
+  // and its bullets keep the word-for-word check (final review of the citations branch).
+  const sameVersion = d.sentences === SENTENCES_VERSION || (d.sentences === 3 && !d.citations)
   // Round 3 (pillars spec P7): on a pillar row the data line is a code sentence and no opportunity field is Glean's.
   // Table rows are checked exactly as before.
   const pillarRow = full.opportunities_layout === 'pillars'

@@ -582,6 +582,16 @@ test('spec 2026-11-02 S5: a version 3 row writes its own box byte for byte and g
   }
 })
 
+test('spec 2026-11-02 S5: a version 3 row keeps the word-for-word check on its bullets, since its boxes are unchanged', () => {
+  for (const d of [olderRow(LIVE_SHAPE_PULL, 3), newRow()]) {
+    const s = slotsFor(d)
+    expect(s.sources_bullets[0].text).toContain('0.2 percentage points')
+    // 1.1 is elsewhere in the data (the peer cluster), so only the sentence-by-sentence check catches this edit.
+    const edited = { ...s, sources_bullets: s.sources_bullets.map((b, i) => (i === 0 ? { ...b, text: b.text.replace('0.2 percentage', '1.1 percentage') } : b)) }
+    expect(groundingFlags(edited, d, dataBlock(d)).map((n) => `${n.path} ${n.kind}`), `version ${d.sentences}`).toEqual(['sources_bullets.0.text number_not_in_data'])
+  }
+})
+
 test('spec 2026-11-02 S1: on a version 4 row an edited Citation volume number is flagged; the sentence as written is not', () => {
   const d = newRow()
   expect(d.sentences).toBe(SENTENCES_VERSION)
