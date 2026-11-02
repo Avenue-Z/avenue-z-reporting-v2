@@ -3,7 +3,7 @@
 // Glean writes only the opinion (§19.2).
 import { sliceLabel } from './charts'
 import { PILLARS } from './config'
-import { pyRound, settingsUsedOf, tenths, type SnapshotData } from './metrics'
+import { pyRound, settingsUsedOf, tenths, type Citations, type SnapshotData } from './metrics'
 import type { Bullet, Opportunity } from './slots'
 
 export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string; opportunities: Opportunity[] }
@@ -101,6 +101,10 @@ export function ownDomainText(domain: string, brand: string): string {
 }
 
 const upper = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
+/** An exact count with thousands separators, as Ryan's citation count reads (spec 2026-10-22 S2). */
+const count = (n: number): string => n.toLocaleString('en-US')
+/** A share as the donut labels its slice (charts.ts sliceLabel), with "<1%" and ">99%" in words. */
+const sliceWords = (pct: number): string => { const l = sliceLabel(pct); return l === '<1%' ? 'under 1%' : l === '>99%' ? 'over 99%' : l }
 /** "an" before a number said with a vowel sound (8, 11, 18, 80 to 89, 8.7), else "a" (any-client sweep, 2026-10-22). */
 const article = (num: string): string => (/^(?:8|1[18](?:\.|$))/.test(num) ? 'an' : 'a')
 /** A sentence that ends on a name ending in a period gets no second one ("Lost Hat Co.", any-client sweep, 2026-10-22). */
@@ -263,8 +267,47 @@ function write(d: SnapshotData) {
     return out
   }
 
-  // Spec 2026-10-22 B1: the Cited Sources box, in Ryan's order.
+  // Spec 2026-11-02 S1, S2: the Cited Sources box on a row with citations: the brand's citations against every citation
+  // with the top own site's rank, then the answers that cite the brand against every answer, then the mix. A row stored
+  // without citations (version 3 or older) keeps the version 3 box (S5).
   function citedSourcesBox(): Bullet[] {
+    const c = d.citations
+    if (!c) return citedSourcesBoxV3()
+    const out: Bullet[] = [{ lead: 'Citation volume:', text: citationVolume(c) }]
+    // Left out when the report by answer failed; the notes say why.
+    if (c.citedAnswers !== null && c.answers > 0) {
+      const tracked = `${count(c.answers)} tracked ${c.answers === 1 ? 'answer' : 'answers'}`
+      const exact = (c.citedAnswers / c.answers) * 100
+      // pctText would print "0.0%" for a count above zero (Brandy Melville: 1 of 2,295, spec review r1-4).
+      out.push({ lead: 'Citation rate:', text: c.citedAnswers === 0 ? `${brand} isn't cited in any of the ${tracked}.` : `${brand} is cited in ${count(c.citedAnswers)} of ${tracked} (${exact < 0.05 ? 'under 0.1%' : pctText(exact)}).` })
+    }
+    out.push(sourceTypeMix())
+    return out
+  }
+  function citationVolume(c: Citations): string {
+    if (c.total === 0) return 'Peec recorded no citations in AI answers this window.'
+    const all = `${count(c.total)} ${c.total === 1 ? 'citation' : 'citations'} in AI answers`
+    if (!c.topSite) {
+      const sites = d.ownSites ?? []
+      const subject = sites.length === 1 ? ownDomainText(sites[0].domain, brand) : `${brand}'s own ${sites.length > 1 ? 'sites' : 'site'}`
+      return `${subject} earned none of the ${all} this window.`
+    }
+    // The share reads exactly as the donut's "You" slice (charts.ts sliceLabel), in words at the edges.
+    const share = sliceWords((c.own / c.total) * 100)
+    const { rank, tied } = c.topSite
+    const N = count(c.citedSites)
+    const place = c.citedSites === 1 ? 'the only cited site' : rank === 1 ? (tied ? `tied for most cited of ${N} sites` : `the most-cited site of ${N}`) : `the ${ordinal(rank)} most-cited site of ${N}`
+    const top = ownDomainText(c.topSite.domain, brand)
+    // Several cited own sites: the citations are summed, but the rank stays the top site's own, as Peec ranks domains
+    // (spec review r1-5: a pooled rank overstated it).
+    return c.ownSitesCited > 1
+      ? `${brand}'s own sites together earned ${count(c.own)} of the ${all} (${share}); ${top} alone is ${place}.`
+      : `${top} earned ${count(c.own)} of the ${all} (${share}), ${place}.`
+  }
+
+  // Spec 2026-10-22 B1: the Cited Sources box, in Ryan's order. Frozen as version 3 printed it (spec 2026-11-02 S5): rows
+  // stored without citations print it, and OLDER_BOXES[3] allows its numbers.
+  function citedSourcesBoxV3(): Bullet[] {
     const out: Bullet[] = []
     const site = d.ownSites?.[0]
     if (!site || site.retrievedChats <= 0) {
@@ -421,6 +464,7 @@ function write(d: SnapshotData) {
     methodology: tidy(methodology()),
     current: { competitive_bullets: tidyBullets(citedSourcesBox()), sources_bullets: tidyBullets(competitiveBox()) },
     v2: { competitive_bullets: tidyBullets(firstBox()), sources_bullets: tidyBullets(secondBox()) },
+    v3: { competitive_bullets: tidyBullets(citedSourcesBoxV3()), sources_bullets: tidyBullets(competitiveBox()) },
     opportunities: pillars().map((o) => ({ ...o, signal: tidy(o.signal) })),
   }
 }
@@ -436,11 +480,16 @@ export function boxesV2(d: SnapshotData): Pick<DataSentences, 'competitive_bulle
   return write(d).v2
 }
 
+/** Spec 2026-11-02 S5: the version 3 boxes, the Cited Sources box as it was before citations. */
+export function boxesV3(d: SnapshotData): Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'> {
+  return write(d).v3
+}
+
 /** The boxes each earlier sentences version printed, by version (Paul, #417 review). A row written under version n also
  *  allows the numbers OLDER_BOXES[n] prints. Bumping SENTENCES_VERSION means adding the outgoing version here, or its
  *  rows gain flags on bullets they stored; grounding.test.ts fails until it is added. Version 1 keeps version 2's boxes,
  *  as it did before this lookup. */
-export const OLDER_BOXES: Readonly<Record<number, (d: SnapshotData) => Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'>>> = { 1: boxesV2, 2: boxesV2 }
+export const OLDER_BOXES: Readonly<Record<number, (d: SnapshotData) => Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'>>> = { 1: boxesV2, 2: boxesV2, 3: boxesV3 }
 
 /** The own-site slice reads "own-site" in a sentence; every other type as the donut shows it. */
 const label = (l: string): string => (l === 'You' ? 'own-site' : l)
