@@ -393,6 +393,12 @@ test('S2: a failed call by answer logs the project and a reason that carries no 
   expect(await line(() => [{ domain: 'example.com', chat: null, citation_count: 1 }])).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=peec.own_cited_chats.chat'])
   expect(await line(() => { throw { abort: true } }, ROOMY)).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=timeout'])
   expect(await line(() => Array.from({ length: OWN_ANSWERS_MAX_ROWS + 1 }, (_, i) => ({ domain: 'example.com', chat: { id: `c${i}` }, citation_count: 1 })))).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=row_cap'])
+  expect(await line(() => { throw { status: 429 } })).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=rate_limited'])
+  expect(await line(() => [BY_ANSWER[0], BY_ANSWER[0]])).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=repeated_row'])
+  // The out-of-range case names the project too.
+  warn.mockClear()
+  await pullSnapshot(fakePeec(withDomains(MULTI, () => [BY_ANSWER[0]])).client, 'or_a', NOW)
+  expect(warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('out of range'))).toEqual(['[aeo-outbound] own cited answers out of range project=or_a count=1 least=2 most=3'])
 })
 
 // Final review of #431: the answer rows are counted only for own domains, and a count outside what the own rows allow

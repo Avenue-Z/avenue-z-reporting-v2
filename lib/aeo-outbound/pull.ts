@@ -63,14 +63,21 @@ export interface PeecPull {
 export const OWN_ANSWERS_BUDGET_MS = 30_000
 export const OWN_ANSWERS_MAX_ROWS = 30_000
 
-/** Why an optional call failed, for a log line: a contract field, timeout, row_cap or the HTTP status. Never the message
- *  itself, which can carry part of Peec's response (peec.ts). */
+/** Why an optional call failed, for a log line: a contract field, timeout, row_cap, rate_limited, network, not_json,
+ *  repeated_row or the HTTP status, read from the client's fixed message forms (peec.ts). Never the message itself, which
+ *  can carry part of Peec's response or a domain. */
 function failureReason(e: unknown): string {
   if (isPeecContractViolation(e)) return (e as Error).message
   if (isPeecRowCap(e)) return 'row_cap'
   if (isPeecTimeout(e)) return 'timeout'
-  const status = e instanceof PeecError ? /: HTTP (\d{3}) /.exec(e.message)?.[1] : undefined
-  return status ? `http_${status}` : errorLabel(e)
+  if (!(e instanceof PeecError)) return errorLabel(e)
+  const status = /: HTTP (\d{3}) /.exec(e.message)?.[1]
+  if (status) return `http_${status}`
+  if (/: rate limited/.test(e.message)) return 'rate_limited'
+  if (/: request failed /.test(e.message)) return 'network'
+  if (/: response was not JSON$/.test(e.message)) return 'not_json'
+  if (/ repeats a row /.test(e.message)) return 'repeated_row'
+  return errorLabel(e)
 }
 
 /** An optional call's failure becomes a warning, except a spent deadline or a broken contract. A per-call timeout
@@ -180,7 +187,7 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
       else {
         ownCitedAnswers = null
         warnings.push("Peec's answers by own site did not match the own sites' counts, so the citation rate is left out.")
-        console.warn(`[aeo-outbound] own cited answers out of range count=${count} least=${least} most=${most}`)
+        console.warn(`[aeo-outbound] own cited answers out of range project=${projectId} count=${count} least=${least} most=${most}`)
       }
     } catch (e) {
       // The call's own budget running out is a warning; the report's deadline spent is not.
