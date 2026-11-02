@@ -1,7 +1,7 @@
 // The any-client check (2026-10-22): what generation builds before Glean, checked for anything a prospect would read
 // as broken. Pure: no network, no database. scripts/aeo-outbound-sweep.ts runs it on every Peec pitch project.
 // Only checks that do not repeat the code's own formula; a check that recomputes a sentence the same way proves nothing.
-import { visibilityBarFigure } from './charts'
+import { sliceLabel, visibilityBarFigure } from './charts'
 import { chartedBrands } from './charted'
 import { groundingFlags } from './grounding'
 import type { SnapshotData } from './metrics'
@@ -41,10 +41,30 @@ export function checkReport(d: SnapshotData): string[] {
   const texts = [s.context, s.methodology, ...[...boxes.cited, ...boxes.visibility].flatMap((b) => [b.lead, b.text]), ...s.opportunities.map((o) => o.signal)]
   problems.push(...wordingProblems(texts, d.brands.map((b) => b.name)))
   for (const [name, box] of Object.entries(boxes)) if (box.length < 1 || box.length > 4) problems.push(`${name} box has ${box.length} bullets`)
-  // The citation count is the own site's retrieved chats, exactly.
+  // A version 3 row: the citation count is the own site's retrieved chats, exactly.
   const cv = boxes.cited.find((b) => b.lead === 'Citation volume:')?.text.match(/appears in ([\d,]+) retrieved/)
   const site = d.ownSites?.[0]
   if (cv && site && Number(cv[1].replace(/,/g, '')) !== site.retrievedChats) problems.push(`citation count ${cv[1]} is not ${site.retrievedChats}`)
+  // Spec 2026-11-02 S1, S2: the citations against figures reached another way. The total is the donut's total (the source
+  // mix sums the same field by type); the share is the donut's "You" slice, which counts only rows Peec files as OWN, so a
+  // difference means an own subdomain filed under another type (minor 4); an answer citing the brand holds at least one
+  // of its citations and is one of the window's answers.
+  const c = d.citations
+  if (c) {
+    const donutTotal = d.sourceMix.reduce((s, m) => s + m.weight, 0)
+    if (d.sourceMixWeight === 'citation_count' && c.total !== donutTotal) problems.push(`citation total ${c.total} is not the donut total ${donutTotal}`)
+    if (d.sourceMixWeight === 'citation_count' && c.own > 0 && c.total > 0) {
+      const share = sliceLabel((c.own / c.total) * 100)
+      const you = d.sourceMix.find((m) => m.label === 'You')
+      const slice = you ? sliceLabel((you.weight / donutTotal) * 100) : 'none'
+      if (share !== slice) problems.push(`citation share ${share} is not the You slice ${slice}`)
+    }
+    if (c.citedAnswers === null) problems.push('citation rate left out: the count by answer failed')
+    else {
+      if (c.citedAnswers > c.own) problems.push(`${c.citedAnswers} answers cite the brand but it has ${c.own} citations`)
+      if (c.citedAnswers > c.answers) problems.push(`${c.citedAnswers} answers cite the brand of ${c.answers} answers`)
+    }
+  }
   // The chart: at most ten bars, the brand always among them; at most four gap domains.
   const bars = ((visibilityBarFigure(d.brands).data[0] as { y?: unknown[] } | undefined)?.y ?? []).length
   if (bars > 10) problems.push(`${bars} bars on the chart`)

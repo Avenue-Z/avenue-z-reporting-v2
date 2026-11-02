@@ -48,3 +48,27 @@ test('a padded Peec name reaching the sentences is caught end to end', () => {
   }
   expect(checkReport(data(pull)).some((p) => p.startsWith('stray space'))).toBe(true)
 })
+
+// Spec 2026-11-02 S1, S2 and minor 4: Cited Sources checked against figures the code reaches another way.
+const cited = (rows: [string, string, number][], extra: Partial<PeecPull> = {}) => buildSnapshotData({
+  ...LIVE_SHAPE_PULL,
+  domains: rows.map(([domain, classification, c]) => ({ domain, classification, retrieved_chat_count: 3, retrieval_count: c, citation_count: c, cited_chat_count: Math.min(c, 2), total_chat_count: 50, mentioned_brands: [] })),
+  ...extra,
+}, AT, { ...DECISIONS, sourceMixWeight: 'citation_count' }, USED)
+
+test('S1: a clean citations row passes; a total that is not the donut\'s, or a share that is not the You slice, is named', () => {
+  const d = cited([['examplesenior.com', 'OWN', 30], ['rival.example', 'COMPETITOR', 70]])
+  expect(checkReport(d)).toEqual([])
+  expect(checkReport({ ...d, citations: { ...d.citations!, total: 99 } })).toContain('citation total 99 is not the donut total 100')
+  // An own subdomain Peec files as Corporate counts toward the share but not the You slice (minor 4): the sweep names it.
+  const sub = cited([['examplesenior.com', 'OWN', 30], ['blog.examplesenior.com', 'CORPORATE', 30], ['rival.example', 'COMPETITOR', 40]], { ownCitedAnswers: 3 })
+  expect(checkReport(sub)).toContain('citation share 60% is not the You slice 30%')
+})
+
+test('S2: a count by answer that failed, or more citing answers than own citations or answers, is named', () => {
+  const two = cited([['examplesenior.com', 'OWN', 30], ['www.examplesenior.com', 'OWN', 5], ['rival.example', 'COMPETITOR', 65]], { ownCitedAnswers: null })
+  expect(checkReport(two)).toContain('citation rate left out: the count by answer failed')
+  const d = cited([['examplesenior.com', 'OWN', 3], ['rival.example', 'COMPETITOR', 70]])
+  expect(checkReport({ ...d, citations: { ...d.citations!, citedAnswers: 4 } })).toContain('4 answers cite the brand but it has 3 citations')
+  expect(checkReport({ ...d, citations: { ...d.citations!, citedAnswers: 51, own: 60 } })).toContain('51 answers cite the brand of 50 answers')
+})
