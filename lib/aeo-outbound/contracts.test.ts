@@ -277,7 +277,7 @@ test('2026-10-19 Peec parity: usage_rate is enforced, a non-negative number that
 })
 
 // Paul, #431 review: a build must read rows a later build wrote, so a rollback never strands them. The weighting is any
-// non-empty name; only the code that reads it decides what a name means (prompt.ts labels an unknown one generically).
+// non-empty name; only the code that reads it decides what a name means (prompt.ts gives an unknown one its fallback label).
 test('stored data records the source-mix weighting: absent on older rows, any non-empty name readable, so a rollback can read newer rows', () => {
   const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
   // Today's default is pinned in config.test.ts; here the row records whichever weighting generated it.
