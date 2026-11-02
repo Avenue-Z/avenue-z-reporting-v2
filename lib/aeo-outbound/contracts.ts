@@ -45,6 +45,8 @@ export function checkContract(boundary: ContractBoundary, schema: z.ZodType, val
 
 const count = z.number().int().nonnegative().nullish()
 const ratio = z.number().min(0).max(1)
+/** A count that must be on the row: a non-negative whole number. */
+const whole = z.number().int().nonnegative()
 
 /** Only the fields pull.ts reads. looseObject passes every other field through untouched. Spec v1.1 §19.6: every field a
  *  number on the page depends on is enforced (measured on 6,000 live domain rows and 206 roster rows on 2026-10-14). */
@@ -76,7 +78,19 @@ export const PEEC_CONTRACTS = {
   // mentioned_brands keeps a site the brand appears on out of the competitor domain gaps, and ties a COMPETITOR site off the
   // roster to a compared competitor (often an empty array); the domain is printed in the sentences.
   'peec.domains_report': {
-    enforce: z.array(z.looseObject({ domain: z.string().min(1), retrieved_chat_count: count, retrieval_count: count, usage_rate: z.number().min(0), retrieved_percentage: ratio.nullish(), classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })) })),
+    // Spec 2026-11-02 S4: the citation fields Cited Sources prints are on every row of every project (measured on 62);
+    // usage_rate, the earlier weighting, is checked only when present.
+    enforce: z.array(z.looseObject({
+      domain: z.string().min(1), retrieved_chat_count: count, retrieval_count: count, usage_rate: z.number().min(0).nullish(), retrieved_percentage: ratio.nullish(),
+      citation_count: whole, cited_chat_count: whole, total_chat_count: whole,
+      classification: z.string().min(1), mentioned_brands: z.array(z.looseObject({ id: z.string() })),
+    })),
+    observe: z.unknown(),
+  },
+  // Spec 2026-11-02 S2: the own sites' report by answer, made only when several own sites are cited. Its distinct answer
+  // ids with a citation are the answers that cite the brand.
+  'peec.own_cited_chats': {
+    enforce: z.array(z.looseObject({ domain: z.string().min(1), chat: z.looseObject({ id: z.string().min(1) }), citation_count: whole })),
     observe: z.unknown(),
   },
   'peec.prompts': { enforce: z.looseObject({ total_count: count }).nullable(), observe: z.unknown() },
@@ -162,7 +176,13 @@ export const STORED_DATA = z.looseObject({
   ownSiteRank: z.number().int().min(1).nullable().optional(),
   noDataBrands: z.array(z.string()).optional(),
   // 2026-10-19 Peec parity: the source-mix weighting a row was generated with; absent on older rows (retrieval_count).
-  sourceMixWeight: z.enum(['retrieval_count', 'retrieved_chat_count', 'usage_rate']).optional(),
+  sourceMixWeight: z.enum(['retrieval_count', 'retrieved_chat_count', 'usage_rate', 'citation_count']).optional(),
+  // Spec 2026-11-02 S4: what Cited Sources prints; absent on older rows, which keep their version 3 box.
+  citations: z.looseObject({
+    own: z.number().int().min(0), total: z.number().int().min(0), answers: z.number().int().min(0), citedAnswers: z.number().int().min(0).nullable(),
+    citedSites: z.number().int().min(0), ownSitesCited: z.number().int().min(0),
+    topSite: z.looseObject({ domain: z.string(), rank: z.number().int().min(1), tied: z.boolean() }).nullable(),
+  }).optional(),
   // Round 3 (pillars): the own rows' source-mix weight; absent on older rows.
   ownMixWeight: z.number().min(0).optional(),
   // Paul, #415 review: the own rows' weight by source type; absent on older rows.
