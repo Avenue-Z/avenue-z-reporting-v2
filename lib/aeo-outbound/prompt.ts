@@ -76,7 +76,7 @@ Use ONLY the Data section below. Do not search company documents, Slack, email o
 Writing rules:
 - Concise, polished, neutral and client-facing. Plain English. No em dashes or en dashes; use periods and commas.
 - Keep findings, hypotheses and recommendations distinct. Use explore, investigate and test. Do not present a full roadmap.
-- Use Peec terms where possible: visibility, share of voice, position, citations.
+- Use Peec terms where possible: visibility, share of voice, position, ${d.citations ? 'citations' : 'retrievals'}.
 - Do not write any numbers, percentages, counts or ranks, in digits or in words. Describe position and direction in words (leads, trails, ahead of, behind). The page shows every number from Peec next to your words.
 - Do not say "no" or "none" when a count is positive. Do not state a positive number when the count is zero.
 - Do not infer model coverage, timeframe, market, sentiment or causality beyond the Data section.

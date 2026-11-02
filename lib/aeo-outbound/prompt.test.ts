@@ -176,8 +176,13 @@ test('S3: a row with citations names citations, its rank and the answers citing 
   expect(dataBlock(D)).toContain('Own site retrievals (answers that retrieved example.com): 1,989, which is 22.4% of answers')
 })
 
-test('S3: the writing rules name citations among Peec\'s terms', () => {
-  const p = buildPrompt(D, [])
-  expect(p).toContain('Use Peec terms where possible: visibility, share of voice, position, citations.')
-  expect(p).not.toContain('position, retrievals')
+// Paul, #431 review: the term follows the Data block, so a row without citations, whose block shows retrievals, is not
+// told to call them citations.
+test('S3: the writing rules name citations for a row with citations, retrievals for a row without', () => {
+  const cited = buildPrompt({ ...D, citations: CITED } as unknown as SnapshotData, [])
+  expect(cited).toContain('Use Peec terms where possible: visibility, share of voice, position, citations.')
+  expect(cited).not.toContain('position, retrievals')
+  const older = buildPrompt(D, [])
+  expect(older).toContain('Use Peec terms where possible: visibility, share of voice, position, retrievals.')
+  expect(older).not.toContain('position, citations')
 })
