@@ -31,10 +31,10 @@ check that settles it.
 | Need | Source | Production today |
 |---|---|---|
 | Four tables: `aeo_outbound_reports`, `_opens`, `_settings`, `_settings_log`, plus the `aeo_outbound_status` enum | `drizzle/0026` to `0029`; additive, no existing table touched | Absent (migrations not on `main`). **Unverified** in the database itself |
-| `PEEC_AI_CUSTOMER_TOKEN` | `lib/aeo-outbound/peec.ts:207` | Already read by 6 files on `main` (`lib/peec/*`), so likely set. **Unverified** |
-| `GLEAN_INSTANCE`, `GLEAN_API_TOKEN` | `lib/aeo-outbound/glean.ts:36` | Already read on `main` (`lib/glean.ts`). **Unverified** |
-| `GLEAN_ACT_AS` | `glean.ts:37`: `true` acts as the signed-in user and needs an organization-wide token; unset runs as the token's own user (`.env.example:63`) | New. Must match the token type production uses. **Unverified** which staging uses |
-| `AEO_OUTBOUND_USERS` | `access.ts:22`: the floor list of users, every one an admin | New. With an empty settings table it is the only way in (`access.ts`; `settings.ts:62` falls back to defaults) |
+| `PEEC_AI_CUSTOMER_TOKEN` | `lib/aeo-outbound/peec.ts:207` | Set for Production, Preview and staging (Vercel, read 2026-11-02) |
+| `GLEAN_INSTANCE`, `GLEAN_API_TOKEN` | `lib/aeo-outbound/glean.ts:36` | Set for Production, Preview and staging (Vercel, read 2026-11-02) |
+| `GLEAN_ACT_AS` | `glean.ts:37`: `true` acts as the signed-in user and needs an organization-wide token; unset runs as the token's own user (`.env.example:63`) | Set as one entry for Production, Preview and staging (Vercel, read 2026-11-02), so production's mode already matches staging's |
+| `AEO_OUTBOUND_USERS` | `access.ts:22`: the floor list of users, every one an admin | Set as one entry for Production, Preview and staging (Vercel, read 2026-11-02; value not read). With an empty settings table it is the only way in (`access.ts`; `settings.ts:62` falls back to defaults) |
 | Public link domain | `share-origin.ts`: `VERCEL_TARGET_ENV=production` gives `https://reporting.avenuez.com` (set by Vercel) | Nothing to set |
 | Login | `/tools/*` is behind the proxy (`proxy.ts:25`); `/snapshot` is public by design | Google sign-in already works on production |
 
@@ -75,10 +75,8 @@ select column_name from information_schema.columns where table_name = 'clients'
 select to_regclass('public.aeo_outbound_reports'), to_regclass('public.aeo_outbound_settings');
 ```
 
-Plus, in Vercel and Neon (names only, never values):
-- Which production env vars exist: `PEEC_AI_CUSTOMER_TOKEN`, `GLEAN_INSTANCE`, `GLEAN_API_TOKEN`, `GLEAN_ACT_AS` (and
-  staging's value of it), `AEO_OUTBOUND_USERS`.
-- Which Neon project and plan production's `DATABASE_URL` points at, and its network transfer used this month.
+Plus, in Neon: which project and plan production's `DATABASE_URL` points at, and its network transfer used this month.
+(Vercel done 2026-11-02, names only: every variable the tool reads exists for Production; `CONTRACT_DISABLED` does not.)
 
 I compare the hashes against the journal (`drizzle/meta/_journal.json`, entries 0 to 25 on `main`) and report exactly
 which migrations production is missing before anything is applied.
@@ -121,9 +119,8 @@ scripts/migrate-http.ts`, with production's own connection string, never by edit
 step 0 found missing, in order, ending at `0029`. Then re-run the step 0 queries; every one must show the expected
 result before step 4. `0026` to `0029` only add the tool's own tables, so nothing else reads them.
 
-**Step 3. Production env vars.** Add `AEO_OUTBOUND_USERS` (Ryan, you, and anyone else who generates reports) and set
-`GLEAN_ACT_AS` to match staging's Glean token type. Each value also goes in a local gitignored env file, per the
-credentials rule.
+**Step 3. Production env vars.** Nothing to add: every one exists for Production (Vercel, 2026-11-02). Only check that
+`AEO_OUTBOUND_USERS`, one value shared by every environment, lists everyone who should generate reports on production.
 
 **Step 4. Merge the release branch into main.** One PR, with the self-review comment and `self-reviewed` label, local
 checks if CI minutes are out, and your explicit go-ahead. Vercel deploys `main` to production.
@@ -149,4 +146,4 @@ opening** until the tool is restored. That is the reason to send production link
 2. ~~Promote all of staging?~~ Decided 2026-11-02: only the tool (step 1). Open instead: ship the lock sweep fix and the
    Next.js security bump to production separately?
 3. Who goes on `AEO_OUTBOUND_USERS` for production?
-4. Which Glean token type does staging use (`GLEAN_ACT_AS`)?
+4. ~~Which Glean token type does staging use?~~ Settled: one `GLEAN_ACT_AS` entry covers every environment.
