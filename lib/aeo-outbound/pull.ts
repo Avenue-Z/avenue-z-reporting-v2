@@ -3,7 +3,8 @@
 // words (v1.1 §7). Every Peec response is checked against its contract before it is used (v1.1 §10).
 import { DECISIONS, MAX_WINDOW_DAYS, PITCH_STATUSES } from './config'
 import { peecContract } from './contracts'
-import { isPeecContractViolation, isPeecDeadline, isPeecRowCap, PeecClient, PeecError, rowsOf } from './peec'
+import { errorLabel } from './log'
+import { isPeecContractViolation, isPeecDeadline, isPeecRowCap, isPeecTimeout, PeecClient, PeecError, rowsOf } from './peec'
 import { ownRowsOf } from './own-rows'
 import { defaultRange, todayUtc, type DayRange } from './range'
 
@@ -55,6 +56,21 @@ export interface PeecPull {
   /** Spec 2026-11-02 S2: answers citing any own site, counted once, from the report by answer. Present only when several
    *  own sites are cited; null when that call failed, so the Citation rate is left out. */
   ownCitedAnswers?: number | null
+}
+
+/** Paul, #431 review: the call by answer only feeds the Citation rate, so it gets its own budget and row cap and can never
+ *  spend the time or rows the rest of the report needs. Largest measured: 2,627 rows (Crocs, every own domain), one page. */
+export const OWN_ANSWERS_BUDGET_MS = 30_000
+export const OWN_ANSWERS_MAX_ROWS = 30_000
+
+/** Why an optional call failed, for a log line: a contract field, timeout, row_cap or the HTTP status. Never the message
+ *  itself, which can carry part of Peec's response (peec.ts). */
+function failureReason(e: unknown): string {
+  if (isPeecContractViolation(e)) return (e as Error).message
+  if (isPeecRowCap(e)) return 'row_cap'
+  if (isPeecTimeout(e)) return 'timeout'
+  const status = e instanceof PeecError ? /: HTTP (\d{3}) /.exec(e.message)?.[1] : undefined
+  return status ? `http_${status}` : errorLabel(e)
 }
 
 /** An optional call's failure becomes a warning, except a spent deadline or a broken contract. A per-call timeout
@@ -143,20 +159,20 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
 
   // Spec 2026-11-02 S2: answers citing any own site, counted once. One cited own row carries that count itself
   // (cited_chat_count); several need the report by answer, since one answer can cite two own sites. Only the Citation rate
-  // bullet depends on it, so any failure but a spent deadline leaves that bullet out, a broken contract included.
-  const ownRows = ownRowsOf(domains, owned[0].domains)
-  const citedOwn = ownRows.filter((r) => r.citation_count > 0)
+  // bullet depends on it, so any failure leaves that bullet out, a broken contract included; only the report's own
+  // deadline spent fails the pull, as it does for every call.
+  const citedOwn = ownRowsOf(domains, owned[0].domains).filter((r) => r.citation_count > 0)
   let ownCitedAnswers: number | null | undefined
   if (citedOwn.length > 1) {
     try {
-      // A row with no answer id has no key, so the contract names the field rather than the client calling it a repeat
-      // (Paul, #388 review).
-      const byAnswer = peecContract('peec.own_cited_chats', await client.all<{ domain: string; chat: { id: string }; citation_count: number }>(
-        'POST', '/reports/domains', { ...W, dimensions: ['chat_id'], filters: [{ field: 'domain', operator: 'in', values: ownRows.map((r) => r.domain) }] },
+      // Only cited own sites are asked for: an uncited one adds rows but no citing answer (Paul, #431 review). A row with no
+      // answer id has no key, so the contract names the field rather than the client calling it a repeat (Paul, #388 review).
+      const byAnswer = peecContract('peec.own_cited_chats', await client.limited(OWN_ANSWERS_BUDGET_MS, OWN_ANSWERS_MAX_ROWS).all<{ domain: string; chat: { id: string }; citation_count: number }>(
+        'POST', '/reports/domains', { ...W, dimensions: ['chat_id'], filters: [{ field: 'domain', operator: 'in', values: citedOwn.map((r) => r.domain) }] },
         (r) => (r.chat?.id ? `${r.domain}|${r.chat.id}` : null), 10_000))
-      // Only own domains count, whatever the filter matched. The distinct count must lie between the most-cited own site's
-      // answers and the sum over the own sites; outside that the filter did not do what was asked, so the rate is left out.
-      const own = new Set(ownRows.map((r) => r.domain))
+      // Only cited own domains count, whatever the filter matched. The distinct count must lie between the most-cited own
+      // site's answers and the sum over the cited own sites; outside that the filter did not do what was asked.
+      const own = new Set(citedOwn.map((r) => r.domain))
       const count = new Set(byAnswer.filter((r) => own.has(r.domain) && r.citation_count > 0).map((r) => r.chat.id)).size
       const least = Math.max(...citedOwn.map((r) => r.cited_chat_count))
       const most = citedOwn.reduce((s, r) => s + r.cited_chat_count, 0)
@@ -167,9 +183,11 @@ export async function pullSnapshot(client: PeecClient, projectId: string, nowMs:
         console.warn(`[aeo-outbound] own cited answers out of range count=${count} least=${least} most=${most}`)
       }
     } catch (e) {
-      if (isPeecDeadline(e)) throw e
+      // The call's own budget running out is a warning; the report's deadline spent is not.
+      if (isPeecDeadline(e) && client.deadlinePassed()) throw e
       ownCitedAnswers = null
       warnings.push("Peec's answers by own site could not be loaded, so the citation rate is left out.")
+      console.warn(`[aeo-outbound] own cited answers not loaded project=${projectId} reason=${failureReason(e)}`)
     }
   }
 

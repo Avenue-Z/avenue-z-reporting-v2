@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { isPeecDeadline, PeecClient, PeecError } from './peec'
-import { listProjects, pullSnapshot } from './pull'
+import { listProjects, OWN_ANSWERS_BUDGET_MS, OWN_ANSWERS_MAX_ROWS, pullSnapshot } from './pull'
 
 // The client logs each retry; keep the file quiet.
 beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
@@ -334,7 +334,8 @@ test('S2: with several cited own sites, one call by answer over every own domain
   expect(calls.filter((c) => Number(c.body?.offset ?? 0) === 0)).toHaveLength(1)
   for (const c of calls) {
     expect(c.body).toMatchObject({ project_id: 'or_a', start_date: '2026-10-05', end_date: '2026-10-06', dimensions: ['chat_id'] })
-    expect(c.body?.filters).toEqual([{ field: 'domain', operator: 'in', values: ['example.com', 'shop.example.com', 'blog.example.com'] }])
+    // Only cited own sites: an uncited one adds no citing answer, only rows (Paul, #431 review).
+    expect(c.body?.filters).toEqual([{ field: 'domain', operator: 'in', values: ['example.com', 'shop.example.com'] }])
   }
   // ch_1 cites two own sites and counts once; ch_3 cites none.
   expect(pull.ownCitedAnswers).toBe(2)
@@ -355,13 +356,43 @@ test('S2: a failed call by answer, or one that breaks its contract, leaves the c
   }
 })
 
-test('S2: a per-call timeout with budget left is a warning; one the deadline capped fails the pull', async () => {
+test('S2: the call by answer has its own budget: running out of it is a warning; the report\'s own deadline spent fails the pull (Paul, #431 review)', async () => {
   const abort: Route = () => { throw { abort: true } }
   const roomy = await pullSnapshot(fakePeec(withDomains(MULTI, abort), ROOMY).client, 'or_a', NOW)
   expect(roomy.ownCitedAnswers).toBeNull()
   expect(roomy.warnings).toEqual([RATE_WARNING])
-  const err = await pullSnapshot(fakePeec(withDomains(MULTI, abort), CAPPED).client, 'or_a', NOW).catch((e: unknown) => e)
+  // Its budget runs out after the first page while the report still has time: a warning, and the pull goes on.
+  let t = 0
+  const slow = (step: number): Route => () => { t += step; return BY_ANSWER }
+  const own = await pullSnapshot(fakePeec(withDomains(MULTI, slow(OWN_ANSWERS_BUDGET_MS + 1_000)), { now: () => t, deadline: 200_000 }).client, 'or_a', NOW)
+  expect(own.ownCitedAnswers).toBeNull()
+  expect(own.warnings).toEqual([RATE_WARNING])
+  expect(own.promptCount).toBe(100)
+  // The report's own deadline passes during the call: the pull fails, as any spent deadline does.
+  t = 0
+  const err = await pullSnapshot(fakePeec(withDomains(MULTI, slow(21_000)), { now: () => t, deadline: 20_000 }).client, 'or_a', NOW).catch((e: unknown) => e)
   expect(isPeecDeadline(err)).toBe(true)
+})
+
+test('S2: the call by answer stops past its own row cap, as a warning, so an ignored filter cannot page through the report', async () => {
+  const flood = () => Array.from({ length: OWN_ANSWERS_MAX_ROWS + 1 }, (_, i) => ({ domain: 'example.com', chat: { id: `ch_${i}` }, citation_count: 1, total_chat_count: 1 }))
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, flood)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBeNull()
+  expect(pull.warnings).toEqual([RATE_WARNING])
+})
+
+test('S2: a failed call by answer logs the project and a reason that carries no response text (Paul, #431 review)', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const line = async (route: Route, opts = {}) => {
+    warn.mockClear()
+    await pullSnapshot(fakePeec(withDomains(MULTI, route), opts).client, 'or_a', NOW)
+    return warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('own cited answers not loaded'))
+  }
+  expect(await line(() => { throw { status: 500 } })).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=http_500'])
+  expect(await line(() => [{ domain: 'example.com', chat: null, citation_count: 1 }])).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=peec.own_cited_chats.chat'])
+  expect(await line(() => { throw { abort: true } }, ROOMY)).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=timeout'])
+  expect(await line(() => Array.from({ length: OWN_ANSWERS_MAX_ROWS + 1 }, (_, i) => ({ domain: 'example.com', chat: { id: `c${i}` }, citation_count: 1 })))).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=row_cap'])
 })
 
 // Final review of #431: the answer rows are counted only for own domains, and a count outside what the own rows allow
