@@ -3,6 +3,7 @@
 import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT, SENTENCES_VERSION } from './config'
 import { chartedBrands } from './charted'
 import type { Note, NoteKind, StoredNote } from './notes'
+import { ownDomainMatch, ownRowsOf } from './own-rows'
 import type { PeecPull } from './pull'
 
 /** The three DECISIONS this file reads; a parameter so tests can cover both settings of each. */
@@ -221,13 +222,9 @@ export function buildSnapshotData(
   // v1.1 §9: each own domain keeps its own count and percentage; the sum is never paired with one domain's percentage.
   const ownDomains = (pull.ownBrand.domains ?? []).map(bare)
   // A row is own when Peec classifies it OWN, or its domain is an own domain or a subdomain of one, the same
-  // match the gap filter uses below (spec 18.2). An empty entry is skipped so it can never match by suffix.
-  const ownMatch = ownDomains.filter(Boolean)
-  const ownRows = pull.domains.filter((r) => {
-    if (r.classification === 'OWN') return true
-    const d = bare(r.domain)
-    return ownMatch.some((od) => d === od || d.endsWith(`.${od}`))
-  })
+  // match the gap filter uses below and the pull's own-site call uses (own-rows.ts, spec 18.2).
+  const ownMatch = ownDomainMatch(pull.ownBrand.domains)
+  const ownRows = ownRowsOf(pull.domains, pull.ownBrand.domains)
   const ownSites: OwnSite[] = ownRows
     .map((r) => ({ domain: r.domain, retrievedChats: r.retrieved_chat_count ?? 0, retrievedPct: typeof r.retrieved_percentage === 'number' ? pct1(r.retrieved_percentage) : null }))
     .sort((a, b) => (b.retrievedChats - a.retrievedChats) || (a.domain < b.domain ? -1 : 1))
