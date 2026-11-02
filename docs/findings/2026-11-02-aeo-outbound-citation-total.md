@@ -68,3 +68,15 @@ Count Peec's real citations across the whole Cited Sources section:
   chosen on 2026-10-19 (`config.ts:13-15`). Whether that chart still uses it is unverified.
 - Plumbing: `citation_count` and `cited_percentage` on `DomainRow` (`pull.ts:20-28`) and the contract; a new
   `SENTENCES_VERSION` with the old boxes kept for grounding; the Glean prompt's description of the mix (`prompt.ts:56`).
+
+## Follow-up: what still matches the chart (Ryan, 2026-11-02)
+
+Ryan asked whether any stat in the section would still match the chart after the change. Measured, read only, all 62
+pitch projects with data: the brand's citation share (every own domain) equals the donut's "You" slice weighted by
+`citation_count` on every project (the "You" slice counts rows Peec classifies OWN, `metrics.ts:126`; Peec files every
+own domain as OWN, so the two sets are the same; examples: Crocs 8.1% and 8.1% over 29 own domains, A Place for Mom
+4.5% and 4.5%). So after the change the source-type mix equals the donut's slices (same weights, as today) and the
+citation share equals the "You" slice. Citation rate stays a share of answers, a different measure, and is not on the
+chart. The donut labels whole numbers (`charts.ts` sliceLabel), so the citation share should print the same way
+("4.5%" would sit beside a "5%" slice), as the pillar lines already do. Nothing in the section would match Peec's own
+Domain types chart once it stops using `usage_rate`.
