@@ -142,13 +142,20 @@ export const PAGE_CSS = [
 ].join('\n')
 
 /** Every mode: the menu scrolls inside the report instead of loading the editor's address in the frame (v1.1 §17.1), and
- *  the phone donut shows each slice's own label (§17.2; since 2026-10-19 the figure's text, charts.ts sliceLabel, so
- *  phone, desktop and the source-mix sentence round a slice the same way), and the menu marks 05 at the bottom of the
- *  page, where AIVx's scroll-spy never reaches the short last section (§17.12). The donut's two legend columns fall back
- *  to Plotly's flowing legend wherever a name would run into the next name in its row (or past the chart's edge, for a
- *  name with nothing to its right, Paul's #410 review): checked once at load on a desktop width,
- *  after each two-column draw, when a font still loading at load arrives, and 150ms after the last resize that changed
- *  the chart's width (round 3, spec 2026-10-21 C5). Registered before the frame script's
+ *  the menu marks 05 at the bottom of the page, where AIVx's scroll-spy never reaches the short last section (§17.12).
+ *  The donut is drawn as the server built it at every width: since 2026-11-03 the figure itself carries what this script
+ *  drew on a phone before (§17.2: each slice's share in its legend entry, ring labels from 5%, a plain-name hover;
+ *  charts.ts sourceDonutFigure), so there is no phone redraw. The donut's two legend columns fall back
+ *  to Plotly's flowing legend wherever a name would run into the next name in its row (or, for a name with nothing to
+ *  its right, past the chart's edge, Paul's #410 review, or past the legend box, where Plotly clips it, 2026-11-03):
+ *  checked once at load, after each two-column draw, when a font still loading at load arrives, and 150ms after the last
+ *  resize that changed the chart's width (round 3, spec 2026-10-21 C5); never while the chart has no width (a report
+ *  loaded hidden), which the first resize after it is shown checks instead (2026-11-03). After every check the chart grows by whatever
+ *  its legend takes past half the figure's height (Plotly's own cap, which the figure lifts, charts.ts donutLegend), so a
+ *  long legend shows whole instead of scrolling, the ring keeps the room it had, and a legend that fits leaves the chart
+ *  as it was (2026-11-03; a failed redraw puts the box back with the originals). It grows by redrawing what it last drew
+ *  at the new height (Plotly.react), never by a relayout: in Plotly 3.5.0 a relayout that sets the height pins the width,
+ *  and one that clears it puts back the first drawn width, so the chart stopped following its box. Registered before the frame script's
  *  listener, so it runs first. A chart drawn while the report had no layout (loaded hidden, then shown) keeps Plotly's
  *  default 700px and no window resize arrives to correct it, so each chart is watched and one resize is sent when its
  *  box and its drawn width disagree; Plotly (responsive) and the legend check answer it (spec 2026-10-22
@@ -164,18 +171,16 @@ var n=e.target;if(!n||!n.closest)return;
 var a=n.closest('a[href^="#"]');
 if(a){if(document.querySelector('[data-slot][contenteditable]'))return;var id=a.getAttribute('href').slice(1);var t=id&&document.getElementById(id);if(t){e.preventDefault();if(a.closest('.sidebar-nav'))setActive(a.getAttribute('href'));if(t.scrollIntoView)t.scrollIntoView({behavior:'smooth',block:'start'})}return}
 },true);
-var el=document.getElementById('aeo-chart-sources'),orig=null,cur=null,restored=false,fallen=false,w=-1,tmr=null;
+var el=document.getElementById('aeo-chart-sources'),orig=null,cur=null,shown=null,restored=false,fallen=false,w=-1,tmr=null;
 function copy(x){return JSON.parse(JSON.stringify(x))}
-function restore(){if(restored||!orig)return;restored=true;try{var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
-function draw(d,l,after){try{var p=window.Plotly.react(el,d,l);if(p&&p.then)p.then(after,restore);else if(after)after()}catch(err){restore()}}
-function fits(){var it=el.querySelectorAll('.legend .traces');if(it.length<2)return true;var e=[];for(var i=0;i<it.length;i++){var r=it[i].getBoundingClientRect(),t=it[i].querySelector('.legendtext')||it[i];e.push([Math.round(r.left),t.getBoundingClientRect().right,Math.round(r.top)])}var edge=el.getBoundingClientRect().right;for(var j=0;j<e.length;j++){var lim=edge;for(var k=0;k<e.length;k++)if(Math.abs(e[k][2]-e[j][2])<=2&&e[k][0]>e[j][0]&&e[k][0]<lim)lim=e[k][0];if(e[j][1]>lim-2)return false}return true}
-function check(){try{w=el.clientWidth;if(fallen||!cur||!cur.l.legend||!cur.l.legend.entrywidth||fits())return;fallen=true;var l=copy(cur.l);delete l.legend.entrywidth;delete l.legend.entrywidthmode;draw(copy(cur.d),l)}catch(err){}}
-function apply(phone){if(!el||!window.Plotly||!orig)return;restored=false;if(!phone){cur=orig;fallen=false;draw(copy(orig.d),copy(orig.l),check);return}
-var d=copy(orig.d),l=copy(orig.l),t=d[0];if(!t)return;var v=t.values||[],tx=t.text,total=0;if(!Array.isArray(tx)||tx.length!==v.length)return;for(var i=0;i<v.length;i++)total+=v[i];if(!total)return;var lab=t.labels||[];
-t.customdata=lab.slice();t.texttemplate=v.map(function(x){return x/total>=0.05?'%{text}':''});t.labels=lab.map(function(x,i){return x+' '+tx[i]});
-if(t.hovertemplate)t.hovertemplate=String(t.hovertemplate).replace('%{label}','%{customdata}');cur={d:copy(d),l:copy(l)};fallen=false;draw(d,l,check)}
+function restore(){if(restored||!orig)return;restored=true;try{el.parentElement.style.height=orig.l.height+'px';shown=orig;var p=window.Plotly.react(el,copy(orig.d),copy(orig.l));if(p&&p.catch)p.catch(function(){})}catch(err){}}
+function draw(d,l,after){try{shown={d:copy(d),l:copy(l)};var p=window.Plotly.react(el,d,l);if(p&&p.then)p.then(after,restore);else if(after)after()}catch(err){restore()}}
+function fits(){var it=el.querySelectorAll('.legend .traces');if(it.length<2)return true;var e=[];for(var i=0;i<it.length;i++){var r=it[i].getBoundingClientRect(),t=it[i].querySelector('.legendtext')||it[i];e.push([Math.round(r.left),t.getBoundingClientRect().right,Math.round(r.top)])}var edge=el.getBoundingClientRect().right,bg=el.querySelector('.legend rect.bg');if(bg)edge=Math.min(edge,bg.getBoundingClientRect().right);for(var j=0;j<e.length;j++){var lim=edge;for(var k=0;k<e.length;k++)if(Math.abs(e[k][2]-e[j][2])<=2&&e[k][0]>e[j][0]&&e[k][0]<lim)lim=e[k][0];if(e[j][1]>lim-2)return false}return true}
+function widest(){var it=el.querySelectorAll('.legend .traces'),m=0;for(var i=0;i<it.length;i++){var t=it[i].querySelector('.legendtext')||it[i];m=Math.max(m,t.getBoundingClientRect().right-it[i].getBoundingClientRect().left)}return m}
+function grow(){try{var bg=el.querySelector('.legend rect.bg'),fl=el._fullLayout,base=orig.l.height;if(!bg||!fl||!base||!shown)return;var h=Math.max(base,Math.ceil(base+bg.getBoundingClientRect().height-base/2));el.parentElement.style.height=h+'px';if(Math.abs(h-fl.height)<1)return;var l=copy(shown.l);l.height=h;draw(copy(shown.d),l)}catch(err){}}
+function check(){try{w=el.clientWidth;if(!w)return;if(fallen||!cur||!cur.l.legend||!cur.l.legend.entrywidth||fits()){grow();return}fallen=true;var l=copy(cur.l);l.legend.entrywidth=Math.min(el.clientWidth-16,Math.ceil(widest()+6));l.legend.entrywidthmode='pixels';draw(copy(cur.d),l,grow)}catch(err){}}
 function resized(){clearTimeout(tmr);tmr=setTimeout(function(){try{if(el.clientWidth===w)return;if(!fallen){check();return}restored=false;fallen=false;draw(copy(cur.d),copy(cur.l),check)}catch(err){}},150)}
-function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};cur=orig;w=el.clientWidth;window.addEventListener('resize',resized);var f=document.fonts;if(f&&f.status==='loading'&&f.ready&&f.ready.then)f.ready.then(check);if(!window.matchMedia){check();return}var mq=window.matchMedia('(max-width: 900px)');if(mq.matches)apply(true);else check();var on=function(ev){apply(ev.matches)};if(mq.addEventListener)mq.addEventListener('change',on);else if(mq.addListener)mq.addListener(on)}
+function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};cur=orig;shown=orig;w=el.clientWidth;window.addEventListener('resize',resized);var f=document.fonts;if(f&&f.status==='loading'&&f.ready&&f.ready.then)f.ready.then(check);check()}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}
 if(window.ResizeObserver){var fitT=null;var fitRo=new window.ResizeObserver(function(es){for(var i=0;i<es.length;i++){var g=es[i].target,fl=g._fullLayout;if(fl&&g.clientWidth>0&&Math.abs(g.clientWidth-Math.round(fl.width))>1){clearTimeout(fitT);fitT=setTimeout(function(){window.dispatchEvent(new Event('resize'))},100);return}}});var gds=document.querySelectorAll('.plotly-graph-div');for(var gi=0;gi<gds.length;gi++)fitRo.observe(gds[gi])}
 })();`
