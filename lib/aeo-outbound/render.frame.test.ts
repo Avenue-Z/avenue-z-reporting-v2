@@ -414,6 +414,18 @@ test('legend: a one-column entry never runs wider than the chart less 16px, howe
   expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 284))
 })
 
+test('legend: a chart with no width (the report loaded hidden) is not checked until it has one, then is checked once', async () => {
+  let el!: HTMLElement
+  const { react, fig } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, OVERLAPS, 0, 0) } })
+  await flush()
+  expect(react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS, 300, 300)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 166))
+})
+
 test('legend: with no matchMedia the desktop check still runs once and falls back where names overlap', async () => {
   const { react, fig } = bootDonut({ noMatchMedia: true, before: (el) => setLegend(el, OVERLAPS) })
   await flush()

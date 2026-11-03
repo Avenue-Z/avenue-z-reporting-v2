@@ -149,7 +149,8 @@ export const PAGE_CSS = [
  *  to Plotly's flowing legend wherever a name would run into the next name in its row (or, for a name with nothing to
  *  its right, past the chart's edge, Paul's #410 review, or past the legend box, where Plotly clips it, 2026-11-03):
  *  checked once at load, after each two-column draw, when a font still loading at load arrives, and 150ms after the last
- *  resize that changed the chart's width (round 3, spec 2026-10-21 C5). After every check the chart grows by whatever
+ *  resize that changed the chart's width (round 3, spec 2026-10-21 C5); never while the chart has no width (a report
+ *  loaded hidden), which the first resize after it is shown checks instead (2026-11-03). After every check the chart grows by whatever
  *  its legend takes past half the figure's height (Plotly's own cap, which the figure lifts, charts.ts donutLegend), so a
  *  long legend shows whole instead of scrolling, the ring keeps the room it had, and a legend that fits leaves the chart
  *  as it was (2026-11-03; a failed redraw puts the box back with the originals). It grows by redrawing what it last drew
@@ -177,7 +178,7 @@ function draw(d,l,after){try{shown={d:copy(d),l:copy(l)};var p=window.Plotly.rea
 function fits(){var it=el.querySelectorAll('.legend .traces');if(it.length<2)return true;var e=[];for(var i=0;i<it.length;i++){var r=it[i].getBoundingClientRect(),t=it[i].querySelector('.legendtext')||it[i];e.push([Math.round(r.left),t.getBoundingClientRect().right,Math.round(r.top)])}var edge=el.getBoundingClientRect().right,bg=el.querySelector('.legend rect.bg');if(bg)edge=Math.min(edge,bg.getBoundingClientRect().right);for(var j=0;j<e.length;j++){var lim=edge;for(var k=0;k<e.length;k++)if(Math.abs(e[k][2]-e[j][2])<=2&&e[k][0]>e[j][0]&&e[k][0]<lim)lim=e[k][0];if(e[j][1]>lim-2)return false}return true}
 function widest(){var it=el.querySelectorAll('.legend .traces'),m=0;for(var i=0;i<it.length;i++){var t=it[i].querySelector('.legendtext')||it[i];m=Math.max(m,t.getBoundingClientRect().right-it[i].getBoundingClientRect().left)}return m}
 function grow(){try{var bg=el.querySelector('.legend rect.bg'),fl=el._fullLayout,base=orig.l.height;if(!bg||!fl||!base||!shown)return;var h=Math.max(base,Math.ceil(base+bg.getBoundingClientRect().height-base/2));el.parentElement.style.height=h+'px';if(Math.abs(h-fl.height)<1)return;var l=copy(shown.l);l.height=h;draw(copy(shown.d),l)}catch(err){}}
-function check(){try{w=el.clientWidth;if(fallen||!cur||!cur.l.legend||!cur.l.legend.entrywidth||fits()){grow();return}fallen=true;var l=copy(cur.l);l.legend.entrywidth=Math.min(el.clientWidth-16,Math.ceil(widest()+6));l.legend.entrywidthmode='pixels';draw(copy(cur.d),l,grow)}catch(err){}}
+function check(){try{w=el.clientWidth;if(!w)return;if(fallen||!cur||!cur.l.legend||!cur.l.legend.entrywidth||fits()){grow();return}fallen=true;var l=copy(cur.l);l.legend.entrywidth=Math.min(el.clientWidth-16,Math.ceil(widest()+6));l.legend.entrywidthmode='pixels';draw(copy(cur.d),l,grow)}catch(err){}}
 function resized(){clearTimeout(tmr);tmr=setTimeout(function(){try{if(el.clientWidth===w)return;if(!fallen){check();return}restored=false;fallen=false;draw(copy(cur.d),copy(cur.l),check)}catch(err){}},150)}
 function init(){if(!el||!window.Plotly||!el.data)return;orig={d:copy(el.data),l:copy(el.layout)};cur=orig;shown=orig;w=el.clientWidth;window.addEventListener('resize',resized);var f=document.fonts;if(f&&f.status==='loading'&&f.ready&&f.ready.then)f.ready.then(check);check()}
 if(document.readyState==='complete'){init();bottomRule()}else{window.addEventListener('load',init);window.addEventListener('load',bottomRule)}
