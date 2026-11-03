@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
 import { z } from 'zod'
-import { CONTRACT_MODES, SENTENCES_VERSION } from './config'
+import { CONTRACT_MODES, DECISIONS, SENTENCES_VERSION } from './config'
 import { checkContract, GENERATE_BODY, GLEAN_SLOTS, PEEC_CONTRACTS, peecContract, SETTINGS_ROW, SLOTS_BODY } from './contracts'
 import { PeecError } from './peec'
 import { STORED_DATA, STORED_SLOTS } from './contracts'
@@ -276,13 +276,16 @@ test('2026-10-19 Peec parity: usage_rate is enforced, a non-negative number that
   }
 })
 
-test('2026-10-19 Peec parity: stored data records the source-mix weighting; absent on older rows, refused when unknown', () => {
+// Paul, #431 review: a build must read rows a later build wrote, so a rollback never strands them. The weighting is any
+// non-empty name; only the code that reads it decides what a name means (prompt.ts gives an unknown one its fallback label).
+test('stored data records the source-mix weighting: absent on older rows, any non-empty name readable, so a rollback can read newer rows', () => {
   const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
-  expect(v2.sourceMixWeight).toBe('usage_rate')
+  // Today's default is pinned in config.test.ts; here the row records whichever weighting generated it.
+  expect(v2.sourceMixWeight).toBe(DECISIONS.sourceMixWeight)
   const { sourceMixWeight: _w, ...older } = v2
   expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
-  for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce')).toEqual({ ok: true })
-  for (const w of ['bogus', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok).toBe(false)
+  for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate', 'citation_count', 'a_later_weighting']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce'), w).toEqual({ ok: true })
+  for (const w of ['', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok, String(w)).toBe(false)
 })
 
 test('stored slots: opportunities_page is absent, shown or hidden; anything else breaks the contract (Ryan, round 3)', () => {
