@@ -4,6 +4,13 @@
 starts until Paul has approved #434, #431, #432 and #433, they are merged to `dev` and promoted to staging, and Ryan has
 signed off on staging.
 
+**Update 2026-11-03.** Paul approved all four; merged to `dev` in order (#434 `39cc80fb`, #432 `a4ae679b`, #433
+`637e7fb0`, #431 `69c3acfc`) and promoted by #435 (staging `901560ed`, its tree equal to `dev`'s). No schema or migration
+change since 2026-11-02 (`git diff 05b399cc origin/staging -- lib/db/schema.ts drizzle` is empty). Staging is now 482
+commits ahead of `main` (408 without merges), from 35 feature PRs; `main` still holds 4 commits staging lacks (#401 and
+two old promotion merges). A signed-in PDF export on staging (Renaissance, Organic Social, `last_month`) returned a 10-page
+PDF of 2.18 MB from Chromium 153 on 2026-11-03; the acceptance script's layout checks were not run on it.
+
 Every fact below cites the commit, file or record it was read from (refs as of 2026-11-02: `main` `17aa47db`, staging
 `05b399cc`, `dev` `4cf99df2`). Anything that could not be read from here is marked **Unverified** with the read-only
 check that settles it.
@@ -112,7 +119,13 @@ and your go-ahead.
 - The Neon transfer fix for the lock sweep (`651cd21e`, `0c0de4a2`, `c6edad3b`): production keeps running the pre-fix
   sweep every hour (section 1). Ship it on its own if step 0 shows production shares the quota or is near it.
 - The Next.js security bump (`4603ae7c`): production stays on 16.3.8. A candidate for its own small release.
-- Bulk PDF export (#386) and the puppeteer bump (#433): stay on staging.
+- Bulk PDF export (#386) and the puppeteer bump (#433): stay on staging. Production keeps `chromium-bidi`'s zod 3.25.76
+  copy (GHSA-mrhx-c7xc-m3w5) as it has today, so the release PR's `checks / checks` sca gate stays red. `main` does not
+  require that check (read 2026-11-03).
+- Everything else in staging and not in `main` stays off production too: 35 feature PRs sit between them (2026-11-03), and
+  only the tool's files and the shared lines listed above are copied. Re-checked 2026-11-03 on staging `901560ed`: the
+  tool's 76 source files import seven modules from outside their folders; six are identical on `main` and
+  `lib/db/schema.ts` differs only by the tool's enum and four tables (96 lines added, none removed).
 
 **Step 2. Migrate production, before the code.** `CACHE_DISABLE=1 npx tsx --env-file=<production env file>
 scripts/migrate-http.ts`, with production's own connection string, never by editing the staging guard. It applies what
@@ -124,6 +137,13 @@ result before step 4. `0026` to `0029` only add the tool's own tables, so nothin
 
 **Step 4. Merge the release branch into main.** One PR, with the self-review comment and `self-reviewed` label, local
 checks if CI minutes are out, and your explicit go-ahead. Vercel deploys `main` to production.
+
+`main` only takes PRs whose head is `staging`: `main-promotion-gate` requires `require-from-staging`
+(`.github/workflows/guard-main.yml`), and the ruleset has no bypass actors (read 2026-11-03). #401 shipped the same way
+(`release/tiktok-video-views-main`, 2026-10-15) and the ruleset was edited at the minute it merged. So this merge needs
+you or Paul to lift that one required check in the ruleset for the merge and put it back right after; Claude Code will
+not change rulesets or merge around required checks. The other required checks (`require-self-review`, `rsc-boundary`,
+`test`) still have to pass.
 
 **Step 5. Verify on production.**
 - Read only first: the hub loads for Ryan; Settings shows the defaults; `/snapshot/<anything>` answers "not available".
