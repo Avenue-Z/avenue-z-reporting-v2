@@ -3,6 +3,7 @@
 import { DECISIONS, IMPLAUSIBLE_VISIBILITY_PCT, SENTENCES_VERSION } from './config'
 import { chartedBrands } from './charted'
 import type { Note, NoteKind, StoredNote } from './notes'
+import { bareDomain, ownDomainMatch, ownRowsOf, sameOrSubdomain } from './own-rows'
 import type { PeecPull } from './pull'
 
 /** The three DECISIONS this file reads; a parameter so tests can cover both settings of each. */
@@ -81,6 +82,28 @@ export interface SnapshotData {
   /** 2026-10-19 Peec parity: the source-mix weighting this row was generated with. Absent on older rows, which weighted
    *  by retrieval_count; prompt.ts keeps their Data line as it was. */
   sourceMixWeight?: MetricDecisions['sourceMixWeight']
+  /** Spec 2026-11-02 S4: what Cited Sources prints. Absent on rows from before it, which keep their version 3 box. */
+  citations?: Citations
+}
+
+/** Spec 2026-11-02 S1, S2. */
+export interface Citations {
+  /** X: the citations of every own-matched row. */
+  own: number
+  /** Y: every citation in the window. */
+  total: number
+  /** T: every answer in the window (Peec's total_chat_count). */
+  answers: number
+  /** C: answers citing any own site, counted once; null when the report by answer failed. */
+  citedAnswers: number | null
+  /** N: the sites with at least one citation, own sites included. */
+  citedSites: number
+  /** How many own rows have a citation: more than one reads "<Brand>'s own sites". */
+  ownSitesCited: number
+  /** The most-cited own row (the brand's main domain on a tie), its rank as Peec ranks domains (1 + the rows above it),
+   *  whether any other site is level with it at rank 1 (tied), and whether another own site is level with it at any rank
+   *  (ownLevel). Null when no own row is cited. */
+  topSite: { domain: string; rank: number; tied: boolean; ownLevel: boolean } | null
 }
 
 /** Python's round(x, dp): correctly rounded from the exact binary value, ties to even (symmetric for negatives). */
@@ -131,7 +154,6 @@ export const titleClassification = (c: string): string => TITLE[c] ?? c
 const pct1 = (ratio: number) => pyRound(ratio * 100, 1)
 /** a minus b for two 1-decimal values, exact to the tenth (spec v1.1 §19.4). */
 export const tenths = (a: number, b: number): number => Math.round((a - b) * 10) / 10
-const bare = (d: string) => d.trim().toLowerCase().replace(/^www\./, '')
 
 export function buildSnapshotData(
   pull: PeecPull,
@@ -219,15 +241,11 @@ export function buildSnapshotData(
   const noDataBrands = ranked.filter((e) => !e.hasRow && e.id !== pull.ownBrand.id).map((e) => e.name)
 
   // v1.1 §9: each own domain keeps its own count and percentage; the sum is never paired with one domain's percentage.
-  const ownDomains = (pull.ownBrand.domains ?? []).map(bare)
+  const ownDomains = (pull.ownBrand.domains ?? []).map(bareDomain)
   // A row is own when Peec classifies it OWN, or its domain is an own domain or a subdomain of one, the same
-  // match the gap filter uses below (spec 18.2). An empty entry is skipped so it can never match by suffix.
-  const ownMatch = ownDomains.filter(Boolean)
-  const ownRows = pull.domains.filter((r) => {
-    if (r.classification === 'OWN') return true
-    const d = bare(r.domain)
-    return ownMatch.some((od) => d === od || d.endsWith(`.${od}`))
-  })
+  // match the gap filter uses below and the pull's own-site call uses (own-rows.ts, spec 18.2).
+  const ownMatch = ownDomainMatch(pull.ownBrand.domains)
+  const ownRows = ownRowsOf(pull.domains, pull.ownBrand.domains)
   const ownSites: OwnSite[] = ownRows
     .map((r) => ({ domain: r.domain, retrievedChats: r.retrieved_chat_count ?? 0, retrievedPct: typeof r.retrieved_percentage === 'number' ? pct1(r.retrieved_percentage) : null }))
     .sort((a, b) => (b.retrievedChats - a.retrievedChats) || (a.domain < b.domain ? -1 : 1))
@@ -235,8 +253,31 @@ export function buildSnapshotData(
   const ownRetrievedPct = ownSites.length === 1 ? ownSites[0].retrievedPct : null
   const topOwn = ownSites[0]
   const ownSiteRank = topOwn && topOwn.retrievedChats > 0 ? 1 + pull.domains.filter((r) => (r.retrieved_chat_count ?? 0) > topOwn.retrievedChats).length : null
+  // Spec 2026-11-02 S1, S2: the brand's citations against every citation, the top own site's rank as Peec ranks domains,
+  // and the answers that cite any own site (the pull counts those when several own sites are cited).
+  const citedOwn = ownRows.filter((r) => r.citation_count > 0)
+  // On a tie the brand's main domain (an own domain itself, not a subdomain) is the one named (Paul, #431 review).
+  const isMain = (r: { domain: string }) => ownMatch.includes(bareDomain(r.domain))
+  const topCited = [...citedOwn].sort((a, b) => (b.citation_count - a.citation_count) || (Number(isMain(b)) - Number(isMain(a))) || (a.domain < b.domain ? -1 : 1))[0]
+  const citations: Citations = {
+    own: citedOwn.reduce((s, r) => s + r.citation_count, 0),
+    total: pull.domains.reduce((s, r) => s + r.citation_count, 0),
+    answers: pull.domains[0]?.total_chat_count ?? 0,
+    citedAnswers: citedOwn.length > 1 ? (pull.ownCitedAnswers ?? null) : (citedOwn[0]?.cited_chat_count ?? 0),
+    citedSites: pull.domains.filter((r) => r.citation_count > 0).length,
+    ownSitesCited: citedOwn.length,
+    topSite: topCited ? {
+      domain: topCited.domain,
+      rank: 1 + pull.domains.filter((r) => r.citation_count > topCited.citation_count).length,
+      // At rank 1, any other site level with it, the brand's own included, so a sentence never calls it "alone" beside an
+      // equal sibling (Paul, #431 review). Below rank 1 a level site shares the rank, as Peec ranks domains.
+      tied: pull.domains.every((r) => r.citation_count <= topCited.citation_count) && pull.domains.some((r) => r !== topCited && r.citation_count === topCited.citation_count),
+      // At any rank: the sentence then never calls the top own site "alone" beside an equal sibling.
+      ownLevel: citedOwn.some((r) => r !== topCited && r.citation_count === topCited.citation_count),
+    } : null,
+  }
   if (!ownRows.length) note('own_domains', "No retrievals of the brand's own site in this window.")
-  if (ownRows.length > 1) note('own_domains', `The brand has ${ownRows.length} own domains with retrievals; each is listed with its own count and percentage.`)
+  if (ownRows.length > 1) note('own_domains', `The brand has ${ownRows.length} own domains; Cited Sources adds up their citations and ranks the most-cited one.`)
 
   const weights = new Map<string, number>()
   for (const r of pull.domains) {
@@ -279,17 +320,17 @@ export function buildSnapshotData(
   }
   /** The tracked competitors whose name a label of the domain spells exactly (ynab.com: YNAB), the last label aside. */
   const ownersByName = (d: string) => new Set(d.split('.').slice(0, -1).flatMap((l) => [...(namedBy.get(nameKey(l)) ?? [])]))
-  const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bare)).filter(Boolean)
+  const rosterSites = (keep: (id: string) => boolean) => pull.roster.filter((b) => keep(b.id)).flatMap((b) => (b.domains ?? []).map(bareDomain)).filter(Boolean)
   const keptSites = rosterSites((id) => chartedIds.has(id))
   const cutSites = rosterSites((id) => id !== pull.ownBrand.id && !chartedIds.has(id))
-  const within = (d: string, sites: string[]) => sites.some((s) => d === s || d.endsWith(`.${s}`))
+  const within = (d: string, sites: string[]) => sites.some((s) => sameOrSubdomain(d, s))
   /** The length of the closest (longest) site the domain is or sits under; -1 when none. */
-  const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (d === s || d.endsWith(`.${s}`) ? Math.max(n, s.length) : n), -1)
+  const closest = (d: string, sites: string[]) => sites.reduce((n, s) => (sameOrSubdomain(d, s) ? Math.max(n, s.length) : n), -1)
   const gapDomains = !decisions.competitorSiteGaps || competitorsTracked === 0 ? [] : pull.domains
     .filter((r) => {
       // A domain no answer retrieved is not a gap worth naming (final review M3).
       if ((r.retrieved_chat_count ?? 0) <= 0) return false
-      const d = bare(r.domain)
+      const d = bareDomain(r.domain)
       if (r.classification === 'OWN' || within(d, ownMatch)) return false
       // The closest roster domain decides whose site it is, so a cut competitor's parent domain never hides a kept
       // competitor's subdomain (Paul, #413 review); a domain on both rosters is the charted competitor's (round 3 QA review).
@@ -339,6 +380,7 @@ export function buildSnapshotData(
     ownMixByType,
     sourceMix,
     sourceMixWeight: decisions.sourceMixWeight,
+    citations,
     gapDomains,
     // Round 3 (Paul, #415 review): the pull no longer reads Peec's actions. Older rows keep the ones they stored.
     actions: [],

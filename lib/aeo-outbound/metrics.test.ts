@@ -40,11 +40,11 @@ const PULL: PeecPull = {
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },
   ],
   domains: [
-    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
-    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, mentioned_brands: [{ id: 'kw_a' }] },
-    { domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 900, retrieval_count: 1000, usage_rate: 1000, mentioned_brands: [{ id: 'kw_own' }, { id: 'kw_a' }] },
-    { domain: 'forum.com', classification: 'UGC', retrieved_chat_count: 300, retrieval_count: 400, usage_rate: 400, mentioned_brands: [{ id: 'kw_b' }] },
-    { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, usage_rate: 0, mentioned_brands: [] },
+    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, citation_count: 3698, cited_chat_count: 1989, total_chat_count: 10000, retrieved_percentage: 0.2236, mentioned_brands: [] },
+    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, citation_count: 5902, cited_chat_count: 1250, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_a' }] },
+    { domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 900, retrieval_count: 1000, usage_rate: 1000, citation_count: 1000, cited_chat_count: 900, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_own' }, { id: 'kw_a' }] },
+    { domain: 'forum.com', classification: 'UGC', retrieved_chat_count: 300, retrieval_count: 400, usage_rate: 400, citation_count: 400, cited_chat_count: 300, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_b' }] },
+    { domain: 'blank.com', classification: 'OTHER', retrieved_chat_count: 5, retrieval_count: 0, usage_rate: 0, citation_count: 0, cited_chat_count: 0, total_chat_count: 10000, mentioned_brands: [] },
   ],
   promptCount: 100,
   models: ['ChatGPT UI', 'Google AI Overview'],
@@ -108,9 +108,9 @@ test('no profile: category and market are null with a note', () => {
   expect(texts(d.notes).join(' ')).toContain('no project profile')
 })
 
-const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'usage_rate' }
+const DEFAULTS: MetricDecisions = { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'citation_count' }
 
-test('two arguments read DECISIONS, whose defaults are every brand, site gaps on, usage_rate (2026-10-19)', () => {
+test('two arguments read DECISIONS, whose defaults are every brand, site gaps on, citation_count (spec 2026-11-02 S3)', () => {
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')).toEqual(buildSnapshotData(PULL, '2026-10-08T15:00:00Z', DEFAULTS))
   expect(texts(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').notes)).toContain('Rank is by visibility among the 3 brands tracked in Peec.')
 })
@@ -185,7 +185,7 @@ test('new rows carry the current SENTENCES_VERSION (spec v1.1 §19.5; 2 since 20
 
 test('ownSiteRank: 1 plus the domains with more retrieved chats than the top own site, ties not counted, null with none', () => {
   expect(buildSnapshotData(PULL, '2026-10-08T15:00:00Z').ownSiteRank).toBe(1)
-  const more = (n: number, chats: number) => Array.from({ length: n }, (_, i) => ({ domain: `big${i}.org`, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: [] }))
+  const more = (n: number, chats: number) => Array.from({ length: n }, (_, i) => ({ domain: `big${i}.org`, classification: 'EDITORIAL', retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, citation_count: 1, cited_chat_count: chats, total_chat_count: 10000, mentioned_brands: [] }))
   expect(buildSnapshotData({ ...PULL, domains: [...PULL.domains, ...more(11, 5000)] }, '2026-10-08T15:00:00Z').ownSiteRank).toBe(12)
   expect(buildSnapshotData({ ...PULL, domains: [...PULL.domains, ...more(3, 1989)] }, '2026-10-08T15:00:00Z').ownSiteRank).toBe(1)
   expect(buildSnapshotData({ ...PULL, domains: PULL.domains.filter((r) => r.domain !== 'example.com') }, '2026-10-08T15:00:00Z').ownSiteRank).toBeNull()
@@ -215,12 +215,12 @@ test('leader gap share of voice is null when either side has none', () => {
 
 test('more than one own domain: each is listed with its own count and percentage, and the sum is never paired with one percentage', () => {
   const own = { ...PULL.ownBrand, domains: ['example.com', 'shop.example.com'] }
-  const domains = [...PULL.domains, { domain: 'shop.example.com', classification: 'OWN', retrieved_chat_count: 11, retrieval_count: 20, usage_rate: 20, retrieved_percentage: 0.01, mentioned_brands: [] }]
+  const domains = [...PULL.domains, { domain: 'shop.example.com', classification: 'OWN', retrieved_chat_count: 11, retrieval_count: 20, usage_rate: 20, citation_count: 20, cited_chat_count: 11, total_chat_count: 10000, retrieved_percentage: 0.01, mentioned_brands: [] }]
   const d = buildSnapshotData({ ...PULL, ownBrand: own, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownSites).toEqual([{ domain: 'example.com', retrievedChats: 1989, retrievedPct: 22.4 }, { domain: 'shop.example.com', retrievedChats: 11, retrievedPct: 1 }])
   expect(d.ownRetrievedChats).toBe(2000)
   expect(d.ownRetrievedPct).toBeNull()
-  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 2 own domains with retrievals; each is listed with its own count and percentage.' })
+  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 2 own domains; Cited Sources adds up their citations and ranks the most-cited one.' })
 })
 
 test('one own domain adds no own-domains note', () => {
@@ -228,7 +228,7 @@ test('one own domain adds no own-domains note', () => {
 })
 
 test('an empty source mix says so in a note', () => {
-  const domains = PULL.domains.map((r) => ({ ...r, retrieval_count: 0, usage_rate: 0 }))
+  const domains = PULL.domains.map((r) => ({ ...r, retrieval_count: 0, usage_rate: 0, citation_count: 0 }))
   const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
   expect(d.sourceMix).toEqual([])
   expect(texts(d.notes)).toContain('Peec reported no source weights for this window, so the source mix is empty.')
@@ -236,12 +236,12 @@ test('an empty source mix says so in a note', () => {
 })
 
 test('competitor gap domains are capped at 4, the top by retrieved chats', () => {
-  const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'COMPETITOR', retrieved_chat_count: 100 * n, retrieval_count: 1, usage_rate: 1, mentioned_brands: [{ id: 'kw_a' }] })
+  const gap = (n: number) => ({ domain: `gap${n}.com`, classification: 'COMPETITOR', retrieved_chat_count: 100 * n, retrieval_count: 1, usage_rate: 1, citation_count: 1, cited_chat_count: 100 * n, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_a' }] })
   const d = buildSnapshotData({ ...PULL, domains: [...PULL.domains.filter((r) => r.domain === 'example.com'), ...[1, 2, 3, 4, 5].map(gap)] }, '2026-10-08T15:00:00Z')
   expect(d.gapDomains.map((g) => g.domain)).toEqual(['gap5.com', 'gap4.com', 'gap3.com', 'gap2.com'])
 })
 
-const gapRow = (domain: string, classification: string, chats = 100, mentioned = ['kw_a']) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, mentioned_brands: mentioned.map((id) => ({ id })) })
+const gapRow = (domain: string, classification: string, chats = 100, mentioned = ['kw_a']) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, citation_count: 1, cited_chat_count: chats, total_chat_count: 10000, mentioned_brands: mentioned.map((id) => ({ id })) })
 const gapsOf = (p: PeecPull, decisions?: MetricDecisions) => buildSnapshotData(p, '2026-10-08T15:00:00Z', decisions).gapDomains.map((g) => g.domain)
 
 test('a competitor site counts by its roster domain or a subdomain, whatever its class and mentions; a third-party site never does', () => {
@@ -548,7 +548,7 @@ test('the kind of the remaining notes is pinned: no_competitors, high_visibility
   const solo: PeecPull = { ...PULL, roster: [PULL.ownBrand], brands: [PULL.brands[1]] }
   expect(buildSnapshotData(solo, '2026-10-08T15:00:00Z').notes).toContainEqual(expect.objectContaining({ kind: 'no_competitors', text: 'No competitors tracked in this Peec project' }))
   expect(withVis(0.2, ['Ace', 0.9051]).notes).toContainEqual(expect.objectContaining({ kind: 'high_visibility', text: WARN('Ace', '90.5') }))
-  const empty = buildSnapshotData({ ...PULL, domains: PULL.domains.map((r) => ({ ...r, retrieval_count: 0, usage_rate: 0 })) }, '2026-10-08T15:00:00Z')
+  const empty = buildSnapshotData({ ...PULL, domains: PULL.domains.map((r) => ({ ...r, retrieval_count: 0, usage_rate: 0, citation_count: 0 })) }, '2026-10-08T15:00:00Z')
   expect(empty.notes).toContainEqual(expect.objectContaining({ kind: 'empty_source_mix', text: 'Peec reported no source weights for this window, so the source mix is empty.' }))
   const none = buildSnapshotData({ ...PULL, domains: PULL.domains.filter((r) => r.domain !== 'example.com') }, '2026-10-08T15:00:00Z')
   expect(none.notes).toContainEqual(expect.objectContaining({ kind: 'own_domains', text: "No retrievals of the brand's own site in this window." }))
@@ -562,7 +562,7 @@ test('date and time in US Eastern, for the hub and the open list', () => {
 test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row; a lookalike domain is not', () => {
   const ownBrand = { ...PULL.ownBrand, domains: ['Brand.com', ''] }
   const roster = [ownBrand, ...PULL.roster.slice(1)]
-  const row = (domain: string, classification: string, chats: number) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, retrieved_percentage: chats / 1000, mentioned_brands: [] })
+  const row = (domain: string, classification: string, chats: number) => ({ domain, classification, retrieved_chat_count: chats, retrieval_count: 1, usage_rate: 1, citation_count: 1, cited_chat_count: chats, total_chat_count: 10000, retrieved_percentage: chats / 1000, mentioned_brands: [] })
   const domains = [row('brand.com', 'EDITORIAL', 100), row('blog.brand.com', 'EDITORIAL', 40), row('other.com', 'OWN', 7), row('notbrand.com', 'EDITORIAL', 900)]
   const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownSites).toEqual([
@@ -572,7 +572,7 @@ test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row
   ])
   expect(d.ownRetrievedChats).toBe(147)
   expect(d.ownRetrievedPct).toBeNull()
-  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 3 own domains with retrievals; each is listed with its own count and percentage.' })
+  expect(d.notes).toContainEqual({ kind: 'own_domains', text: 'The brand has 3 own domains; Cited Sources adds up their citations and ranks the most-cited one.' })
   expect(texts(d.notes).join(' ')).not.toContain("No retrievals of the brand's own site")
   expect(d.ownDomains).toEqual(['brand.com', ''])
 })
@@ -580,25 +580,27 @@ test('spec 18.10 row 3: own rows are an own domain, its subdomain and an OWN row
 test('an empty own domain matches nothing, so a brand with only that has no own rows', () => {
   const ownBrand = { ...PULL.ownBrand, domains: [''] }
   const roster = [ownBrand, ...PULL.roster.slice(1)]
-  const domains = [{ domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 9, retrieval_count: 1, usage_rate: 1, mentioned_brands: [] }]
+  const domains = [{ domain: 'news.com', classification: 'EDITORIAL', retrieved_chat_count: 9, retrieval_count: 1, usage_rate: 1, citation_count: 1, cited_chat_count: 9, total_chat_count: 10000, mentioned_brands: [] }]
   const d = buildSnapshotData({ ...PULL, roster, ownBrand, domains }, '2026-10-08T15:00:00Z')
   expect(d.ownRetrievedChats).toBe(0)
   expect(d.ownSites).toEqual([])
   expect(texts(d.notes)).toContain("No retrievals of the brand's own site in this window.")
 })
 
-test("2026-10-19 Peec parity: the source mix weights by usage_rate, as Peec's dashboard does, and the row records it", () => {
-  // PocketGuard's shape: by retrieval_count Competitor leads Editorial; by usage_rate Editorial leads.
+test('spec 2026-11-02 S3: the source mix weights by citation_count and the row records it; an earlier weighting still works when passed', () => {
+  // The three weightings order these two sites differently, so each assertion can only pass on its own field.
   const domains = [
-    { domain: 'cnbc.com', classification: 'EDITORIAL', retrieved_chat_count: 10, retrieval_count: 100, usage_rate: 0.9, mentioned_brands: [] },
-    { domain: 'rival.com', classification: 'COMPETITOR', retrieved_chat_count: 10, retrieval_count: 200, usage_rate: 0.4, mentioned_brands: [] },
+    { domain: 'cnbc.com', classification: 'EDITORIAL', retrieved_chat_count: 10, retrieval_count: 100, usage_rate: 0.9, citation_count: 10, cited_chat_count: 8, total_chat_count: 50, mentioned_brands: [] },
+    { domain: 'rival.com', classification: 'COMPETITOR', retrieved_chat_count: 10, retrieval_count: 200, usage_rate: 0.4, citation_count: 30, cited_chat_count: 9, total_chat_count: 50, mentioned_brands: [] },
   ]
   const d = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z')
-  expect(d.sourceMix.map((s) => [s.label, s.pct])).toEqual([['Editorial', 69.2], ['Competitor', 30.8]])
-  expect(d.sourceMixWeight).toBe('usage_rate')
-  const old = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z', { rankAmong: null, competitorSiteGaps: true, sourceMixWeight: 'retrieval_count' })
+  expect(d.sourceMix.map((s) => [s.label, s.pct])).toEqual([['Competitor', 75], ['Editorial', 25]])
+  expect(d.sourceMixWeight).toBe('citation_count')
+  const usage = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z', { ...DEFAULTS, sourceMixWeight: 'usage_rate' })
+  expect(usage.sourceMix.map((s) => [s.label, s.pct])).toEqual([['Editorial', 69.2], ['Competitor', 30.8]])
+  expect(usage.sourceMixWeight).toBe('usage_rate')
+  const old = buildSnapshotData({ ...PULL, domains }, '2026-10-08T15:00:00Z', { ...DEFAULTS, sourceMixWeight: 'retrieval_count' })
   expect(old.sourceMix.map((s) => [s.label, s.pct])).toEqual([['Competitor', 66.7], ['Editorial', 33.3]])
-  expect(old.sourceMixWeight).toBe('retrieval_count')
 })
 
 test("2026-10-19 (Ryan): a report whose window ends on the pull's own UTC day says Peec can still update it, under Check these", () => {
@@ -620,4 +622,57 @@ test("2026-10-19 (Ryan): a report whose window ends on the pull's own UTC day sa
     const later = buildSnapshotData({ ...PULL, pulledDay }, '2026-10-08T15:00:00Z')
     expect(later.notes.some((x) => typeof x !== 'string' && x.kind === 'same_day_data'), pulledDay).toBe(false)
   }
+})
+
+// Spec 2026-11-02 S1, S2: what Cited Sources prints. Own rows: example.com (OWN) and any subdomain of it.
+const site = (domain: string, classification: string, citations: number, cited = citations ? 1 : 0) =>
+  ({ domain, classification, retrieved_chat_count: 3, retrieval_count: 3, citation_count: citations, cited_chat_count: cited, total_chat_count: 200, mentioned_brands: [] })
+const citationsOf = (domains: PeecPull['domains'], extra: Partial<PeecPull> = {}) => buildSnapshotData({ ...PULL, domains, ...extra }, '2026-10-08T15:00:00Z').citations
+
+test('S1, S2: citations sums own rows against every row; the rank counts every row strictly above the top own site', () => {
+  const c = citationsOf([site('alpha.com', 'COMPETITOR', 50), site('news.com', 'EDITORIAL', 40), site('example.com', 'OWN', 30, 21), site('forum.com', 'UGC', 30), site('quiet.com', 'OTHER', 0)])
+  expect(c).toEqual({ own: 30, total: 150, answers: 200, citedAnswers: 21, citedSites: 4, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 3, tied: false, ownLevel: false } })
+})
+
+// Paul, #431 review: any other site level with the top own site at rank 1 is a tie, the brand's own included, so the
+// sentence never says "alone" beside an equal sibling; and on a tie the brand's main domain is the one named.
+test('S1: at rank 1 any other site level with the top own site is a tie, own sites included', () => {
+  expect(citationsOf([site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true, ownLevel: false })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: true, ownLevel: true })
+  expect(citationsOf([site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 20), site('alpha.com', 'COMPETITOR', 10)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 1, tied: false, ownLevel: false })
+  // Below rank 1 a level site shares the rank and is never called a tie.
+  expect(citationsOf([site('beta.com', 'COMPETITOR', 90), site('example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 30)])?.topSite).toEqual({ domain: 'example.com', rank: 2, tied: false, ownLevel: false })
+  // Below rank 1 another own site level with it is recorded, so the sentence does not call the top one "alone".
+  expect(citationsOf([site('beta.com', 'COMPETITOR', 90), site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 30)], { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'example.com', rank: 2, tied: false, ownLevel: true })
+})
+
+test('S1: when own sites tie at the top, the brand\'s main domain is named, not the first alphabetically', () => {
+  // "blog.example.com" sorts before "example.com".
+  const rows = [site('blog.example.com', 'CORPORATE', 30), site('www.example.com', 'OWN', 30), site('alpha.com', 'COMPETITOR', 10)]
+  expect(citationsOf(rows, { ownCitedAnswers: 2 })?.topSite).toEqual({ domain: 'www.example.com', rank: 1, tied: true, ownLevel: true })
+  // Without a main domain among the tied rows, the first alphabetically, as before.
+  expect(citationsOf([site('blog.example.com', 'CORPORATE', 30), site('shop.example.com', 'CORPORATE', 30)], { ownCitedAnswers: 2 })?.topSite?.domain).toBe('blog.example.com')
+})
+
+test('S2: several cited own sites take the pull\'s count by answer, null included; uncited own rows never count as several', () => {
+  const two = [site('shop.example.com', 'EDITORIAL', 12, 7), site('example.com', 'OWN', 20, 9), site('alpha.com', 'COMPETITOR', 5)]
+  expect(citationsOf(two, { ownCitedAnswers: 13 })).toMatchObject({ own: 32, citedAnswers: 13, ownSitesCited: 2, topSite: { domain: 'example.com', rank: 1, tied: false } })
+  expect(citationsOf(two, { ownCitedAnswers: null })?.citedAnswers).toBeNull()
+  const oneCited = [site('example.com', 'OWN', 20, 9), site('blog.example.com', 'CORPORATE', 0), site('alpha.com', 'COMPETITOR', 5)]
+  expect(citationsOf(oneCited)).toMatchObject({ own: 20, citedAnswers: 9, ownSitesCited: 1 })
+})
+
+test('S1: an own site never cited gives a null top site and no cited own sites; no citations at all gives zeros', () => {
+  expect(citationsOf([site('example.com', 'OWN', 0), site('alpha.com', 'COMPETITOR', 7)])).toEqual({ own: 0, total: 7, answers: 200, citedAnswers: 0, citedSites: 1, ownSitesCited: 0, topSite: null })
+  expect(citationsOf([site('alpha.com', 'COMPETITOR', 7)])).toMatchObject({ own: 0, ownSitesCited: 0, topSite: null })
+  expect(citationsOf([site('example.com', 'OWN', 0), site('alpha.com', 'COMPETITOR', 0)])).toMatchObject({ own: 0, total: 0, citedSites: 0, topSite: null })
+})
+
+// Spec minor 4: the "You" slice counts the rows Peec files as OWN; the own citations count every own-matched row, as the
+// Content pillar does. They differ only when an own subdomain is filed under another type (equal on all 62 projects, measured).
+test('S3: the own citations and the Content pillar follow the own match; the "You" slice counts only rows Peec files as OWN', () => {
+  const d = buildSnapshotData({ ...PULL, domains: [site('alpha.com', 'COMPETITOR', 50), site('example.com', 'OWN', 30), site('shop.example.com', 'EDITORIAL', 20)], ownCitedAnswers: 25 }, '2026-10-08T15:00:00Z')
+  expect(d.ownMixWeight).toBe(50)
+  expect(d.citations?.own).toBe(50)
+  expect(d.sourceMix.find((s) => s.label === 'You')?.weight).toBe(30)
 })

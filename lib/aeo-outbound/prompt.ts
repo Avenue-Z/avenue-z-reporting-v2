@@ -39,9 +39,14 @@ export function dataBlock(d: SnapshotData): string {
   const points = (x: number) => (v2 ? x.toFixed(1) : String(x))
   const showSov = !(v2 && noRivals)
   const ownSite = d.ownDomains.length ? `answers that retrieved ${d.ownDomains.map(one).join(', ')}` : "answers that retrieved the brand's own site"
-  const ownLine = v2 && d.ownSites && d.ownSites.length
+  // Spec 2026-11-02 minor 3: a row with citations gives Glean what Cited Sources prints; an older row keeps its retrievals line.
+  const c = d.citations
+  const citedLine = c
+    ? `Own site citations: ${n(c.own)} of ${n(c.total)} citations in AI answers${c.topSite ? `; top own site ${one(c.topSite.domain)} ranks ${c.topSite.rank}${c.topSite.tied ? ' (tied)' : ''} of ${n(c.citedSites)} cited sites` : ''}; answers citing the brand: ${c.citedAnswers === null ? 'not loaded' : n(c.citedAnswers)} of ${n(c.answers)}`
+    : null
+  const ownLine = citedLine ?? (v2 && d.ownSites && d.ownSites.length
     ? `Own site retrievals by domain (answers that retrieved each site): ${d.ownSites.map((s) => `${one(s.domain)} ${n(s.retrievedChats)}${s.retrievedPct !== null ? `, which is ${p1(s.retrievedPct)} of answers` : ''}`).join('; ')}`
-    : `Own site retrievals (${ownSite}): ${n(d.ownRetrievedChats)}${d.ownRetrievedPct !== null ? `, which is ${p1(d.ownRetrievedPct)} of answers` : ''}`
+    : `Own site retrievals (${ownSite}): ${n(d.ownRetrievedChats)}${d.ownRetrievedPct !== null ? `, which is ${p1(d.ownRetrievedPct)} of answers` : ''}`)
   const lines = [
     `Brand: ${one(d.brand)}`,
     `Category: ${d.category === null ? 'not in Peec' : one(d.category)}`,
@@ -53,7 +58,7 @@ export function dataBlock(d: SnapshotData): string {
     `Brands by AI visibility (rank, name, visibility, share of voice): ${listed.map((b) => `${noRivals ? '' : `#${b.rank} `}${one(b.name)} ${p1(b.visibilityPct)}${showSov && b.sovPct !== null ? ` / ${p1(b.sovPct)}` : ''}`).join('; ') || 'none'}`,
     `Gap to each brand ranked above (visibility points, share of voice points): ${gaps.map((g) => `${one(g.name)} ${points(g.visibilityPoints)} points${typeof g.sovPoints === 'number' && g.sovPoints > 0 ? `, ${points(g.sovPoints)} points` : ''}`).join('; ') || 'none'}`,
     ownLine,
-    `Source types by share of ${d.sourceMixWeight === 'usage_rate' ? "AI use (Peec's usage rate)" : 'retrievals'}: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
+    `Source types by share of ${d.sourceMixWeight === 'usage_rate' ? "AI use (Peec's usage rate)" : d.sourceMixWeight === 'citation_count' ? 'citations' : 'retrievals'}: ${d.sourceMix.map((s) => `${one(s.label)} ${p1(s.pct)}`).join('; ') || 'none'}`,
     `Competitor domain gaps (${v2 ? "competitors' own sites where the brand does not appear" : 'sites where competitors appear and the brand does not'}, by answers that used them): ${d.gapDomains.map((g) => `${one(g.domain)} ${n(g.retrievedChats)}`).join('; ') || 'none'}`,
     // Round 3 (Paul, #415 review): new rows store no actions, so the line is only for an older row that stored some.
     ...(d.actions.length ? [`Current Peec recommended actions (title, impact): ${d.actions.map((a) => `${one(a.title)} (${impactWords(a.impact)})`).join('; ')}`] : []),
@@ -71,7 +76,7 @@ Use ONLY the Data section below. Do not search company documents, Slack, email o
 Writing rules:
 - Concise, polished, neutral and client-facing. Plain English. No em dashes or en dashes; use periods and commas.
 - Keep findings, hypotheses and recommendations distinct. Use explore, investigate and test. Do not present a full roadmap.
-- Use Peec terms where possible: visibility, share of voice, position, retrievals.
+- Use Peec terms where possible: visibility, share of voice, position, ${d.citations ? 'citations' : 'retrievals'}.
 - Do not write any numbers, percentages, counts or ranks, in digits or in words. Describe position and direction in words (leads, trails, ahead of, behind). The page shows every number from Peec next to your words.
 - Do not say "no" or "none" when a count is positive. Do not state a positive number when the count is zero.
 - Do not infer model coverage, timeframe, market, sentiment or causality beyond the Data section.

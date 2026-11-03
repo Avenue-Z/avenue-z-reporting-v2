@@ -3,7 +3,7 @@ import { SENTENCES_VERSION } from './config'
 import { groundingFlags } from './grounding'
 import { LIVE_SHAPE_PULL } from './__fixtures__/sentences-live-shape'
 import { buildSnapshotData } from './metrics'
-import { boxesV2, dataSentences, OLDER_BOXES } from './sentences'
+import { boxesV2, boxesV3, dataSentences, OLDER_BOXES } from './sentences'
 import type { PeecPull } from './pull'
 import { dataBlock } from './prompt'
 import type { SnapshotData } from './metrics'
@@ -522,9 +522,11 @@ test('both round-3 markers on one row: a hidden pillar page is not checked, so a
 test('both round-3 markers on one row: a hidden pillar page\'s numbers no longer count as data for other fields', () => {
   // An own subdomain Peec files as Corporate makes the Content share differ from the donut's You slice (pillars D3 (a)),
   // so the share is a number only the pillar line holds. 400 gives 9%; at 300 the whole-number share (round 3 QA, F3)
-  // reads 8%, which the Data block already holds inside another figure.
-  const blog = { domain: 'blog.examplesenior.com', classification: 'CORPORATE', retrieved_chat_count: 30, retrieval_count: 400, usage_rate: 400, mentioned_brands: [] }
-  const d = newRow({ ...LIVE_SHAPE_PULL, domains: [...LIVE_SHAPE_PULL.domains, blog] })
+  // reads 8%, which the Data block already holds inside another figure. A version 3 row (no citations): from version 4
+  // the Citation volume sentence prints the same own-matched share (spec 2026-11-02 S1), so no number is the pillar's alone.
+  const blog = { domain: 'blog.examplesenior.com', classification: 'CORPORATE', retrieved_chat_count: 30, retrieval_count: 400, usage_rate: 400, citation_count: 400, cited_chat_count: 30, total_chat_count: 10000, mentioned_brands: [] }
+  const { citations: _c, ...v4 } = newRow({ ...LIVE_SHAPE_PULL, domains: [...LIVE_SHAPE_PULL.domains, blog] })
+  const d: SnapshotData = { ...v4, sentences: 3 }
   const n = dataSentences(d).opportunities[1].signal.match(/\d+(?:\.\d)?%/)![0]
   expect(dataBlock(d)).not.toContain(n)
   const over: Partial<Slots> = { page: { why_title: `Own site at ${n}` } }
@@ -561,11 +563,67 @@ const BIG: PeecPull = {
   ],
 }
 
+// Rows stored before version 4 have no citations (spec 2026-11-02 S5), so these build them without.
+const olderRow = (p: PeecPull, version: number): SnapshotData => { const { citations: _c, ...rest } = newRow(p); return { ...rest, sentences: version } }
+
 test('B3: a row written with version 2 or 1 gains no flag on the bullets it stored, numbers only those bullets print included', () => {
   for (const version of [2, 1]) {
-    const d = { ...newRow(BIG), sentences: version } as SnapshotData
+    const d = olderRow(BIG, version)
     expect(groundingFlags({ ...slotsFor(d), ...boxesV2(d) }, d, dataBlock(d))).toEqual([])
   }
+})
+
+test('spec 2026-11-02 S5: a version 3 row writes its own box byte for byte and gains no flag on the bullets it stored', () => {
+  for (const p of [LIVE_SHAPE_PULL, BIG]) {
+    const d = olderRow(p, 3)
+    expect(dataSentences(d).competitive_bullets).toEqual(boxesV3(d).competitive_bullets)
+    expect(dataSentences(d).competitive_bullets[0].text).toMatch(/ appears in [\d,]+ retrieved citations?\.$/)
+    expect(groundingFlags({ ...slotsFor(d), ...boxesV3(d) }, d, dataBlock(d))).toEqual([])
+  }
+})
+
+test('spec 2026-11-02 S5: a version 3 row keeps the word-for-word check on its bullets, since its boxes are unchanged', () => {
+  for (const d of [olderRow(LIVE_SHAPE_PULL, 3), newRow()]) {
+    const s = slotsFor(d)
+    expect(s.sources_bullets[0].text).toContain('0.2 percentage points')
+    // 1.1 is elsewhere in the data (the peer cluster), so only the sentence-by-sentence check catches this edit.
+    const edited = { ...s, sources_bullets: s.sources_bullets.map((b, i) => (i === 0 ? { ...b, text: b.text.replace('0.2 percentage', '1.1 percentage') } : b)) }
+    expect(groundingFlags(edited, d, dataBlock(d)).map((n) => `${n.path} ${n.kind}`), `version ${d.sentences}`).toEqual(['sources_bullets.0.text number_not_in_data'])
+  }
+})
+
+// Paul, #431 review: an older row is checked against its own version's frozen boxes, not a hard-coded version, so the next
+// version bump keeps the check. A version 3 row that also holds citations stands in for a version 4 row after a bump to
+// 5: today's writer prints the version 4 box for it, while the row stored the version 3 box.
+test('an older row keeps the word-for-word check against its own version\'s boxes, whatever today\'s writer prints', () => {
+  const d: SnapshotData = { ...newRow(), sentences: 3 }
+  expect(dataSentences(d).competitive_bullets[0].text).toMatch(/^Examplesenior\.com earned 165 of /)
+  const stored = { ...slotsFor(d), ...boxesV3(d) }
+  expect(stored.competitive_bullets[0].text).toBe('Examplesenior.com appears in 142 retrieved citations.')
+  expect(groundingFlags(stored, d, dataBlock(d))).toEqual([])
+  // 165 is elsewhere on the row (today's Citation volume), so only the check against the row's own sentence catches it.
+  const edited = { ...stored, competitive_bullets: stored.competitive_bullets.map((b, i) => (i === 0 ? { ...b, text: b.text.replace('142', '165') } : b)) }
+  expect(groundingFlags(edited, d, dataBlock(d)).map((n) => `${n.path} ${n.kind}`)).toEqual(['competitive_bullets.0.text number_not_in_data'])
+})
+
+test('versions 1 and 2 keep the number check only on their bullets (Paul, #417 review)', () => {
+  for (const version of [1, 2]) {
+    const d = olderRow(LIVE_SHAPE_PULL, version)
+    const s = { ...slotsFor(d), ...boxesV2(d) }
+    // 1.1 is elsewhere in the data, so the number check allows it.
+    const edited = { ...s, sources_bullets: s.sources_bullets.map((b, i) => (i === 0 ? { ...b, text: b.text.replace(/\d+\.\d percentage/, '1.1 percentage') } : b)) }
+    expect(s.sources_bullets[0].text).toMatch(/\d+\.\d percentage/)
+    expect(groundingFlags(edited, d, dataBlock(d)).filter((n) => n.path?.startsWith('sources_bullets')), `version ${version}`).toEqual([])
+  }
+})
+
+test('spec 2026-11-02 S1: on a version 4 row an edited Citation volume number is flagged; the sentence as written is not', () => {
+  const d = newRow()
+  expect(d.sentences).toBe(SENTENCES_VERSION)
+  const s = slotsFor(d)
+  expect(groundingFlags(s, d, dataBlock(d))).toEqual([])
+  const edited = { ...s, competitive_bullets: s.competitive_bullets.map((b, i) => (i === 0 ? { ...b, text: b.text.replace('earned 165 of', 'earned 265 of') } : b)) }
+  expect(groundingFlags(edited, d, dataBlock(d)).map((n) => `${n.path} ${n.kind}`)).toEqual(['competitive_bullets.0.text number_not_in_data'])
 })
 
 // Paul, #417 review: context and methodology read the same from version 2 on, so an older row keeps their exact check.
@@ -596,9 +654,9 @@ test('B4: the rename note does not count the own domain printed in the brand\'s 
   const p: PeecPull = { ...LIVE_SHAPE_PULL, roster: LIVE_SHAPE_PULL.roster.map((b) => (b.id === 'kw_own' ? { ...b, name } : b)), ownBrand: { ...LIVE_SHAPE_PULL.ownBrand, name }, brands: LIVE_SHAPE_PULL.brands.map((b) => (b.brand.id === 'kw_own' ? { ...b, brand: { ...b.brand, name } } : b)) }
   const d = newRow(p)
   const slots = { ...slotsFor(d), brand: 'New Co' }
-  expect(slots.competitive_bullets[0].text).toBe('Examplesenior.com appears in 142 retrieved citations.')
+  expect(slots.competitive_bullets[0].text).toBe('Examplesenior.com earned 165 of the 5,752 citations in AI answers (3%), the sixth most-cited site of 14.')
   const note = (s: Slots) => groundingFlags(s, d, dataBlock(d)).find((n) => n.kind === 'brand_changed')?.text
-  const without = { ...slots, competitive_bullets: [{ ...slots.competitive_bullets[0], text: 'It appears in 142 retrieved citations.' }, ...slots.competitive_bullets.slice(1)] }
+  const without = { ...slots, competitive_bullets: [{ ...slots.competitive_bullets[0], text: slots.competitive_bullets[0].text.replace('Examplesenior.com', 'It') }, ...slots.competitive_bullets.slice(1)] }
   expect(note(slots)).toBe(note(without))
 })
 
@@ -621,7 +679,7 @@ test('B4 (final review): a brand named like its own domain still gets the rename
 test('B4 (final review): the domain the bullets print is skipped when only Peec\'s OWN class made it the brand\'s', () => {
   const d = newRow(renamedTo('Examplesenior', 'www.examplesenior.com', []))
   const slots = slotsFor(d)
-  expect(slots.competitive_bullets[0].text).toBe('Examplesenior.com appears in 142 retrieved citations.')
-  const without = { ...slots, competitive_bullets: [{ ...slots.competitive_bullets[0], text: 'It appears in 142 retrieved citations.' }, ...slots.competitive_bullets.slice(1)] }
+  expect(slots.competitive_bullets[0].text).toBe('Examplesenior.com earned 165 of the 5,752 citations in AI answers (3%), the sixth most-cited site of 14.')
+  const without = { ...slots, competitive_bullets: [{ ...slots.competitive_bullets[0], text: slots.competitive_bullets[0].text.replace('Examplesenior.com', 'It') }, ...slots.competitive_bullets.slice(1)] }
   expect(renameNote(d, slots)).toBe(renameNote(d, without))
 })

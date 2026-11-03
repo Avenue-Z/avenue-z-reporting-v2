@@ -15,12 +15,12 @@ test("Ryan's answers of 2026-10-12 are the defaults (spec v1.1 §16.1)", () => {
   expect(DECISIONS.showAivxName).toBe(false)
 })
 
-test("2026-10-19 Peec parity: the source mix weights by usage_rate, the field Peec's Domain types chart sums", () => {
-  expect(DECISIONS.sourceMixWeight).toBe('usage_rate')
+test('spec 2026-11-02 S3: the source mix weights by citation_count, so the mix, the donut and the pillars are shares of citations', () => {
+  expect(DECISIONS.sourceMixWeight).toBe('citation_count')
 })
 
-test('2026-10-22: the code-written sentences are version 3, since the findings bullets follow Ryan\'s per-page wording; the pillar lines are told apart by their marker', () => {
-  expect(SENTENCES_VERSION).toBe(3)
+test('2026-11-02: the code-written sentences are version 4, since Cited Sources counts citations; the pillar lines are told apart by their marker', () => {
+  expect(SENTENCES_VERSION).toBe(4)
 })
 
 test('the three pillars (Ryan, round 3): the slide names in its order, descriptions and title in the slide\'s own casing', () => {

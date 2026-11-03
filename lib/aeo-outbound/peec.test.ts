@@ -407,3 +407,24 @@ test('rows with no natural key are kept and never counted as repeats', async () 
   const fetch = vi.fn(async () => json({ data: pages.shift() ?? [] }))
   expect(await new PeecClient(KEY, { fetch }).all<{ id?: string }>('GET', '/brands', {}, (r) => r.id, 3)).toEqual([{ id: 'a' }, {}, {}])
 })
+
+// Paul, #431 review: an optional call gets its own time budget and row cap, never past the parent's deadline.
+test('limited() keeps the key and transport, takes the earlier deadline, and has its own row cap', async () => {
+  let t = 0
+  const fetch = vi.fn(async () => json({ data: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }))
+  const parent = new PeecClient(KEY, { fetch, now: () => t, deadline: 100_000 })
+  const sub = parent.limited(30_000, 2)
+  await expect(sub.all('POST', '/reports/domains', {}, (r: { id: string }) => r.id, 10)).rejects.toSatisfy(isPeecRowCap)
+  expect((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toMatchObject({ 'x-api-key': KEY })
+  t = 30_000
+  await expect(sub.call('GET', '/x')).rejects.toSatisfy(isPeecDeadline)
+  expect(sub.deadlinePassed()).toBe(true)
+  expect(parent.deadlinePassed()).toBe(false)
+  await expect(parent.call('GET', '/x')).resolves.toBeDefined()
+  // A budget past the parent's deadline is cut to it.
+  t = 90_000
+  const late = parent.limited(30_000, 2)
+  t = 100_000
+  expect(late.deadlinePassed()).toBe(true)
+  expect(parent.deadlinePassed()).toBe(true)
+})
