@@ -75,6 +75,13 @@ const v11 = (html: string) => {
     '"xanchor":"center","yanchor":"top"},"height":420,"margin":{"l":90,"r":90,"t":28,"b":64}',
     '"xanchor":"center","yanchor":"top","entrywidth":0.5,"entrywidthmode":"fraction"},"height":420,"margin":{"l":24,"r":24,"t":28,"b":64},"uirevision":"aeo-sources"',
   )
+  // 2026-11-03: no donut label outside the ring (small slices' labels sat on the legend and on each other): each legend
+  // entry carries its share, the ring labels slices from 5%, the hover reads the plain name, and the legend is never
+  // cut to half the chart and scrolled (charts.ts sourceDonutFigure).
+  out = once(out, '"labels":["Competitor","You","Editorial","UGC"]', '"labels":["Competitor 54%","You 34%","Editorial 9%","UGC 4%"],"customdata":["Competitor","You","Editorial","UGC"]')
+  out = once(out, '"text":["54%","34%","9%","4%"],"textposition":"auto"', '"text":["54%","34%","9%","4%"],"texttemplate":["%{text}","%{text}","%{text}",""],"textposition":"inside"')
+  out = once(out, '"hovertemplate":"\\u003cb\\u003e%{label}\\u003c/b\\u003e', '"hovertemplate":"\\u003cb\\u003e%{customdata}\\u003c/b\\u003e')
+  out = once(out, '"entrywidthmode":"fraction"}', '"entrywidthmode":"fraction","maxheight":10000}')
   return out
 }
 // The footer description and disclaimer are one slot value each now, rendered on one line where v1.0 wrapped them over
