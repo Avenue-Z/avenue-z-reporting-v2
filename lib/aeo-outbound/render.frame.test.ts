@@ -225,11 +225,15 @@ test('a link to a hash with no section is not prevented', () => {
   expect(scrolled).not.toHaveBeenCalled()
 })
 
-// The donut (v1.1 §17.2): Plotly and matchMedia are stubs; the tests prove the calls.
+// The donut (v1.1 §17.2, 2026-11-03): Plotly and matchMedia are stubs; the tests prove the calls, and that matchMedia is never asked.
 const MIX = [{ label: 'Reference', weight: 4.8, pct: 4.8 }, { label: 'Corporate', weight: 60.3, pct: 60.3 }, { label: 'You', weight: 34.9, pct: 34.9 }]
 function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; noMatchMedia?: boolean; mix?: typeof MIX; text?: unknown; before?: (el: HTMLElement) => void } = {}) {
   const fig = sourceDonutFigure(over.mix ?? MIX)
-  const react = vi.fn(over.react ?? (() => Promise.resolve()))
+  // Plotly.react, recording the height it was given on the stand-in drawn layout, as Plotly does.
+  const react = vi.fn(over.react ?? ((g: { _fullLayout?: { height: number } }, _d: unknown, l?: { height?: number }) => { if (g._fullLayout && l?.height) g._fullLayout.height = l.height; return Promise.resolve() }))
+  // Plotly.relayout: never called. A relayout that sets a height pins the width (or, with width: null, puts back the first
+  // drawn width), so the chart stops following its box (measured in Plotly 3.5.0, 2026-11-03).
+  const relayout = vi.fn(() => Promise.resolve())
   const listeners: ((e: { matches: boolean }) => void)[] = []
   const mq = { matches: over.matches ?? true, addEventListener: (_: string, f: (e: { matches: boolean }) => void) => { listeners.push(f) } }
   const matchMedia = vi.fn(() => mq)
@@ -239,70 +243,39 @@ function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: 
   else { el.data = JSON.parse(JSON.stringify(fig.data)); el.layout = JSON.parse(JSON.stringify(fig.layout)) }
   if ('text' in over && !over.noEl) (el.data as Record<string, unknown>[])[0].text = over.text
   if (!over.noEl) over.before?.(el)
-  win = Object.assign(new EventTarget(), over.noMatchMedia ? {} : { matchMedia }, over.noPlotly ? {} : { Plotly: { react } })
+  win = Object.assign(new EventTarget(), over.noMatchMedia ? {} : { matchMedia }, over.noPlotly ? {} : { Plotly: { react, relayout } })
   new Function('window', 'document', PAGE_JS)(win, doc)
   if (doc.readyState !== 'complete') win.dispatchEvent(new Event('load'))
-  return { react, fig, mq, change: (matches: boolean) => listeners.forEach((f) => f({ matches })), matchMedia }
+  return { react, relayout, fig, mq, change: (matches: boolean) => listeners.forEach((f) => f({ matches })), matchMedia }
 }
 
-test("donut on a phone: one react call with the figure's own labels as slice text from 5% and in the legend, and a customdata hover", () => {
-  const { react, fig, matchMedia } = bootDonut()
-  expect(matchMedia).toHaveBeenCalledWith('(max-width: 900px)')
-  expect(react).toHaveBeenCalledTimes(1)
-  const [target, data, layout] = react.mock.calls[0] as unknown as [unknown, Record<string, unknown>[], unknown]
-  expect(target).toBe(doc.getElementById('aeo-chart-sources'))
-  const t = data[0]
-  expect(t.texttemplate).toEqual(['', '%{text}', '%{text}'])
+test('donut at every width: the page draws nothing at load, since the figure already carries the legend shares, ring rule and hover (2026-11-03)', () => {
+  for (const matches of [true, false]) {
+    const { react, matchMedia } = bootDonut({ matches })
+    expect(react, String(matches)).not.toHaveBeenCalled()
+    expect(matchMedia, String(matches)).not.toHaveBeenCalled()
+  }
+  const t = sourceDonutFigure(MIX).data[0] as Record<string, unknown>
   expect(t.labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
-  expect(t.customdata).toEqual(['Reference', 'Corporate', 'You'])
-  expect(String(t.hovertemplate)).toContain('%{customdata}')
-  expect(String(t.hovertemplate)).not.toContain('%{label}')
-  expect(layout).toEqual(JSON.parse(JSON.stringify(fig.layout)))
+  expect(t.texttemplate).toEqual(['', '%{text}', '%{text}'])
+  expect(t.textposition).toBe('inside')
 })
 
-test('donut on a phone: the legend reads the desktop labels, so phone, desktop and the sentence agree (final review M5, 2026-10-19)', () => {
+test('donut: the legend reads the slice labels, so the legend, the ring and the sentence agree (final review M5, 2026-10-19)', () => {
   // 375 and 25 of 400 store as 93.8 and 6.2 (pyRound, half to even); the labels are their whole numbers.
   const mix = [{ label: 'Corporate', weight: 375, pct: pyRound((375 / 400) * 100, 1) }, { label: 'Editorial', weight: 25, pct: pyRound((25 / 400) * 100, 1) }]
-  const { react, fig } = bootDonut({ mix })
-  const t = (react.mock.calls[0] as unknown as [unknown, Record<string, unknown>[]])[1][0]
-  expect((fig.data[0] as { text: string[] }).text).toEqual(['94%', '6%'])
+  const t = sourceDonutFigure(mix).data[0] as { text: string[]; labels: string[] }
+  expect(t.text).toEqual(['94%', '6%'])
   expect(t.labels).toEqual(['Corporate 94%', 'Editorial 6%'])
 })
 
-test('donut on a phone: a trace without its own labels, or with too few, is not redrawn', () => {
-  for (const text of [undefined, ['5%'], 'x']) {
-    const { react } = bootDonut({ text })
-    expect(react, JSON.stringify(text)).not.toHaveBeenCalled()
-  }
-})
-
-test('donut: when the query stops matching react gets the originals; matching again redraws', () => {
-  const { react, fig, change } = bootDonut()
-  change(false)
-  expect(react).toHaveBeenCalledTimes(2)
-  expect((react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(fig.data)))
-  change(true)
-  expect(react).toHaveBeenCalledTimes(3)
-  expect((((react.mock.calls[2] as unknown[])[1]) as Record<string, unknown>[])[0].customdata).toEqual(['Reference', 'Corporate', 'You'])
-})
-
-test('donut on a desktop width: no call at load; narrowing draws the phone figure, widening restores the originals', () => {
-  const { react, fig, change } = bootDonut({ matches: false })
-  expect(react).not.toHaveBeenCalled()
-  change(true)
-  expect(react).toHaveBeenCalledTimes(1)
-  expect(((react.mock.calls[0] as unknown[])[1] as Record<string, unknown>[])[0].labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
-  change(false)
-  expect(react).toHaveBeenCalledTimes(2)
-  expect((react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(fig.data)))
-})
-
-test('donut: a rejected react restores the originals once, and a throw does the same', async () => {
-  const rejected = bootDonut({ react: () => Promise.reject(new Error('x')) })
+test('donut: a rejected redraw restores the originals once, and a throw does the same', async () => {
+  const rejected = bootDonut({ matches: false, react: () => Promise.reject(new Error('x')), before: (el) => setLegend(el, OVERLAPS) })
   await vi.advanceTimersByTimeAsync(0)
   expect(rejected.react).toHaveBeenCalledTimes(2)
   expect((rejected.react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(rejected.fig.data)))
-  const throwing = bootDonut({ react: () => { throw new Error('x') } })
+  expect((rejected.react.mock.calls[1] as unknown[])[2]).toEqual(JSON.parse(JSON.stringify(rejected.fig.layout)))
+  const throwing = bootDonut({ matches: false, react: () => { throw new Error('x') }, before: (el) => setLegend(el, OVERLAPS) })
   expect(throwing.react).toHaveBeenCalledTimes(2)
   expect((throwing.react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(throwing.fig.data)))
 })
@@ -322,10 +295,12 @@ test('donut: no Plotly or no element means no throw and no call', () => {
 // The legend check (spec 2026-10-21 C5): Plotly's legend nodes are stand-ins whose boxes the test sets.
 type Box = [left: number, textRight: number, top?: number]
 const rect = (left: number, right: number, top = 0) => ({ left, right, top, bottom: top + 10, width: right - left, height: 10, x: left, y: top, toJSON: () => ({}) }) as DOMRect
-function setLegend(el: HTMLElement, boxes: Box[], right = 300, width = 300) {
+function setLegend(el: HTMLElement, boxes: Box[], right = 300, width = 300, legendRight?: number, legendHeight = 10) {
   el.querySelector('.legend')?.remove()
   const d = el.ownerDocument
   const lg = d.createElement('div'); lg.className = 'legend'
+  // Plotly's legend background: its right edge is where it clips a legend name, its height the legend's (2026-11-03).
+  if (legendRight !== undefined) { const bg = d.createElement('rect'); bg.setAttribute('class', 'bg'); bg.getBoundingClientRect = () => ({ ...rect(0, legendRight), bottom: legendHeight, height: legendHeight }) as DOMRect; lg.appendChild(bg) }
   for (const [left, textRight, top = 0] of boxes) {
     const tr = d.createElement('div'); tr.className = 'traces'; tr.getBoundingClientRect = () => rect(left, left + 20, top)
     const tx = d.createElement('div'); tx.className = 'legendtext'; tx.getBoundingClientRect = () => rect(left + 20, textRight, top)
@@ -339,10 +314,12 @@ const FITS: Box[] = [[0, 100], [150, 250], [0, 90], [150, 240]]
 const OVERLAPS: Box[] = [[0, 160], [150, 250]]
 type Call = [unknown, Record<string, unknown>[], { legend?: { entrywidth?: number; entrywidthmode?: string } }]
 const callsOf = (react: { mock: { calls: unknown[] } }) => react.mock.calls as Call[]
-const flowing = (layout: Record<string, unknown>) => { const l = JSON.parse(JSON.stringify(layout)); delete l.legend.entrywidth; delete l.legend.entrywidthmode; return l }
+// 2026-11-03: the fallback is one entry per row, each as wide as the widest name as drawn (its symbol included) plus 6px,
+// never wider than the chart less 16px. Plotly's own flowing legend measured names 4 to 8px short and clipped them.
+const oneColumn = (layout: Record<string, unknown>, px: number) => { const l = JSON.parse(JSON.stringify(layout)); l.legend.entrywidth = px; l.legend.entrywidthmode = 'pixels'; return l }
 const flush = () => vi.advanceTimersByTimeAsync(0)
 
-test('legend on a desktop width: names that fit draw nothing; names that overlap redraw once, flowing, with the same data', async () => {
+test('legend on a desktop width: names that fit draw nothing; names that overlap redraw once, one column, with the same data', async () => {
   const fits = bootDonut({ matches: false, before: (el) => setLegend(el, FITS) })
   await flush()
   expect(fits.react).not.toHaveBeenCalled()
@@ -352,7 +329,7 @@ test('legend on a desktop width: names that fit draw nothing; names that overlap
   const [target, data, layout] = callsOf(over.react)[0]
   expect(target).toBe(doc.getElementById('aeo-chart-sources'))
   expect(data).toEqual(JSON.parse(JSON.stringify(over.fig.data)))
-  expect(layout).toEqual(flowing(over.fig.layout))
+  expect(layout).toEqual(oneColumn(over.fig.layout, 166))
   await vi.advanceTimersByTimeAsync(1000)
   expect(over.react).toHaveBeenCalledTimes(1)
 })
@@ -371,11 +348,77 @@ test('legend: a long last name alone in its row fits; the same name with a neigh
   expect(past.react).toHaveBeenCalledTimes(1)
 })
 
+// 2026-11-03: Plotly clips a legend name at the legend box, inside the chart's 24px side margin, so a name with nothing to
+// its right is measured against that box. Measured in Plotly 3.5.0: "Supply Chain Data & Infrastructure 8%" lost 15px.
+test('legend: a last name past the legend box but inside the chart falls back; with no legend box the chart edge rules', async () => {
+  const clipped = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 290, 0]], 300, 300, 276) })
+  await flush()
+  expect(clipped.react).toHaveBeenCalledTimes(1)
+  expect(callsOf(clipped.react)[0][2]).toEqual(oneColumn(clipped.fig.layout, 146))
+  const inside = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 270, 0]], 300, 300, 276) })
+  await flush()
+  expect(inside.react).not.toHaveBeenCalled()
+  const noBox = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 290, 0]], 300, 300) })
+  await flush()
+  expect(noBox.react).not.toHaveBeenCalled()
+})
+
+// 2026-11-03: Plotly scrolls a horizontal legend taller than half the chart (its default maxheight), which hid entries on
+// 66 of 186 narrow renders. The figure lifts that cap, and the page gives the chart back the excess: 420 + legend - 210.
+const drawn = (el: HTMLElement, height = 420) => { (el as unknown as { _fullLayout: { height: number } })._fullLayout = { height } }
+const wrapOf = () => (doc.getElementById('aeo-chart-sources')!.parentElement as HTMLElement).style.height
+test('legend: a legend taller than half the chart redraws the chart and its box taller by the excess, once; one that fits changes nothing', async () => {
+  const tall = bootDonut({ matches: false, before: (el) => { drawn(el); setLegend(el, FITS, 300, 300, 300, 257) } })
+  await flush()
+  expect(tall.react).toHaveBeenCalledTimes(1)
+  const [, data, layout] = callsOf(tall.react)[0]
+  expect(data).toEqual(JSON.parse(JSON.stringify(tall.fig.data)))
+  expect(layout).toEqual({ ...JSON.parse(JSON.stringify(tall.fig.layout)), height: 467 })
+  expect(wrapOf()).toBe('467px')
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(tall.react).toHaveBeenCalledTimes(1)
+  expect(tall.relayout).not.toHaveBeenCalled()
+  const fits = bootDonut({ matches: false, before: (el) => { drawn(el); setLegend(el, FITS, 300, 300, 300, 210) } })
+  await flush()
+  expect(fits.react).not.toHaveBeenCalled()
+  expect(wrapOf()).toBe('420px')
+})
+
+test('legend: the chart grows after a fallback to one column, and shrinks back to 420 with its box when a wider page shortens it', async () => {
+  let el!: HTMLElement
+  const { react, relayout, fig } = bootDonut({ matches: false, before: (e) => { el = e; drawn(e); setLegend(e, OVERLAPS, 300, 300, 300, 300) } })
+  await flush()
+  expect(callsOf(react).map((c) => c[2])).toEqual([oneColumn(fig.layout, 166), { ...oneColumn(fig.layout, 166), height: 510 }])
+  expect(wrapOf()).toBe('510px')
+  setLegend(el, FITS, 500, 500, 500, 86)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  await flush()
+  // The resize redraws two columns at the figure's own 420; that legend fits, so only the box comes back to 420.
+  expect(callsOf(react).length).toBe(3)
+  expect(callsOf(react)[2][2]).toEqual(JSON.parse(JSON.stringify(fig.layout)))
+  expect(wrapOf()).toBe('420px')
+  expect(relayout).not.toHaveBeenCalled()
+})
+
+test('legend: a failed redraw puts the chart box back to its first height with the originals', async () => {
+  const { react } = bootDonut({ matches: false, react: () => Promise.reject(new Error('x')), before: (el) => { drawn(el, 500); (el.parentElement as HTMLElement).style.height = '500px'; setLegend(el, OVERLAPS) } })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(2)
+  expect(wrapOf()).toBe('420px')
+})
+
+test('legend: a one-column entry never runs wider than the chart less 16px, however long the name', async () => {
+  const { react, fig } = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100], [150, 460]], 300, 300) })
+  await flush()
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 284))
+})
+
 test('legend: with no matchMedia the desktop check still runs once and falls back where names overlap', async () => {
   const { react, fig } = bootDonut({ noMatchMedia: true, before: (el) => setLegend(el, OVERLAPS) })
   await flush()
   expect(react).toHaveBeenCalledTimes(1)
-  expect(callsOf(react)[0][2]).toEqual(flowing(fig.layout))
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 166))
 })
 
 test('legend: one source type has nothing to overlap, so nothing is redrawn', async () => {
@@ -384,29 +427,17 @@ test('legend: one source type has nothing to overlap, so nothing is redrawn', as
   expect(one.react).not.toHaveBeenCalled()
 })
 
-test('legend on a phone: the check runs after the phone draw, and the fallback keeps the phone labels and hover, once', async () => {
-  const { react, fig } = bootDonut({ before: (el) => setLegend(el, OVERLAPS) })
+test('legend: the fallback keeps the legend shares, the ring rule and the hover, at a phone width too, once', async () => {
+  const { react, fig } = bootDonut({ matches: true, before: (el) => setLegend(el, OVERLAPS) })
   await flush()
-  expect(react).toHaveBeenCalledTimes(2)
-  expect(callsOf(react)[0][2].legend?.entrywidth).toBe(0.5)
-  const [, data, layout] = callsOf(react)[1]
+  expect(react).toHaveBeenCalledTimes(1)
+  const [, data, layout] = callsOf(react)[0]
+  expect(data).toEqual(JSON.parse(JSON.stringify(fig.data)))
   expect(data[0].labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
   expect(data[0].customdata).toEqual(['Reference', 'Corporate', 'You'])
-  expect(layout).toEqual(flowing(fig.layout))
+  expect(layout).toEqual(oneColumn(fig.layout, 166))
   await vi.advanceTimersByTimeAsync(1000)
-  expect(react).toHaveBeenCalledTimes(2)
-})
-
-test('legend: a rejected fallback restores the originals once; a rejected phone draw restores once and never checks', async () => {
-  const desk = bootDonut({ matches: false, react: () => Promise.reject(new Error('x')), before: (el) => setLegend(el, OVERLAPS) })
-  await flush()
-  expect(desk.react).toHaveBeenCalledTimes(2)
-  expect(callsOf(desk.react)[1][1]).toEqual(JSON.parse(JSON.stringify(desk.fig.data)))
-  expect(callsOf(desk.react)[1][2]).toEqual(JSON.parse(JSON.stringify(desk.fig.layout)))
-  const phone = bootDonut({ react: () => Promise.reject(new Error('x')), before: (el) => setLegend(el, OVERLAPS) })
-  await flush()
-  expect(phone.react).toHaveBeenCalledTimes(2)
-  expect(callsOf(phone.react)[1][1]).toEqual(JSON.parse(JSON.stringify(phone.fig.data)))
+  expect(react).toHaveBeenCalledTimes(1)
 })
 
 test('legend: resizes retry two columns once, 150ms after the last, and only when the width changed', async () => {
@@ -436,20 +467,22 @@ test('legend: a resize that makes two columns overlap falls back once', async ()
   win.dispatchEvent(new Event('resize'))
   await vi.advanceTimersByTimeAsync(150)
   expect(react).toHaveBeenCalledTimes(1)
-  expect(callsOf(react)[0][2]).toEqual(flowing(fig.layout))
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 166))
 })
 
-test('legend: crossing to a phone width checks after the phone draw', async () => {
+test('donut: crossing between phone and desktop widths draws nothing by itself; only a legend that no longer fits does', async () => {
   let el!: HTMLElement
   const { react, change } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, FITS) } })
   await flush()
-  expect(react).not.toHaveBeenCalled()
-  setLegend(el, OVERLAPS)
   change(true)
+  change(false)
   await flush()
-  expect(react).toHaveBeenCalledTimes(2)
-  expect(callsOf(react)[1][1][0].labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
-  expect(callsOf(react)[1][2].legend?.entrywidth).toBeUndefined()
+  expect(react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS, 280, 280)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2].legend).toMatchObject({ entrywidth: 166, entrywidthmode: 'pixels' })
 })
 
 test('legend: a font still loading re-checks when it arrives; a loaded font adds no check', async () => {

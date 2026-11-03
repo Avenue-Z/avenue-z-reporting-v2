@@ -40,8 +40,10 @@ function cycledDonutPalette(n: number): string[] {
   return out
 }
 /** agent.py:2477-2487, plus two equal columns (round 3, Ryan, 2026-10-21): each entry is half the plot area's width.
- *  PAGE_JS falls back to Plotly's flowing legend wherever a name would run into the next column (render.ts). */
-const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top', entrywidth: 0.5, entrywidthmode: 'fraction' })
+ *  PAGE_JS falls back to Plotly's flowing legend wherever a name would run into the next column (render.ts).
+ *  2026-11-03: maxheight in px, far past any legend, so Plotly never cuts the legend to half the chart and scrolls it;
+ *  PAGE_JS grows the chart by what the legend takes past that half instead. */
+const donutLegend = () => ({ orientation: 'h', font: { family: 'Avenir', color: '#FFFFFF', size: 12 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0, x: 0.5, y: -0.06, xanchor: 'center', yanchor: 'top', entrywidth: 0.5, entrywidthmode: 'fraction', maxheight: 10000 })
 
 export function visibilityBarFigure(brands: { name: string; visibilityPct: number; isOwn?: boolean }[]): Figure {
   // v1.1 §9: the prospect always shows on its own chart, in place of the tenth bar (charted.ts).
@@ -86,17 +88,28 @@ export function sliceLabel(exact: number): string {
   return `${r}%`
 }
 
+/** The smallest share, in percent of the total, that gets its label on the ring (the phone donut's rule since v1.1 §17.2). */
+const RING_LABEL_MIN_PCT = 5
+
+/** 2026-11-03: every width draws what only the phone drew before. A label never sits outside the ring (textposition
+ *  inside), because Plotly put the small slices' outside labels on the legend under the ring and on each other (31 and 53
+ *  of 62 pitch projects at 1440px); a slice under RING_LABEL_MIN_PCT has no ring label and keeps its share in its legend
+ *  entry, which every slice carries, so the brand's own share reads as Citation volume prints it. */
 export function sourceDonutFigure(mix: { label: string; weight: number; pct: number }[]): Figure {
   const colors = cycledDonutPalette(mix.length)
   const total = mix.reduce((s, m) => s + m.weight, 0)
+  const share = (w: number) => (total ? (w / total) * 100 : 0)
+  const names = mix.map((m) => stripTags(m.label))
+  const text = mix.map((m) => sliceLabel(share(m.weight)))
   return {
     data: [{
-      type: 'pie', labels: mix.map((m) => stripTags(m.label)), values: mix.map((m) => m.weight), hole: 0.6,
+      type: 'pie', labels: names.map((n, i) => `${n} ${text[i]}`), customdata: names, values: mix.map((m) => m.weight), hole: 0.6,
       marker: { colors, line: { color: '#000000', width: 3 } },
-      textinfo: 'text', text: mix.map((m) => sliceLabel(total ? (m.weight / total) * 100 : 0)), textposition: 'auto', insidetextorientation: 'horizontal',
+      textinfo: 'text', text, texttemplate: mix.map((m) => (share(m.weight) >= RING_LABEL_MIN_PCT ? '%{text}' : '')),
+      textposition: 'inside', insidetextorientation: 'horizontal',
       insidetextfont: { family: 'Avenir', size: 14, color: contrastTextColors(colors) },
       outsidetextfont: { family: 'Avenir', size: 14, color: '#FFFFFF' },
-      hovertemplate: '<b>%{label}</b><br>%{text}<extra></extra>',
+      hovertemplate: '<b>%{customdata}</b><br>%{text}<extra></extra>',
     }],
     // Sides of 24px (AIVx: 90) so two legend columns fit at the editor's width (round 3, spec C4).
     // uirevision: a slice the viewer hid by clicking its legend entry stays hidden when the page redraws the legend
