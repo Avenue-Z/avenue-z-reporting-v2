@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { isPeecDeadline, PeecClient, PeecError } from './peec'
-import { listProjects, pullSnapshot } from './pull'
+import { listProjects, OWN_ANSWERS_BUDGET_MS, OWN_ANSWERS_MAX_ROWS, pullSnapshot } from './pull'
 
 // The client logs each retry; keep the file quiet.
 beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
@@ -40,7 +40,7 @@ const base: Record<string, Route> = {
   '/project-profile': () => ({ profile: { industry: 'Fintech', target_markets: [{ location: 'United States', market_size: 'National' }] } }),
   '/reports/domains': (_u, b) => (b?.dimensions
     ? [{ domain: 'example.com', date: '2026-10-05', retrieved_chat_count: 3 }, { domain: 'rival.com', date: '2026-10-07', retrieved_chat_count: 0 }, { domain: 'rival.com', date: '2026-10-06', retrieved_chat_count: 2 }]
-    : [{ domain: 'example.com', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 9, usage_rate: 9, retrieved_percentage: 0.2, mentioned_brands: [{ id: 'kw_own' }] }]),
+    : [{ domain: 'example.com', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 9, usage_rate: 9, citation_count: 9, cited_chat_count: 5, total_chat_count: 10000, retrieved_percentage: 0.2, mentioned_brands: [{ id: 'kw_own' }] }]),
   '/reports/brands': (_u, b) => (b?.dimensions
     ? [{ brand: { id: 'kw_own' }, model_channel: { id: 'openai-0' }, visibility_total: 10 }, { brand: { id: 'kw_own' }, model_channel: { id: 'google-0' }, visibility_total: 0 }]
     : [{ brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.15, share_of_voice: 0.2, position: 3.1 }, { brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
@@ -85,7 +85,7 @@ test('refuses a customer project, an unknown project, and a roster without exact
 test('fails loud when no day carries data or retrievals are zero', async () => {
   const noDays = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [] : []) })
   await expect(pullSnapshot(noDays.client, 'or_a', NOW)).rejects.toThrow('has any Peec data')
-  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, mentioned_brands: [] }]) })
+  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, citation_count: 0, cited_chat_count: 0, total_chat_count: 10, mentioned_brands: [] }]) })
   await expect(pullSnapshot(zero.client, 'or_a', NOW)).rejects.toThrow('zero retrievals')
 })
 
@@ -204,7 +204,7 @@ test('each guard fails with its code on the error object', async () => {
   expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) }).client, 'or_a', NOW))).toBe('own_brand_count')
   expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/domains': () => [] }).client, 'or_a', NOW))).toBe('no_data')
   expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]) }).client, 'or_a', NOW))).toBe('own_brand_no_row')
-  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, mentioned_brands: [] }]) })
+  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, citation_count: 0, cited_chat_count: 0, total_chat_count: 10, mentioned_brands: [] }]) })
   expect(await codeOf(pullSnapshot(zero.client, 'or_a', NOW))).toBe('zero_retrievals')
   const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
   const cap = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, { maxRows: 3 })
@@ -268,7 +268,7 @@ test('a brands report row with no brand, or domain rows with no domain, fail as 
   const own = { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.2, share_of_voice: 0.2 }
   const b = fakePeec({ ...base, '/reports/brands': (_u, x) => (x?.dimensions ? [] : [own, { visibility: 0.1, share_of_voice: 0.1 }]) })
   await expect(pullSnapshot(b.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.brands_report.brand' })
-  const noDomain = { classification: 'OTHER', retrieved_chat_count: 3, retrieval_count: 3, usage_rate: 3, mentioned_brands: [] }
+  const noDomain = { classification: 'OTHER', retrieved_chat_count: 3, retrieval_count: 3, usage_rate: 3, citation_count: 3, cited_chat_count: 3, total_chat_count: 10000, mentioned_brands: [] }
   const d = fakePeec({ ...base, '/reports/domains': (_u, x) => (x?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [noDomain, noDomain]) })
   await expect(pullSnapshot(d.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.domains_report.domain' })
 })
@@ -292,4 +292,139 @@ test('brand names from Peec are trimmed in the roster, the own brand and the bra
   expect(pull.ownBrand.name).toBe('Example Co')
   expect(pull.roster.map((r) => r.name)).toEqual(['Example Co', 'Rival'])
   expect(pull.brands.map((r) => r.brand.name)).toEqual(['Example Co', 'Rival'])
+})
+
+// Spec 2026-11-02 S2: answers citing any own site, counted once. Own rows here: example.com (OWN), shop.example.com
+// (a subdomain Peec files as Editorial) and blog.example.com (never cited).
+const dom = (domain: string, classification: string, citations: number, cited: number) =>
+  ({ domain, classification, retrieved_chat_count: 4, retrieval_count: 6, citation_count: citations, cited_chat_count: cited, total_chat_count: 40, mentioned_brands: [] })
+const MULTI = [dom('example.com', 'OWN', 5, 2), dom('shop.example.com', 'EDITORIAL', 2, 1), dom('blog.example.com', 'CORPORATE', 0, 0), dom('rival.com', 'COMPETITOR', 9, 3)]
+const BY_ANSWER = [
+  { domain: 'example.com', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 },
+  { domain: 'example.com', chat: { id: 'ch_2' }, citation_count: 3, total_chat_count: 1 },
+  { domain: 'shop.example.com', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 },
+  { domain: 'blog.example.com', chat: { id: 'ch_3' }, citation_count: 0, total_chat_count: 1 },
+]
+const dated = base['/reports/domains']
+const withDomains = (main: unknown[], byAnswer: Route = () => BY_ANSWER): Record<string, Route> => ({
+  ...base,
+  '/reports/domains': (u, b) => {
+    const dims = b?.dimensions as string[] | undefined
+    if (dims?.includes('chat_id')) return byAnswer(u, b)
+    return dims ? dated(u, b) : main
+  },
+})
+const byAnswerCalls = (seen: { path: string; body: Record<string, unknown> | null }[]) =>
+  seen.filter((s) => s.path === '/reports/domains' && (s.body?.dimensions as string[] | undefined)?.includes('chat_id'))
+const RATE_WARNING = "Peec's answers by own site could not be loaded, so the citation rate is left out."
+
+test('S2: with one cited own site, no call by answer is made and the pull carries no count of its own', async () => {
+  const { client, seen } = fakePeec(withDomains([MULTI[0], MULTI[2], MULTI[3]]))
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(byAnswerCalls(seen)).toEqual([])
+  expect('ownCitedAnswers' in pull).toBe(false)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: with several cited own sites, one call by answer over every own domain counts each citing answer once', async () => {
+  const { client, seen } = fakePeec(withDomains(MULTI))
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  // The client pages until an empty page, so one call is its first page plus the empty one that ends it.
+  const calls = byAnswerCalls(seen)
+  expect(calls.filter((c) => Number(c.body?.offset ?? 0) === 0)).toHaveLength(1)
+  for (const c of calls) {
+    expect(c.body).toMatchObject({ project_id: 'or_a', start_date: '2026-10-05', end_date: '2026-10-06', dimensions: ['chat_id'] })
+    // Only cited own sites: an uncited one adds no citing answer, only rows (Paul, #431 review).
+    expect(c.body?.filters).toEqual([{ field: 'domain', operator: 'in', values: ['example.com', 'shop.example.com'] }])
+  }
+  // ch_1 cites two own sites and counts once; ch_3 cites none.
+  expect(pull.ownCitedAnswers).toBe(2)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: a failed call by answer, or one that breaks its contract, leaves the count null with a warning, and the pull completes', async () => {
+  for (const [name, route] of [
+    ['http 500', () => { throw { status: 500 } }],
+    ['row without an answer id', () => [...BY_ANSWER, { domain: 'example.com', chat: null, citation_count: 1 }]],
+    ['negative count', () => [{ ...BY_ANSWER[0], citation_count: -1 }]],
+  ] as [string, Route][]) {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const pull = await pullSnapshot(fakePeec(withDomains(MULTI, route)).client, 'or_a', NOW)
+    expect(pull.ownCitedAnswers, name).toBeNull()
+    expect(pull.warnings, name).toEqual([RATE_WARNING])
+    expect(pull.promptCount, name).toBe(100)
+  }
+})
+
+test('S2: the call by answer has its own budget: running out of it is a warning; the report\'s own deadline spent fails the pull (Paul, #431 review)', async () => {
+  const abort: Route = () => { throw { abort: true } }
+  const roomy = await pullSnapshot(fakePeec(withDomains(MULTI, abort), ROOMY).client, 'or_a', NOW)
+  expect(roomy.ownCitedAnswers).toBeNull()
+  expect(roomy.warnings).toEqual([RATE_WARNING])
+  // Its budget runs out after the first page while the report still has time: a warning, and the pull goes on.
+  let t = 0
+  const slow = (step: number): Route => () => { t += step; return BY_ANSWER }
+  const own = await pullSnapshot(fakePeec(withDomains(MULTI, slow(OWN_ANSWERS_BUDGET_MS + 1_000)), { now: () => t, deadline: 200_000 }).client, 'or_a', NOW)
+  expect(own.ownCitedAnswers).toBeNull()
+  expect(own.warnings).toEqual([RATE_WARNING])
+  expect(own.promptCount).toBe(100)
+  // The report's own deadline passes during the call: the pull fails, as any spent deadline does.
+  t = 0
+  const err = await pullSnapshot(fakePeec(withDomains(MULTI, slow(21_000)), { now: () => t, deadline: 20_000 }).client, 'or_a', NOW).catch((e: unknown) => e)
+  expect(isPeecDeadline(err)).toBe(true)
+})
+
+test('S2: the call by answer stops past its own row cap, as a warning, so an ignored filter cannot page through the report', async () => {
+  const flood = () => Array.from({ length: OWN_ANSWERS_MAX_ROWS + 1 }, (_, i) => ({ domain: 'example.com', chat: { id: `ch_${i}` }, citation_count: 1, total_chat_count: 1 }))
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, flood)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBeNull()
+  expect(pull.warnings).toEqual([RATE_WARNING])
+})
+
+test('S2: a failed call by answer logs the project and a reason that carries no response text (Paul, #431 review)', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const line = async (route: Route, opts = {}) => {
+    warn.mockClear()
+    await pullSnapshot(fakePeec(withDomains(MULTI, route), opts).client, 'or_a', NOW)
+    return warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('own cited answers not loaded'))
+  }
+  expect(await line(() => { throw { status: 500 } })).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=http_500'])
+  expect(await line(() => [{ domain: 'example.com', chat: null, citation_count: 1 }])).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=peec.own_cited_chats.chat'])
+  expect(await line(() => { throw { abort: true } }, ROOMY)).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=timeout'])
+  expect(await line(() => Array.from({ length: OWN_ANSWERS_MAX_ROWS + 1 }, (_, i) => ({ domain: 'example.com', chat: { id: `c${i}` }, citation_count: 1 })))).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=row_cap'])
+  expect(await line(() => { throw { status: 429 } })).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=rate_limited'])
+  expect(await line(() => [BY_ANSWER[0], BY_ANSWER[0]])).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=repeated_row'])
+  // The out-of-range case names the project too.
+  warn.mockClear()
+  await pullSnapshot(fakePeec(withDomains(MULTI, () => [BY_ANSWER[0]])).client, 'or_a', NOW)
+  expect(warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('out of range'))).toEqual(['[aeo-outbound] own cited answers out of range project=or_a count=1 least=2 most=3'])
+})
+
+// Final review of #431: the answer rows are counted only for own domains, and a count outside what the own rows allow
+// (at least the most-cited own site's answers, at most their sum) is treated as a failed call.
+const ODD_WARNING = "Peec's answers by own site did not match the own sites' counts, so the citation rate is left out."
+test('S2: answer rows for a site that is not the brand\'s are not counted', async () => {
+  const stray = () => [...BY_ANSWER, { domain: 'rival.com', chat: { id: 'ch_9' }, citation_count: 4, total_chat_count: 1 }]
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, stray)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBe(2)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: a count below the most-cited own site\'s answers, or above their sum, leaves the rate out with a warning', async () => {
+  const tooFew = () => [BY_ANSWER[0]]
+  const tooMany = () => ['ch_1', 'ch_2', 'ch_3', 'ch_4'].map((id) => ({ domain: 'example.com', chat: { id }, citation_count: 1, total_chat_count: 1 }))
+  for (const [name, route] of [['too few', tooFew], ['too many', tooMany], ['none', () => []]] as [string, Route][]) {
+    const pull = await pullSnapshot(fakePeec(withDomains(MULTI, route)).client, 'or_a', NOW)
+    expect(pull.ownCitedAnswers, name).toBeNull()
+    expect(pull.warnings, name).toEqual([ODD_WARNING])
+  }
+})
+
+test('S2: answer rows without an answer id fail the contract by name, not as repeated rows (Paul, #388 rule)', async () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const noId = () => [{ domain: 'example.com', chat: null, citation_count: 1 }, { domain: 'example.com', chat: null, citation_count: 2 }]
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, noId)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBeNull()
+  expect(err.mock.calls.map((c) => String(c[0])).some((l) => l.includes('boundary=peec.own_cited_chats field=chat'))).toBe(true)
 })

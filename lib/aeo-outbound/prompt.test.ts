@@ -159,3 +159,30 @@ test('2026-10-19 Peec parity: a usage-rate row names its source shares so; any o
   expect(dataBlock({ ...D, sourceMixWeight: 'usage_rate' } as SnapshotData)).not.toContain('Source types by share of retrievals')
   for (const w of [undefined, 'retrieval_count']) expect(dataBlock({ ...D, sourceMixWeight: w } as unknown as SnapshotData)).toContain('Source types by share of retrievals: Corporate 45.0')
 })
+
+// Spec 2026-11-02 S3 and minor 3: a row with citations gives Glean the citations, the rank and the answers instead of
+// retrievals; a row without keeps every line it had.
+const CITED = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'aplaceformom.com', rank: 4, tied: false, ownLevel: false } }
+test('S3: a row with citations names citations, its rank and the answers citing the brand, and no own-site retrievals', () => {
+  const b = dataBlock({ ...D, sourceMixWeight: 'citation_count', citations: CITED } as unknown as SnapshotData)
+  expect(b).toContain('Own site citations: 731 of 16,287 citations in AI answers; top own site aplaceformom.com ranks 4 of 1,118 cited sites; answers citing the brand: 441 of 2,004')
+  expect(b).toContain('Source types by share of citations: Corporate 45.0%')
+  expect(b).not.toContain('retriev')
+  const tied = dataBlock({ ...D, citations: { ...CITED, topSite: { domain: 'aplaceformom.com', rank: 1, tied: true, ownLevel: false }, citedAnswers: null } } as unknown as SnapshotData)
+  expect(tied).toContain('top own site aplaceformom.com ranks 1 (tied) of 1,118 cited sites; answers citing the brand: not loaded of 2,004')
+  const never = dataBlock({ ...D, citations: { ...CITED, own: 0, ownSitesCited: 0, topSite: null, citedAnswers: 0 } } as unknown as SnapshotData)
+  expect(never).toContain('Own site citations: 0 of 16,287 citations in AI answers; answers citing the brand: 0 of 2,004')
+  // A row without citations keeps its retrievals line exactly.
+  expect(dataBlock(D)).toContain('Own site retrievals (answers that retrieved example.com): 1,989, which is 22.4% of answers')
+})
+
+// Paul, #431 review: the term follows the Data block, so a row without citations, whose block shows retrievals, is not
+// told to call them citations.
+test('S3: the writing rules name citations for a row with citations, retrievals for a row without', () => {
+  const cited = buildPrompt({ ...D, citations: CITED } as unknown as SnapshotData, [])
+  expect(cited).toContain('Use Peec terms where possible: visibility, share of voice, position, citations.')
+  expect(cited).not.toContain('position, retrievals')
+  const older = buildPrompt(D, [])
+  expect(older).toContain('Use Peec terms where possible: visibility, share of voice, position, retrievals.')
+  expect(older).not.toContain('position, citations')
+})

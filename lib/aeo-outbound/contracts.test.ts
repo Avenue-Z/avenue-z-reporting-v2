@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
 import { z } from 'zod'
-import { CONTRACT_MODES, SENTENCES_VERSION } from './config'
+import { CONTRACT_MODES, DECISIONS, SENTENCES_VERSION } from './config'
 import { checkContract, GENERATE_BODY, GLEAN_SLOTS, PEEC_CONTRACTS, peecContract, SETTINGS_ROW, SLOTS_BODY } from './contracts'
 import { PeecError } from './peec'
 import { STORED_DATA, STORED_SLOTS } from './contracts'
@@ -82,7 +82,7 @@ test('NaN and a proportion above 1 are refused; absent or null share of voice an
 })
 
 test('counts are null or non-negative whole numbers; percentages are proportions', () => {
-  const r = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, retrieved_percentage: 0.1, mentioned_brands: [] }
+  const r = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, citation_count: 4, cited_chat_count: 3, total_chat_count: 40, retrieved_percentage: 0.1, mentioned_brands: [] }
   expect(peecContract('peec.domains_report', [r, { ...r, retrieved_chat_count: null, retrieval_count: undefined, retrieved_percentage: null }])).toHaveLength(2)
   expect(() => peecContract('peec.domains_report', [{ ...r, retrieval_count: -1 }])).toThrow('peec.domains_report.retrieval_count')
   expect(() => peecContract('peec.domains_report', [{ ...r, retrieved_chat_count: 1.5 }])).toThrow('peec.domains_report.retrieved_chat_count')
@@ -94,7 +94,7 @@ test('counts are null or non-negative whole numbers; percentages are proportions
 test('spec v1.1 §19.6: the date, classification, mentioned brands and roster fields fail the run naming the field', () => {
   const day = { domain: 'a.example', date: '2026-10-05', retrieved_chat_count: 1 }
   for (const date of ['10/05/2026', 'Oct 5', '', undefined, null]) expect(() => peecContract('peec.domains_by_date', [day, { ...day, date }]), String(date)).toThrow('peec.domains_by_date.date')
-  const dom = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, mentioned_brands: [{ id: 'kw_a' }] }
+  const dom = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, citation_count: 4, cited_chat_count: 3, total_chat_count: 40, mentioned_brands: [{ id: 'kw_a' }] }
   for (const classification of [null, undefined, '', 7]) expect(() => peecContract('peec.domains_report', [{ ...dom, classification }]), String(classification)).toThrow('peec.domains_report.classification')
   for (const mentioned_brands of [null, undefined, ['kw_a'], [{ id: 5 }], 'kw_a']) expect(() => peecContract('peec.domains_report', [{ ...dom, mentioned_brands }]), JSON.stringify(mentioned_brands)).toThrow('peec.domains_report.mentioned_brands')
   const brand = { id: 'kw_a', name: 'Alpha', is_own: false, domains: ['alpha.example'] }
@@ -113,7 +113,7 @@ test('spec v1.1 §19.6: the date, classification, mentioned brands and roster fi
 })
 
 test('spec v1.1 §19.6: the live shapes of 2026-10-14 pass: custom classifications, empty mentioned brands, null or absent roster domains', () => {
-  const dom = { domain: 'a.example', classification: 'Vendors & Platforms', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, mentioned_brands: [] }
+  const dom = { domain: 'a.example', classification: 'Vendors & Platforms', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 4, citation_count: 4, cited_chat_count: 3, total_chat_count: 40, mentioned_brands: [] }
   expect(peecContract('peec.domains_report', [dom, { ...dom, classification: 'CORPORATE', mentioned_brands: [{ id: 'kw_a' }] }])).toHaveLength(2)
   expect(peecContract('peec.domains_by_date', [{ domain: 'a.example', date: '2026-09-01', retrieved_chat_count: 0 }, { domain: 'b.example', date: '2026-09-01T00:00:00Z', retrieved_chat_count: 2 }])).toHaveLength(2)
   const brand = { id: 'kw_a', name: 'Alpha', is_own: true }
@@ -133,7 +133,7 @@ test('unused fields pass through untouched: the very same value comes back', () 
 
 test('every Peec boundary has a contract and starts in the documented mode', () => {
   expect(Object.keys(PEEC_CONTRACTS).sort()).toEqual(Object.keys(CONTRACT_MODES).filter((b) => b.startsWith('peec.')).sort())
-  for (const b of ['peec.brands', 'peec.domains_by_date', 'peec.brands_report', 'peec.brands_by_model', 'peec.domains_report', 'peec.prompts'] as const) expect(CONTRACT_MODES[b]).toBe('enforce')
+  for (const b of ['peec.brands', 'peec.domains_by_date', 'peec.brands_report', 'peec.brands_by_model', 'peec.domains_report', 'peec.own_cited_chats', 'peec.prompts'] as const) expect(CONTRACT_MODES[b]).toBe('enforce')
   for (const b of ['peec.projects', 'peec.project_profile', 'peec.model_channels'] as const) expect(CONTRACT_MODES[b]).toBe('observe')
 })
 
@@ -186,8 +186,8 @@ const PULL: PeecPull = {
     { brand: { id: 'kw_a', name: 'Alpha' }, visibility: 0.261, share_of_voice: 0.225, position: 2.4 },
   ],
   domains: [
-    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, retrieved_percentage: 0.2236, mentioned_brands: [] },
-    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, mentioned_brands: [{ id: 'kw_a' }] },
+    { domain: 'example.com', classification: 'OWN', retrieved_chat_count: 1989, retrieval_count: 3698, usage_rate: 3698, citation_count: 3698, cited_chat_count: 1989, total_chat_count: 10000, retrieved_percentage: 0.2236, mentioned_brands: [] },
+    { domain: 'alpha.com', classification: 'COMPETITOR', retrieved_chat_count: 1250, retrieval_count: 5902, usage_rate: 5902, citation_count: 5902, cited_chat_count: 1250, total_chat_count: 10000, mentioned_brands: [{ id: 'kw_a' }] },
   ],
   promptCount: 100, models: ['ChatGPT UI'], warnings: [],
 }
@@ -268,21 +268,29 @@ test('spec v1.1 §19.6: CONTRACT_DISABLED still set logs one warning that it is 
   warn.mockRestore()
 })
 
-test('2026-10-19 Peec parity: usage_rate is enforced, a non-negative number that may exceed 1', () => {
-  const dom = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, usage_rate: 0.3, mentioned_brands: [] }
-  expect(peecContract('peec.domains_report', [dom, { ...dom, domain: 'b.example', usage_rate: 1.4 }, { ...dom, domain: 'c.example', usage_rate: 0 }])).toHaveLength(3)
-  for (const usage_rate of [undefined, null, -0.1, '0.3', NaN, Infinity]) {
-    expect(() => peecContract('peec.domains_report', [{ ...dom, usage_rate }]), String(usage_rate)).toThrow('peec.domains_report.usage_rate')
+test('spec 2026-11-02 S4: the citation fields are enforced on every domains row; usage_rate is no longer read, so it may be absent', () => {
+  const dom = { domain: 'a.example', classification: 'UGC', retrieved_chat_count: 3, retrieval_count: 4, citation_count: 5, cited_chat_count: 2, total_chat_count: 40, mentioned_brands: [] }
+  expect(peecContract('peec.domains_report', [dom, { ...dom, domain: 'b.example', citation_count: 0, cited_chat_count: 0 }])).toHaveLength(2)
+  for (const field of ['citation_count', 'cited_chat_count', 'total_chat_count'] as const) {
+    for (const v of [undefined, null, -1, 1.5, '3', NaN]) {
+      expect(() => peecContract('peec.domains_report', [{ ...dom, [field]: v }]), `${field}=${String(v)}`).toThrow(`peec.domains_report.${field}`)
+    }
   }
+  // A usage_rate that is present is still checked, so a broken one is caught before an older weighting reads it.
+  expect(peecContract('peec.domains_report', [{ ...dom, usage_rate: 1.4 }, { ...dom, domain: 'c.example', usage_rate: null }])).toHaveLength(2)
+  expect(() => peecContract('peec.domains_report', [{ ...dom, usage_rate: -0.1 }])).toThrow('peec.domains_report.usage_rate')
 })
 
-test('2026-10-19 Peec parity: stored data records the source-mix weighting; absent on older rows, refused when unknown', () => {
+// Paul, #431 review: a build must read rows a later build wrote, so a rollback never strands them. The weighting is any
+// non-empty name; only the code that reads it decides what a name means (prompt.ts gives an unknown one its fallback label).
+test('stored data records the source-mix weighting: absent on older rows, any non-empty name readable, so a rollback can read newer rows', () => {
   const v2 = JSON.parse(JSON.stringify(buildSnapshotData(PULL, '2026-10-08T15:00:00Z')))
-  expect(v2.sourceMixWeight).toBe('usage_rate')
+  // Today's default is pinned in config.test.ts; here the row records whichever weighting generated it.
+  expect(v2.sourceMixWeight).toBe(DECISIONS.sourceMixWeight)
   const { sourceMixWeight: _w, ...older } = v2
   expect(checkContract('stored.data', STORED_DATA, older, 'enforce')).toEqual({ ok: true })
-  for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce')).toEqual({ ok: true })
-  for (const w of ['bogus', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok).toBe(false)
+  for (const w of ['retrieval_count', 'retrieved_chat_count', 'usage_rate', 'citation_count', 'a_later_weighting']) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce'), w).toEqual({ ok: true })
+  for (const w of ['', null, 3]) expect(checkContract('stored.data', STORED_DATA, { ...v2, sourceMixWeight: w }, 'enforce').ok, String(w)).toBe(false)
 })
 
 test('stored slots: opportunities_page is absent, shown or hidden; anything else breaks the contract (Ryan, round 3)', () => {
@@ -307,4 +315,23 @@ test('the Glean reply contract ignores opportunities of any shape, or none (pill
 test('stored slots: opportunities_layout is absent or pillars; anything else breaks the contract (pillars P1)', () => {
   for (const v of [undefined, 'pillars']) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, ...(v ? { opportunities_layout: v } : {}) }, 'enforce')).toEqual({ ok: true })
   for (const v of ['table', true, null]) expect(checkContract('stored.slots', STORED_SLOTS, { ...V1_SLOTS, opportunities_layout: v }, 'enforce').ok).toBe(false)
+})
+
+test('spec 2026-11-02 S2: the own-site report by answer needs a domain, an answer id and a citation count on every row', () => {
+  const row = { domain: 'a.example', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 }
+  expect(peecContract('peec.own_cited_chats', [row, { ...row, chat: { id: 'ch_2' }, citation_count: 0 }])).toHaveLength(2)
+  for (const [bad, field] of [[{ chat: null }, 'chat'], [{ chat: {} }, 'chat.id'], [{ chat: { id: '' } }, 'chat.id'], [{ citation_count: -1 }, 'citation_count'], [{ citation_count: undefined }, 'citation_count'], [{ domain: '' }, 'domain']] as const) {
+    expect(() => peecContract('peec.own_cited_chats', [{ ...row, ...bad }]), field).toThrow(`peec.own_cited_chats.${field}`)
+  }
+})
+
+test('stored data: citations is absent on older rows, or the spec 2026-11-02 S4 shape; anything else is refused', () => {
+  const base = JSON.parse(JSON.stringify(V1_DATA))
+  const c = { own: 731, total: 16287, answers: 2004, citedAnswers: 441, citedSites: 1118, ownSitesCited: 1, topSite: { domain: 'example.com', rank: 4, tied: false, ownLevel: false } }
+  for (const citations of [undefined, c, { ...c, citedAnswers: null }, { ...c, own: 0, ownSitesCited: 0, topSite: null }]) {
+    expect(checkContract('stored.data', STORED_DATA, { ...base, ...(citations ? { citations } : {}) }, 'enforce'), JSON.stringify(citations)).toEqual({ ok: true })
+  }
+  for (const citations of [null, {}, { ...c, own: -1 }, { ...c, total: '3' }, { ...c, citedAnswers: 1.5 }, { ...c, topSite: { domain: 'a', rank: 0, tied: false } }, { ...c, topSite: { domain: 'a', rank: 1 } }, { ...c, topSite: { domain: 'a', rank: 1, tied: false } }]) {
+    expect(checkContract('stored.data', STORED_DATA, { ...base, citations }, 'enforce').ok, JSON.stringify(citations)).toBe(false)
+  }
 })

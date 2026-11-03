@@ -84,6 +84,19 @@ export class PeecClient {
     this.maxRows = opts.maxRows ?? MAX_ENDPOINT_ROWS
   }
 
+  /** A client for one optional call: the same key, transport and clock, a deadline at the earlier of `budgetMs` from now
+   *  and this client's, and its own row cap, so the call can never spend the time or rows the rest of the pull needs
+   *  (Paul, #431 review). */
+  limited(budgetMs: number, maxRows: number): PeecClient {
+    return new PeecClient(this.key, { fetch: this.fetchImpl, sleep: this.sleep, now: this.now, deadline: Math.min(this.deadline, this.now() + budgetMs), maxRows })
+  }
+
+  /** True once this client's deadline has passed: a limited client's caller uses it to tell its own budget running out
+   *  from the parent's. */
+  deadlinePassed(): boolean {
+    return this.now() >= this.deadline
+  }
+
   /** split/join so every occurrence goes (aivx lib/peec-client.ts:91-93). */
   private scrub(text: string): string {
     return (text ?? '').split(this.key).join('<redacted>')

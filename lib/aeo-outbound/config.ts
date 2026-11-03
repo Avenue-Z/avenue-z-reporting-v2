@@ -10,10 +10,11 @@ export const DECISIONS = {
   /** Q4: list competitors' own sites where the brand does not appear, ranked by AI answers that used them (Ryan, round 3,
    *  2026-10-21: "Only include competitor domains"; metrics.ts gapDomains). */
   competitorSiteGaps: true as boolean,
-  /** The source-mix weighting. usage_rate is the field Peec's dashboard sums for its Domain types chart: on 2026-10-19
-   *  it reproduced every slice and the Total retrievals on PocketGuard, which retrieval_count missed by up to 1.7
-   *  points (Ryan's yes, 2026-10-19). retrieved_chat_count is AIVx's method. */
-  sourceMixWeight: 'usage_rate' as 'retrieval_count' | 'retrieved_chat_count' | 'usage_rate',
+  /** The source-mix weighting. citation_count since 2026-11-02 (spec S3, Ryan's yes the same day): the mix, the donut and
+   *  the pillars say "of citations", and Cited Sources now prints the brand's citations, so all of them count the same
+   *  thing and the brand's share equals the donut's "You" slice. usage_rate (2026-10-19 to 2026-11-02) reproduced Peec's
+   *  Domain types chart, but Peec's spec marks it deprecated. retrieved_chat_count is AIVx's method. */
+  sourceMixWeight: 'citation_count' as 'retrieval_count' | 'retrieved_chat_count' | 'usage_rate' | 'citation_count',
   /** Q3 (Ryan, 2026-10-12: yes): Glean writes a more specific category instead of using Peec's `industry` (spec v1.1 §16.1). */
   writeSpecificCategory: true as boolean,
   /** Q5 (Ryan, 2026-10-12: only when relevant): at most this many of the three opportunities may come from Peec actions, never forced (spec v1.1 §16.1). */
@@ -37,8 +38,10 @@ export const NEEDS_VALIDATION = 'Needs validation'
  *  (2026-10-20): source-mix whole numbers round the exact share, as Peec does (sentences.ts sharePctAll, mixPctAll since version 3). Version 3
  *  (2026-10-22): the findings bullets follow Ryan's per-page wording (spec 2026-10-22). The pillar data lines (round 3)
  *  do not use it: grounding tells a pillar row apart by its opportunities_layout marker, so changing their wording later
- *  needs a check of its own (Paul, #415 review). */
-export const SENTENCES_VERSION = 3
+ *  needs a check of its own (Paul, #415 review). Version 4 (2026-11-02): Cited Sources prints citations with their
+ *  total and rank, and the answers that cite the brand (spec 2026-11-02 S1, S2); a row without stored citations keeps
+ *  the version 3 box. */
+export const SENTENCES_VERSION = 4
 /** The first sentences version whose context and methodology read as they do today (Paul, #417 review). A row from this
  *  version on keeps the word-for-word check on those two, whatever SENTENCES_VERSION is. Set it to the new
  *  SENTENCES_VERSION whenever context() or methodology() changes. Their wording has not changed since version 1. */
@@ -75,6 +78,7 @@ export const CONTRACT_MODES = {
   'peec.brands_by_model': 'enforce',
   'peec.model_channels': 'observe',
   'peec.domains_report': 'enforce',
+  'peec.own_cited_chats': 'enforce',
   'peec.prompts': 'enforce',
   'glean.slots': 'enforce',
   'request.generate': 'enforce',
