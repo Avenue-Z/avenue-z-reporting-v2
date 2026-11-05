@@ -1,0 +1,778 @@
+import { afterEach, beforeEach, expect, test, vi, type MockInstance } from 'vitest'
+import { FRAME_SCRIPT_JS, PAGE_JS, renderSnapshotHtml, type RenderMode } from './render'
+import { AIVX_SHARE_BLOCK } from './aivx/share'
+import { AIVX_JS } from './aivx/js'
+import { sourceDonutFigure } from './charts'
+import { pyRound } from './metrics'
+import { V1_DATA, V1_SLOTS } from './__fixtures__/v1-row'
+import type { Slots } from './slots'
+
+// The frame script runs against a parsed draft page. window is a stand-in event target for the frame's own window;
+// parent is the test window, whose postMessage is spied, so nothing is really posted.
+let post: MockInstance<typeof window.postMessage>
+let win: EventTarget
+let doc: Document
+function boot(slots: Slots = V1_SLOTS) {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, slots, 'draft', 'Oct 8, 2026'), 'text/html')
+  win = new EventTarget()
+  new Function('window', 'document', 'parent', FRAME_SCRIPT_JS)(win, doc, window)
+}
+const sent = () => post.mock.calls.map((c) => c[0])
+const fromParent = (data: unknown, source: Window | null = window) => { win.dispatchEvent(new MessageEvent('message', { data, source })) }
+const slot = (p: string) => doc.querySelector(`[data-slot="${p}"]`) as HTMLElement
+const type = (p: string, text: string) => { const el = slot(p); el.textContent = text; el.dispatchEvent(new Event('input', { bubbles: true })) }
+const click = (el: Element) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  post = vi.spyOn(window, 'postMessage').mockImplementation(() => {})
+})
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+test('the frame says ready on load, and the mode message makes every slot editable or not', () => {
+  boot()
+  expect(sent()).toEqual([{ type: 'ready' }])
+  fromParent({ type: 'mode', edit: true })
+  const slots = [...doc.querySelectorAll('[data-slot]')]
+  expect(slots.every((e) => e.getAttribute('contenteditable') === 'plaintext-only')).toBe(true)
+  expect(doc.documentElement.classList.contains('aeo-edit')).toBe(true)
+  fromParent({ type: 'mode', edit: false })
+  expect(doc.querySelectorAll('[contenteditable]')).toHaveLength(0)
+  expect(doc.documentElement.classList.contains('aeo-edit')).toBe(false)
+})
+
+test('contenteditable falls back to true where plaintext-only is unsupported', () => {
+  Object.defineProperty(HTMLElement.prototype, 'contentEditable', {
+    configurable: true,
+    get() { return 'inherit' },
+    set(v: string) { if (v === 'plaintext-only') throw new DOMException('unsupported', 'SyntaxError') },
+  })
+  try {
+    boot()
+    fromParent({ type: 'mode', edit: true })
+    expect(slot('headline').getAttribute('contenteditable')).toBe('true')
+  } finally {
+    delete (HTMLElement.prototype as { contentEditable?: unknown }).contentEditable
+  }
+})
+
+test('typing in edit mode posts dirty at once and the edit after 800 ms, and every mirror of that path follows', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  type('page.series', '  New   series ')
+  expect(sent().at(-1)).toEqual({ type: 'dirty', path: 'page.series' })
+  vi.advanceTimersByTime(799)
+  expect(sent().filter((m) => (m as { type: string }).type === 'edit')).toEqual([])
+  vi.advanceTimersByTime(1)
+  expect(sent().at(-1)).toEqual({ type: 'edit', path: 'page.series', value: '  New   series ' })
+  expect(doc.querySelector('.sidebar-industry [data-mirror="page.series"]')!.textContent).toBe('New series')
+  expect(doc.querySelector('[data-mirror="page.series"][data-upper]')!.textContent).toBe('NEW SERIES')
+})
+
+test('in Preview nothing is editable: typing and clicks post nothing, and links are left alone', () => {
+  boot()
+  type('headline', 'x')
+  expect(click(doc.querySelector('[data-locked="chart"]')!)).toBe(true)
+  expect(click(doc.querySelector('.footer-link')!)).toBe(true)
+  vi.advanceTimersByTime(1000)
+  expect(sent()).toEqual([{ type: 'ready' }])
+})
+
+test('in edit mode links and the sidebar nav never navigate', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  expect(click(doc.querySelector('.footer-link')!)).toBe(false)
+  expect(click(doc.querySelector('.sidebar-nav a')!)).toBe(false)
+})
+
+test('locked: a chart posts chart, a nav number or the Prepared date posts fixed, a mirror posts fixed with the path it copies', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  click(doc.querySelector('[data-locked="chart"] .plotly-graph-div')!)
+  click(doc.querySelector('.nav-num')!)
+  click(doc.querySelector('.sidebar-industry [data-mirror="brand"]')!)
+  click(slot('headline'))
+  expect(sent().slice(1)).toEqual([
+    { type: 'locked', what: 'chart' },
+    { type: 'locked', what: 'fixed' },
+    { type: 'locked', what: 'fixed', path: 'brand' },
+  ])
+})
+
+test('a structural click sends the pending edit first', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  type('headline', 'Typed headline')
+  click(doc.querySelector('[data-structure="add"][data-path="competitive_bullets"]')!)
+  expect(sent().slice(1)).toEqual([
+    { type: 'dirty', path: 'headline' },
+    { type: 'edit', path: 'headline', value: 'Typed headline' },
+    { type: 'structure', op: 'add', path: 'competitive_bullets' },
+  ])
+  vi.advanceTimersByTime(1000)
+  expect(sent()).toHaveLength(4)
+})
+
+test('a Remove click names the bullet', () => {
+  boot({ ...V1_SLOTS, sources_bullets: [...V1_SLOTS.sources_bullets, { lead: 'L3:', text: 'T3.' }] })
+  fromParent({ type: 'mode', edit: true })
+  click(doc.querySelector('[data-structure="remove"][data-path="sources_bullets.1"]')!)
+  expect(sent().at(-1)).toEqual({ type: 'structure', op: 'remove', path: 'sources_bullets.1' })
+})
+
+test('a Remove click on bullet 5 of 6 posts competitive_bullets.4 and remove (spec v1.1 18.12)', () => {
+  boot({ ...V1_SLOTS, competitive_bullets: Array.from({ length: 6 }, (_, i) => ({ lead: `L${i}:`, text: `T${i}.` })) })
+  fromParent({ type: 'mode', edit: true })
+  click(doc.querySelector('[data-structure="remove"][data-path="competitive_bullets.4"]')!)
+  expect(sent().at(-1)).toEqual({ type: 'structure', op: 'remove', path: 'competitive_bullets.4' })
+  expect(doc.querySelector('[data-structure="add"][data-path="competitive_bullets"]')).toBeNull()
+})
+
+test('flush from the parent sends every pending edit; the same message from anyone else is ignored', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  type('why', 'Typed')
+  fromParent({ type: 'flush' }, null)
+  expect(sent().at(-1)).toEqual({ type: 'dirty', path: 'why' })
+  fromParent({ type: 'flush' })
+  expect(sent().at(-1)).toEqual({ type: 'edit', path: 'why', value: 'Typed' })
+})
+
+test('focus flashes the field and focuses it; Enter never adds a line', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  fromParent({ type: 'focus', path: 'why' })
+  expect(slot('why').classList.contains('aeo-flash')).toBe(true)
+  vi.advanceTimersByTime(1200)
+  expect(slot('why').classList.contains('aeo-flash')).toBe(false)
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  expect(slot('why').dispatchEvent(enter)).toBe(false)
+})
+
+test('the listener is delegated: a node cloned after the script ran still posts its edits', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  const thead = doc.querySelector('.leaderboard thead')!
+  thead.parentNode!.replaceChild(thead.cloneNode(true), thead)
+  type('page.opps_col_1', 'Evidence')
+  expect(sent().at(-1)).toEqual({ type: 'dirty', path: 'page.opps_col_1' })
+})
+
+test('Enter is cancelled on a slot only in edit mode, so a keyboard user can open a link slot in Preview', () => {
+  boot()
+  const enter = () => new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  expect(slot('page.footer_link').dispatchEvent(enter())).toBe(true)
+  fromParent({ type: 'mode', edit: true })
+  expect(slot('page.footer_link').dispatchEvent(enter())).toBe(false)
+})
+
+// PAGE_JS (v1.1 §17.1, §17.2) runs first, as in the page, then the frame script when the mode is draft.
+let scrolled: MockInstance
+function bootPage(mode: RenderMode, extra: Record<string, unknown> = {}, slots: Slots = V1_SLOTS) {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, slots, mode, 'Oct 8, 2026'), 'text/html')
+  win = Object.assign(new EventTarget(), extra)
+  new Function('window', 'document', PAGE_JS)(win, doc)
+  if (mode === 'draft') new Function('window', 'document', 'parent', FRAME_SCRIPT_JS)(win, doc, window)
+  if (doc.readyState !== 'complete') win.dispatchEvent(new Event('load'))
+}
+const link = (id: string) => doc.querySelector(`.sidebar-nav a[href="#${id}"]`)!
+function stubScroll() {
+  const fn = vi.fn()
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: fn })
+  scrolled = fn as unknown as MockInstance
+}
+afterEach(() => { delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView })
+
+test.each(['preview', 'draft'] as const)('%s outside edit mode: a menu click scrolls to the section smoothly and is default-prevented', (mode) => {
+  stubScroll()
+  bootPage(mode)
+  expect(click(link('headline'))).toBe(false)
+  expect(scrolled).toHaveBeenCalledTimes(1)
+  expect(scrolled.mock.instances[0]).toBe(doc.getElementById('headline'))
+  expect(scrolled).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+})
+
+test('final: a menu click scrolls too', () => {
+  stubScroll()
+  bootPage('final')
+  expect(click(link('methodology'))).toBe(false)
+  expect(scrolled.mock.instances[0]).toBe(doc.getElementById('methodology'))
+})
+
+test('in edit mode PAGE_JS does nothing (no scroll, no prevent); the frame script still cancels the link', () => {
+  stubScroll()
+  bootPage('draft')
+  fromParent({ type: 'mode', edit: true })
+  const ev = new MouseEvent('click', { bubbles: true, cancelable: true })
+  // PAGE_JS alone must not prevent: run it on a second page that has no frame script.
+  const a = link('headline')
+  expect(a.dispatchEvent(ev)).toBe(false) // the frame script's rule
+  expect(scrolled).not.toHaveBeenCalled()
+  const only = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'draft', 'x'), 'text/html')
+  only.querySelector('[data-slot]')!.setAttribute('contenteditable', 'true')
+  new Function('window', 'document', PAGE_JS)(new EventTarget(), only)
+  expect(only.querySelector('.sidebar-nav a[href="#headline"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))).toBe(true)
+  expect(scrolled).not.toHaveBeenCalled()
+})
+
+test('a link to a hash with no section is not prevented', () => {
+  stubScroll()
+  bootPage('preview')
+  const a = doc.createElement('a')
+  a.setAttribute('href', '#nope')
+  doc.body.appendChild(a)
+  expect(click(a)).toBe(true)
+  expect(scrolled).not.toHaveBeenCalled()
+})
+
+// The donut (v1.1 §17.2, 2026-11-03): Plotly and matchMedia are stubs; the tests prove the calls, and that matchMedia is never asked.
+const MIX = [{ label: 'Reference', weight: 4.8, pct: 4.8 }, { label: 'Corporate', weight: 60.3, pct: 60.3 }, { label: 'You', weight: 34.9, pct: 34.9 }]
+function bootDonut(over: { matches?: boolean; react?: () => unknown; noPlotly?: boolean; noEl?: boolean; noMatchMedia?: boolean; mix?: typeof MIX; text?: unknown; before?: (el: HTMLElement) => void } = {}) {
+  const fig = sourceDonutFigure(over.mix ?? MIX)
+  // Plotly.react, recording the height it was given on the stand-in drawn layout, as Plotly does.
+  const react = vi.fn(over.react ?? ((g: { _fullLayout?: { height: number } }, _d: unknown, l?: { height?: number }) => { if (g._fullLayout && l?.height) g._fullLayout.height = l.height; return Promise.resolve() }))
+  // Plotly.relayout: never called. A relayout that sets a height pins the width (or, with width: null, puts back the first
+  // drawn width), so the chart stops following its box (measured in Plotly 3.5.0, 2026-11-03).
+  const relayout = vi.fn(() => Promise.resolve())
+  const listeners: ((e: { matches: boolean }) => void)[] = []
+  const mq = { matches: over.matches ?? true, addEventListener: (_: string, f: (e: { matches: boolean }) => void) => { listeners.push(f) } }
+  const matchMedia = vi.fn(() => mq)
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'final', 'x'), 'text/html')
+  const el = doc.getElementById('aeo-chart-sources') as unknown as { data?: unknown; layout?: unknown } & HTMLElement
+  if (over.noEl) el.removeAttribute('id')
+  else { el.data = JSON.parse(JSON.stringify(fig.data)); el.layout = JSON.parse(JSON.stringify(fig.layout)) }
+  if ('text' in over && !over.noEl) (el.data as Record<string, unknown>[])[0].text = over.text
+  if (!over.noEl) over.before?.(el)
+  win = Object.assign(new EventTarget(), over.noMatchMedia ? {} : { matchMedia }, over.noPlotly ? {} : { Plotly: { react, relayout } })
+  new Function('window', 'document', PAGE_JS)(win, doc)
+  if (doc.readyState !== 'complete') win.dispatchEvent(new Event('load'))
+  return { react, relayout, fig, mq, change: (matches: boolean) => listeners.forEach((f) => f({ matches })), matchMedia }
+}
+
+test('donut at every width: the page draws nothing at load, since the figure already carries the legend shares, ring rule and hover (2026-11-03)', () => {
+  for (const matches of [true, false]) {
+    const { react, matchMedia } = bootDonut({ matches })
+    expect(react, String(matches)).not.toHaveBeenCalled()
+    expect(matchMedia, String(matches)).not.toHaveBeenCalled()
+  }
+  const t = sourceDonutFigure(MIX).data[0] as Record<string, unknown>
+  expect(t.labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
+  expect(t.texttemplate).toEqual(['', '%{text}', '%{text}'])
+  expect(t.textposition).toBe('inside')
+})
+
+test('donut: the legend reads the slice labels, so the legend, the ring and the sentence agree (final review M5, 2026-10-19)', () => {
+  // 375 and 25 of 400 store as 93.8 and 6.2 (pyRound, half to even); the labels are their whole numbers.
+  const mix = [{ label: 'Corporate', weight: 375, pct: pyRound((375 / 400) * 100, 1) }, { label: 'Editorial', weight: 25, pct: pyRound((25 / 400) * 100, 1) }]
+  const t = sourceDonutFigure(mix).data[0] as { text: string[]; labels: string[] }
+  expect(t.text).toEqual(['94%', '6%'])
+  expect(t.labels).toEqual(['Corporate 94%', 'Editorial 6%'])
+})
+
+test('donut: a rejected redraw restores the originals once, and a throw does the same', async () => {
+  const rejected = bootDonut({ matches: false, react: () => Promise.reject(new Error('x')), before: (el) => setLegend(el, OVERLAPS) })
+  await vi.advanceTimersByTimeAsync(0)
+  expect(rejected.react).toHaveBeenCalledTimes(2)
+  expect((rejected.react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(rejected.fig.data)))
+  expect((rejected.react.mock.calls[1] as unknown[])[2]).toEqual(JSON.parse(JSON.stringify(rejected.fig.layout)))
+  const throwing = bootDonut({ matches: false, react: () => { throw new Error('x') }, before: (el) => setLegend(el, OVERLAPS) })
+  expect(throwing.react).toHaveBeenCalledTimes(2)
+  expect((throwing.react.mock.calls[1] as unknown[])[1]).toEqual(JSON.parse(JSON.stringify(throwing.fig.data)))
+})
+
+test('donut: no Plotly or no element means no throw and no call', () => {
+  const none0 = bootDonut({ noPlotly: true })
+  const el = doc.getElementById('aeo-chart-sources') as unknown as { data: unknown; layout: unknown }
+  const data = el.data, layout = el.layout
+  expect(none0.matchMedia).not.toHaveBeenCalled()
+  expect(el.data).toBe(data)
+  expect(el.layout).toBe(layout)
+  expect(JSON.stringify(el.data)).toBe(JSON.stringify(sourceDonutFigure(MIX).data))
+  const none = bootDonut({ noEl: true })
+  expect(none.react).not.toHaveBeenCalled()
+})
+
+// The legend check (spec 2026-10-21 C5): Plotly's legend nodes are stand-ins whose boxes the test sets.
+type Box = [left: number, textRight: number, top?: number]
+const rect = (left: number, right: number, top = 0) => ({ left, right, top, bottom: top + 10, width: right - left, height: 10, x: left, y: top, toJSON: () => ({}) }) as DOMRect
+function setLegend(el: HTMLElement, boxes: Box[], right = 300, width = 300, legendRight?: number, legendHeight = 10) {
+  el.querySelector('.legend')?.remove()
+  const d = el.ownerDocument
+  const lg = d.createElement('div'); lg.className = 'legend'
+  // Plotly's legend background: its right edge is where it clips a legend name, its height the legend's (2026-11-03).
+  if (legendRight !== undefined) { const bg = d.createElement('rect'); bg.setAttribute('class', 'bg'); bg.getBoundingClientRect = () => ({ ...rect(0, legendRight), bottom: legendHeight, height: legendHeight }) as DOMRect; lg.appendChild(bg) }
+  for (const [left, textRight, top = 0] of boxes) {
+    const tr = d.createElement('div'); tr.className = 'traces'; tr.getBoundingClientRect = () => rect(left, left + 20, top)
+    const tx = d.createElement('div'); tx.className = 'legendtext'; tx.getBoundingClientRect = () => rect(left + 20, textRight, top)
+    tr.appendChild(tx); lg.appendChild(tr)
+  }
+  el.appendChild(lg)
+  el.getBoundingClientRect = () => rect(0, right)
+  Object.defineProperty(el, 'clientWidth', { configurable: true, value: width })
+}
+const FITS: Box[] = [[0, 100], [150, 250], [0, 90], [150, 240]]
+const OVERLAPS: Box[] = [[0, 160], [150, 250]]
+type Call = [unknown, Record<string, unknown>[], { legend?: { entrywidth?: number; entrywidthmode?: string } }]
+const callsOf = (react: { mock: { calls: unknown[] } }) => react.mock.calls as Call[]
+// 2026-11-03: the fallback is one entry per row, each as wide as the widest name as drawn (its symbol included) plus 6px,
+// never wider than the chart less 16px. Plotly's own flowing legend measured names 4 to 8px short and clipped them.
+const oneColumn = (layout: Record<string, unknown>, px: number) => { const l = JSON.parse(JSON.stringify(layout)); l.legend.entrywidth = px; l.legend.entrywidthmode = 'pixels'; return l }
+const flush = () => vi.advanceTimersByTimeAsync(0)
+
+test('legend on a desktop width: names that fit draw nothing; names that overlap redraw once, one column, with the same data', async () => {
+  const fits = bootDonut({ matches: false, before: (el) => setLegend(el, FITS) })
+  await flush()
+  expect(fits.react).not.toHaveBeenCalled()
+  const over = bootDonut({ matches: false, before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(over.react).toHaveBeenCalledTimes(1)
+  const [target, data, layout] = callsOf(over.react)[0]
+  expect(target).toBe(doc.getElementById('aeo-chart-sources'))
+  expect(data).toEqual(JSON.parse(JSON.stringify(over.fig.data)))
+  expect(layout).toEqual(oneColumn(over.fig.layout, 166))
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(over.react).toHaveBeenCalledTimes(1)
+})
+
+// Paul, #410 review: with an odd count the last name sits alone in its row, so only a name to its right in the same row
+// (or the chart's edge) limits it. Measured in Plotly 3.5.0 (2026-10-22): seven slices, the last one long, fell back.
+test('legend: a long last name alone in its row fits; the same name with a neighbour to its right falls back', async () => {
+  const alone = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 220, 20]]) })
+  await flush()
+  expect(alone.react).not.toHaveBeenCalled()
+  const beside = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 220, 20], [150, 200, 20]]) })
+  await flush()
+  expect(beside.react).toHaveBeenCalledTimes(1)
+  const past = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 250, 0], [0, 320, 20]]) })
+  await flush()
+  expect(past.react).toHaveBeenCalledTimes(1)
+})
+
+// 2026-11-03: Plotly clips a legend name at the legend box, inside the chart's 24px side margin, so a name with nothing to
+// its right is measured against that box. Measured in Plotly 3.5.0: "Supply Chain Data & Infrastructure 8%" lost 15px.
+test('legend: a last name past the legend box but inside the chart falls back; with no legend box the chart edge rules', async () => {
+  const clipped = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 290, 0]], 300, 300, 276) })
+  await flush()
+  expect(clipped.react).toHaveBeenCalledTimes(1)
+  expect(callsOf(clipped.react)[0][2]).toEqual(oneColumn(clipped.fig.layout, 146))
+  const inside = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 270, 0]], 300, 300, 276) })
+  await flush()
+  expect(inside.react).not.toHaveBeenCalled()
+  const noBox = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100, 0], [150, 290, 0]], 300, 300) })
+  await flush()
+  expect(noBox.react).not.toHaveBeenCalled()
+})
+
+// 2026-11-03: Plotly scrolls a horizontal legend taller than half the chart (its default maxheight), which hid entries on
+// 66 of 186 narrow renders. The figure lifts that cap, and the page gives the chart back the excess: 420 + legend - 210.
+const drawn = (el: HTMLElement, height = 420) => { (el as unknown as { _fullLayout: { height: number } })._fullLayout = { height } }
+const wrapOf = () => (doc.getElementById('aeo-chart-sources')!.parentElement as HTMLElement).style.height
+test('legend: a legend taller than half the chart redraws the chart and its box taller by the excess, once; one that fits changes nothing', async () => {
+  const tall = bootDonut({ matches: false, before: (el) => { drawn(el); setLegend(el, FITS, 300, 300, 300, 257) } })
+  await flush()
+  expect(tall.react).toHaveBeenCalledTimes(1)
+  const [, data, layout] = callsOf(tall.react)[0]
+  expect(data).toEqual(JSON.parse(JSON.stringify(tall.fig.data)))
+  expect(layout).toEqual({ ...JSON.parse(JSON.stringify(tall.fig.layout)), height: 467 })
+  expect(wrapOf()).toBe('467px')
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(tall.react).toHaveBeenCalledTimes(1)
+  expect(tall.relayout).not.toHaveBeenCalled()
+  const fits = bootDonut({ matches: false, before: (el) => { drawn(el); setLegend(el, FITS, 300, 300, 300, 210) } })
+  await flush()
+  expect(fits.react).not.toHaveBeenCalled()
+  expect(wrapOf()).toBe('420px')
+})
+
+test('legend: the chart grows after a fallback to one column, and shrinks back to 420 with its box when a wider page shortens it', async () => {
+  let el!: HTMLElement
+  const { react, relayout, fig } = bootDonut({ matches: false, before: (e) => { el = e; drawn(e); setLegend(e, OVERLAPS, 300, 300, 300, 300) } })
+  await flush()
+  expect(callsOf(react).map((c) => c[2])).toEqual([oneColumn(fig.layout, 166), { ...oneColumn(fig.layout, 166), height: 510 }])
+  expect(wrapOf()).toBe('510px')
+  setLegend(el, FITS, 500, 500, 500, 86)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  await flush()
+  // The resize redraws two columns at the figure's own 420; that legend fits, so only the box comes back to 420.
+  expect(callsOf(react).length).toBe(3)
+  expect(callsOf(react)[2][2]).toEqual(JSON.parse(JSON.stringify(fig.layout)))
+  expect(wrapOf()).toBe('420px')
+  expect(relayout).not.toHaveBeenCalled()
+})
+
+test('legend: a failed redraw puts the chart box back to its first height with the originals', async () => {
+  const { react } = bootDonut({ matches: false, react: () => Promise.reject(new Error('x')), before: (el) => { drawn(el, 500); (el.parentElement as HTMLElement).style.height = '500px'; setLegend(el, OVERLAPS) } })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(2)
+  expect(wrapOf()).toBe('420px')
+})
+
+test('legend: a one-column entry never runs wider than the chart less 16px, however long the name', async () => {
+  const { react, fig } = bootDonut({ matches: false, before: (el) => setLegend(el, [[0, 100], [150, 460]], 300, 300) })
+  await flush()
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 284))
+})
+
+test('legend: a chart with no width (the report loaded hidden) is not checked until it has one, then is checked once', async () => {
+  let el!: HTMLElement
+  const { react, fig } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, OVERLAPS, 0, 0) } })
+  await flush()
+  expect(react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS, 300, 300)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 166))
+})
+
+test('legend: with no matchMedia the desktop check still runs once and falls back where names overlap', async () => {
+  const { react, fig } = bootDonut({ noMatchMedia: true, before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 166))
+})
+
+test('legend: one source type has nothing to overlap, so nothing is redrawn', async () => {
+  const one = bootDonut({ matches: false, mix: [{ label: 'Corporate', weight: 1, pct: 100 }], before: (el) => setLegend(el, [[0, 400]]) })
+  await flush()
+  expect(one.react).not.toHaveBeenCalled()
+})
+
+test('legend: the fallback keeps the legend shares, the ring rule and the hover, at a phone width too, once', async () => {
+  const { react, fig } = bootDonut({ matches: true, before: (el) => setLegend(el, OVERLAPS) })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(1)
+  const [, data, layout] = callsOf(react)[0]
+  expect(data).toEqual(JSON.parse(JSON.stringify(fig.data)))
+  expect(data[0].labels).toEqual(['Reference 5%', 'Corporate 60%', 'You 35%'])
+  expect(data[0].customdata).toEqual(['Reference', 'Corporate', 'You'])
+  expect(layout).toEqual(oneColumn(fig.layout, 166))
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(react).toHaveBeenCalledTimes(1)
+})
+
+test('legend: resizes retry two columns once, 150ms after the last, and only when the width changed', async () => {
+  let el!: HTMLElement
+  const { react } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, OVERLAPS, 300, 300) } })
+  await flush()
+  expect(react).toHaveBeenCalledTimes(1)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(200)
+  expect(react).toHaveBeenCalledTimes(1)
+  setLegend(el, FITS, 400, 400)
+  for (let i = 0; i < 5; i++) { win.dispatchEvent(new Event('resize')); await vi.advanceTimersByTimeAsync(20) }
+  expect(react).toHaveBeenCalledTimes(1)
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(2)
+  expect(callsOf(react)[1][2].legend?.entrywidth).toBe(0.5)
+  await flush()
+  expect(react).toHaveBeenCalledTimes(2)
+})
+
+test('legend: a resize that makes two columns overlap falls back once', async () => {
+  let el!: HTMLElement
+  const { react, fig } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, FITS, 400, 400) } })
+  await flush()
+  expect(react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS, 300, 300)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2]).toEqual(oneColumn(fig.layout, 166))
+})
+
+test('donut: crossing between phone and desktop widths draws nothing by itself; only a legend that no longer fits does', async () => {
+  let el!: HTMLElement
+  const { react, change } = bootDonut({ matches: false, before: (e) => { el = e; setLegend(e, FITS) } })
+  await flush()
+  change(true)
+  change(false)
+  await flush()
+  expect(react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS, 280, 280)
+  win.dispatchEvent(new Event('resize'))
+  await vi.advanceTimersByTimeAsync(150)
+  expect(react).toHaveBeenCalledTimes(1)
+  expect(callsOf(react)[0][2].legend).toMatchObject({ entrywidth: 166, entrywidthmode: 'pixels' })
+})
+
+test('legend: a font still loading re-checks when it arrives; a loaded font adds no check', async () => {
+  let el!: HTMLElement
+  let arrive!: () => void
+  const loading = bootDonut({ matches: false, before: (e) => {
+    el = e; setLegend(e, FITS)
+    Object.defineProperty(e.ownerDocument, 'fonts', { configurable: true, value: { status: 'loading', ready: new Promise<void>((r) => { arrive = r }) } })
+  } })
+  await flush()
+  expect(loading.react).not.toHaveBeenCalled()
+  setLegend(el, OVERLAPS)
+  arrive()
+  await flush()
+  expect(loading.react).toHaveBeenCalledTimes(1)
+  const loaded = bootDonut({ matches: false, before: (e) => {
+    el = e; setLegend(e, FITS)
+    Object.defineProperty(e.ownerDocument, 'fonts', { configurable: true, value: { status: 'loaded', ready: Promise.resolve() } })
+  } })
+  setLegend(el, OVERLAPS)
+  await flush()
+  expect(loaded.react).not.toHaveBeenCalled()
+})
+
+// The menu highlights 05 at the bottom of the page (v1.1 §17.12). AIVx's real scroll-spy runs first, then PAGE_JS, as in
+// the page. getBoundingClientRect is stubbed so the sections sit where the test says; the scroll metrics are stubbed too.
+const SECTION_IDS = ['headline', 'category-data', 'competitive-visibility', 'opportunities', 'methodology']
+function bootSpy(mode: RenderMode, o: { bottom: boolean; tops?: number[]; edit?: boolean; hidden?: boolean; slots?: Slots; ids?: string[] }) {
+  const slots = o.slots ?? V1_SLOTS
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, o.hidden ? { ...slots, opportunities_page: 'hidden' as const } : slots, mode, 'Oct 8, 2026'), 'text/html')
+  if (o.edit) doc.querySelector('[data-slot]')!.setAttribute('contenteditable', 'true')
+  const ids = o.ids ?? (o.hidden ? SECTION_IDS.filter((id) => id !== 'opportunities') : SECTION_IDS)
+  const tops = o.tops ?? (o.hidden ? [-900, -600, 0, 400] : [-900, -600, 0, 400, 700])
+  ids.forEach((id, i) => {
+    const el = doc.getElementById(id)!
+    el.classList.add('section')
+    el.getBoundingClientRect = () => ({ top: tops[i] }) as DOMRect
+  })
+  Object.defineProperty(doc.documentElement, 'scrollHeight', { configurable: true, value: 3000 })
+  win = Object.assign(new EventTarget(), { innerHeight: 800, scrollY: o.bottom ? 2200 : 500 })
+  new Function('window', 'document', AIVX_JS)(win, doc)
+  new Function('window', 'document', PAGE_JS)(win, doc)
+}
+const actives = () => [...doc.querySelectorAll('.sidebar-nav a.active')].map((a) => a.getAttribute('href'))
+
+test('at the bottom a scroll leaves only the 05 link active, after AIVx chose 04', () => {
+  bootSpy('final', { bottom: true })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#methodology'])
+})
+
+test('mid-page a scroll leaves AIVx choice standing and does not force 05', () => {
+  bootSpy('final', { bottom: false })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#competitive-visibility'])
+})
+
+test('a short page already at the bottom on load highlights 05 without a scroll', () => {
+  bootSpy('final', { bottom: true })
+  win.dispatchEvent(new Event('load'))
+  expect(actives()).toEqual(['#methodology'])
+})
+
+test('clicking the 03 link in preview marks 03 active at once', () => {
+  stubScroll()
+  bootSpy('preview', { bottom: false, tops: [-900, -600, 700, 800, 900] })
+  click(link('competitive-visibility'))
+  expect(actives()).toEqual(['#competitive-visibility'])
+})
+
+test('in edit mode a click marks nothing new', () => {
+  stubScroll()
+  bootSpy('draft', { bottom: false, tops: [-900, -600, 700, 800, 900], edit: true })
+  click(link('competitive-visibility'))
+  expect(actives()).toEqual(['#category-data'])
+})
+
+test('round 3: on a row with Competitive Visibility first, the scroll highlight follows the page order', () => {
+  // Tops follow the marker row's page order. With today's DOM order AIVx would visit Competitive Visibility last and pick it.
+  bootSpy('final', { bottom: false, slots: { ...V1_SLOTS, section_order: 'visibility_first' }, ids: ['headline', 'competitive-visibility', 'category-data', 'opportunities', 'methodology'] })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#category-data'])
+})
+
+// Spec v1.1 §17.16: the four menu copies are editable where they are and stay in sync with their section.
+const menu = (p: string) => doc.querySelector(`.sidebar-nav [data-mirror="${p}"][data-mirror-edit]`) as HTMLElement
+const typeMenu = (p: string, text: string) => { const el = menu(p); el.textContent = text; el.dispatchEvent(new Event('input', { bubbles: true })) }
+const MENU_PATHS = ['page.headline_label', 'page.section_1_title', 'page.section_2_title', 'page.opps_label']
+
+test('menu copies become contenteditable with the mode, like slots', () => {
+  boot()
+  const all = () => [...doc.querySelectorAll('[data-mirror-edit]')]
+  expect(all()).toHaveLength(4)
+  fromParent({ type: 'mode', edit: true })
+  expect(all().every((e) => e.getAttribute('contenteditable') === 'plaintext-only')).toBe(true)
+  fromParent({ type: 'mode', edit: false })
+  expect(doc.querySelectorAll('[contenteditable]')).toHaveLength(0)
+})
+
+test('typing in menu 02 updates the section title and the section label copy, and posts one edit after the debounce', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  typeMenu('page.section_1_title', 'New   category')
+  expect(sent().slice(1)).toEqual([{ type: 'dirty', path: 'page.section_1_title' }])
+  expect(slot('page.section_1_title').textContent).toBe('New   category')
+  expect(doc.querySelector('.section-label [data-mirror="page.section_1_title"]')!.textContent).toBe('New   category')
+  vi.advanceTimersByTime(799)
+  expect(sent().filter((m) => (m as { type: string }).type === 'edit')).toEqual([])
+  vi.advanceTimersByTime(1)
+  expect(sent().filter((m) => (m as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.section_1_title', value: 'New   category' }])
+})
+
+test('typing in a menu copy again before the debounce ends still posts one edit', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  typeMenu('page.opps_label', 'A')
+  vi.advanceTimersByTime(500)
+  typeMenu('page.opps_label', 'AB')
+  vi.advanceTimersByTime(800)
+  expect(sent().filter((m) => (m as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.opps_label', value: 'AB' }])
+})
+
+test('typing in a section title updates its menu item after the debounce', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  for (const p of MENU_PATHS) {
+    type(p, `Typed ${p}`)
+    vi.advanceTimersByTime(800)
+    expect(menu(p).textContent).toBe(`Typed ${p}`)
+  }
+})
+
+test('mirror never rewrites the focused element, so the caret stays', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  const m = menu('page.section_1_title')
+  // A DOMParser document has no browsing context, so focus() cannot make m active: stand in for the focused element.
+  Object.defineProperty(doc, 'activeElement', { configurable: true, get: () => m })
+  m.textContent = 'Typed  twice '
+  const fresh = m.firstChild as Text
+  m.dispatchEvent(new Event('input', { bubbles: true }))
+  vi.advanceTimersByTime(800)
+  // The same text node survives: nothing wrote textContent on the focused element.
+  expect(m.firstChild).toBe(fresh)
+  expect(m.textContent).toBe('Typed  twice ')
+  expect(slot('page.section_1_title').textContent).toBe('Typed  twice ')
+})
+
+test('a click on a menu copy posts no locked and does not navigate; a section-label copy still posts locked', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  expect(click(menu('page.headline_label'))).toBe(false)
+  expect(sent()).toEqual([{ type: 'ready' }])
+  click(doc.querySelector('.section-label [data-mirror="page.section_1_title"]')!)
+  expect(sent().slice(1)).toEqual([{ type: 'locked', what: 'fixed', path: 'page.section_1_title' }])
+  click(doc.querySelector('.sidebar-nav .nav-num')!)
+  expect(sent().at(-1)).toEqual({ type: 'locked', what: 'fixed' })
+})
+
+test('Enter blurs a menu copy, paste inserts plain text and drop is blocked, as for slots', () => {
+  boot()
+  const m = menu('page.section_2_title')
+  const enter = () => new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  expect(m.dispatchEvent(enter())).toBe(true)
+  fromParent({ type: 'mode', edit: true })
+  expect(m.dispatchEvent(enter())).toBe(false)
+  const insert = vi.fn()
+  ;(doc as unknown as { execCommand: unknown }).execCommand = insert
+  const paste = new Event('paste', { bubbles: true, cancelable: true }) as Event & { clipboardData?: unknown }
+  paste.clipboardData = { getData: () => 'plain' }
+  expect(m.dispatchEvent(paste)).toBe(false)
+  expect(insert).toHaveBeenCalledWith('insertText', false, 'plain')
+  expect(m.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }))).toBe(false)
+})
+
+test('a menu edit posts nothing in Preview', () => {
+  boot()
+  typeMenu('page.headline_label', 'x')
+  vi.advanceTimersByTime(1000)
+  expect(sent()).toEqual([{ type: 'ready' }])
+})
+
+test('typing in the section title, then in its menu copy within the debounce, keeps both sets of keystrokes', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  type('page.section_1_title', 'Section text')
+  vi.advanceTimersByTime(300)
+  const m = menu('page.section_1_title')
+  m.textContent = (m.textContent ?? '') + '!'
+  m.dispatchEvent(new Event('input', { bubbles: true }))
+  vi.advanceTimersByTime(800)
+  expect(sent().filter((x) => (x as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.section_1_title', value: 'Section text!' }])
+})
+
+test('leaving Edit mode sends a pending menu edit once', () => {
+  boot()
+  fromParent({ type: 'mode', edit: true })
+  typeMenu('page.opps_label', 'Pending')
+  fromParent({ type: 'mode', edit: false })
+  vi.advanceTimersByTime(1000)
+  expect(sent().filter((x) => (x as { type: string }).type === 'edit')).toEqual([{ type: 'edit', path: 'page.opps_label', value: 'Pending' }])
+})
+
+// Spec v1.1 §19.7: after a bullet add or remove the new frame opens where Ryan was.
+test('scrolling posts the frame\'s position at most every 200 ms, and a scroll message from the parent restores it', () => {
+  boot()
+  const scrollTo = vi.fn()
+  Object.assign(win, { scrollY: 640, scrollTo })
+  post.mockClear()
+  win.dispatchEvent(new Event('scroll'))
+  win.dispatchEvent(new Event('scroll'))
+  expect(sent()).toEqual([])
+  vi.advanceTimersByTime(200)
+  expect(sent()).toEqual([{ type: 'scroll', y: 640 }])
+  fromParent({ type: 'scroll', y: 1234 })
+  expect(scrollTo).toHaveBeenCalledWith(0, 1234)
+  for (const bad of [{ type: 'scroll', y: -1 }, { type: 'scroll', y: '9' }, { type: 'scroll' }]) fromParent(bad)
+  expect(scrollTo).toHaveBeenCalledTimes(1)
+  fromParent({ type: 'scroll', y: 50 }, null)
+  expect(scrollTo).toHaveBeenCalledTimes(1)
+})
+
+test('hidden Opportunities page: the page scripts run, and at the bottom only the 04 Methodology link is active', () => {
+  bootSpy('final', { bottom: true, hidden: true })
+  win.dispatchEvent(new Event('scroll'))
+  expect(actives()).toEqual(['#methodology'])
+  expect(doc.querySelector('a[href="#methodology"] .nav-num')!.textContent).toBe('04')
+})
+
+// A chart drawn while its frame had no layout (the report loaded hidden, then shown) keeps Plotly's default 700px and
+// props its card open, so its labels are cut and the page scrolls sideways; no window resize comes to correct it
+// (measured in headless Chrome, 2026-10-22, spec 2026-10-22-aeo-outbound-chart-drawn-hidden). The page watches each
+// chart and sends one resize when its box and its drawn width disagree.
+function bootFit(over: { noObserver?: boolean } = {}) {
+  doc = new DOMParser().parseFromString(renderSnapshotHtml(V1_DATA, V1_SLOTS, 'final', 'x'), 'text/html')
+  const charts = [...doc.querySelectorAll('.plotly-graph-div')] as (HTMLElement & { _fullLayout?: { width: number } })[]
+  const observed: Element[] = []
+  let fire: (entries: { target: Element }[]) => void = () => {}
+  class RO { constructor(cb: (entries: { target: Element }[]) => void) { fire = cb } observe(t: Element) { observed.push(t) } }
+  win = Object.assign(new EventTarget(), over.noObserver ? {} : { ResizeObserver: RO })
+  const resizes = vi.fn()
+  win.addEventListener('resize', resizes)
+  new Function('window', 'document', PAGE_JS)(win, doc)
+  const size = (el: HTMLElement & { _fullLayout?: { width: number } }, box: number, drawn: number) => {
+    Object.defineProperty(el, 'clientWidth', { configurable: true, value: box })
+    el._fullLayout = { width: drawn }
+  }
+  return { charts, observed, resizes, size, fire: (els: Element[]) => fire(els.map((target) => ({ target }))) }
+}
+
+test('a chart drawn wider or narrower than its box gets one resize; a chart that fits, or is still hidden, gets none', () => {
+  const t = bootFit()
+  expect(t.charts).toHaveLength(2)
+  expect(t.observed).toEqual(t.charts)
+  const [bars, donut] = t.charts
+  t.size(bars, 335, 335); t.size(donut, 335, 335.4)
+  t.fire(t.charts)
+  vi.advanceTimersByTime(500)
+  expect(t.resizes).not.toHaveBeenCalled()
+  t.size(bars, 0, 700)
+  t.fire([bars])
+  vi.advanceTimersByTime(500)
+  expect(t.resizes).not.toHaveBeenCalled()
+  t.size(bars, 335, 700); t.size(donut, 335, 700)
+  t.fire(t.charts)
+  t.fire(t.charts)
+  vi.advanceTimersByTime(99)
+  expect(t.resizes).not.toHaveBeenCalled()
+  vi.advanceTimersByTime(1)
+  expect(t.resizes).toHaveBeenCalledTimes(1)
+  t.size(bars, 335, 214)
+  t.fire([bars])
+  vi.advanceTimersByTime(100)
+  expect(t.resizes).toHaveBeenCalledTimes(2)
+})
+
+test('without ResizeObserver the page runs and sends nothing', () => {
+  const t = bootFit({ noObserver: true })
+  vi.advanceTimersByTime(500)
+  expect(t.resizes).not.toHaveBeenCalled()
+})

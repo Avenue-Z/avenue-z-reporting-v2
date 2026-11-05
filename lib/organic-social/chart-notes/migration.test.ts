@@ -9,10 +9,10 @@ const file = readdirSync(dir).find((f) => f.startsWith('0025_'))
 const sql = file ? readFileSync(join(dir, file), 'utf8') : ''
 const statements = sql.split('--> statement-breakpoint').map((s) => s.trim()).filter(Boolean)
 
-test('0025 exists and is the last migration in the journal', () => {
+test('0025 exists and holds its place in the journal', () => {
   expect(file).toBe('0025_chart_notes.sql')
   const journal = JSON.parse(readFileSync(join(dir, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] }
-  expect(journal.entries.at(-1)?.tag).toBe('0025_chart_notes')
+  expect(journal.entries[25]?.tag).toBe('0025_chart_notes')
 })
 
 test('every statement is about chart_notes and nothing else', () => {

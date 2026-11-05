@@ -11,13 +11,16 @@
 //  B. Live (when AUTH_SECRET is set and BASE serves a build): the real route, as a Renaissance client, for the
 //     Overview: a named PDF, stamped, inside the box, every post linked. Then A Place for Mom's Instagram tab (locked
 //     months, YTD, annotations) as a staff editor and as a client: no editor, draft or button text, and the same print.
+//  C. Bulk (spec 2026-10-14-bulk-pdf-export-design), when B runs: a staff browser on the local dashboard's Organic Social
+//     page picks two more pages across reports in the Export PDF popover; the one downloaded PDF holds every page of the
+//     three single exports, in sidebar order, dark to its edges, its post links kept.
 import { createServer } from 'node:http'
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { encode } from '@auth/core/jwt'
 import { ExportNotReadyError, renderPdf, CONTENT_WIDTH, EXPORT_PAGE_CSS } from '../../lib/export/render-pdf'
-import { countLinks, fontsOf, lightCorners, outsideBox, pagesOf, printedDifference, readPdf } from './pdf-check'
+import { countLinks, fontsOf, lightCorners, linksIn, outsideBox, pagesOf, printedDifference, readPdf } from './pdf-check'
 import { exportPair } from './pair'
 
 const out = mkdtempSync(join(tmpdir(), 'export-acceptance-'))
@@ -155,7 +158,7 @@ if (!process.env.AUTH_SECRET) {
     const light = lightCorners(file)
     check(light.length === 0, `${name}: every page dark to its edges (light: ${light.join(', ') || 'none'})`)
     console.log(`  ${name} PDF: ${file}`)
-    return { res, bytes, pdf }
+    return { res, bytes, pdf, file }
   }
 
   const ren = await exportAs({ role: 'CLIENT_VIEWER', email: 'acceptance@localhost', clientSlug: 'renaissance' },
@@ -267,6 +270,70 @@ if (!process.env.AUTH_SECRET) {
       if (crmLoaded) {
         check(text.includes('Year to date, by ISO week.') && text.includes('Open pipeline is as of today.'), `eo-${eoClient}-${who}: the CRM blocks keep their year-to-date and as-of-today labels`)
       } else console.log(`  note  eo-${eoClient}-${who}: CRM blocks didn't load, so their window labels weren't checked`)
+    }
+  }
+
+  // ---------- C. Bulk export through the real popover ----------
+  // Staff, on Organic Social's Overview (pre-selected; its posts are links), ticking the Executive Overview and AEO's
+  // Overview. The merge is in the browser, so this drives the page, not the route.
+  {
+    console.log('C. bulk')
+    const singles = []
+    for (const [name, body] of [
+      ['bulk-part-eo', { section: 'executive-overview', subsection: null, dateRange: 'last_30_days' }],
+      ['bulk-part-aeo', { section: 'peec-ai', subsection: null, dateRange: 'last_30_days' }],
+      ['bulk-part-os', { section: 'organic-social', subsection: null, dateRange: 'last_30_days' }],
+    ] as const) singles.push(await exportAs({ role: 'INTERNAL_ADMIN', email: 'acceptance@avenuez.com', clientSlug: null }, { clientSlug: 'renaissance', ...body }, name))
+    const { default: puppeteer } = await import('puppeteer-core')
+    const browser = await puppeteer.launch({ executablePath: process.env.CHROME_EXECUTABLE_PATH, headless: true })
+    try {
+      const page = await browser.newPage()
+      const downloads = mkdtempSync(join(out, 'bulk-'))
+      await (await page.createCDPSession()).send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads })
+      const now = Math.floor(Date.now() / 1000)
+      const value = await encode({ secret: process.env.AUTH_SECRET!, salt: 'authjs.session-token', maxAge: 600,
+        token: { sub: 'acceptance@avenuez.com', email: 'acceptance@avenuez.com', name: 'acceptance', role: 'INTERNAL_ADMIN', clientSlug: null, iat: now, exp: now + 600, jti: crypto.randomUUID() } })
+      await browser.setCookie({ name: 'authjs.session-token', value, domain: new URL(base).hostname, path: '/', httpOnly: true })
+      await page.setViewport({ width: 1440, height: 1000 })
+      await page.goto(`${base}/dashboard/renaissance/reports?section=organic-social&dateRange=last_30_days`, { waitUntil: 'domcontentloaded', timeout: 120_000 })
+      await page.locator('button::-p-text(Export PDF)').click()
+      const pre = await page.$eval('[data-page-key="organic-social:"]', (e) => (e as HTMLInputElement).checked)
+      check(pre, 'bulk: the current page is pre-selected in the popover')
+      await page.click('[data-page-key="executive-overview:"]')
+      await page.click('[data-page-key="peec-ai:"]')
+      const t = Date.now()
+      await page.locator('button::-p-text(Export 3 pages)').click()
+      let file: string | undefined
+      while (!file && Date.now() - t < 300_000) {
+        file = readdirSync(downloads).find((f) => f.endsWith('.pdf'))
+        if (!file) await new Promise((r) => setTimeout(r, 500))
+      }
+      check(!!file, `bulk: one PDF downloaded (${file ?? 'none'}, ${Date.now() - t}ms)`)
+      if (file) {
+        check(/^Renaissance – Report \(3 pages\) – \d{4}-\d{2}-\d{2}\.pdf$/.test(file), 'bulk: named Renaissance – Report (3 pages) – <date>.pdf')
+        const path = join(downloads, file)
+        const merged = readPdf(path)
+        if (singles.every(Boolean)) {
+          const counts = singles.map((r) => r!.pdf.pages.length)
+          check(merged.pages.length === counts[0] + counts[1] + counts[2], `bulk: every page of the three exports (${merged.pages.length} = ${counts.join(' + ')})`)
+          // Each part starts with its stamped header, in sidebar order: Executive Overview, then AEO, then Organic Social.
+          const starts = [1, 1 + counts[0], 1 + counts[0] + counts[1]]
+          check(JSON.stringify(pagesOf(merged, 'Exported')) === JSON.stringify(starts), `bulk: the parts start at pages ${starts.join(', ')} (stamps on ${pagesOf(merged, 'Exported').join(', ')})`)
+          // The header prints the title uppercase (CSS).
+          const head = (pageNo: number) => merged.words.filter((w) => w.page === pageNo).slice(0, 12).map((w) => w.text).join(' ')
+          const titled = (pageNo: number, title: string) => head(pageNo).toUpperCase().startsWith(`RENAISSANCE ${title.toUpperCase()} `)
+          check(titled(starts[0], 'Executive Overview') && titled(starts[1], 'Answer Engine Optimization') && titled(starts[2], 'Organic Social'),
+            `bulk: in sidebar order (${starts.map((p) => `p${p}: ${head(p).slice(0, 48)}`).join(' | ')})`)
+          const links = singles.reduce((n, r) => n + linksIn(r!.file), 0)
+          check(links > 0 && linksIn(path) === links, `bulk: every post link kept (${linksIn(path)} of ${links})`)
+        }
+        check(merged.pages.every((p) => p.width === 792 && p.height === 612), 'bulk: all Letter landscape')
+        const light = lightCorners(path)
+        check(light.length === 0, `bulk: every page dark to its edges (light: ${light.join(', ') || 'none'})`)
+        console.log(`  bulk PDF: ${path}`)
+      }
+    } finally {
+      await browser.close()
     }
   }
 }

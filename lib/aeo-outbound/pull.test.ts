@@ -1,0 +1,430 @@
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { isPeecDeadline, PeecClient, PeecError } from './peec'
+import { listProjects, OWN_ANSWERS_BUDGET_MS, OWN_ANSWERS_MAX_ROWS, pullSnapshot } from './pull'
+
+// The client logs each retry; keep the file quiet.
+beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}) })
+afterEach(() => { vi.restoreAllMocks() })
+
+type Route = (url: URL, body: Record<string, unknown> | null) => unknown
+function fakePeec(routes: Record<string, Route>, opts: { deadline?: number; now?: () => number; maxRows?: number } = {}) {
+  const seen: { path: string; body: Record<string, unknown> | null }[] = []
+  const fetch = async (u: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(u)); const path = url.pathname.replace('/customer/v1', '')
+    const body = init?.body ? JSON.parse(String(init.body)) : null
+    seen.push({ path, body })
+    const offset = Number(body?.offset ?? url.searchParams.get('offset') ?? 0)
+    let all: unknown
+    try { all = routes[path]?.(url, body) } catch (e) {
+      const t = e as { status?: number; abort?: boolean }
+      if (t.abort) throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+      return new Response('nope', { status: t.status ?? 400 })
+    }
+    const data = Array.isArray(all) ? (offset === 0 ? all : []) : all
+    return new Response(JSON.stringify(Array.isArray(all) ? { data } : data), { status: 200 })
+  }
+  return { client: new PeecClient('skc-x', { fetch: fetch as typeof globalThis.fetch, sleep: async () => {}, ...opts }), seen }
+}
+const PROJECTS = [
+  { id: 'or_b', name: 'Beta', status: 'PITCH_ENDED' },
+  { id: 'or_a', name: 'Alpha', status: 'PITCH' },
+  { id: 'or_c', name: 'Customer', status: 'CUSTOMER' },
+]
+const ROSTER = [
+  { id: 'kw_own', name: 'Example Co', is_own: true, domains: ['example.com'] },
+  { id: 'kw_c1', name: 'Rival', is_own: false, domains: ['rival.com'] },
+]
+const base: Record<string, Route> = {
+  '/projects': () => PROJECTS,
+  '/brands': () => ROSTER,
+  '/project-profile': () => ({ profile: { industry: 'Fintech', target_markets: [{ location: 'United States', market_size: 'National' }] } }),
+  '/reports/domains': (_u, b) => (b?.dimensions
+    ? [{ domain: 'example.com', date: '2026-10-05', retrieved_chat_count: 3 }, { domain: 'rival.com', date: '2026-10-07', retrieved_chat_count: 0 }, { domain: 'rival.com', date: '2026-10-06', retrieved_chat_count: 2 }]
+    : [{ domain: 'example.com', classification: 'OWN', retrieved_chat_count: 5, retrieval_count: 9, usage_rate: 9, citation_count: 9, cited_chat_count: 5, total_chat_count: 10000, retrieved_percentage: 0.2, mentioned_brands: [{ id: 'kw_own' }] }]),
+  '/reports/brands': (_u, b) => (b?.dimensions
+    ? [{ brand: { id: 'kw_own' }, model_channel: { id: 'openai-0' }, visibility_total: 10 }, { brand: { id: 'kw_own' }, model_channel: { id: 'google-0' }, visibility_total: 0 }]
+    : [{ brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.15, share_of_voice: 0.2, position: 3.1 }, { brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
+  '/model-channels': () => [{ id: 'openai-0', description: 'ChatGPT UI' }, { id: 'google-0', description: 'Google AI Overview' }],
+  '/prompts': () => ({ data: [{ id: 'p1' }], total_count: 100 }),
+}
+const NOW = Date.parse('2026-10-08T12:00:00Z')
+// 30s left on every call, so each per-call timer is capped by the deadline (spec 18.10 row 5).
+const CAPPED = { now: () => 0, deadline: 30_000 }
+// 150s left on every call, so a per-call timer fires at 45s with budget to spare (spec 18.10 row 4).
+const ROOMY = { now: () => 0, deadline: 150_000 }
+
+test('lists only pitch projects, sorted by name', async () => {
+  const { client } = fakePeec(base)
+  expect((await listProjects(client)).map((p) => p.id)).toEqual(['or_a', 'or_b'])
+})
+
+test('pulls every step over one window from the days that carry data', async () => {
+  const { client, seen } = fakePeec(base)
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(pull.window).toEqual({ start: '2026-10-05', end: '2026-10-06' })
+  expect(pull.ownBrand.id).toBe('kw_own')
+  expect(pull.profile).toEqual({ industry: 'Fintech', markets: ['United States'] })
+  expect(pull.models).toEqual(['ChatGPT UI'])
+  expect(pull.promptCount).toBe(100)
+  expect(pull.requested).toEqual({ start: '2025-09-03', end: '2026-10-08' })
+  const discovery = seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!
+  expect(discovery.body).toMatchObject({ start_date: '2025-09-03', end_date: '2026-10-08' })
+  for (const s of seen.filter((s) => s.path.startsWith('/reports/') && !(s.body?.dimensions as string[] | undefined)?.includes('date'))) {
+    expect(s.body).toMatchObject({ project_id: 'or_a', start_date: '2026-10-05', end_date: '2026-10-06' })
+    expect(s.body).not.toHaveProperty('filters')
+  }
+})
+
+test('refuses a customer project, an unknown project, and a roster without exactly one own brand', async () => {
+  await expect(pullSnapshot(fakePeec(base).client, 'or_c', NOW)).rejects.toThrow('not available to this tool')
+  await expect(pullSnapshot(fakePeec(base).client, 'or_zzz', NOW)).rejects.toThrow('not available to this tool')
+  const two = fakePeec({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) })
+  await expect(pullSnapshot(two.client, 'or_a', NOW)).rejects.toThrow('exactly one own brand (found 2)')
+})
+
+test('fails loud when no day carries data or retrievals are zero', async () => {
+  const noDays = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [] : []) })
+  await expect(pullSnapshot(noDays.client, 'or_a', NOW)).rejects.toThrow('has any Peec data')
+  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, citation_count: 0, cited_chat_count: 0, total_chat_count: 10, mentioned_brands: [] }]) })
+  await expect(pullSnapshot(zero.client, 'or_a', NOW)).rejects.toThrow('zero retrievals')
+})
+
+test('a missing profile is null, not an error', async () => {
+  const { client } = fakePeec({ ...base, '/project-profile': () => ({ profile: null }) })
+  expect((await pullSnapshot(client, 'or_a', NOW)).profile).toBeNull()
+})
+
+test('refuses a window where the own brand has no row in the brands report', async () => {
+  const { client } = fakePeec({
+    ...base,
+    '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]),
+  })
+  await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow('The own brand has no row in the Peec brands report for this window')
+})
+
+test('a picked range is what step 4 sends, and the no-data message names it', async () => {
+  const { client, seen } = fakePeec(base)
+  const pull = await pullSnapshot(client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' })
+  expect(pull.requested).toEqual({ start: '2026-10-01', end: '2026-10-07' })
+  const discovery = seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!
+  expect(discovery.body).toMatchObject({ start_date: '2026-10-01', end_date: '2026-10-07' })
+  const none = fakePeec({ ...base, '/reports/domains': () => [] })
+  await expect(pullSnapshot(none.client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' }))
+    .rejects.toThrow('No day between 2026-10-01 and 2026-10-07 has any Peec data for this project')
+})
+
+test('a null range falls back to the default', async () => {
+  const { client, seen } = fakePeec(base)
+  await pullSnapshot(client, 'or_a', NOW, undefined, null)
+  expect(seen.find((s) => s.path === '/reports/domains' && s.body?.dimensions)!.body).toMatchObject({ start_date: '2025-09-03', end_date: '2026-10-08' })
+})
+
+test('a failing prompt count is non-fatal: null and a warning', async () => {
+  const { client } = fakePeec({ ...base, '/prompts': () => { throw { status: 404 } } })
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(pull.promptCount).toBeNull()
+  expect(pull.warnings).toContain("Peec's prompt count could not be loaded, so the methodology leaves it out.")
+})
+
+test('a deadline, or a timer the deadline capped, in an optional call propagates instead of becoming a warning', async () => {
+  // The domains report pages until an empty page, so the budget runs out once both its calls are made.
+  const now = () => (seen.filter((s) => s.path === '/reports/domains' && !s.body?.dimensions).length >= 2 ? 100 : 0)
+  const { client, seen } = fakePeec(base, { deadline: 50, now })
+  await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow(/\/prompts: deadline reached$/)
+  const p = fakePeec({ ...base, '/prompts': () => { throw { abort: true } } }, CAPPED)
+  await expect(pullSnapshot(p.client, 'or_a', NOW)).rejects.toThrow(/\/prompts: timed out after 30000ms$/)
+})
+
+test('a deadline, or a timer the deadline capped, on the model names propagates; any other failure gives the ids and a warning', async () => {
+  const now = () => (seen.filter((s) => (s.body?.dimensions as string[] | undefined)?.includes('model_channel_id')).length >= 2 ? 100 : 0)
+  const { client, seen } = fakePeec(base, { deadline: 50, now })
+  await expect(pullSnapshot(client, 'or_a', NOW)).rejects.toThrow(/\/model-channels: deadline reached$/)
+  const t = fakePeec({ ...base, '/model-channels': () => { throw { abort: true } } }, CAPPED)
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/model-channels: timed out after 30000ms$/)
+  const f = fakePeec({ ...base, '/model-channels': () => { throw { status: 500 } } })
+  const pull = await pullSnapshot(f.client, 'or_a', NOW)
+  expect(pull.models).toEqual(['openai-0'])
+  expect(pull.warnings).toContain("Peec's model names could not be loaded, so models are shown by id.")
+})
+
+test('a failing by-model breakdown is non-fatal: no models and a warning; a timer the deadline capped there propagates', async () => {
+  const dimBrands = base['/reports/brands']
+  const fail: Route = (u, b) => { if (b?.dimensions) throw { status: 500 }; return dimBrands(u, b) }
+  const { client } = fakePeec({ ...base, '/reports/brands': fail })
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(pull.models).toEqual([])
+  expect(pull.warnings).toContain("Peec's model breakdown could not be loaded, so the models covered are not listed.")
+  const abort: Route = (u, b) => { if (b?.dimensions) throw { abort: true }; return dimBrands(u, b) }
+  const t = fakePeec({ ...base, '/reports/brands': abort }, CAPPED)
+  await expect(pullSnapshot(t.client, 'or_a', NOW)).rejects.toThrow(/\/reports\/brands: timed out after 30000ms$/)
+  const dup: Route = (u, b) => (b?.dimensions ? [{ brand: { id: 'kw_own' }, visibility_total: 1 }, { brand: { id: 'kw_own' }, visibility_total: 2 }] : dimBrands(u, b))
+  const d = fakePeec({ ...base, '/reports/brands': dup })
+  expect((await pullSnapshot(d.client, 'or_a', NOW)).models).toEqual([])
+})
+
+test('rangePicked is true only when a range argument was passed', async () => {
+  expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW)).rangePicked).toBe(false)
+  expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW, undefined, null)).rangePicked).toBe(false)
+  expect((await pullSnapshot(fakePeec(base).client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' })).rangePicked).toBe(true)
+})
+
+const DISCOVERY_ROWS = Array.from({ length: 4 }, (_, i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
+const capRoutes: Record<string, Route> = { ...base, '/reports/domains': (_u, b) => (b?.dimensions ? DISCOVERY_ROWS : []) }
+
+test('a default-range row cap at step 4 asks for a picked range', async () => {
+  const { client } = fakePeec(capRoutes, { maxRows: 3 })
+  const e = await pullSnapshot(client, 'or_a', NOW).catch((x: unknown) => x)
+  expect(e).toBeInstanceOf(PeecError)
+  expect((e as Error).message).toBe('This project has too much history for one snapshot. Pick a start and end date, at most 90 days.')
+  const viaNull = await pullSnapshot(fakePeec(capRoutes, { maxRows: 3 }).client, 'or_a', NOW, undefined, null).catch((x: unknown) => x)
+  expect((viaNull as Error).message).toContain('too much history')
+})
+
+test('a picked-range row cap at step 4 keeps the client message', async () => {
+  const { client } = fakePeec(capRoutes, { maxRows: 3 })
+  await expect(pullSnapshot(client, 'or_a', NOW, undefined, { start: '2026-10-01', end: '2026-10-07' })).rejects.toThrow('more than 3 rows')
+})
+
+test('a default-range repeated-row or HTTP error at step 4 keeps its message', async () => {
+  const repeat = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [DISCOVERY_ROWS[0], DISCOVERY_ROWS[0]] : []) })
+  await expect(pullSnapshot(repeat.client, 'or_a', NOW)).rejects.toThrow('repeats a row')
+  const http = fakePeec({ ...base, '/reports/domains': () => { throw { status: 400 } } })
+  await expect(pullSnapshot(http.client, 'or_a', NOW)).rejects.toThrow('HTTP 400')
+})
+
+test('a row cap after step 4 keeps the client message even on the default range', async () => {
+  const late = fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [1, 2, 3, 4].map((i) => ({ brand: { id: `kw_${i}`, name: `B${i}` }, visibility: 0.1 }))) }, { maxRows: 3 })
+  await expect(pullSnapshot(late.client, 'or_a', NOW)).rejects.toThrow('more than 3 rows')
+})
+
+const codeOf = async (p: Promise<unknown>) => { try { await p; return 'resolved' } catch (e) { return (e as PeecError).code } }
+
+test('each guard fails with its code on the error object', async () => {
+  expect(await codeOf(pullSnapshot(fakePeec(base).client, 'or_zzz', NOW))).toBe('no_project')
+  expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/brands': () => ROSTER.map((r) => ({ ...r, is_own: true })) }).client, 'or_a', NOW))).toBe('own_brand_count')
+  expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/domains': () => [] }).client, 'or_a', NOW))).toBe('no_data')
+  expect(await codeOf(pullSnapshot(fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_c1', name: 'Rival' }, visibility: 0.3, share_of_voice: 0.8, position: 2 }]) }).client, 'or_a', NOW))).toBe('own_brand_no_row')
+  const zero = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [{ domain: 'x.com', classification: 'OTHER', retrieved_chat_count: 0, usage_rate: 0, citation_count: 0, cited_chat_count: 0, total_chat_count: 10, mentioned_brands: [] }]) })
+  expect(await codeOf(pullSnapshot(zero.client, 'or_a', NOW))).toBe('zero_retrievals')
+  const rows = [1, 2, 3, 4].map((i) => ({ domain: `d${i}.com`, date: '2026-10-05', retrieved_chat_count: 1 }))
+  const cap = fakePeec({ ...base, '/reports/domains': (_u, b) => (b?.dimensions ? rows : []) }, { maxRows: 3 })
+  expect(await codeOf(pullSnapshot(cap.client, 'or_a', NOW))).toBe('history_too_long')
+  const http = fakePeec({ ...base, '/brands': () => { throw { status: 500 } } })
+  expect(await codeOf(pullSnapshot(http.client, 'or_a', NOW))).toBeNull()
+})
+
+test('a brands report row missing visibility fails with contract_violation naming the field, never a NaN%', async () => {
+  const f = fakePeec({ ...base, '/reports/brands': (_u, b) => (b?.dimensions ? [] : [{ brand: { id: 'kw_own', name: 'Example Co' }, share_of_voice: 0.2 }]) })
+  await expect(pullSnapshot(f.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.brands_report.visibility' })
+})
+
+test('a broken contract in an optional call propagates instead of becoming a warning', async () => {
+  const f = fakePeec({ ...base, '/prompts': () => ({ total_count: 2.5 }) })
+  await expect(pullSnapshot(f.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.prompts.total_count' })
+})
+
+// Paul, #415 review: pillar reports no longer use Peec's actions, so the pull no longer asks for them or warns about them.
+test('the pull never asks Peec for its actions, and no actions warning is possible', async () => {
+  const f = fakePeec({ ...base, '/actions/list': () => { throw { abort: true } } }, ROOMY)
+  const pull = await pullSnapshot(f.client, 'or_a', NOW)
+  expect(f.seen.some((x) => x.path === '/actions/list')).toBe(false)
+  expect(pull.warnings).toEqual([])
+  expect('actions' in pull).toBe(false)
+})
+
+// Spec 18.3: each optional call, timing out after 45s with budget left, gives its warning and the pull completes;
+// the same timeout with the timer capped by the deadline is rethrown as a deadline.
+const dimBrandsRoute = base['/reports/brands']
+const OPTIONAL: { name: string; routes: Record<string, Route>; path: string; warning: string }[] = [
+  {
+    name: 'model breakdown',
+    routes: { '/reports/brands': (u, b) => { if (b?.dimensions) throw { abort: true }; return dimBrandsRoute(u, b) } },
+    path: '/reports/brands',
+    warning: "Peec's model breakdown could not be loaded, so the models covered are not listed.",
+  },
+  { name: '/model-channels', routes: { '/model-channels': () => { throw { abort: true } } }, path: '/model-channels', warning: "Peec's model names could not be loaded, so models are shown by id." },
+  { name: '/prompts', routes: { '/prompts': () => { throw { abort: true } } }, path: '/prompts', warning: "Peec's prompt count could not be loaded, so the methodology leaves it out." },
+]
+
+for (const c of OPTIONAL) {
+  test(`${c.name}: a per-call timeout with budget left becomes its warning and the pull completes`, async () => {
+    const { client, seen } = fakePeec({ ...base, ...c.routes }, ROOMY)
+    const pull = await pullSnapshot(client, 'or_a', NOW)
+    expect(pull.warnings).toEqual([c.warning])
+    expect(pull.domains.length).toBe(1)
+    expect(seen.some((s) => s.path === '/prompts')).toBe(true)
+  })
+
+  test(`${c.name}: a timeout whose timer the deadline capped is rethrown as a deadline`, async () => {
+    const { client } = fakePeec({ ...base, ...c.routes }, CAPPED)
+    const err = await pullSnapshot(client, 'or_a', NOW).catch((e: unknown) => e)
+    expect((err as Error).message).toBe(`[PEEC API] ${c.path}: timed out after 30000ms`)
+    expect(isPeecDeadline(err)).toBe(true)
+  })
+}
+
+// Paul's review of #388 (C6): the paging key must not crash on a row the contract should name.
+test('a brands report row with no brand, or domain rows with no domain, fail as contract_violation naming the field', async () => {
+  const own = { brand: { id: 'kw_own', name: 'Example Co' }, visibility: 0.2, share_of_voice: 0.2 }
+  const b = fakePeec({ ...base, '/reports/brands': (_u, x) => (x?.dimensions ? [] : [own, { visibility: 0.1, share_of_voice: 0.1 }]) })
+  await expect(pullSnapshot(b.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.brands_report.brand' })
+  const noDomain = { classification: 'OTHER', retrieved_chat_count: 3, retrieval_count: 3, usage_rate: 3, citation_count: 3, cited_chat_count: 3, total_chat_count: 10000, mentioned_brands: [] }
+  const d = fakePeec({ ...base, '/reports/domains': (_u, x) => (x?.dimensions ? [{ domain: 'x.com', date: '2026-10-05', retrieved_chat_count: 1 }] : [noDomain, noDomain]) })
+  await expect(pullSnapshot(d.client, 'or_a', NOW)).rejects.toMatchObject({ code: 'contract_violation', message: 'peec.domains_report.domain' })
+})
+
+test("2026-10-19: the pull records its own UTC day, which the same-day note compares with the window's last day", async () => {
+  const { client } = fakePeec(base)
+  expect((await pullSnapshot(client, 'or_a', NOW)).pulledDay).toBe('2026-10-08')
+  expect((await pullSnapshot(client, 'or_a', Date.parse('2026-10-08T23:59:59Z'))).pulledDay).toBe('2026-10-08')
+  expect((await pullSnapshot(client, 'or_a', Date.parse('2026-10-09T00:00:00Z'))).pulledDay).toBe('2026-10-09')
+})
+
+// Any-client sweep, 2026-10-22: SDEV's Peec name carries spaces (" Stablecoin Development "), which printed
+// " Stablecoin Development 's own site". Names are trimmed where they enter, so every sentence, chart and check agrees.
+test('brand names from Peec are trimmed in the roster, the own brand and the brands report', async () => {
+  const padded = fakePeec({
+    ...base,
+    '/brands': () => ROSTER.map((r) => ({ ...r, name: ` ${r.name}  ` })),
+    '/reports/brands': (u, b) => (b?.dimensions ? base['/reports/brands'](u, b) : (base['/reports/brands'](u, b) as { brand: { id: string; name: string } }[]).map((r) => ({ ...r, brand: { ...r.brand, name: ` ${r.brand.name} ` } }))),
+  })
+  const pull = await pullSnapshot(padded.client, 'or_a', NOW)
+  expect(pull.ownBrand.name).toBe('Example Co')
+  expect(pull.roster.map((r) => r.name)).toEqual(['Example Co', 'Rival'])
+  expect(pull.brands.map((r) => r.brand.name)).toEqual(['Example Co', 'Rival'])
+})
+
+// Spec 2026-11-02 S2: answers citing any own site, counted once. Own rows here: example.com (OWN), shop.example.com
+// (a subdomain Peec files as Editorial) and blog.example.com (never cited).
+const dom = (domain: string, classification: string, citations: number, cited: number) =>
+  ({ domain, classification, retrieved_chat_count: 4, retrieval_count: 6, citation_count: citations, cited_chat_count: cited, total_chat_count: 40, mentioned_brands: [] })
+const MULTI = [dom('example.com', 'OWN', 5, 2), dom('shop.example.com', 'EDITORIAL', 2, 1), dom('blog.example.com', 'CORPORATE', 0, 0), dom('rival.com', 'COMPETITOR', 9, 3)]
+const BY_ANSWER = [
+  { domain: 'example.com', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 },
+  { domain: 'example.com', chat: { id: 'ch_2' }, citation_count: 3, total_chat_count: 1 },
+  { domain: 'shop.example.com', chat: { id: 'ch_1' }, citation_count: 2, total_chat_count: 1 },
+  { domain: 'blog.example.com', chat: { id: 'ch_3' }, citation_count: 0, total_chat_count: 1 },
+]
+const dated = base['/reports/domains']
+const withDomains = (main: unknown[], byAnswer: Route = () => BY_ANSWER): Record<string, Route> => ({
+  ...base,
+  '/reports/domains': (u, b) => {
+    const dims = b?.dimensions as string[] | undefined
+    if (dims?.includes('chat_id')) return byAnswer(u, b)
+    return dims ? dated(u, b) : main
+  },
+})
+const byAnswerCalls = (seen: { path: string; body: Record<string, unknown> | null }[]) =>
+  seen.filter((s) => s.path === '/reports/domains' && (s.body?.dimensions as string[] | undefined)?.includes('chat_id'))
+const RATE_WARNING = "Peec's answers by own site could not be loaded, so the citation rate is left out."
+
+test('S2: with one cited own site, no call by answer is made and the pull carries no count of its own', async () => {
+  const { client, seen } = fakePeec(withDomains([MULTI[0], MULTI[2], MULTI[3]]))
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  expect(byAnswerCalls(seen)).toEqual([])
+  expect('ownCitedAnswers' in pull).toBe(false)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: with several cited own sites, one call by answer over every own domain counts each citing answer once', async () => {
+  const { client, seen } = fakePeec(withDomains(MULTI))
+  const pull = await pullSnapshot(client, 'or_a', NOW)
+  // The client pages until an empty page, so one call is its first page plus the empty one that ends it.
+  const calls = byAnswerCalls(seen)
+  expect(calls.filter((c) => Number(c.body?.offset ?? 0) === 0)).toHaveLength(1)
+  for (const c of calls) {
+    expect(c.body).toMatchObject({ project_id: 'or_a', start_date: '2026-10-05', end_date: '2026-10-06', dimensions: ['chat_id'] })
+    // Only cited own sites: an uncited one adds no citing answer, only rows (Paul, #431 review).
+    expect(c.body?.filters).toEqual([{ field: 'domain', operator: 'in', values: ['example.com', 'shop.example.com'] }])
+  }
+  // ch_1 cites two own sites and counts once; ch_3 cites none.
+  expect(pull.ownCitedAnswers).toBe(2)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: a failed call by answer, or one that breaks its contract, leaves the count null with a warning, and the pull completes', async () => {
+  for (const [name, route] of [
+    ['http 500', () => { throw { status: 500 } }],
+    ['row without an answer id', () => [...BY_ANSWER, { domain: 'example.com', chat: null, citation_count: 1 }]],
+    ['negative count', () => [{ ...BY_ANSWER[0], citation_count: -1 }]],
+  ] as [string, Route][]) {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const pull = await pullSnapshot(fakePeec(withDomains(MULTI, route)).client, 'or_a', NOW)
+    expect(pull.ownCitedAnswers, name).toBeNull()
+    expect(pull.warnings, name).toEqual([RATE_WARNING])
+    expect(pull.promptCount, name).toBe(100)
+  }
+})
+
+test('S2: the call by answer has its own budget: running out of it is a warning; the report\'s own deadline spent fails the pull (Paul, #431 review)', async () => {
+  const abort: Route = () => { throw { abort: true } }
+  const roomy = await pullSnapshot(fakePeec(withDomains(MULTI, abort), ROOMY).client, 'or_a', NOW)
+  expect(roomy.ownCitedAnswers).toBeNull()
+  expect(roomy.warnings).toEqual([RATE_WARNING])
+  // Its budget runs out after the first page while the report still has time: a warning, and the pull goes on.
+  let t = 0
+  const slow = (step: number): Route => () => { t += step; return BY_ANSWER }
+  const own = await pullSnapshot(fakePeec(withDomains(MULTI, slow(OWN_ANSWERS_BUDGET_MS + 1_000)), { now: () => t, deadline: 200_000 }).client, 'or_a', NOW)
+  expect(own.ownCitedAnswers).toBeNull()
+  expect(own.warnings).toEqual([RATE_WARNING])
+  expect(own.promptCount).toBe(100)
+  // The report's own deadline passes during the call: the pull fails, as any spent deadline does.
+  t = 0
+  const err = await pullSnapshot(fakePeec(withDomains(MULTI, slow(21_000)), { now: () => t, deadline: 20_000 }).client, 'or_a', NOW).catch((e: unknown) => e)
+  expect(isPeecDeadline(err)).toBe(true)
+})
+
+test('S2: the call by answer stops past its own row cap, as a warning, so an ignored filter cannot page through the report', async () => {
+  const flood = () => Array.from({ length: OWN_ANSWERS_MAX_ROWS + 1 }, (_, i) => ({ domain: 'example.com', chat: { id: `ch_${i}` }, citation_count: 1, total_chat_count: 1 }))
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, flood)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBeNull()
+  expect(pull.warnings).toEqual([RATE_WARNING])
+})
+
+test('S2: a failed call by answer logs the project and a reason that carries no response text (Paul, #431 review)', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const line = async (route: Route, opts = {}) => {
+    warn.mockClear()
+    await pullSnapshot(fakePeec(withDomains(MULTI, route), opts).client, 'or_a', NOW)
+    return warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('own cited answers not loaded'))
+  }
+  expect(await line(() => { throw { status: 500 } })).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=http_500'])
+  expect(await line(() => [{ domain: 'example.com', chat: null, citation_count: 1 }])).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=peec.own_cited_chats.chat'])
+  expect(await line(() => { throw { abort: true } }, ROOMY)).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=timeout'])
+  expect(await line(() => Array.from({ length: OWN_ANSWERS_MAX_ROWS + 1 }, (_, i) => ({ domain: 'example.com', chat: { id: `c${i}` }, citation_count: 1 })))).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=row_cap'])
+  expect(await line(() => { throw { status: 429 } })).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=rate_limited'])
+  expect(await line(() => [BY_ANSWER[0], BY_ANSWER[0]])).toEqual(['[aeo-outbound] own cited answers not loaded project=or_a reason=repeated_row'])
+  // The out-of-range case names the project too.
+  warn.mockClear()
+  await pullSnapshot(fakePeec(withDomains(MULTI, () => [BY_ANSWER[0]])).client, 'or_a', NOW)
+  expect(warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('out of range'))).toEqual(['[aeo-outbound] own cited answers out of range project=or_a count=1 least=2 most=3'])
+})
+
+// Final review of #431: the answer rows are counted only for own domains, and a count outside what the own rows allow
+// (at least the most-cited own site's answers, at most their sum) is treated as a failed call.
+const ODD_WARNING = "Peec's answers by own site did not match the own sites' counts, so the citation rate is left out."
+test('S2: answer rows for a site that is not the brand\'s are not counted', async () => {
+  const stray = () => [...BY_ANSWER, { domain: 'rival.com', chat: { id: 'ch_9' }, citation_count: 4, total_chat_count: 1 }]
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, stray)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBe(2)
+  expect(pull.warnings).toEqual([])
+})
+
+test('S2: a count below the most-cited own site\'s answers, or above their sum, leaves the rate out with a warning', async () => {
+  const tooFew = () => [BY_ANSWER[0]]
+  const tooMany = () => ['ch_1', 'ch_2', 'ch_3', 'ch_4'].map((id) => ({ domain: 'example.com', chat: { id }, citation_count: 1, total_chat_count: 1 }))
+  for (const [name, route] of [['too few', tooFew], ['too many', tooMany], ['none', () => []]] as [string, Route][]) {
+    const pull = await pullSnapshot(fakePeec(withDomains(MULTI, route)).client, 'or_a', NOW)
+    expect(pull.ownCitedAnswers, name).toBeNull()
+    expect(pull.warnings, name).toEqual([ODD_WARNING])
+  }
+})
+
+test('S2: answer rows without an answer id fail the contract by name, not as repeated rows (Paul, #388 rule)', async () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const noId = () => [{ domain: 'example.com', chat: null, citation_count: 1 }, { domain: 'example.com', chat: null, citation_count: 2 }]
+  const pull = await pullSnapshot(fakePeec(withDomains(MULTI, noId)).client, 'or_a', NOW)
+  expect(pull.ownCitedAnswers).toBeNull()
+  expect(err.mock.calls.map((c) => String(c[0])).some((l) => l.includes('boundary=peec.own_cited_chats field=chat'))).toBe(true)
+})

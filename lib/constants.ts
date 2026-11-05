@@ -337,4 +337,16 @@ export const TEAMS: TeamDef[] = [
       },
     ],
   },
+  {
+    slug: 'new-business',
+    name: 'New Business',
+    tools: [
+      {
+        slug: 'aeo-outbound-snapshot',
+        name: 'AEO Outbound Snapshot',
+        url: '/tools/new-business',
+        description: 'One-page AI visibility snapshots for prospects.',
+      },
+    ],
+  },
 ]

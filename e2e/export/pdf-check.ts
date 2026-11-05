@@ -55,6 +55,12 @@ export function countLinks(bytes: Buffer): number {
   return (bytes.toString('latin1').match(/\/URI\s*\(/g) ?? []).length
 }
 
+/** Link annotations in the file, as poppler reads them (`pdfinfo -url`): unlike countLinks, this sees links inside
+ *  compressed object streams, which pdf-lib writes when it merges a bulk export. */
+export function linksIn(file: string): number {
+  return execFileSync('pdfinfo', ['-url', file], { encoding: 'utf8' }).split('\n').slice(1).filter((l) => l.trim()).length
+}
+
 /** The font families embedded in a PDF (poppler's `pdffonts`), without the subset prefix ("ABCDEF+"). */
 export function fontsOf(file: string): string[] {
   const out = execFileSync('pdffonts', [file], { encoding: 'utf8' })
