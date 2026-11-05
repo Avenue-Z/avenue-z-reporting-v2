@@ -151,12 +151,12 @@ function write(d: SnapshotData) {
   }
 
   function context(): string {
-    if (solo) return 'No competitors are tracked in this Peec project.'
+    if (solo) return 'No competitors are tracked in this project.'
     if (allZero) return 'Competitive context: No brand tracked shows visibility in this window.'
     if (ownZero) return `Competitive context: ${leaders()} ${brand} has ${pctText(0)} visibility in this window.`
     if (others.length === 0) {
       const k = noData.length
-      return `Competitive context: ${brand} leads at ${pctText(own.visibilityPct)} visibility; ${k === 1 ? `the other brand ${noun} has` : `the other ${countWord(k)} brands ${noun} have`} no Peec data in this window.`
+      return `Competitive context: ${brand} leads at ${pctText(own.visibilityPct)} visibility; ${k === 1 ? `the other brand ${noun} has` : `the other ${countWord(k)} brands ${noun} have`} no data in this window.`
     }
     const ownLeads = topGroup.some((b) => b.isOwn)
     // When the brand leads alone, its runner-up is already named: the rest follow with "also".
@@ -240,7 +240,7 @@ function write(d: SnapshotData) {
     const gaps = gapsBullet()
     if (gaps) out.push(gaps)
     const mix = d.sourceMix
-    if (!mix.length) out.push({ lead: 'Source mix:', text: 'Peec reported no source types for this window.' })
+    if (!mix.length) out.push({ lead: 'Source mix:', text: 'No source types were reported for this window.' })
     else if (mix.length === 1) out.push({ lead: 'Source mix:', text: `The domain mix is all ${label(mix[0].label)} sources.` })
     // Every other type rounds to 0.0%, so none of them is a leading type (final review M6).
     else if (mix[1].pct === 0) out.push({ lead: 'Source mix:', text: `The domain mix is almost entirely ${label(mix[0].label)} sources.` })
@@ -285,7 +285,7 @@ function write(d: SnapshotData) {
     return out
   }
   function citationVolume(c: Citations): string {
-    if (c.total === 0) return 'Peec recorded no citations in AI answers this window.'
+    if (c.total === 0) return 'No citations in AI answers were recorded this window.'
     const all = `${count(c.total)} ${c.total === 1 ? 'citation' : 'citations'} in AI answers`
     if (!c.topSite) {
       const sites = d.ownSites ?? []
@@ -330,7 +330,7 @@ function write(d: SnapshotData) {
   function sourceTypeMix(): Bullet {
     const lead = 'Source-type mix:'
     const mix = d.sourceMix
-    if (!mix.length) return { lead, text: 'Peec reported no source types for this window.' }
+    if (!mix.length) return { lead, text: 'No source types were reported for this window.' }
     if (mix.length === 1) return { lead, text: `All citations come from ${label(mix[0].label)} sources.` }
     if (mix[1].pct === 0) return { lead, text: `Almost all citations come from ${label(mix[0].label)} sources.` }
     const [t1, t2] = mix
@@ -350,7 +350,7 @@ function write(d: SnapshotData) {
   function competitiveBox(): Bullet[] {
     const out: Bullet[] = []
     if (solo) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers.` })
-    else if (!others.length) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers; no other brand tracked has Peec data in this window.` })
+    else if (!others.length) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers; no other brand tracked has data in this window.` })
     else {
       out.push(nextTier())
       if (!allZero) {
@@ -424,7 +424,7 @@ function write(d: SnapshotData) {
 
   /** Round 3 (Ryan, 2026-10-21; pillars spec P3): one data line per pillar from the source shares. */
   function pillars(): Opportunity[] {
-    const none = 'Peec reported no source types for this window.'
+    const none = 'No source types were reported for this window.'
     const lines = d.sourceMix.length ? pillarLines() : [none, none, none]
     return PILLARS.map((p, i) => ({ workstream: p.name, opportunity: p.description, signal: lines[i] }))
   }
@@ -457,7 +457,7 @@ function write(d: SnapshotData) {
     return [
       editorial ? `Editorial sites make up ${share(editorial)} ${tail}` : `Editorial sites don't appear ${missing}`,
       own ? `${ownSubject} ${plural ? 'make' : 'makes'} up ${share(own)} ${tail}` : `${ownSubject} ${plural ? "don't" : "doesn't"} appear ${missing}`,
-      competitor ? `Competitors' own websites make up ${share(competitor)} ${tail}` : solo ? 'No competitors are tracked in this Peec project.' : `Competitors' own websites don't appear ${missing}`,
+      competitor ? `Competitors' own websites make up ${share(competitor)} ${tail}` : solo ? 'No competitors are tracked in this project.' : `Competitors' own websites don't appear ${missing}`,
     ]
   }
 

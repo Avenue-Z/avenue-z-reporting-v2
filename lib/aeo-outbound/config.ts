@@ -127,3 +127,7 @@ export const PAGE_WORDS_V1 = {
 /** Round 3 (Ryan, 2026-10-21): the headline section's label and menu item 01 on a new report. A row from before keeps
  *  its stored word, or "Headline signal" from PAGE_WORDS_V1. */
 export const HEADLINE_LABEL = 'Executive Summary'
+/** 2026-11-05 (Paul, #440; Ryan asked the Methodology to stop naming Peec): a new report's footer disclaimer does not name
+ *  Peec. PAGE_WORDS_V1 stays the frozen v1.0 wording (the v1.0 golden pins it), so a row from before v1.1, which stores no
+ *  page words, and a row that stored its own, read as they did. No number, so grounding on page words is unchanged. */
+export const FOOTER_DISCLAIMER = 'Data reflects an AI visibility snapshot for the stated window and is directional. Avenue Z makes no representations about future AI visibility outcomes.'
