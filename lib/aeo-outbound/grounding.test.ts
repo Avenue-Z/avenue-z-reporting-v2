@@ -643,6 +643,18 @@ test('a version 2 row keeps the word-for-word check on context and methodology; 
   expect(flagged(1)).toEqual([])
 })
 
+// 2026-11-05 (Ryan): the methodology no longer names Peec. A row saved with the old wording has the same numbers, so it gains no flag.
+test('a row saved with the old "Peec AI data" methodology wording gains no flag on any version', () => {
+  const d = newRow()
+  expect(slotsFor(d).methodology).toContain('Snapshot based on AI visibility data for')
+  const old = slotsFor(d).methodology.replace('AI visibility data', 'Peec AI data')
+  expect(old).toContain('Snapshot based on Peec AI data for')
+  for (const version of [2, 3, SENTENCES_VERSION]) {
+    const row = { ...d, sentences: version } as SnapshotData
+    expect(groundingFlags(slotsFor(row, { methodology: old }), row, dataBlock(row)).filter((n) => n.path === 'methodology'), `version ${version}`).toEqual([])
+  }
+})
+
 // Paul, #417 review: every earlier version names the boxes it printed, so a bump cannot leave one out unnoticed.
 test('every sentences version below today\'s has its older boxes', () => {
   for (let v = 1; v < SENTENCES_VERSION; v++) expect(OLDER_BOXES[v], `version ${v}`).toBeTypeOf('function')
