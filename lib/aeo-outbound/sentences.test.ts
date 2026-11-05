@@ -81,9 +81,9 @@ test('context: brands with no Peec row rank below the brand, and only the brand 
   const withZed = { ...noRow, roster: [...noRow.roster, { id: 'z', name: 'Zed', is_own: false, domains: ['z.example'] }] }
   expect(sent(withZed).context).toBe('Competitive context: A leads at 30% visibility / 30% share of voice, followed by Own at 20% / 20%. Own ranks ahead of Zed.')
   const alone = { ...brandPull([['own', 'Own', 0.2, 1]]), roster: [{ id: 'own', name: 'Own', is_own: true, domains: [] }, { id: 'z', name: 'Zed', is_own: false, domains: [] }, { id: 'y', name: 'Yew', is_own: false, domains: [] }] }
-  expect(sent(alone).context).toBe('Competitive context: Own leads at 20% visibility; the other two brands tracked have no Peec data in this window.')
+  expect(sent(alone).context).toBe('Competitive context: Own leads at 20% visibility; the other two brands tracked have no data in this window.')
   const oneOther = { ...alone, roster: alone.roster.slice(0, 2) }
-  expect(sent(oneOther).context).toBe('Competitive context: Own leads at 20% visibility; the other brand tracked has no Peec data in this window.')
+  expect(sent(oneOther).context).toBe('Competitive context: Own leads at 20% visibility; the other brand tracked has no data in this window.')
 })
 
 test('zero visibility: never first, strong or ahead of brands tied at zero', () => {
@@ -100,7 +100,7 @@ test('zero visibility: never first, strong or ahead of brands tied at zero', () 
 test('no competitors: the hidden context slot, the visibility bullet, no leadership bullet, the brand alone in the methodology', () => {
   const solo = brandPull([['own', 'Own', 0.2, 1]])
   const s = sent(solo)
-  expect(s.context).toBe('No competitors are tracked in this Peec project.')
+  expect(s.context).toBe('No competitors are tracked in this project.')
   expect(s.competitive_bullets[0]).toEqual({ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers.' })
   expect(s.sources_bullets.map((b) => b.lead)).toEqual(['Source mix:'])
   expect(s.methodology).toBe('Snapshot based on AI visibility data for Sep 20, 2026 to Sep 21, 2026: the brand alone, 104 prompts tracked, and answers from Google AI Overview, Gemini UI, and ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
@@ -173,7 +173,7 @@ test('source mix: Editorial or UGC in the top two, one type only, empty, the own
   expect(mixOf([['CORPORATE', 100]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is all Corporate sources.' })
   // A second type that shows 0.0% is not a leading type (final review M6).
   expect(mixOf([['CORPORATE', 9996], ['OWN', 4]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is almost entirely Corporate sources.' })
-  expect(mixOf([['CORPORATE', 0]])).toEqual({ lead: 'Source mix:', text: 'Peec reported no source types for this window.' })
+  expect(mixOf([['CORPORATE', 0]])).toEqual({ lead: 'Source mix:', text: 'No source types were reported for this window.' })
   expect(mixOf([['OWN', 60], ['Vendors & Platforms', 40]])).toEqual({ lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by own-site sources at 60% and Vendors & Platforms sources at 40%; Editorial represents 0.0% and UGC 0.0%.' })
   // Paul's review of #388 (C4): "Limited" only when Editorial and UGC are each under 10%, as in Ryan's example (6% and 3%).
   expect(mixOf([['CORPORATE', 45], ['INSTITUTIONAL', 22], ['REFERENCE', 24], ['EDITORIAL', 6], ['UGC', 3]])).toEqual({ lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by Corporate sources at 45% and Reference sources at 24%; Editorial represents 6.0% and UGC 3.0%.' })
@@ -327,13 +327,13 @@ test('pillars: absent slices, a share the donut shows as <1%, an empty mix', () 
     "Competitors' own websites don't appear among citations in this window.",
   ])
   expect(pillarsOf([['ed.example', 'EDITORIAL', 0.04], ['corp.example', 'CORPORATE', 99.96]])[0].signal).toBe('Editorial sites make up under 1% of citations in this window.')
-  expect(pillarsOf([['corp.example', 'CORPORATE', 0]]).map((o) => o.signal)).toEqual(Array(3).fill('Peec reported no source types for this window.'))
+  expect(pillarsOf([['corp.example', 'CORPORATE', 0]]).map((o) => o.signal)).toEqual(Array(3).fill('No source types were reported for this window.'))
 })
 
 test('pillars: no competitors tracked, a Competitor slice anyway, and an empty mix wins (spec §9 m3)', () => {
-  expect(soloPillars([['corp.example', 'CORPORATE', 100]])[2].signal).toBe('No competitors are tracked in this Peec project.')
+  expect(soloPillars([['corp.example', 'CORPORATE', 100]])[2].signal).toBe('No competitors are tracked in this project.')
   expect(soloPillars([['rival.example', 'COMPETITOR', 20], ['corp.example', 'CORPORATE', 80]])[2].signal).toBe("Competitors' own websites make up 20% of citations in this window.")
-  expect(soloPillars([['corp.example', 'CORPORATE', 0]])[2].signal).toBe('Peec reported no source types for this window.')
+  expect(soloPillars([['corp.example', 'CORPORATE', 0]])[2].signal).toBe('No source types were reported for this window.')
 })
 
 test('pillars: two distinct own domains read "sites"; a repeated or empty entry does not (spec §10 r2-m5)', () => {
@@ -475,7 +475,7 @@ test('round 3, Competitive Visibility box: one competitor, none tracked, none wi
   expect(cv([['a', 'A', 0.5, 0.3], ['own', 'Own', 0.2, 0.1]])).toEqual(['Own is 30.0 percentage points behind A in visibility.'])
   expect(now(brandPull([['own', 'Own', 0.2, 1]])).sources_bullets).toEqual([{ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers.' }])
   const noData = { brands: [{ brand: { id: 'own', name: 'Own' }, visibility: 0.2, share_of_voice: 1, position: 2 }] }
-  expect(now(brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]], noData)).sources_bullets).toEqual([{ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers; no other brand tracked has Peec data in this window.' }])
+  expect(now(brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]], noData)).sources_bullets).toEqual([{ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers; no other brand tracked has data in this window.' }])
   expect(cv([['a', 'A', 0, 0], ['own', 'Own', 0, 0]])).toEqual(['No brand tracked shows visibility in this window.'])
   expect(cv([['a', 'A', 0.3, 0.3], ['b', 'B', 0.1, 0.1], ['own', 'Own', 0, 0]])).toEqual([
     'Own is 10.0 percentage points behind B in visibility.',
@@ -526,7 +526,7 @@ test('round 3, the own-domain rule (D6): the brand\'s casing only for a one-word
 const nowMix = (rows: [string, number][]) => now({ ...brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]]), domains: rows.map(([c, w], i) => ({ domain: `d${i}.example`, classification: c, retrieved_chat_count: 1, retrieval_count: w, usage_rate: w, citation_count: w, cited_chat_count: 1, total_chat_count: 10000, mentioned_brands: [] })) }).competitive_bullets.at(-1)
 
 test('round 3, Source-type mix: edge lines, the own-site type first, and D5\'s whole percents', () => {
-  expect(nowMix([])).toEqual({ lead: 'Source-type mix:', text: 'Peec reported no source types for this window.' })
+  expect(nowMix([])).toEqual({ lead: 'Source-type mix:', text: 'No source types were reported for this window.' })
   expect(nowMix([['CORPORATE', 100]])).toEqual({ lead: 'Source-type mix:', text: 'All citations come from Corporate sources.' })
   expect(nowMix([['CORPORATE', 9996], ['OWN', 4]])).toEqual({ lead: 'Source-type mix:', text: 'Almost all citations come from Corporate sources.' })
   expect(nowMix([['OWN', 60], ['CORPORATE', 40]])!.text).toBe('Own-site sources account for 60% of citations, followed by Corporate sources at 40%.')
@@ -620,7 +620,7 @@ test('S1, S2: own sites never cited, no own rows, and no citations at all', () =
   const noOwn = texts4(citedPull('Example Beauty', 'examplebeauty.com', [['rival.example', 'COMPETITOR', 40, 5]], 600))
   expect(noOwn[0]).toBe("Example Beauty's own site earned none of the 40 citations in AI answers this window.")
   const none = texts4(citedPull('Example Beauty', 'examplebeauty.com', [['examplebeauty.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 0, 0]], 600))
-  expect(none.slice(0, 2)).toEqual(['Peec recorded no citations in AI answers this window.', "Example Beauty isn't cited in any of the 600 tracked answers."])
+  expect(none.slice(0, 2)).toEqual(['No citations in AI answers were recorded this window.', "Example Beauty isn't cited in any of the 600 tracked answers."])
 })
 
 test('S1: the share reads as the donut slice does, "under 1%" and "over 99%"; the only cited site; ranks past twenty', () => {
@@ -649,4 +649,29 @@ test('S5: a row without citations prints exactly the version 3 box, and OLDER_BO
   // On a version 4 row the frozen box still prints what version 3 printed, so grounding can allow its numbers.
   expect(OLDER_BOXES[3](d).competitive_bullets[0].text).toBe('PocketGuard.com appears in 678 retrieved citations.')
   expect(dataSentences(d).competitive_bullets[0].text).toMatch(/^PocketGuard\.com earned 41 of the /)
+})
+
+// 2026-11-05 (Paul, #440): no sentence the code writes for the page names Peec, on any path, including the rare fallbacks.
+test('no code-written sentence names Peec, in any edge case', () => {
+  const two = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
+  const solo = brandPull([['own', 'Own', 0.2, 1]])
+  const roster = (n: number) => [{ id: 'own', name: 'Own', is_own: true, domains: [] }, { id: 'z', name: 'Zed', is_own: false, domains: [] }, { id: 'y', name: 'Yew', is_own: false, domains: [] }].slice(0, n)
+  const texts = (d: ReturnType<typeof now>) => [d.context, d.methodology, ...[...d.competitive_bullets, ...d.sources_bullets].flatMap((b) => [b.lead, b.text]), ...d.opportunities.flatMap((o) => [o.signal, o.opportunity, o.workstream])]
+  const cases: [string, PeecPull, string | null][] = [
+    ['live shape', LIVE_SHAPE_PULL, null],
+    ['two brands', two, null],
+    ['no competitors', solo, 'No competitors are tracked in this project.'],
+    ['two others with no data', { ...solo, roster: roster(3) }, 'no data in this window.'],
+    ['one other with no data', { ...solo, roster: roster(2) }, 'no data in this window.'],
+    ['a brand with no data', { ...two, brands: [{ brand: { id: 'own', name: 'Own' }, visibility: 0.2, share_of_voice: 1, position: 2 }] }, 'no other brand tracked has data in this window'],
+    ['no source types', { ...two, domains: [] }, 'No source types were reported for this window.'],
+    ['no source types, no competitors', { ...solo, domains: [] }, 'No source types were reported for this window.'],
+    ['no citations', citedPull('Example Beauty', 'examplebeauty.com', [['examplebeauty.com', 'OWN', 0, 0], ['rival.example', 'COMPETITOR', 0, 0]], 600), 'No citations in AI answers were recorded this window.'],
+  ]
+  for (const [name, pull, reached] of cases) {
+    const all = texts(now(pull))
+    for (const t of all) expect(t, `${name}: ${t}`).not.toMatch(/peec/i)
+    // The fallback this case exists to reach was reached, so the check is not vacuous.
+    if (reached) expect(all.join(' | '), name).toContain(reached)
+  }
 })

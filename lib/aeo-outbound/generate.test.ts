@@ -365,7 +365,7 @@ test('a project with no competitors gives 1 to 4 bullets per box and a draft', a
   const r = await generateSnapshot('or_a', { peec: fakePeec(solo).client, glean: vi.fn(async () => reply(GOOD)), deadline: NOW + 270_000, now: () => NOW })
   if (!r.ok) throw new Error(r.error)
   for (const box of [r.slots.competitive_bullets, r.slots.sources_bullets]) expect(box.length >= 1 && box.length <= 4).toBe(true)
-  expect(r.slots.context).toBe('No competitors are tracked in this Peec project.')
+  expect(r.slots.context).toBe('No competitors are tracked in this project.')
 })
 
 test('codeSetPath: code-written and settings-set paths never ask Glean for another attempt', () => {
