@@ -44,7 +44,7 @@ test('the live-shape fixture gives every sentence in Ryan\'s format, with Peec\'
     { lead: 'Competitor domain gaps:', text: 'The largest gaps include caringly.example at 8 retrievals and rival-landing.example at 5.' },
     { lead: 'Limited editorial and UGC presence:', text: 'The domain mix is led by Institutional sources at 62% and Corporate sources at 22%; Editorial represents 2.7% and UGC 3.7%.' },
   ])
-  expect(s.methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026: five brands compared, 104 prompts tracked, and answers from Google AI Overview, Gemini UI, and ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
+  expect(s.methodology).toBe('Snapshot based on AI visibility data for Sep 20, 2026 to Sep 21, 2026: five brands compared, 104 prompts tracked, and answers from Google AI Overview, Gemini UI, and ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
 })
 
 test('Ryan\'s Ualett example, rebuilt from its numbers, reads as his page does', () => {
@@ -103,9 +103,9 @@ test('no competitors: the hidden context slot, the visibility bullet, no leaders
   expect(s.context).toBe('No competitors are tracked in this Peec project.')
   expect(s.competitive_bullets[0]).toEqual({ lead: 'AI visibility:', text: 'Own appears in 20% of tracked answers.' })
   expect(s.sources_bullets.map((b) => b.lead)).toEqual(['Source mix:'])
-  expect(s.methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026: the brand alone, 104 prompts tracked, and answers from Google AI Overview, Gemini UI, and ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
+  expect(s.methodology).toBe('Snapshot based on AI visibility data for Sep 20, 2026 to Sep 21, 2026: the brand alone, 104 prompts tracked, and answers from Google AI Overview, Gemini UI, and ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
   const bare = sent(solo, DEFAULTS, { ...USED, methodologyStatesPromptsAndModels: false })
-  expect(bare.methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026, for the brand alone. Results are directional and intended to identify areas for deeper analysis.')
+  expect(bare.methodology).toBe('Snapshot based on AI visibility data for Sep 20, 2026 to Sep 21, 2026, for the brand alone. Results are directional and intended to identify areas for deeper analysis.')
 })
 
 test('strong category position needs rank 3 or better, the top half, and half the leader\'s visibility', () => {
@@ -181,11 +181,25 @@ test('source mix: Editorial or UGC in the top two, one type only, empty, the own
   expect(mixOf([['CORPORATE', 60], ['INSTITUTIONAL', 25], ['UGC', 10], ['EDITORIAL', 5]])).toEqual({ lead: 'Source mix:', text: 'The domain mix is led by Corporate sources at 60% and Institutional sources at 25%; Editorial represents 5.0% and UGC 10%.' })
 })
 
+// 2026-11-05 (Ryan): the Methodology section does not name Peec, in any of its wordings.
+test('methodology never names Peec', () => {
+  const p = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
+  const solo = brandPull([['own', 'Own', 0.2, 1]])
+  const texts = [
+    sent(p).methodology,
+    sent({ ...p, models: [] }).methodology,
+    sent({ ...p, promptCount: null, models: [] }).methodology,
+    sent(solo).methodology,
+    sent(solo, DEFAULTS, { ...USED, methodologyStatesPromptsAndModels: false }).methodology,
+  ]
+  expect(texts.every((t) => t.startsWith('Snapshot based on AI visibility data for '))).toBe(true)
+  for (const t of texts) expect(t).not.toMatch(/peec/i)
+})
 test('methodology: only the prompt count, only the models, neither', () => {
   const p = brandPull([['a', 'A', 0.3, 0.3], ['own', 'Own', 0.2, 0.2]])
-  expect(sent({ ...p, models: [] }).methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026: two brands compared and 104 prompts tracked. Results are directional and intended to identify areas for deeper analysis.')
-  expect(sent({ ...p, promptCount: null, models: ['ChatGPT UI'] }).methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026: two brands compared and answers from ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
-  expect(sent({ ...p, promptCount: null, models: [] }).methodology).toBe('Snapshot based on Peec AI data for Sep 20, 2026 to Sep 21, 2026, comparing two brands. Results are directional and intended to identify areas for deeper analysis.')
+  expect(sent({ ...p, models: [] }).methodology).toBe('Snapshot based on AI visibility data for Sep 20, 2026 to Sep 21, 2026: two brands compared and 104 prompts tracked. Results are directional and intended to identify areas for deeper analysis.')
+  expect(sent({ ...p, promptCount: null, models: ['ChatGPT UI'] }).methodology).toBe('Snapshot based on AI visibility data for Sep 20, 2026 to Sep 21, 2026: two brands compared and answers from ChatGPT UI. Results are directional and intended to identify areas for deeper analysis.')
+  expect(sent({ ...p, promptCount: null, models: [] }).methodology).toBe('Snapshot based on AI visibility data for Sep 20, 2026 to Sep 21, 2026, comparing two brands. Results are directional and intended to identify areas for deeper analysis.')
   expect(sent({ ...p, window: { start: '2026-09-20', end: '2026-09-20' } }).methodology).toContain('for Sep 20, 2026:')
 })
 
