@@ -418,8 +418,8 @@ function write(d: SnapshotData) {
     ].filter((p): p is string => p !== null)
     const end = 'Results are directional and intended to identify areas for deeper analysis.'
     const set = solo ? 'the brand alone' : `${countWord(N)} brands compared`
-    if (parts.length) return `Snapshot based on Peec AI data for ${d.windowLabel}: ${listText([set, ...parts])}. ${end}`
-    return `Snapshot based on Peec AI data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
+    if (parts.length) return `Snapshot based on AI visibility data for ${d.windowLabel}: ${listText([set, ...parts])}. ${end}`
+    return `Snapshot based on AI visibility data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
   }
 
   /** Round 3 (Ryan, 2026-10-21; pillars spec P3): one data line per pillar from the source shares. */
