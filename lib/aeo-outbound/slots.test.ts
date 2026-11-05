@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { applySlotPatch, applyStructure, cleanValue, isStructuralPath, limitFor, MAX_BULLETS, MIN_BULLETS, needsValidationPaths, OPPS_PAGE_KEYS, PAGE_KEYS, pageDefaults, slotEntries, STRUCTURE_ERRORS, validateGeneratedSlots, withDefaults, type Slots } from './slots'
-import { HEADLINE_LABEL, PAGE_WORDS_V1 } from './config'
+import { FOOTER_DISCLAIMER, HEADLINE_LABEL, PAGE_WORDS_V1 } from './config'
 
 const S0: Slots = {
   category: 'Fintech', market: 'United States', headline: 'H', summary: 'S', context: 'C',
@@ -138,8 +138,19 @@ test('every page key has a v1.0 default, and no default carries a number', () =>
 
 test('a new row takes the section titles and wordmark from settings, "Executive Summary" as its headline label and the pillar title (Ryan, round 3), and every other word from v1.0', () => {
   expect(HEADLINE_LABEL).toBe('Executive Summary')
-  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, headline_label: 'Executive Summary', section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report', opps_title: 'The Pillars of AI Search' })
+  expect(pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })).toEqual({ ...PAGE_WORDS_V1, headline_label: 'Executive Summary', section_1_title: 'Strengths', section_2_title: 'Gaps', sidebar_wordmark: 'Avenue Z', series: 'AEO Lens Report', opps_title: 'The Pillars of AI Search', footer_disclaimer: FOOTER_DISCLAIMER })
   expect(PAGE_WORDS_V1.headline_label).toBe('Headline signal')
+})
+
+// 2026-11-05 (Paul, #440): a new report's footer does not name Peec. The v1.0 words stay frozen, so a row from before v1.1 and a row's own stored words read as they did.
+test('a new row takes a footer disclaimer without Peec; rows from before keep the v1.0 one, and a stored one wins', () => {
+  const page = pageDefaults({ sectionTitles: ['Strengths', 'Gaps'], sidebarWordmark: 'Avenue Z', series: 'AEO Lens Report' })
+  expect(page.footer_disclaimer).toBe('Data reflects an AI visibility snapshot for the stated window and is directional. Avenue Z makes no representations about future AI visibility outcomes.')
+  expect(Object.values(page).some((w) => /peec/i.test(w))).toBe(false)
+  expect(PAGE_WORDS_V1.footer_disclaimer).toContain('Peec AI visibility snapshot')
+  expect(withDefaults(S0, DATA_STUB).page.footer_disclaimer).toBe(PAGE_WORDS_V1.footer_disclaimer)
+  expect(withDefaults({ ...S0, page: { footer_disclaimer: 'Mine.' } }, DATA_STUB).page.footer_disclaimer).toBe('Mine.')
+  expect(withDefaults({ ...S0, page }, DATA_STUB).page.footer_disclaimer).toBe(FOOTER_DISCLAIMER)
 })
 
 test('every new path saves within its limit: 120 for page words, KPIs, brand and window label, 1,000 for the footer description and disclaimer', () => {

@@ -107,6 +107,16 @@ test('round 3: a new row reads Executive Summary in menu item 01 and as the head
   expect(h).not.toContain('Headline signal')
 })
 
+// 2026-11-05 (Paul, #440): nothing a prospect reads on a new report names Peec (scripts and styles are not read).
+test('a new row\'s page names Peec nowhere in its visible text', () => {
+  const page = pageDefaults({ sectionTitles: ['Cited Sources', 'Competitive Visibility'], sidebarWordmark: 'Avenue Z', series: 'AI Visibility Snapshot' })
+  const doc = new DOMParser().parseFromString(renderSnapshotHtml(DATA, { ...SLOTS, page }, 'final', 'Nov 5, 2026'), 'text/html')
+  doc.querySelectorAll('script,style').forEach((e) => e.remove())
+  const text = doc.body.textContent ?? ''
+  expect(text).toContain('Data reflects an AI visibility snapshot for the stated window')
+  expect(text).not.toMatch(/peec/i)
+})
+
 const VIS_FIRST: Slots = { ...SLOTS, section_order: 'visibility_first' }
 const menuOf = (doc: Document) => [...doc.querySelectorAll('.sidebar-nav a')].map((a) => [a.getAttribute('href'), a.querySelector('.nav-num')!.textContent])
 const sectionIds = (doc: Document) => [...doc.querySelectorAll('section[id]')].map((e) => e.id)
