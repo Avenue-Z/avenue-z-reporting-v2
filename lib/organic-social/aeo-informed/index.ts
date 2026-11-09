@@ -129,12 +129,14 @@ export async function getAeoInformedSocial(input: AeoInformedInput): Promise<Aeo
   let selId: string | null = null
   if (selector.via === 'tag') {
     const tags = await step('source-tags', null, async () => parseSourceTags(await reader.get('/source-tags', { limit: String(LIST_LIMIT) }, 'source-tags')))
+    if (tags.length >= LIST_LIMIT) throw new AeoPullError('source-tags', null, new Error(`the source tag list returned ${LIST_LIMIT} rows, the limit, so it may be cut off`))
     const t = tags.find((x) => x.name === selector.name)
     if (!t) throw new PeecSelectorError(`no source tag named "${selector.name}". Tags that exist: ${tags.map((x) => x.name).join(', ') || '(none)'}`)
     selId = t.id
     selFilter = { field: 'domain_tag_id', operator: 'in', values: [t.id] }
   } else {
     const cls = await step('domain-classifications', null, async () => parseClassifications(await reader.get('/classifications/domains', { limit: String(LIST_LIMIT) }, 'domain-classifications'), '/classifications/domains'))
+    if (cls.length >= LIST_LIMIT) throw new AeoPullError('domain-classifications', null, new Error(`the classification list returned ${LIST_LIMIT} rows, the limit, so it may be cut off`))
     if (!cls.some((x) => x.name === selector.name)) throw new PeecSelectorError(`no domain classification named "${selector.name}". Classifications that exist: ${cls.map((x) => x.name).join(', ') || '(none)'}`)
     selFilter = { field: 'domain_classification', operator: 'in', values: [selector.name] }
   }
@@ -156,6 +158,8 @@ export async function getAeoInformedSocial(input: AeoInformedInput): Promise<Aeo
   // 4) pulls, one at a time
   const selRows = await step('socials-by-day', selSpan, () =>
     pullChunks(reader, '/reports/urls', { dimensions: ['date'], filters: [selFilter] }, selSpan, (b, p) => parseUrlRows(b, p, { requireDate: true }), 'socials-by-day'))
+  // Peec evaluates `gap` per (url, day) row, so a URL that is a gap on only some days contributes only those days. That is why the item count can differ
+  // from a URL-level reading (see url_gaps_item_count in UNVERIFIED).
   const gapRows = await step('gaps-by-day', gapSpan, () =>
     pullChunks(reader, '/reports/urls', { dimensions: ['date'], filters: [selFilter, { field: 'gap', operator: 'gte', value: 1 }] }, gapSpan, (b, p) => parseUrlRows(b, p, { requireDate: true }), 'gaps-by-day'))
   const chatRows = usedWin.start <= usedWin.end
@@ -177,6 +181,7 @@ export async function getAeoInformedSocial(input: AeoInformedInput): Promise<Aeo
   const chats = { socials: chatsIn(socials), socialsPrior: chatsIn(socialsPrior), gaps: chatsIn(gaps), gapsPrior: chatsIn(gapsPrior) }
   for (const [k, v] of Object.entries(chats)) if (v === 0) warnings.push(`no chats in window: ${k}`)
   const windowsByName: [string, Window][] = [['socials', socials], ['socialsPrior', socialsPrior], ['gaps', gaps], ['gapsPrior', gapsPrior]]
+  if (usedWin.start <= usedWin.end) windowsByName.push(['usedAsSource', usedWin])
   for (const [k, w] of windowsByName) {
     const missing = eachDay(w).filter((d) => !chatsByDay.has(d)).length
     if (missing > 0) warnings.push(`days with no chats data in window: ${k} (${missing})`)

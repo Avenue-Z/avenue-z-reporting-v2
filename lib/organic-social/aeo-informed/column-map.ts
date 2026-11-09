@@ -47,15 +47,15 @@ export const PDF_COLUMN_MAP: MapEntry[] = [
   G('Domain type, URL Gaps', 'domainType', 'exact', 'The selector name'),
   G('Mentions (count), URL Gaps', 'mentionedBrandCount', 'derived', 'Count of brand ids on the URL'),
   G('Mentions (names), URL Gaps', 'mentionedBrandNames', 'derived', 'Own brand first, then alphabetical; logos not available'),
-  G('Citation share', 'citationShare', 'exact', 'Citations over the sum across every row of the pull; 4 of 5 PDF rows match to rounding, our total is 756 against about 757'),
+  G('Citation share', 'citationShare', 'exact', 'Citations over the sum across every row of the pull; matches the outline rows within rounding'),
   G('Citation position', 'citationPosition', 'exact', 'Sum of positions over count of inline-cited chats; null when never cited inline (her dash)'),
   G('Retrievals (and change), URL Gaps', 'retrievals', 'exact', 'Retrievals and deltas match her rows to the digit'),
-  G('Retrievals change, URL Gaps', 'retrievalsDelta', 'exact', 'Against the 30 days before'),
+  G('Retrievals change, URL Gaps', 'retrievalsDelta', 'exact', 'Against the previous window of the same length'),
   G('Total citations, URL Gaps', 'totalCitations', 'exact', 'Matches her rows to the digit'),
   G('Total citations change, URL Gaps', 'totalCitationsDelta', 'unverified', 'Her change column is cut off in the PDF'),
 
   // Graphs
-  R('Used as a source on Reddit, YouTube, Instagram, TikTok and LinkedIn', 'value', 'exact', 'Chats with an own source over chats; all four weekly points match within 0.1 percentage point (3.13 against 3.05 read from the image, then 12.25, 16.27, 13.02)'),
+  R('Used as a source on Reddit, YouTube, Instagram, TikTok and LinkedIn', 'value', 'exact', 'Chats with an own source over chats; all four weekly points match within 0.1 percentage point'),
   R('Citations on LinkedIn, TikTok, Reddit, YouTube and Instagram', 'value', 'exact', 'Own-channel citations per 7-day bucket; matches her weekly points'),
   R('Citations on LinkedIn', 'value', 'exact', 'Same, LinkedIn only; matches her four points'),
   R('Citations on Instagram ("No source data" is a null value)', 'value', 'derived', 'Null in every bucket when no own Instagram source in the window'),

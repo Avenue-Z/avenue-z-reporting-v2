@@ -3,9 +3,9 @@ import { describe, it, expect } from 'vitest'
 import { ownerOf, normalizeName, buildBrandChannels } from './ownership'
 import type { BrandChannels } from './ownership'
 
-const ren: BrandChannels = { id: 'b_ren', name: 'Example', isOwn: true, platforms: ['linkedin', 'instagram', 'youtube'] }
+const ren: BrandChannels = { id: 'b_own', name: 'Example', isOwn: true, platforms: ['linkedin', 'instagram', 'youtube'] }
 const globex: BrandChannels = { id: 'b_globex', name: 'Globex', isOwn: false, platforms: ['linkedin'] }
-const guardian: BrandChannels = { id: 'b_a', name: 'Acme', isOwn: false, platforms: ['linkedin', 'youtube', 'instagram'] }
+const acme: BrandChannels = { id: 'b_a', name: 'Acme', isOwn: false, platforms: ['linkedin', 'youtube', 'instagram'] }
 const acmeLife: BrandChannels = { id: 'b_al', name: 'Acme Life Insurance', isOwn: false, platforms: ['youtube'] }
 const U = (url: string, channelTitle: string | null = null) => ({ url, channelTitle })
 const LI = 'https://www.linkedin.com/pulse/some-article'
@@ -16,12 +16,23 @@ describe('normalizeName', () => {
   })
 })
 
+describe('names that are not plain ASCII', () => {
+  it('keeps letters and digits from any alphabet when normalizing', () => {
+    expect(normalizeName('Ärzte & Co')).toBe('ärzte co')
+    expect(normalizeName('株式会社 Example')).toBe('株式会社 example')
+  })
+  it('a brand named in another alphabet can own a channel', () => {
+    const jp: BrandChannels = { id: 'b_jp', name: '株式会社', isOwn: false, platforms: ['linkedin'] }
+    expect(ownerOf({ url: 'https://www.linkedin.com/company/x', channelTitle: '株式会社 Example' }, [jp])).toBe('b_jp')
+  })
+})
+
 describe('ownerOf: the channel title, on a platform the brand registered', () => {
   it('matches a title that starts with the brand name at a word boundary', () => {
-    expect(ownerOf(U(LI, 'Example Life & Health Insurance Company of America'), [ren, globex])).toBe('b_ren')
+    expect(ownerOf(U(LI, 'Example Co Insurance Group'), [ren, globex])).toBe('b_own')
   })
   it('matches a title that is exactly the brand name', () => {
-    expect(ownerOf(U('https://www.instagram.com/p/abc', 'Example'), [ren])).toBe('b_ren')
+    expect(ownerOf(U('https://www.instagram.com/p/abc', 'Example'), [ren])).toBe('b_own')
   })
   it('does not match a longer word that merely starts with the name', () => {
     expect(ownerOf(U(LI, 'Exampler Co'), [ren])).toBeNull()
@@ -42,10 +53,10 @@ describe('ownerOf: the channel title, on a platform the brand registered', () =>
   })
   it('the longer matching brand name wins when both are registered on the platform', () => {
     const both: BrandChannels = { ...acmeLife, platforms: ['youtube'] }
-    expect(ownerOf(U('https://www.youtube.com/watch?v=a', 'Acme Life Insurance Limited'), [guardian, both])).toBe('b_al')
+    expect(ownerOf(U('https://www.youtube.com/watch?v=a', 'Acme Life Insurance Limited'), [acme, both])).toBe('b_al')
   })
   it('only brands registered on the platform compete: a longer name registered elsewhere does not win', () => {
-    expect(ownerOf(U('https://www.youtube.com/watch?v=a', 'Acme Life Insurance Limited'), [guardian, { ...acmeLife, platforms: ['linkedin'] }])).toBe('b_a')
+    expect(ownerOf(U('https://www.youtube.com/watch?v=a', 'Acme Life Insurance Limited'), [acme, { ...acmeLife, platforms: ['linkedin'] }])).toBe('b_a')
   })
   it('two different brands with the same normalized name tie, so there is no owner', () => {
     const a: BrandChannels = { id: 'a', name: 'Acme', isOwn: false, platforms: ['linkedin'] }
@@ -56,7 +67,7 @@ describe('ownerOf: the channel title, on a platform the brand registered', () =>
     expect(ownerOf(U(LI, 'Anything'), [{ id: 'x', name: '  ', isOwn: false, platforms: ['linkedin'] }])).toBeNull()
   })
   it('records a known over-match: a different channel whose title starts with a competitor name is still attributed to it', () => {
-    expect(ownerOf(U(LI, 'Acme Cyber'), [guardian])).toBe('b_a')
+    expect(ownerOf(U(LI, 'Acme Cyber'), [acme])).toBe('b_a')
   })
 })
 

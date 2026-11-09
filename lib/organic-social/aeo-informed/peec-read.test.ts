@@ -2,17 +2,17 @@
 import { describe, it, expect } from 'vitest'
 import { createPeecReader, PeecRefusedError, PeecHttpError } from './peec-read'
 
-type Call = { url: string; init: RequestInit }
+type Call = { url: string; init: RequestInit; t: number }
 type Reply = { status: number; body?: string; headers?: Record<string, string> } | 'network-error'
 
 function harness(replies: Reply[], extra: Record<string, unknown> = {}) {
   const calls: Call[] = []
   const sleeps: number[] = []
-  const retries: { path: string; label?: string; status: number; attempt: number }[] = []
+  const retries: { path: string; label?: string; status: number; attempt: number; reason: string }[] = []
   const clock = { t: 1_000 }
   let i = 0
   const fetchImpl = (async (url: string, init: RequestInit) => {
-    calls.push({ url: String(url), init })
+    calls.push({ url: String(url), init, t: clock.t })
     const r = replies[Math.min(i++, replies.length - 1)]
     if (r === 'network-error') throw new TypeError('fetch failed')
     return { status: r.status, headers: { get: (k: string) => r.headers?.[k.toLowerCase()] ?? null }, text: async () => r.body ?? '{}' }
@@ -140,8 +140,8 @@ describe('operator visibility', () => {
     const h = harness([{ status: 429 }, { status: 503 }, { status: 200, body: '{}' }])
     await h.reader.get('/brands', {}, 'brands')
     expect(h.retries).toEqual([
-      { path: '/brands', label: 'brands', status: 429, attempt: 1 },
-      { path: '/brands', label: 'brands', status: 503, attempt: 1 },
+      { path: '/brands', label: 'brands', status: 429, attempt: 1, reason: 'HTTP 429' },
+      { path: '/brands', label: 'brands', status: 503, attempt: 1, reason: 'HTTP 503' },
     ])
     expect(JSON.stringify(h.retries)).not.toContain('SECRET')
   })
@@ -184,5 +184,64 @@ describe('fetch options, deadline and Retry-After', () => {
     await h.reader.get('/brands')
     expect(h.sleeps).toContain(60_000)
     expect(h.sleeps).not.toContain(86_400_000)
+  })
+})
+
+describe('hardening from the whole-branch review', () => {
+  it('refuses redirects, so the key can never be re-sent to another place', async () => {
+    const h = harness([{ status: 200, body: '{}' }])
+    await h.reader.get('/brands'); await h.reader.post('/reports/urls', {})
+    expect(h.calls.every((c) => (c.init as { redirect?: string }).redirect === 'error')).toBe(true)
+  })
+  it('a caller cannot override the configured project through a query key or a body field', async () => {
+    const h = harness([{ status: 200, body: '{}' }])
+    await h.reader.get('/brands', { project_id: 'or_other' })
+    await h.reader.post('/reports/urls', { project_id: 'or_other' })
+    expect(new URL(h.calls[0].url).searchParams.get('project_id')).toBe('or_proj')
+    expect(JSON.parse(h.calls[1].init.body as string).project_id).toBe('or_proj')
+  })
+  it('a POST also names the project in the query string, where the spec lists it', async () => {
+    const h = harness([{ status: 200, body: '{}' }])
+    await h.reader.post('/reports/urls', {})
+    expect(new URL(h.calls[0].url).searchParams.get('project_id')).toBe('or_proj')
+  })
+  it('redacts the key if Peec ever echoes it in an error body', async () => {
+    const h = harness([{ status: 401, body: '{"message":"bad key skc-SECRET-KEY-VALUE"}' }])
+    const e = (await h.reader.get('/brands').catch((x) => x)) as Error
+    expect(e.message).not.toContain('SECRET-KEY-VALUE')
+    expect(e.message).toContain('[key]')
+  })
+  it('a response body that stalls after the headers is cut off by the timeout instead of hanging', async () => {
+    const stall = (async (_u: string, init: RequestInit) => ({
+      status: 200, headers: { get: () => null },
+      text: () => new Promise<string>((_res, rej) => { init.signal?.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))) }),
+    })) as unknown as typeof fetch
+    const reader = createPeecReader({ apiKey: 'k', projectId: 'p', fetchImpl: stall, sleep: async () => {}, timeoutMs: 20, minGapMs: 0, onRetry: () => {} })
+    const t0 = Date.now()
+    await expect(reader.get('/brands')).rejects.toMatchObject({ name: 'PeecHttpError', status: 0 })
+    expect(Date.now() - t0).toBeLessThan(1_500)
+  })
+  it('names the underlying network error code and the kind of failure on retry', async () => {
+    const reset = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } }) }) as unknown as typeof fetch
+    const retries: { reason: string }[] = []
+    const reader = createPeecReader({ apiKey: 'k', projectId: 'p', fetchImpl: reset, sleep: async () => {}, minGapMs: 0, onRetry: (i) => retries.push(i) })
+    const e = (await reader.get('/brands').catch((x) => x)) as Error
+    expect(e.message).toContain('ECONNRESET')
+    expect(retries.map((r) => r.reason)).toEqual(['network error', 'network error'])
+  })
+  it('spaces the start of two calls that run at the same time (real timers)', async () => {
+    const starts: number[] = []
+    const quick = (async () => { starts.push(Date.now()); return { status: 200, headers: { get: () => null }, text: async () => '{}' } }) as unknown as typeof fetch
+    const reader = createPeecReader({ apiKey: 'k', projectId: 'p', fetchImpl: quick, minGapMs: 80 })
+    await reader.get('/brands')
+    await Promise.all([reader.get('/brands/social-channels'), reader.get('/source-tags')])
+    expect(starts[2] - starts[1]).toBeGreaterThanOrEqual(70)
+  })
+  it('throws the deadline error before an attempt once the budget is already spent', async () => {
+    const h = harness([{ status: 503 }], { deadlineMs: 500 })
+    const e = (await h.reader.get('/brands').catch((x) => x)) as PeecHttpError
+    expect(e.status).toBe(0)
+    expect(e.message).toContain('deadline')
+    expect(h.calls).toHaveLength(1)
   })
 })

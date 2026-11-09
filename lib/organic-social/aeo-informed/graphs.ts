@@ -1,7 +1,7 @@
 // lib/organic-social/aeo-informed/graphs.ts
 // The four graph series. Buckets are 7 days from that graph's own start date (not ISO weeks), because the charts we mirror are drawn that way.
 // "Own" means the URL is owned by our brand (ownership.ts). A platform with no own source in the graph's window is null in every bucket
-// (the "No source data" state); once it has any own source, an empty bucket is a real 0.
+// (the "No source data" state); once it has any own source, an empty bucket is a real 0. The same null rule applies to the five-platform graphs.
 import { eachDay, weeklyBuckets, assertIsoDate } from './windows'
 import { ownerOf, type BrandChannels } from './ownership'
 import { peecPlatformOf } from './platform'

@@ -73,6 +73,15 @@ describe('parseUrlRows options', () => {
   })
 })
 
+describe('dates are checked, not silently dropped', () => {
+  it('rejects a date that is not YYYY-MM-DD, or not a real day', () => {
+    for (const bad of ['2026-9-3', '09/03/2026', '2026-02-30', 'yesterday']) {
+      expect(() => parseUrlRows({ data: [urlRow({ date: bad })] }, '/reports/urls', { requireDate: true })).toThrow(PeecShapeError)
+      expect(() => parseBrandDayRows({ data: [{ date: bad, visibility_total: 1 }] })).toThrow(PeecShapeError)
+    }
+  })
+})
+
 describe('parseBrands', () => {
   it('reads id, name and is_own', () => {
     expect(parseBrands({ data: [{ id: 'b1', name: 'Example', is_own: true, color: '#fff', domains: [] }] })).toEqual([{ id: 'b1', name: 'Example', is_own: true }])

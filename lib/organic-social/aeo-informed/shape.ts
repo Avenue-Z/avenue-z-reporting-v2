@@ -3,6 +3,7 @@
 // Required fields mirror the live OpenAPI (read 2026-11-09). Extra fields are ignored. Error text names the endpoint, the row and the
 // field, never the value (rows hold client data).
 import type { PeecBrand, PeecBrandDayRow, PeecSocialChannel, PeecUrlRow } from './types'
+import { assertIsoDate } from './windows'
 
 export class PeecShapeError extends Error {
   constructor(public path: string, public field: string, public expected: string, public saw: string) {
@@ -35,6 +36,12 @@ const strOrNull = (o: Obj, k: string, p: string, i: number, optional = false): s
   if (v !== null && typeof v !== 'string') throw new PeecShapeError(p, `data[${i}].${k}`, 'string or null', kind(v))
   return v
 }
+/** A date field: Peec may send a full timestamp, so cut it to the day, then require a real YYYY-MM-DD. A bad date is an error, never a row that silently falls outside every window. */
+const day = (o: Obj, k: string, p: string, i: number): string => {
+  const d = str(o, k, p, i, true).slice(0, 10)
+  try { assertIsoDate(d) } catch { throw new PeecShapeError(p, `data[${i}].${k}`, 'a YYYY-MM-DD date', 'another format') }
+  return d
+}
 const count = (o: Obj, k: string, p: string, i: number): number => {
   const v = o[k]
   if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) throw new PeecShapeError(p, `data[${i}].${k}`, 'number, 0 or more', kind(v))
@@ -65,7 +72,7 @@ export function parseUrlRows(body: unknown, path: string, opts: UrlRowOptions = 
       citation_position_count: count(o, 'citation_position_count', path, i),
       mentioned_brands: mentioned,
     }
-    if (o.date !== undefined || opts.requireDate) row.date = str(o, 'date', path, i, true).slice(0, 10)
+    if (o.date !== undefined || opts.requireDate) row.date = day(o, 'date', path, i)
     if (o.chat !== undefined || opts.requireChat) {
       const c = o.chat
       if (!isObj(c) || typeof c.id !== 'string') throw new PeecShapeError(path, `data[${i}].chat.id`, 'string', isObj(c) ? kind(c.id) : kind(c))
@@ -103,5 +110,5 @@ export function parseClassifications(body: unknown, path: string): { name: strin
 
 export function parseBrandDayRows(body: unknown): PeecBrandDayRow[] {
   const p = '/reports/brands'
-  return dataArray(body, p).map((o, i) => ({ date: str(o, 'date', p, i, true).slice(0, 10), visibility_total: count(o, 'visibility_total', p, i) }))
+  return dataArray(body, p).map((o, i) => ({ date: day(o, 'date', p, i), visibility_total: count(o, 'visibility_total', p, i) }))
 }

@@ -35,7 +35,7 @@ export type PeecReader = {
   post(path: string, body: Record<string, unknown>, label?: string): Promise<unknown>
 }
 
-export type RetryInfo = { path: string; label?: string; status: number; attempt: number }
+export type RetryInfo = { path: string; label?: string; status: number; attempt: number; reason: string }
 
 export type PeecReaderOptions = {
   apiKey: string
@@ -59,53 +59,75 @@ export function createPeecReader(opts: PeecReaderOptions): PeecReader {
   const timeoutMs = opts.timeoutMs ?? 90_000
   const deadlineMs = opts.deadlineMs ?? 600_000
   const startedAt = now()
-  const onRetry = opts.onRetry ?? ((i: RetryInfo) => console.warn(`[aeo-informed] retry ${i.attempt} on ${i.path}${i.label ? ` [${i.label}]` : ''} after ${i.status}`))
+  const onRetry = opts.onRetry ?? ((i: RetryInfo) => console.warn(`[aeo-informed] retry ${i.attempt} on ${i.path}${i.label ? ` [${i.label}]` : ''} after ${i.reason}`))
   let lastStart = -Infinity
+  // Request starts go through one gate, so two calls made at the same time still start at least minGap apart.
+  let gate: Promise<void> = Promise.resolve()
+  const startGate = async (): Promise<void> => {
+    const prev = gate
+    let release!: () => void
+    gate = new Promise<void>((r) => { release = r })
+    try {
+      await prev
+      const wait = minGap - (now() - lastStart)
+      if (wait > 0) await sleep(wait)
+      lastStart = now()
+    } finally {
+      release()
+    }
+  }
+  const redact = (text: string) => (opts.apiKey ? text.split(opts.apiKey).join('[key]') : text)
 
   async function send(method: 'GET' | 'POST', path: string, url: string, label: string | undefined, body?: string): Promise<unknown> {
     let n429 = 0, n5xx = 0, nNet = 0
     for (;;) {
       if (now() - startedAt > deadlineMs) throw new PeecHttpError(0, path, 'deadline for the whole call exceeded', label)
-      const wait = minGap - (now() - lastStart)
-      if (wait > 0) await sleep(wait)
-      lastStart = now()
+      await startGate()
 
-      const left = deadlineMs - (now() - startedAt)
+      const attemptTimeout = Math.max(1, Math.min(timeoutMs, deadlineMs - (now() - startedAt)))
       const ac = new AbortController()
-      const timer = setTimeout(() => ac.abort(), Math.max(1, Math.min(timeoutMs, left)))
-      let res: Awaited<ReturnType<typeof fetch>>
+      const timer = setTimeout(() => ac.abort(), attemptTimeout)
+      let status: number
+      let text: string
+      let retryAfter: string | null
       try {
-        res = await doFetch(url, {
+        const res = await doFetch(url, {
           method,
           signal: ac.signal,
           cache: 'no-store',
+          redirect: 'error',
           headers: method === 'POST' ? { 'X-API-Key': opts.apiKey, 'Content-Type': 'application/json' } : { 'X-API-Key': opts.apiKey },
           ...(body !== undefined ? { body } : {}),
         })
+        status = res.status
+        retryAfter = res.headers.get('retry-after')
+        text = await res.text() // read inside the guarded block: the timeout covers the body, and a retried response is drained
       } catch (e) {
         clearTimeout(timer)
-        if (nNet++ < RETRY_NET) { onRetry({ path, label, status: 0, attempt: nNet }); await sleep(1000 * nNet); continue }
-        throw new PeecHttpError(0, path, (e as Error)?.name === 'AbortError' ? `no answer within ${timeoutMs} ms` : 'network error', label)
+        const err = e as { name?: string; cause?: { code?: string } }
+        const timedOut = err?.name === 'AbortError'
+        const reason = timedOut ? 'timeout' : 'network error'
+        if (nNet++ < RETRY_NET) { onRetry({ path, label, status: 0, attempt: nNet, reason }); await sleep(1000 * nNet); continue }
+        throw new PeecHttpError(0, path, timedOut ? `no answer within ${attemptTimeout} ms` : `network error${err?.cause?.code ? ` (${err.cause.code})` : ''}`, label)
       }
       clearTimeout(timer)
 
-      if (res.status === 429 && n429 < RETRY_429) {
+      if (status === 429 && n429 < RETRY_429) {
         n429++
-        onRetry({ path, label, status: 429, attempt: n429 })
-        const ra = Number(res.headers.get('retry-after'))
+        onRetry({ path, label, status: 429, attempt: n429, reason: 'HTTP 429' })
+        const ra = Number(retryAfter)
         const wait429 = Number.isFinite(ra) && ra > 0 ? Math.min(ra, 60) * 1000 : 5000 * n429
         if (wait429 > deadlineMs - (now() - startedAt)) throw new PeecHttpError(0, path, 'deadline for the whole call would pass before the retry', label)
         await sleep(wait429)
         continue
       }
-      if (res.status >= 500 && n5xx < RETRY_5XX) { n5xx++; onRetry({ path, label, status: res.status, attempt: n5xx }); await sleep(1000 * n5xx); continue }
+      if (status >= 500 && n5xx < RETRY_5XX) { n5xx++; onRetry({ path, label, status, attempt: n5xx, reason: `HTTP ${status}` }); await sleep(1000 * n5xx); continue }
 
-      const text = await res.text()
-      if (res.status < 200 || res.status >= 300) throw new PeecHttpError(res.status, path, text.slice(0, 160), label)
+      if (status < 200 || status >= 300) throw new PeecHttpError(status, path, redact(text).slice(0, 160), label)
       try {
         return JSON.parse(text)
       } catch {
-        throw new PeecHttpError(res.status, path, 'response was not JSON', label)
+        throw new PeecHttpError(status, path, 'response was not JSON', label)
       }
     }
   }
@@ -114,13 +136,15 @@ export function createPeecReader(opts: PeecReaderOptions): PeecReader {
     get(path, query = {}, label) {
       if (!GET_PATHS.has(path)) return Promise.reject(new PeecRefusedError('GET', path))
       const u = new URL(BASE_URL + path)
-      u.searchParams.set('project_id', opts.projectId)
       for (const [k, v] of Object.entries(query)) u.searchParams.set(k, v)
+      u.searchParams.set('project_id', opts.projectId) // set last: a caller cannot point the key at another project
       return send('GET', path, u.toString(), label)
     },
     post(path, body, label) {
       if (!POST_PATHS.has(path)) return Promise.reject(new PeecRefusedError('POST', path))
-      return send('POST', path, BASE_URL + path, label, JSON.stringify({ project_id: opts.projectId, ...body }))
+      const u = new URL(BASE_URL + path)
+      u.searchParams.set('project_id', opts.projectId)
+      return send('POST', path, u.toString(), label, JSON.stringify({ ...body, project_id: opts.projectId }))
     },
   }
 }

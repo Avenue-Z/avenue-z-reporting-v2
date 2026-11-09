@@ -7,7 +7,7 @@ import type { PeecReader } from './peec-read'
 type Filter = { field: string; operator?: string; values?: unknown[]; value?: unknown }
 type Body = { start_date: string; end_date: string; filters?: Filter[]; dimensions?: string[]; [k: string]: unknown }
 type Row = Record<string, unknown> & { date: string }
-const OWN = 'b_ren', GLOBEX = 'b_globex'
+const OWN = 'b_own', GLOBEX = 'b_globex'
 const urlRow = (url: string, date: string, o: Record<string, unknown> = {}) => ({
   url, date, classification: 'ARTICLE', title: 'T ' + url.slice(-6), channel_title: null, citation_count: 0, retrieval_count: 1, citation_rate: 0,
   citation_position: null, citation_position_sum: 0, citation_position_count: 0, mentioned_brands: [], ...o,
@@ -31,7 +31,7 @@ const CHAT_ROWS = [
   urlRow(OWN_URL, '2026-09-05', { channel_title: 'Example Life', chat: { id: 'c2' } }),
 ]
 
-function world(over: { brands?: Record<string, unknown>[]; classes?: { name: string }[]; tags?: { id: string; name: string }[]; failOn?: (path: string, body?: Body) => boolean; chatsPerDay?: number; byDay?: Row[]; chatDaysMissing?: string[] } = {}) {
+function world(over: { brands?: Record<string, unknown>[]; classes?: { name: string }[]; tags?: { id: string; name: string }[]; failOn?: (path: string, body?: Body) => boolean; chatsPerDay?: number; byDay?: Row[]; chatDaysMissing?: string[]; gapRows?: Row[]; failStatus?: number } = {}) {
   const calls: { method: string; path: string; body?: Body; label?: string }[] = []
   let inFlight = 0, maxInFlight = 0
   const brands = over.brands ?? [{ id: OWN, name: 'Example', is_own: true }, { id: GLOBEX, name: 'Globex', is_own: false }]
@@ -40,7 +40,7 @@ function world(over: { brands?: Record<string, unknown>[]; classes?: { name: str
       inFlight++; maxInFlight = Math.max(maxInFlight, inFlight)
       calls.push({ method: 'GET', path, body: query as Body, label })
       await Promise.resolve(); inFlight--
-      if (over.failOn?.(path)) throw new PeecHttpError(500, path, 'boom', label)
+      if (over.failOn?.(path)) throw new PeecHttpError(over.failStatus ?? 500, path, 'boom', label)
       if (path === '/brands') return { data: brands }
       if (path === '/brands/social-channels') return { data: [{ brand_id: OWN, platform: 'linkedin', channel_handle: 'company/examplebenefits' }, { brand_id: GLOBEX, platform: 'linkedin', channel_handle: 'company/globex' }] }
       if (path === '/classifications/domains') return { data: over.classes ?? [{ name: 'Organic Social' }, { name: 'Editorial - Trade' }] }
@@ -52,7 +52,7 @@ function world(over: { brands?: Record<string, unknown>[]; classes?: { name: str
       inFlight++; maxInFlight = Math.max(maxInFlight, inFlight)
       calls.push({ method: 'POST', path, body, label })
       await Promise.resolve(); inFlight--
-      if (over.failOn?.(path, body)) throw new PeecHttpError(500, path, 'boom', label)
+      if (over.failOn?.(path, body)) throw new PeecHttpError(over.failStatus ?? 500, path, 'boom', label)
       const within = (d: string) => d >= body.start_date && d <= body.end_date
       if (path === '/reports/brands') {
         const out: Record<string, unknown>[] = []
@@ -61,7 +61,7 @@ function world(over: { brands?: Record<string, unknown>[]; classes?: { name: str
       }
       const hasGap = (body.filters ?? []).some((f) => f.field === 'gap')
       const isChat = (body.dimensions ?? []).includes('chat_id')
-      const src = isChat ? CHAT_ROWS : hasGap ? GAP_ROWS : (over.byDay ?? BY_DAY)
+      const src = isChat ? CHAT_ROWS : hasGap ? (over.gapRows ?? GAP_ROWS) : (over.byDay ?? BY_DAY)
       return { data: src.filter((r) => within(r.date)) }
     },
   }
@@ -117,6 +117,7 @@ describe('getAeoInformedSocial: the full flow', () => {
     expect(r.meta).toMatchObject({ ownBrandId: OWN, ownBrandName: 'Example', selector: { name: 'Organic Social', via: 'classification', id: null } })
     expect(r.meta.chats).toEqual({ socials: 3000, socialsPrior: 3000, gaps: 3000, gapsPrior: 3000 })
     expect(r.meta.counts).toMatchObject({ socialsAll: 3, socialsOwn: 1, socialsCompetitor: 1, urlGaps: 1 })
+    expect(r.meta.unverified).toEqual(['url_gaps_item_count', 'competitor_table_definition', 'own_channel_non_linkedin_and_competitor_matching', 'pdf_columns_cropped'])
     expect(r.meta.unverified).toEqual([...UNVERIFIED])
     expect(UNVERIFIED).toHaveLength(4)
     expect(JSON.stringify(r)).not.toContain('SECRET')
@@ -180,11 +181,30 @@ describe('getAeoInformedSocial: chunk sizes, as-of and warnings', () => {
     const r = await getAeoInformedSocial(input(world({ chatDaysMissing: ['2026-09-10', '2026-09-11'] }).reader))
     expect(r.meta.warnings).toContain('days with no chats data in window: socialsPrior (2)')
   })
+  it('warns when the used-as-source window has days with no chats data, because its percentages would be inflated', async () => {
+    const r = await getAeoInformedSocial(input(world({ chatDaysMissing: ['2026-09-12'] }).reader))
+    expect(r.meta.warnings).toContain('days with no chats data in window: usedAsSource (1)')
+  })
   it('counts the by-day rows, the gap rows, the chat-level rows and the chat-day rows separately', async () => {
     const r = await getAeoInformedSocial(input(world().reader))
     expect(r.meta.counts).toMatchObject({ selectorRowsByDay: 5, gapRowsByDay: 2, usedChatRows: 2 })
     expect(r.meta.counts.chatDayRows).toBeGreaterThan(80)
     expect(r.meta.counts.requests).toBeGreaterThan(8)
+  })
+})
+
+describe('getAeoInformedSocial: window edges are inclusive and nothing leaks across them', () => {
+  const edge = (date: string, n: number) => urlRow('https://www.linkedin.com/pulse/edge', date, { channel_title: 'Example Life', retrieval_count: n, citation_count: n })
+  it('counts the first and last day of the current and previous windows, and nothing outside them', async () => {
+    const byDay = [edge('2026-09-06', 1), edge('2026-09-07', 2), edge('2026-10-06', 4), edge('2026-10-07', 8), edge('2026-11-05', 16), edge('2026-11-06', 32)]
+    const r = await getAeoInformedSocial(input(world({ byDay }).reader))
+    expect(r.socialsAll).toHaveLength(1)
+    expect(r.socialsAll[0]).toMatchObject({ retrievals: 24, retrievalsDelta: 18, totalCitations: 24, totalCitationsDelta: 18 })
+  })
+  it('does the same for the gaps window and its previous window', async () => {
+    const gapRows = [edge('2026-08-01', 1), edge('2026-08-02', 2), edge('2026-08-31', 4), edge('2026-09-01', 8), edge('2026-09-30', 16), edge('2026-10-01', 32)]
+    const r = await getAeoInformedSocial(input(world({ gapRows }).reader))
+    expect(r.urlGaps[0]).toMatchObject({ retrievals: 24, retrievalsDelta: 18 })
   })
 })
 
@@ -214,6 +234,20 @@ describe('getAeoInformedSocial: brands', () => {
   it('two own brands is an error', async () => {
     const w = world({ brands: [{ id: 'a', name: 'A', is_own: true }, { id: 'b', name: 'B', is_own: true }] })
     await expect(getAeoInformedSocial(input(w.reader))).rejects.toBeInstanceOf(PeecBrandError)
+  })
+  it('a classifications or source-tag list that exactly fills its limit may be truncated, so it throws', async () => {
+    const classes = Array.from({ length: 1000 }, (_, i) => ({ name: 'C' + i }))
+    await expect(getAeoInformedSocial(input(world({ classes }).reader))).rejects.toThrow(/1000/)
+    const tags = Array.from({ length: 1000 }, (_, i) => ({ id: 'stg_' + i, name: 'T' + i }))
+    await expect(getAeoInformedSocial(input(world({ tags }).reader, { selector: { name: 'T1', via: 'tag' } }))).rejects.toThrow(/1000/)
+  })
+  it('a 401 on the first call comes back as an AeoPullError that wraps the 401 and names the pull', async () => {
+    const w = world({ failOn: (p) => p === '/brands', failStatus: 401 })
+    const e = (await getAeoInformedSocial(input(w.reader)).catch((x) => x)) as AeoPullError
+    expect(e).toBeInstanceOf(AeoPullError)
+    expect(e.label).toBe('brands')
+    expect((e.cause as PeecHttpError).status).toBe(401)
+    expect(w.calls).toHaveLength(1)
   })
   it('a brands list that exactly fills its limit may be truncated, so it throws', async () => {
     const many = Array.from({ length: 1000 }, (_, i) => ({ id: 'x' + i, name: 'N' + i, is_own: i === 0 }))

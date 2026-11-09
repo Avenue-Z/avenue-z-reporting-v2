@@ -63,7 +63,11 @@ const delta = (cur: number, prior: UrlAgg | undefined, pick: (u: UrlAgg) => numb
 
 export type SocialsInput = { current: UrlAgg[]; prior: UrlAgg[]; chatsCurrent: number; chatsPrior: number; brands: BrandChannels[]; domainType: string }
 
-/** Every tagged URL, ranked by retrievals. Split into the own and competitor tables with splitSocials. */
+/**
+ * Every tagged URL, ranked by retrievals. Split into the own and competitor tables with splitSocials.
+ * Ownership here uses the URL's chosen channel title (the row with the most retrievals). The graphs decide per row, so a URL whose rows carry
+ * different titles (for example null on some days) can be starred here while part of its citations are missing from a graph. Both match Peec's own views.
+ */
 export function buildSocialsRows(i: SocialsInput): SocialsRow[] {
   const prior = new Map(i.prior.map((u) => [u.url, u]))
   const ownId = i.brands.find((b) => b.isOwn)?.id ?? null

@@ -2,7 +2,8 @@
 // Pull a dated report in chunks of at most 31 days, one request each, never with an offset.
 // Why: Peec's offset pagination can shift under ties (rows missed or repeated), and repeated (url, date) rows are legitimate, so a duplicate
 // check cannot catch it. Counts add across days (a chat belongs to one day), so chunk results are simply concatenated and summed by the caller.
-// Measured on the client's data: the densest calendar month is 5,084 by-day rows (worst rolling 31 days 6,252); chat-level rows run 1.4 to 1.8 times that.
+// Measured on one real project: a 31-day span of by-day rows is a few thousand rows, and chat-level rows run about 1.4 to 1.8 times that, so a 31-day chunk
+// normally fits one 10,000-row page. A denser project gets split chunks automatically.
 import { PeecPageCapError, type PeecReader } from './peec-read'
 import { assertIsoDate, daysIn, type Window } from './windows'
 

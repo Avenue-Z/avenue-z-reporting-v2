@@ -5,7 +5,7 @@ import type { PeecUrlRow } from './types'
 import type { BrandChannels } from './ownership'
 
 const brands: BrandChannels[] = [
-  { id: 'b_ren', name: 'Example', isOwn: true, platforms: ['linkedin', 'instagram', 'youtube'] },
+  { id: 'b_own', name: 'Example', isOwn: true, platforms: ['linkedin', 'instagram', 'youtube'] },
   { id: 'b_globex', name: 'Globex', isOwn: false, platforms: ['linkedin'] },
 ]
 const row = (url: string, date: string, o: Partial<PeecUrlRow> = {}): PeecUrlRow => ({
@@ -13,7 +13,7 @@ const row = (url: string, date: string, o: Partial<PeecUrlRow> = {}): PeecUrlRow
   citation_position: null, citation_position_sum: 0, citation_position_count: 0, mentioned_brands: [], ...o,
 })
 const LI = 'https://www.linkedin.com/pulse/own-article'
-const base = { brands, ownBrandId: 'b_ren', ownBrandName: 'Example', from: '2026-09-03', weeks: 4, asOf: '2026-11-08' }
+const base = { brands, ownBrandId: 'b_own', ownBrandName: 'Example', from: '2026-09-03', weeks: 4, asOf: '2026-11-08' }
 
 describe('platformOf', () => {
   it.each([
