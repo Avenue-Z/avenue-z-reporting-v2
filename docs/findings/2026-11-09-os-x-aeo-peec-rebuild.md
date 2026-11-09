@@ -34,9 +34,16 @@ The different tables in the outline use different windows (a 30-day window, a ca
 
 ## The gate and the contract
 
-A result that is wrong must not reach a page, so every result passes a data gate (`gate.ts`, 36 named rules, 32 of which stop the result). The contract it enforces is typed code (`contract.ts`) and the YAML in `docs/contracts/` is generated from it.
-Enforcement is in CI and at runtime: a mutation suite breaks a good result once per rule, a drift test fails if the YAML differs from the code, and a conformance test proves the Peec parsers reject everything the raw contracts forbid.
-Run live against a real project, the gate raised no false alarm on five windows; a window that reaches before the project's first data warns (days with no chat counts, no previous window) as it should.
+A result that is wrong must not reach a page, so every result passes a data gate (`gate.ts`, 44 named rules, 40 of which stop the result) before the only production function, `getAeoInformedSocial`, returns it. The contract it enforces is typed code (`contract.ts`) and the YAML in `docs/contracts/` is generated from it.
+
+- **Independent recount.** The first version of the gate checked chats and changes against numbers the same code had just computed, which is circular (found by the review). The gate now gets the raw Peec rows and recounts chat totals, the sources in each table, every row's numbers and its change, and the bounds on every graph point.
+- **Missing chat days are errors.** A day with no chat count inside a window shrinks the denominator and inflates every percentage; days before the project's first chat data only warn.
+- **As-of against the clock.** The as-of date must be before today, so an unfinished day is never counted. The clock is injected so this is testable.
+- **No ungated option.** `getAeoInformedSocial` cannot return a result that broke a rule; tests and probes use `inspect.ts`.
+- **Enforcement in CI:** a mutation suite corrupts a good result (or its raw rows) once or more per rule and fails if a rule has no test; a drift test fails if the YAML differs from the code; a conformance test proves the Peec parsers reject everything the raw contracts forbid.
+
+**Live runs, 2026-11-09** (real adapter, read only, gate enforced, one real project): the window the outline uses, a calendar month, the last 7 days, year to date, and a month ending at the as-of date with graphs running past it.
+All five passed with no gate error. Year to date warns, correctly: 21 days before the project's first chat data and no previous window to compare with, and those days are before the first data, so they are not errors.
 
 ## Not exact yet
 
@@ -55,6 +62,6 @@ Spec first, then code, with fresh-eyes review at each step:
 | Spec, round 1 | 34 findings, 3 blockers (the chats source was unmeasured; `urlJoinKey` merges videos; what table 1 contains), all fixed or ruled |
 | Spec, round 2 (changed text only) | 0 blockers, 5 majors (chunk density for chat-level pulls, two contradictory pull designs, spec marking unbuilt code as built, zero-chat buckets, an untested rule), all fixed |
 | Whole-branch code review | 0 blockers, 2 majors (real figures in public test fixtures; no test on window edge days), 21 minors. Everything was fixed or documented in code comments; one rule documented instead of changed (graphs with no own source are `null`, even when chats exist) |
-| Gate and contract review | See the PR; results are applied in follow-up commits |
+| Gate and contract review | 3 blockers (the chat and change checks were circular; a missing chat day only warned; the change columns were not recounted), several majors (graphs not tied to the rows, no clock check, an ungated mode a page could use, mutation tests that survived a weakened rule). All fixed: the gate recounts from the raw rows, a missing chat day is an error, the as-of date is checked against an injected clock, the ungated mode is gone, and the weak mutations are strengthened |
 
 Tests were written before each module (the folder has well over 300 now). Beyond them: `tsc`, `eslint`, `check:rsc`, `next build` and the full suite pass.
