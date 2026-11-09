@@ -5,7 +5,7 @@ import { buildSocialsRows, buildGapRows } from './tables'
 import { buildCitationGraph } from './graphs'
 
 const agg = { url: 'u', title: null, channelTitle: null, classification: null, retrievals: 1, citations: 1, positionSum: 0, positionCount: 0, brandIds: [] }
-const brands = [{ id: 'b', name: 'B', isOwn: true, slugs: [] }]
+const brands = [{ id: 'b', name: 'B', isOwn: true, platforms: [] }]
 const socialsFields = Object.keys(buildSocialsRows({ current: [agg], prior: [], chatsCurrent: 1, chatsPrior: 1, brands, domainType: 'x' })[0])
 const gapFields = Object.keys(buildGapRows({ current: [agg], prior: [], brands, domainType: 'x' })[0])
 const graphFields = Object.keys(buildCitationGraph({ graphId: 'citations_all', platforms: ['linkedin'], rows: [], brands, ownBrandId: 'b', ownBrandName: 'B', from: '2026-09-03', weeks: 1, asOf: '2026-11-08' })[0])

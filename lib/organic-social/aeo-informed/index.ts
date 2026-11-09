@@ -32,7 +32,6 @@ export class PeecBrandError extends Error {
 
 /** Rules not yet proven against the client's PDF. Always returned, unconditionally, in this order. */
 export const UNVERIFIED = [
-  'used_as_source_first_bucket',
   'url_gaps_item_count',
   'competitor_table_definition',
   'own_channel_non_linkedin_and_competitor_matching',

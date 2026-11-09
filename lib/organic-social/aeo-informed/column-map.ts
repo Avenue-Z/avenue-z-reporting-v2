@@ -18,16 +18,16 @@ export const PDF_COLUMN_MAP: MapEntry[] = [
   { pdf: 'Date range: MoM, YTD, All time', output: 'config', field: null, status: 'derived', note: 'windows.ts calendarMonth, ytd and allTime; the previous window is the same length directly before' },
   { pdf: 'Insights', output: 'none', field: null, status: 'not_available', note: 'Team-written text, not Peec data' },
 
-  // Renaissance Only Socials / Competitor Socials tables
+  // Example Only Socials / Competitor Socials tables
   S('# (row number)', 'rank', 'exact', 'Retrievals descending, then URL'),
   S('URL', 'url', 'exact', 'The exact string Peec returns'),
   S('URL title', 'title', 'exact', 'From the row with the most retrievals'),
   S('Channel name chip', 'channelTitle', 'exact', 'channel_title'),
-  S('Channel owner (our matching)', 'ownerBrandId', 'derived', 'Handle in the path, else channel title starting with the brand name'),
+  S('Channel owner (our matching)', 'ownerBrandId', 'derived', 'Channel title starting with the brand name, on a platform the brand registered; matches how Peec attributes channels'),
   S('Star: your own channel', 'isOwnChannel', 'derived', 'Proven for LinkedIn and the own brand only'),
   S('URL type', 'urlType', 'exact', 'Peec classification with a display name'),
   S('Domain type', 'domainType', 'exact', 'The selector name, constant for the whole view'),
-  S('Renaissance mentioned', 'ownBrandMentioned', 'exact', 'Own brand id among the brands mentioned with the URL'),
+  S('Example mentioned', 'ownBrandMentioned', 'exact', 'Own brand id among the brands mentioned with the URL'),
   S('Mentions (count and names)', 'mentionedBrandCount', 'derived', 'Count of brand ids on the URL'),
   S('Mentions (names)', 'mentionedBrandNames', 'derived', 'Own brand first, then alphabetical'),
   { pdf: 'Mentions (logos)', output: 'none', field: null, status: 'not_available', note: 'The brands endpoint returns a color and no image' },
@@ -55,7 +55,7 @@ export const PDF_COLUMN_MAP: MapEntry[] = [
   G('Total citations change, URL Gaps', 'totalCitationsDelta', 'unverified', 'Her change column is cut off in the PDF'),
 
   // Graphs
-  R('Used as a source on Reddit, YouTube, Instagram, TikTok and LinkedIn', 'value', 'unverified', 'Chats with an own source over chats; 3 of 4 weekly points match, the first does not'),
+  R('Used as a source on Reddit, YouTube, Instagram, TikTok and LinkedIn', 'value', 'exact', 'Chats with an own source over chats; all four weekly points match within 0.1 percentage point (3.13 against 3.05 read from the image, then 12.25, 16.27, 13.02)'),
   R('Citations on LinkedIn, TikTok, Reddit, YouTube and Instagram', 'value', 'exact', 'Own-channel citations per 7-day bucket; matches her weekly points'),
   R('Citations on LinkedIn', 'value', 'exact', 'Same, LinkedIn only; matches her four points'),
   R('Citations on Instagram ("No source data" is a null value)', 'value', 'derived', 'Null in every bucket when no own Instagram source in the window'),

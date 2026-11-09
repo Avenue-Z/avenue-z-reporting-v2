@@ -75,7 +75,7 @@ describe('parseUrlRows options', () => {
 
 describe('parseBrands', () => {
   it('reads id, name and is_own', () => {
-    expect(parseBrands({ data: [{ id: 'b1', name: 'Renaissance', is_own: true, color: '#fff', domains: [] }] })).toEqual([{ id: 'b1', name: 'Renaissance', is_own: true }])
+    expect(parseBrands({ data: [{ id: 'b1', name: 'Example', is_own: true, color: '#fff', domains: [] }] })).toEqual([{ id: 'b1', name: 'Example', is_own: true }])
   })
   it('rejects a missing is_own and an empty name', () => {
     expect(() => parseBrands({ data: [{ id: 'b1', name: 'X' }] })).toThrow(PeecShapeError)

@@ -7,34 +7,34 @@ import type { PeecReader } from './peec-read'
 type Filter = { field: string; operator?: string; values?: unknown[]; value?: unknown }
 type Body = { start_date: string; end_date: string; filters?: Filter[]; dimensions?: string[]; [k: string]: unknown }
 type Row = Record<string, unknown> & { date: string }
-const OWN = 'b_ren', UNUM = 'b_unum'
+const OWN = 'b_ren', GLOBEX = 'b_globex'
 const urlRow = (url: string, date: string, o: Record<string, unknown> = {}) => ({
   url, date, classification: 'ARTICLE', title: 'T ' + url.slice(-6), channel_title: null, citation_count: 0, retrieval_count: 1, citation_rate: 0,
   citation_position: null, citation_position_sum: 0, citation_position_count: 0, mentioned_brands: [], ...o,
 })
 const OWN_URL = 'https://www.linkedin.com/pulse/own-1'
 const THIRD = 'https://www.linkedin.com/pulse/third'
-const UNUM_URL = 'https://www.linkedin.com/company/unum'
+const GLOBEX_URL = 'https://www.linkedin.com/company/globex'
 const BY_DAY = [
-  urlRow(OWN_URL, '2026-09-04', { channel_title: 'Renaissance Life', retrieval_count: 10, citation_count: 5, mentioned_brands: [{ id: UNUM }] }),
-  urlRow(OWN_URL, '2026-09-20', { channel_title: 'Renaissance Life', retrieval_count: 3, citation_count: 1 }),
-  urlRow(OWN_URL, '2026-10-10', { channel_title: 'Renaissance Life', retrieval_count: 20, citation_count: 8, citation_position_sum: 6, citation_position_count: 3, mentioned_brands: [{ id: OWN }] }),
-  urlRow(THIRD, '2026-10-12', { channel_title: 'Roger G. Howell', retrieval_count: 7, citation_count: 2 }),
-  urlRow(UNUM_URL, '2026-10-15', { retrieval_count: 4, citation_count: 1 }),
+  urlRow(OWN_URL, '2026-09-04', { channel_title: 'Example Life', retrieval_count: 10, citation_count: 5, mentioned_brands: [{ id: GLOBEX }] }),
+  urlRow(OWN_URL, '2026-09-20', { channel_title: 'Example Life', retrieval_count: 3, citation_count: 1 }),
+  urlRow(OWN_URL, '2026-10-10', { channel_title: 'Example Life', retrieval_count: 20, citation_count: 8, citation_position_sum: 6, citation_position_count: 3, mentioned_brands: [{ id: OWN }] }),
+  urlRow(THIRD, '2026-10-12', { channel_title: 'Some Author', retrieval_count: 7, citation_count: 2 }),
+  urlRow(GLOBEX_URL, '2026-10-15', { channel_title: 'Globex', retrieval_count: 4, citation_count: 1 }),
 ]
 const GAP_ROWS = [
-  urlRow(THIRD, '2026-09-10', { channel_title: 'Roger G. Howell', retrieval_count: 6, citation_count: 3, citation_position_sum: 9, citation_position_count: 3, mentioned_brands: [{ id: UNUM }] }),
-  urlRow(THIRD, '2026-08-20', { channel_title: 'Roger G. Howell', retrieval_count: 2, citation_count: 1, mentioned_brands: [{ id: UNUM }] }),
+  urlRow(THIRD, '2026-09-10', { channel_title: 'Some Author', retrieval_count: 6, citation_count: 3, citation_position_sum: 9, citation_position_count: 3, mentioned_brands: [{ id: GLOBEX }] }),
+  urlRow(THIRD, '2026-08-20', { channel_title: 'Some Author', retrieval_count: 2, citation_count: 1, mentioned_brands: [{ id: GLOBEX }] }),
 ]
 const CHAT_ROWS = [
-  urlRow(OWN_URL, '2026-09-04', { channel_title: 'Renaissance Life', chat: { id: 'c1' } }),
-  urlRow(OWN_URL, '2026-09-05', { channel_title: 'Renaissance Life', chat: { id: 'c2' } }),
+  urlRow(OWN_URL, '2026-09-04', { channel_title: 'Example Life', chat: { id: 'c1' } }),
+  urlRow(OWN_URL, '2026-09-05', { channel_title: 'Example Life', chat: { id: 'c2' } }),
 ]
 
 function world(over: { brands?: Record<string, unknown>[]; classes?: { name: string }[]; tags?: { id: string; name: string }[]; failOn?: (path: string, body?: Body) => boolean; chatsPerDay?: number; byDay?: Row[]; chatDaysMissing?: string[] } = {}) {
   const calls: { method: string; path: string; body?: Body; label?: string }[] = []
   let inFlight = 0, maxInFlight = 0
-  const brands = over.brands ?? [{ id: OWN, name: 'Renaissance', is_own: true }, { id: UNUM, name: 'Unum', is_own: false }]
+  const brands = over.brands ?? [{ id: OWN, name: 'Example', is_own: true }, { id: GLOBEX, name: 'Globex', is_own: false }]
   const reader: PeecReader = {
     async get(path, query, label) {
       inFlight++; maxInFlight = Math.max(maxInFlight, inFlight)
@@ -42,7 +42,7 @@ function world(over: { brands?: Record<string, unknown>[]; classes?: { name: str
       await Promise.resolve(); inFlight--
       if (over.failOn?.(path)) throw new PeecHttpError(500, path, 'boom', label)
       if (path === '/brands') return { data: brands }
-      if (path === '/brands/social-channels') return { data: [{ brand_id: OWN, platform: 'linkedin', channel_handle: 'company/renaissancebenefits' }, { brand_id: UNUM, platform: 'linkedin', channel_handle: 'company/unum' }] }
+      if (path === '/brands/social-channels') return { data: [{ brand_id: OWN, platform: 'linkedin', channel_handle: 'company/examplebenefits' }, { brand_id: GLOBEX, platform: 'linkedin', channel_handle: 'company/globex' }] }
       if (path === '/classifications/domains') return { data: over.classes ?? [{ name: 'Organic Social' }, { name: 'Editorial - Trade' }] }
       if (path === '/source-tags') return { data: over.tags ?? [{ id: 'stg_1', name: 'Organic Social' }] }
       throw new Error('unexpected GET ' + path)
@@ -83,19 +83,19 @@ describe('getAeoInformedSocial: the full flow', () => {
     const w = world()
     const r = await getAeoInformedSocial(input(w.reader))
     expect(r.socialsAll.map((x) => [x.rank, x.url, x.retrievals, x.retrievalsDelta])).toEqual([
-      [1, OWN_URL, 20, 17], [2, THIRD, 7, null], [3, UNUM_URL, 4, null],
+      [1, OWN_URL, 20, 17], [2, THIRD, 7, null], [3, GLOBEX_URL, 4, null],
     ])
     expect(r.socialsAll[0].retrievedPct).toBeCloseTo(20 / 3000, 12)
     expect(r.socialsAll[0].retrievedPctDelta).toBeCloseTo(20 / 3000 - 3 / 3000, 12)
     expect(r.socialsAll[0]).toMatchObject({ isOwnChannel: true, ownBrandMentioned: true, domainType: 'Organic Social', totalCitations: 8, totalCitationsDelta: 7 })
     expect(r.socialsOwn.map((x) => x.url)).toEqual([OWN_URL])
-    expect(r.socialsCompetitor.map((x) => x.url)).toEqual([UNUM_URL])
+    expect(r.socialsCompetitor.map((x) => x.url)).toEqual([GLOBEX_URL])
   })
 
   it('builds URL Gaps from the gap-filtered pull for its own window', async () => {
     const r = await getAeoInformedSocial(input(world().reader))
     expect(r.urlGaps).toHaveLength(1)
-    expect(r.urlGaps[0]).toMatchObject({ url: THIRD, retrievals: 6, retrievalsDelta: 4, totalCitations: 3, totalCitationsDelta: 2, citationShare: 1, mentionedBrandNames: 'Unum' })
+    expect(r.urlGaps[0]).toMatchObject({ url: THIRD, retrievals: 6, retrievalsDelta: 4, totalCitations: 3, totalCitationsDelta: 2, citationShare: 1, mentionedBrandNames: 'Globex' })
     expect(r.urlGaps[0].citationPosition).toBe(3)
   })
 
@@ -111,14 +111,14 @@ describe('getAeoInformedSocial: the full flow', () => {
     expect(r.graphs.map((p) => p.graphId)).toEqual([...r.graphs.map((p) => p.graphId)].sort((a, b) => ['used_as_source_all', 'citations_all', 'citations_linkedin', 'citations_instagram'].indexOf(a) - ['used_as_source_all', 'citations_all', 'citations_linkedin', 'citations_instagram'].indexOf(b)))
   })
 
-  it('fills meta: windows, ids, chats, counts, the five unverified ids, and never the api key', async () => {
+  it('fills meta: windows, ids, chats, counts, the four unverified ids, and never the api key', async () => {
     const r = await getAeoInformedSocial(input(world().reader))
     expect(r.meta.windows).toEqual({ socials: views.socials, socialsPrior: { start: '2026-09-07', end: '2026-10-06' }, gaps: views.gaps, gapsPrior: { start: '2026-08-02', end: '2026-08-31' } })
-    expect(r.meta).toMatchObject({ ownBrandId: OWN, ownBrandName: 'Renaissance', selector: { name: 'Organic Social', via: 'classification', id: null } })
+    expect(r.meta).toMatchObject({ ownBrandId: OWN, ownBrandName: 'Example', selector: { name: 'Organic Social', via: 'classification', id: null } })
     expect(r.meta.chats).toEqual({ socials: 3000, socialsPrior: 3000, gaps: 3000, gapsPrior: 3000 })
     expect(r.meta.counts).toMatchObject({ socialsAll: 3, socialsOwn: 1, socialsCompetitor: 1, urlGaps: 1 })
     expect(r.meta.unverified).toEqual([...UNVERIFIED])
-    expect(UNVERIFIED).toHaveLength(5)
+    expect(UNVERIFIED).toHaveLength(4)
     expect(JSON.stringify(r)).not.toContain('SECRET')
   })
 })
@@ -208,7 +208,7 @@ describe('getAeoInformedSocial: the selector', () => {
 
 describe('getAeoInformedSocial: brands', () => {
   it('no own brand is an error', async () => {
-    const w = world({ brands: [{ id: UNUM, name: 'Unum', is_own: false }] })
+    const w = world({ brands: [{ id: GLOBEX, name: 'Globex', is_own: false }] })
     await expect(getAeoInformedSocial(input(w.reader))).rejects.toBeInstanceOf(PeecBrandError)
   })
   it('two own brands is an error', async () => {

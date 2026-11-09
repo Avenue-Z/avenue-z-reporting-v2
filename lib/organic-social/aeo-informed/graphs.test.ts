@@ -5,15 +5,15 @@ import type { PeecUrlRow } from './types'
 import type { BrandChannels } from './ownership'
 
 const brands: BrandChannels[] = [
-  { id: 'b_ren', name: 'Renaissance', isOwn: true, slugs: ['renaissancebenefits', 'renbenefits'] },
-  { id: 'b_unum', name: 'Unum', isOwn: false, slugs: ['unum'] },
+  { id: 'b_ren', name: 'Example', isOwn: true, platforms: ['linkedin', 'instagram', 'youtube'] },
+  { id: 'b_globex', name: 'Globex', isOwn: false, platforms: ['linkedin'] },
 ]
 const row = (url: string, date: string, o: Partial<PeecUrlRow> = {}): PeecUrlRow => ({
-  url, date, classification: null, title: null, channel_title: 'Renaissance Life & Health', citation_count: 0, retrieval_count: 1,
+  url, date, classification: null, title: null, channel_title: 'Example Life & Health', citation_count: 0, retrieval_count: 1,
   citation_position: null, citation_position_sum: 0, citation_position_count: 0, mentioned_brands: [], ...o,
 })
 const LI = 'https://www.linkedin.com/pulse/own-article'
-const base = { brands, ownBrandId: 'b_ren', ownBrandName: 'Renaissance', from: '2026-09-03', weeks: 4, asOf: '2026-11-08' }
+const base = { brands, ownBrandId: 'b_ren', ownBrandName: 'Example', from: '2026-09-03', weeks: 4, asOf: '2026-11-08' }
 
 describe('platformOf', () => {
   it.each([
@@ -32,12 +32,12 @@ describe('buildCitationGraph', () => {
     expect(pts.map((p) => [p.weekStart, p.weekEnd, p.value])).toEqual([
       ['2026-09-03', '2026-09-09', 15], ['2026-09-10', '2026-09-16', 7], ['2026-09-17', '2026-09-23', 0], ['2026-09-24', '2026-09-30', 2],
     ])
-    expect(pts.every((p) => p.series === 'Renaissance' && p.unit === 'citations' && p.graphId === 'citations_linkedin')).toBe(true)
+    expect(pts.every((p) => p.series === 'Example' && p.unit === 'citations' && p.graphId === 'citations_linkedin')).toBe(true)
   })
   it('leaves out other brands\' channels and other platforms', () => {
     const rows = [
       row(LI, '2026-09-03', { citation_count: 4 }),
-      row('https://www.linkedin.com/pulse/third', '2026-09-03', { citation_count: 99, channel_title: 'Roger G. Howell' }),
+      row('https://www.linkedin.com/pulse/third', '2026-09-03', { citation_count: 99, channel_title: 'Some Author' }),
       row('https://www.youtube.com/watch?v=a', '2026-09-03', { citation_count: 50 }),
     ]
     const li = buildCitationGraph({ ...base, graphId: 'citations_linkedin', platforms: ['linkedin'], rows })
@@ -45,9 +45,13 @@ describe('buildCitationGraph', () => {
     const all = buildCitationGraph({ ...base, graphId: 'citations_all', platforms: ['linkedin', 'youtube', 'instagram', 'tiktok', 'reddit'], rows })
     expect(all[0].value).toBe(54)
   })
-  it('owns a post by the registered handle in the path even with no channel title', () => {
-    const rows = [row('https://www.linkedin.com/posts/renaissancebenefits_x', '2026-09-03', { citation_count: 3, channel_title: null })]
-    expect(buildCitationGraph({ ...base, graphId: 'citations_linkedin', platforms: ['linkedin'], rows })[0].value).toBe(3)
+  it('a post with no channel title is not owned even when its URL carries the brand handle, because Peec attributes channels by title', () => {
+    const rows = [row('https://www.linkedin.com/posts/examplebenefits_x', '2026-09-03', { citation_count: 3, channel_title: null })]
+    expect(buildCitationGraph({ ...base, graphId: 'citations_linkedin', platforms: ['linkedin'], rows }).every((p) => p.value === null)).toBe(true)
+  })
+  it('a brand only owns rows on a platform it registered a channel on', () => {
+    const rows = [row('https://www.tiktok.com/@x/video/1', '2026-09-03', { citation_count: 9 })]
+    expect(buildCitationGraph({ ...base, graphId: 'citations_all', platforms: ['tiktok', 'linkedin'], rows }).every((p) => p.value === null)).toBe(true)
   })
   it('a platform with no own source in the window is null in every bucket ("No source data"), not zeros', () => {
     const rows = [row(LI, '2026-09-03', { citation_count: 4 })]
@@ -56,11 +60,11 @@ describe('buildCitationGraph', () => {
     expect(ig.every((p) => p.value === null)).toBe(true)
   })
   it('an own row that was never retrieved does not count as a source', () => {
-    const rows = [row('https://www.instagram.com/renbenefits/p/a', '2026-09-03', { retrieval_count: 0, citation_count: 0 })]
+    const rows = [row('https://www.instagram.com/exbenefits/p/a', '2026-09-03', { retrieval_count: 0, citation_count: 0 })]
     expect(buildCitationGraph({ ...base, graphId: 'citations_instagram', platforms: ['instagram'], rows }).every((p) => p.value === null)).toBe(true)
   })
   it('rows outside the graph window do not make a platform "have data"', () => {
-    const rows = [row('https://www.instagram.com/renbenefits/p/a', '2026-08-08', { citation_count: 1 })]
+    const rows = [row('https://www.instagram.com/exbenefits/p/a', '2026-08-08', { citation_count: 1 })]
     expect(buildCitationGraph({ ...base, graphId: 'citations_instagram', platforms: ['instagram'], rows }).every((p) => p.value === null)).toBe(true)
   })
   it('drops buckets after asOf and flags the one that crosses it as partial', () => {
@@ -78,7 +82,7 @@ describe('buildUsedAsSource', () => {
   for (let d = 3; d <= 30; d++) chats.set(`2026-09-${String(d).padStart(2, '0')}`, 100)
   it('counts a chat once per bucket even when it retrieved two own URLs, over that bucket\'s chats', () => {
     const rows = [
-      chatRow(LI, '2026-09-03', 'c1'), chatRow('https://www.linkedin.com/posts/renbenefits_x', '2026-09-03', 'c1'),
+      chatRow(LI, '2026-09-03', 'c1'), chatRow('https://www.linkedin.com/posts/exbenefits_x', '2026-09-03', 'c1'),
       chatRow(LI, '2026-09-04', 'c2'), chatRow(LI, '2026-09-11', 'c3'),
     ]
     const pts = buildUsedAsSource({ ...base, chatsByDay: chats, rows })
@@ -87,7 +91,7 @@ describe('buildUsedAsSource', () => {
     expect(pts[2].value).toBe(0)
   })
   it('does not count a chat that only retrieved someone else\'s page', () => {
-    const rows = [chatRow('https://www.linkedin.com/pulse/third', '2026-09-03', 'c1', { channel_title: 'Roger G. Howell' }), chatRow(LI, '2026-09-04', 'c2')]
+    const rows = [chatRow('https://www.linkedin.com/pulse/third', '2026-09-03', 'c1', { channel_title: 'Some Author' }), chatRow(LI, '2026-09-04', 'c2')]
     expect(buildUsedAsSource({ ...base, chatsByDay: chats, rows })[0].value).toBeCloseTo(1 / 700, 12)
   })
   it('a bucket with no chats at all is null, never NaN', () => {

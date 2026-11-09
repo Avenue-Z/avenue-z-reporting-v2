@@ -4,6 +4,7 @@
 // (the "No source data" state); once it has any own source, an empty bucket is a real 0.
 import { eachDay, weeklyBuckets, assertIsoDate } from './windows'
 import { ownerOf, type BrandChannels } from './ownership'
+import { peecPlatformOf } from './platform'
 import type { PeecUrlRow } from './types'
 
 export type GraphId = 'used_as_source_all' | 'citations_all' | 'citations_linkedin' | 'citations_instagram'
@@ -19,15 +20,11 @@ export type GraphPoint = {
 }
 
 export const FIVE_PLATFORMS: Platform[] = ['linkedin', 'youtube', 'instagram', 'tiktok', 'reddit']
-const DOMAINS: Record<Platform, string> = { linkedin: 'linkedin.com', youtube: 'youtube.com', instagram: 'instagram.com', tiktok: 'tiktok.com', reddit: 'reddit.com' }
 
-/** The social platform a URL belongs to: its host is the platform domain or a subdomain of it. A URL that does not parse has none. */
+/** The graph platform a URL belongs to, or null (a facebook or medium URL is not on any of these charts). */
 export function platformOf(url: string): Platform | null {
-  let host: string
-  try { host = new URL(url).hostname.toLowerCase() } catch { return null }
-  if (host === 'youtu.be') return 'youtube'
-  for (const p of FIVE_PLATFORMS) if (host === DOMAINS[p] || host.endsWith('.' + DOMAINS[p])) return p
-  return null
+  const p = peecPlatformOf(url)
+  return p !== null && (FIVE_PLATFORMS as string[]).includes(p) ? (p as Platform) : null
 }
 
 type Common = { brands: BrandChannels[]; ownBrandId: string; ownBrandName: string; from: string; weeks: number; asOf: string }

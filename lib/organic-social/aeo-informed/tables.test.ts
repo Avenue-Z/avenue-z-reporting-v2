@@ -8,9 +8,9 @@ const agg = (url: string, o: Partial<UrlAgg> = {}): UrlAgg => ({
   url, title: null, channelTitle: null, classification: 'ARTICLE', retrievals: 0, citations: 0, positionSum: 0, positionCount: 0, brandIds: [], ...o,
 })
 const brands: BrandChannels[] = [
-  { id: 'b_ren', name: 'Renaissance', isOwn: true, slugs: ['renaissancebenefits'] },
-  { id: 'b_unum', name: 'Unum', isOwn: false, slugs: ['unum'] },
-  { id: 'b_aflac', name: 'Aflac', isOwn: false, slugs: [] },
+  { id: 'b_ren', name: 'Example', isOwn: true, platforms: ['linkedin'] },
+  { id: 'b_globex', name: 'Globex', isOwn: false, platforms: ['linkedin'] },
+  { id: 'b_initech', name: 'Initech', isOwn: false, platforms: [] },
 ]
 const base = { chatsCurrent: 8944, chatsPrior: 8867, brands, domainType: 'Organic Social' }
 
@@ -60,37 +60,37 @@ describe('buildSocialsRows', () => {
 
   it('flags whether our own brand is mentioned, counts brands, and lists names with our own first', () => {
     const rows = buildSocialsRows({ ...base, current: [
-      agg('https://x.com/a', { retrievals: 2, brandIds: ['b_aflac', 'b_ren', 'b_unum'] }),
-      agg('https://x.com/b', { retrievals: 1, brandIds: ['b_unum', 'zz_unknown'] }),
+      agg('https://x.com/a', { retrievals: 2, brandIds: ['b_initech', 'b_ren', 'b_globex'] }),
+      agg('https://x.com/b', { retrievals: 1, brandIds: ['b_globex', 'zz_unknown'] }),
       agg('https://x.com/c', { retrievals: 0, brandIds: [] }),
     ], prior: [] })
-    expect(rows[0]).toMatchObject({ ownBrandMentioned: true, mentionedBrandCount: 3, mentionedBrandNames: 'Renaissance|Aflac|Unum' })
-    expect(rows[1]).toMatchObject({ ownBrandMentioned: false, mentionedBrandCount: 2, mentionedBrandNames: 'Unum' })
+    expect(rows[0]).toMatchObject({ ownBrandMentioned: true, mentionedBrandCount: 3, mentionedBrandNames: 'Example|Globex|Initech' })
+    expect(rows[1]).toMatchObject({ ownBrandMentioned: false, mentionedBrandCount: 2, mentionedBrandNames: 'Globex' })
     expect(rows[2]).toMatchObject({ ownBrandMentioned: false, mentionedBrandCount: 0, mentionedBrandNames: null })
   })
 
   it('carries the channel, the display URL type, the domain type and the owner', () => {
-    const [r] = buildSocialsRows({ ...base, current: [agg('https://www.linkedin.com/pulse/x', { retrievals: 1, title: 'T', channelTitle: 'Renaissance Life & Health Insurance Company of America', classification: 'HOW_TO_GUIDE' })], prior: [] })
-    expect(r).toMatchObject({ title: 'T', channelTitle: 'Renaissance Life & Health Insurance Company of America', urlType: 'How-To Guide', domainType: 'Organic Social', ownerBrandId: 'b_ren', isOwnChannel: true })
+    const [r] = buildSocialsRows({ ...base, current: [agg('https://www.linkedin.com/pulse/x', { retrievals: 1, title: 'T', channelTitle: 'Example Life & Health Insurance Company of America', classification: 'HOW_TO_GUIDE' })], prior: [] })
+    expect(r).toMatchObject({ title: 'T', channelTitle: 'Example Life & Health Insurance Company of America', urlType: 'How-To Guide', domainType: 'Organic Social', ownerBrandId: 'b_ren', isOwnChannel: true })
   })
 
   it('a row with no owner is not an own channel', () => {
-    const [r] = buildSocialsRows({ ...base, current: [agg('https://www.linkedin.com/pulse/x', { retrievals: 1, channelTitle: 'Roger G. Howell' })], prior: [] })
+    const [r] = buildSocialsRows({ ...base, current: [agg('https://www.linkedin.com/pulse/x', { retrievals: 1, channelTitle: 'Some Author' })], prior: [] })
     expect(r).toMatchObject({ ownerBrandId: null, isOwnChannel: false })
   })
 })
 
 describe('splitSocials', () => {
   const rows = buildSocialsRows({ ...base, current: [
-    agg('https://www.linkedin.com/pulse/own1', { retrievals: 9, channelTitle: 'Renaissance Life' }),
-    agg('https://www.linkedin.com/pulse/third', { retrievals: 8, channelTitle: 'Roger G. Howell' }),
-    agg('https://www.linkedin.com/company/unum', { retrievals: 7 }),
-    agg('https://www.linkedin.com/posts/renaissancebenefits_two', { retrievals: 6 }),
+    agg('https://www.linkedin.com/pulse/own1', { retrievals: 9, channelTitle: 'Example Life' }),
+    agg('https://www.linkedin.com/pulse/third', { retrievals: 8, channelTitle: 'Some Author' }),
+    agg('https://www.linkedin.com/company/globex', { retrievals: 7, channelTitle: 'Globex' }),
+    agg('https://www.linkedin.com/posts/examplebenefits_two', { retrievals: 6, channelTitle: 'Example Benefits' }),
   ], prior: [] })
   it('puts own-brand rows in own, competitor-owned rows in competitor, and drops unowned rows from both', () => {
     const { own, competitor } = splitSocials(rows, 'b_ren')
-    expect(own.map((r) => r.url)).toEqual(['https://www.linkedin.com/pulse/own1', 'https://www.linkedin.com/posts/renaissancebenefits_two'])
-    expect(competitor.map((r) => r.url)).toEqual(['https://www.linkedin.com/company/unum'])
+    expect(own.map((r) => r.url)).toEqual(['https://www.linkedin.com/pulse/own1', 'https://www.linkedin.com/posts/examplebenefits_two'])
+    expect(competitor.map((r) => r.url)).toEqual(['https://www.linkedin.com/company/globex'])
   })
   it('ranks each table from 1', () => {
     const { own, competitor } = splitSocials(rows, 'b_ren')
@@ -101,9 +101,9 @@ describe('splitSocials', () => {
 
 describe('buildGapRows', () => {
   const current = [
-    agg('https://x.com/a', { retrievals: 194, citations: 126, positionSum: 34, positionCount: 10, brandIds: ['b_unum', 'b_aflac'], classification: 'ARTICLE' }),
-    agg('https://x.com/b', { retrievals: 145, citations: 220, positionSum: 27, positionCount: 10, brandIds: ['b_unum'] }),
-    agg('https://x.com/c', { retrievals: 7, citations: 0, brandIds: ['b_aflac'] }),
+    agg('https://x.com/a', { retrievals: 194, citations: 126, positionSum: 34, positionCount: 10, brandIds: ['b_globex', 'b_initech'], classification: 'ARTICLE' }),
+    agg('https://x.com/b', { retrievals: 145, citations: 220, positionSum: 27, positionCount: 10, brandIds: ['b_globex'] }),
+    agg('https://x.com/c', { retrievals: 7, citations: 0, brandIds: ['b_initech'] }),
   ]
   it('citation share is the row citations over the sum across every row, and the shares add up to 1', () => {
     const rows = buildGapRows({ brands, domainType: 'Organic Social', current, prior: [] })
@@ -128,6 +128,6 @@ describe('buildGapRows', () => {
   })
   it('lists mentioned brands and the count, and keeps the URL type label and domain type', () => {
     const [r] = buildGapRows({ brands, domainType: 'Organic Social', current, prior: [] })
-    expect(r).toMatchObject({ mentionedBrandCount: 2, mentionedBrandNames: 'Aflac|Unum', urlType: 'Article', domainType: 'Organic Social' })
+    expect(r).toMatchObject({ mentionedBrandCount: 2, mentionedBrandNames: 'Globex|Initech', urlType: 'Article', domainType: 'Organic Social' })
   })
 })

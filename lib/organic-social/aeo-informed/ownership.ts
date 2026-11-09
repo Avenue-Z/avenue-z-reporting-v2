@@ -1,22 +1,17 @@
 // lib/organic-social/aeo-informed/ownership.ts
-// Which tracked brand owns a social URL. Peec has no channel id on URL rows and no "your channels" filter, so we match.
-// Rule, measured against the client's own PDF (docs: section 9): a registered handle in the URL path is the precise signal and wins;
-// otherwise the channel title starting with the brand name at a word boundary. LinkedIn /pulse/ articles carry no handle, so they need the title.
-// Proven on LinkedIn for the own brand only; the title rule can over-match (for example "MetLife Gulf" for MetLife).
+// Which tracked brand owns a social URL. Peec attributes a source to a channel through the row's channel_title, and the client's own PDF
+// reproduces from that signal alone: a handle in the URL path adds rows Peec does not count (measured: it moved the first point of the
+// "used as a source" graph from 3.1% to 3.4%, and the title rule alone gives 3.13%). So a row is owned by the brand whose name starts the
+// channel title at a word boundary, provided the brand registered a channel on that URL's platform. The longer name wins, a tie is no owner.
+// Proven for the own brand on LinkedIn. The title rule can over-match a competitor (a "Acme Cyber" channel for Acme).
 import type { PeecBrand, PeecSocialChannel } from './types'
+import { peecPlatformOf } from './platform'
 
-export type BrandChannels = { id: string; name: string; isOwn: boolean; slugs: string[] }
+export type BrandChannels = { id: string; name: string; isOwn: boolean; platforms: string[] }
 export type OwnedRow = { url: string; channelTitle: string | null }
-
-const MIN_SLUG = 4
 
 export function normalizeName(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-}
-
-/** '@RenBenefits' becomes 'renbenefits'; 'company/foo' becomes 'foo'. */
-export function handleSlug(handle: string): string {
-  return handle.trim().toLowerCase().replace(/^@/, '').replace(/^(company|in|user|channel|c)\//, '')
 }
 
 export function buildBrandChannels(brands: PeecBrand[], channels: PeecSocialChannel[]): BrandChannels[] {
@@ -24,44 +19,19 @@ export function buildBrandChannels(brands: PeecBrand[], channels: PeecSocialChan
     id: b.id,
     name: b.name,
     isOwn: b.is_own,
-    slugs: channels.filter((c) => c.brand_id === b.id).map((c) => handleSlug(c.channel_handle)).filter((s) => s.length > 0),
+    platforms: [...new Set(channels.filter((c) => c.brand_id === b.id).map((c) => c.platform.toLowerCase()))].sort(),
   }))
-}
-
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-function pathOf(url: string): string {
-  try {
-    return new URL(url).pathname.toLowerCase()
-  } catch {
-    return url.toLowerCase()
-  }
 }
 
 /** The brand id that owns this row, or null when none does or two brands tie. */
 export function ownerOf(row: OwnedRow, brands: BrandChannels[]): string | null {
-  const path = pathOf(row.url)
-
-  // 1) A registered handle in the path. The handle must start a path segment (or follow an @) and must not run into a longer word.
+  const platform = peecPlatformOf(row.url)
+  const title = row.channelTitle ? normalizeName(row.channelTitle) : ''
+  if (platform === null || title === '') return null
   let best = 0
   let winners = new Set<string>()
   for (const b of brands) {
-    for (const slug of b.slugs) {
-      if (slug.length < MIN_SLUG) continue
-      if (!new RegExp(`(?:^|[/@])${escape(slug)}(?![a-z0-9])`).test(path)) continue
-      if (slug.length > best) { best = slug.length; winners = new Set([b.id]) }
-      else if (slug.length === best) winners.add(b.id)
-    }
-  }
-  if (winners.size === 1) return [...winners][0]
-  if (winners.size > 1) return null
-
-  // 2) The channel title starts with the brand name at a word boundary. The longer name wins.
-  const title = row.channelTitle ? normalizeName(row.channelTitle) : ''
-  if (!title) return null
-  best = 0
-  winners = new Set()
-  for (const b of brands) {
+    if (!b.platforms.includes(platform)) continue
     const name = normalizeName(b.name)
     if (!name) continue
     if (title !== name && !title.startsWith(name + ' ')) continue
