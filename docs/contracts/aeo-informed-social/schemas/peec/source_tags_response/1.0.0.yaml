@@ -1,19 +1,35 @@
-# Raw response of GET /source-tags (live OpenAPI, 2026-11-09). Source tags sit next to URL and domain classifications and are
-# a different thing from prompt tags (GET /tags). Filter ids are stg_... and go in url_tag_id / domain_tag_id, never tag_id.
+# Raw response of GET /source-tags, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). Source tags are a different thing from prompt tags (GET /tags). Filter ids start stg_ and go in url_tag_id or domain_tag_id, never tag_id.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
 schema: peec.source_tags_response
 version: 1.0.0
 kind: payload
 json_schema:
-  type: object
-  required: [data, total_count]
-  properties:
-    total_count: {type: number, minimum: 0}
-    data:
-      type: array
-      items:
-        type: object
-        required: [id, name, color]
-        properties:
-          id: {type: string, pattern: "^stg_"}
-          name: {type: string, minLength: 1}
-          color: {type: string}
+  {
+    "type": "object",
+    "required": [
+      "data"
+    ],
+    "properties": {
+      "data": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "name"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^stg_"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }

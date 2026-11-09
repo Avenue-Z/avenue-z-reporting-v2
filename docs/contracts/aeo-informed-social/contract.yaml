@@ -1,19 +1,20 @@
-# AEO Informed Social: the Peec boundaries behind lib/organic-social/aeo-informed. Every boundary is in observe mode. Written from the live Peec OpenAPI (read 2026-11-09).
-# This is the design copy. The runtime check is lib/organic-social/aeo-informed/shape.ts; keep the two in step. See README.md in this folder.
+# AEO Informed Social: the Peec boundaries behind lib/organic-social/aeo-informed. Every boundary is in observe mode.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
+# The runtime enforcement is lib/organic-social/aeo-informed/gate.ts (outputs) and shape.ts (raw responses); see README.md in this folder.
 system: aeo-informed-social
 version: 1.0.0
 raw:
-  - {name: peec_urls_raw,            schema: peec.reports_urls_response@1,           source: {kind: api, format: json}, mode: observe}
-  - {name: peec_brand_days_raw,      schema: peec.reports_brands_response@1,         source: {kind: api, format: json}, mode: observe}
-  - {name: peec_brands_raw,          schema: peec.brands_response@1,                 source: {kind: api, format: json}, mode: observe}
-  - {name: peec_social_channels_raw, schema: peec.brand_social_channels_response@1,  source: {kind: api, format: json}, mode: observe}
-  - {name: peec_source_tags_raw,     schema: peec.source_tags_response@1,            source: {kind: api, format: json}, mode: observe}
-  - {name: peec_classifications_raw, schema: peec.classifications_response@1,        source: {kind: api, format: json}, mode: observe}
+  - {name: peec_urls_raw, schema: peec.reports_urls_response@1, source: {kind: api, format: json}, mode: observe}
+  - {name: peec_brand_days_raw, schema: peec.reports_brands_response@1, source: {kind: api, format: json}, mode: observe}
+  - {name: peec_brands_raw, schema: peec.brands_response@1, source: {kind: api, format: json}, mode: observe}
+  - {name: peec_social_channels_raw, schema: peec.brand_social_channels_response@1, source: {kind: api, format: json}, mode: observe}
+  - {name: peec_source_tags_raw, schema: peec.source_tags_response@1, source: {kind: api, format: json}, mode: observe}
+  - {name: peec_classifications_raw, schema: peec.classifications_response@1, source: {kind: api, format: json}, mode: observe}
 inputs:
   - {name: url_agg, schema: aeo.url_agg@1, source: {kind: api, format: json}, mode: observe}
 outputs:
-  - {name: socials_all,        schema: aeo.socials_table@1,  sink: {kind: file, format: json}, mode: observe}
-  - {name: socials_own,        schema: aeo.socials_table@1,  sink: {kind: file, format: json}, mode: observe}
-  - {name: socials_competitor, schema: aeo.socials_table@1,  sink: {kind: file, format: json}, mode: observe}
-  - {name: url_gaps,           schema: aeo.url_gaps_table@1, sink: {kind: file, format: json}, mode: observe}
-  - {name: graph_points,       schema: aeo.graph_points@1,   sink: {kind: file, format: json}, mode: observe}
+  - {name: socials_all, schema: aeo.socials_table@1, sink: {kind: file, format: json}, mode: observe}
+  - {name: socials_own, schema: aeo.socials_table@1, sink: {kind: file, format: json}, mode: observe}
+  - {name: socials_competitor, schema: aeo.socials_table@1, sink: {kind: file, format: json}, mode: observe}
+  - {name: url_gaps, schema: aeo.url_gaps_table@1, sink: {kind: file, format: json}, mode: observe}
+  - {name: graph_points, schema: aeo.graph_points@1, sink: {kind: file, format: json}, mode: observe}

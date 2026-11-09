@@ -1,4 +1,5 @@
 # SocialsRow (tables.ts): socialsAll, socialsOwn and socialsCompetitor. Percentages are fractions 0..1. A delta is null when the URL has no row in the previous window.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
 schema: aeo.socials_table
 version: 1.0.0
 kind: tabular
@@ -16,7 +17,7 @@ fields:
   - {name: mentionedBrandNames, type: string, nullable: true}
   - {name: retrievals, type: int, minimum: 0}
   - {name: retrievalsDelta, type: int, nullable: true}
-  - {name: retrievedPct, type: float, minimum: 0.0}
-  - {name: retrievedPctDelta, type: float, nullable: true}
+  - {name: retrievedPct, type: float, minimum: 0, maximum: 1}
+  - {name: retrievedPctDelta, type: float, nullable: true, minimum: -1, maximum: 1}
   - {name: totalCitations, type: int, minimum: 0}
   - {name: totalCitationsDelta, type: int, nullable: true}

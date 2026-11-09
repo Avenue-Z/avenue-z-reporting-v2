@@ -11,8 +11,12 @@ import { buildGapRows, buildSocialsRows, splitSocials, type GapRow, type Socials
 import { buildCitationGraph, buildUsedAsSource, FIVE_PLATFORMS, type GraphId, type GraphPoint } from './graphs'
 import { assertIsoDate, daysIn, eachDay, previousWindow, type Window } from './windows'
 import type { PeecUrlRow } from './types'
+import { UNVERIFIED, type UnverifiedId } from './unverified'
+import { runGate, AeoGateError, GATE_RULES, type GateMode, type GateReport } from './gate'
 
 export { PDF_COLUMN_MAP } from './column-map'
+export { UNVERIFIED, type UnverifiedId } from './unverified'
+export { AeoGateError, GATE_RULES, runGate, type GateReport, type GateViolation, type GateMode } from './gate'
 export type { SocialsRow, GapRow, GraphPoint, GraphId }
 export type { Window } from './windows'
 
@@ -30,15 +34,6 @@ export class PeecBrandError extends Error {
   constructor(message: string) { super(message); this.name = 'PeecBrandError' }
 }
 
-/** Rules not yet proven against the client's PDF. Always returned, unconditionally, in this order. */
-export const UNVERIFIED = [
-  'url_gaps_item_count',
-  'competitor_table_definition',
-  'own_channel_non_linkedin_and_competitor_matching',
-  'pdf_columns_cropped',
-] as const
-export type UnverifiedId = (typeof UNVERIFIED)[number]
-
 export type AeoInformedInput = {
   apiKey: string
   projectId: string
@@ -54,9 +49,15 @@ export type AeoInformedInput = {
   reader?: PeecReader
   /** Whole-call budget in ms. Default 600000. */
   deadlineMs?: number
+  /** 'enforce' (default): a result that fails an error rule of the data gate is not returned (AeoGateError). 'report': always returned, violations in meta.gate. */
+  gate?: GateMode
 }
 
 export type Meta = {
+  /** The as-of date the call was made with. */
+  asOf: string
+  /** The start date and number of weeks each graph was asked for. */
+  graphs: Record<GraphId, { from: string; weeks: number }>
   windows: { socials: Window; socialsPrior: Window; gaps: Window; gapsPrior: Window }
   ownBrandId: string
   ownBrandName: string
@@ -65,6 +66,8 @@ export type Meta = {
   counts: { socialsAll: number; socialsOwn: number; socialsCompetitor: number; urlGaps: number; selectorRowsByDay: number; gapRowsByDay: number; usedChatRows: number; chatDayRows: number; requests: number }
   warnings: string[]
   unverified: UnverifiedId[]
+  /** The data gate's verdict on this result. */
+  gate: GateReport
 }
 
 export type AeoInformedResult = {
@@ -204,13 +207,15 @@ export async function getAeoInformedSocial(input: AeoInformedInput): Promise<Aeo
     ...buildCitationGraph({ ...common('citations_instagram'), graphId: 'citations_instagram', platforms: ['instagram'], rows: selRows }),
   ]
 
-  return {
+  const draft = {
     socialsAll,
     socialsOwn: split.own,
     socialsCompetitor: split.competitor,
     urlGaps,
     graphs: graphPoints,
     meta: {
+      asOf: input.asOf,
+      graphs,
       windows: { socials, socialsPrior, gaps, gapsPrior },
       ownBrandId: ownBrand.id,
       ownBrandName: ownBrand.name,
@@ -221,4 +226,16 @@ export async function getAeoInformedSocial(input: AeoInformedInput): Promise<Aeo
       unverified: [...UNVERIFIED],
     },
   }
+
+  // 6) the data gate: nothing leaves this function without passing it (unless the caller asked only to be told)
+  const mode: GateMode = input.gate ?? 'enforce'
+  const violations = runGate(draft)
+  const report: GateReport = {
+    mode,
+    rulesChecked: GATE_RULES.length,
+    errors: violations.filter((v) => v.severity === 'error'),
+    warnings: violations.filter((v) => v.severity === 'warning'),
+  }
+  if (mode === 'enforce' && report.errors.length > 0) throw new AeoGateError(report)
+  return { ...draft, meta: { ...draft.meta, gate: report } }
 }

@@ -1,19 +1,38 @@
-# Raw response of GET /brands (live OpenAPI, 2026-11-09). There is a color but no logo or image field.
+# Raw response of GET /brands, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). A color is returned but no logo or image.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
 schema: peec.brands_response
 version: 1.0.0
 kind: payload
 json_schema:
-  type: object
-  required: [data]
-  properties:
-    data:
-      type: array
-      items:
-        type: object
-        required: [id, name, is_own, color]
-        properties:
-          id: {type: string, minLength: 1}
-          name: {type: string, minLength: 1}
-          is_own: {type: boolean}
-          color: {type: string}
-          domains: {type: array, items: {type: string}}
+  {
+    "type": "object",
+    "required": [
+      "data"
+    ],
+    "properties": {
+      "data": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "is_own"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "is_own": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
