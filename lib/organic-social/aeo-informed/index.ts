@@ -12,11 +12,11 @@ import { buildCitationGraph, buildUsedAsSource, FIVE_PLATFORMS, type GraphId, ty
 import { assertIsoDate, daysIn, eachDay, previousWindow, type Window } from './windows'
 import type { PeecUrlRow } from './types'
 import { UNVERIFIED, type UnverifiedId } from './unverified'
-import { runGate, AeoGateError, GATE_RULES, type GateMode, type GateReport } from './gate'
+import { runGate, AeoGateError, GATE_RULES, type GateInput, type GateRaw, type GateReport } from './gate'
 
 export { PDF_COLUMN_MAP } from './column-map'
 export { UNVERIFIED, type UnverifiedId } from './unverified'
-export { AeoGateError, GATE_RULES, runGate, type GateReport, type GateViolation, type GateMode } from './gate'
+export { AeoGateError, GATE_RULES, type GateReport, type GateViolation } from './gate'
 export type { SocialsRow, GapRow, GraphPoint, GraphId }
 export type { Window } from './windows'
 
@@ -49,8 +49,8 @@ export type AeoInformedInput = {
   reader?: PeecReader
   /** Whole-call budget in ms. Default 600000. */
   deadlineMs?: number
-  /** 'enforce' (default): a result that fails an error rule of the data gate is not returned (AeoGateError). 'report': always returned, violations in meta.gate. */
-  gate?: GateMode
+  /** The clock, for the as-of check (a result must not count an unfinished day). Default: the real clock. */
+  now?: () => number
 }
 
 export type Meta = {
@@ -66,7 +66,7 @@ export type Meta = {
   counts: { socialsAll: number; socialsOwn: number; socialsCompetitor: number; urlGaps: number; selectorRowsByDay: number; gapRowsByDay: number; usedChatRows: number; chatDayRows: number; requests: number }
   warnings: string[]
   unverified: UnverifiedId[]
-  /** The data gate's verdict on this result. */
+  /** The data gate's verdict on this result. A returned result has no errors; warnings are passed on. */
   gate: GateReport
 }
 
@@ -102,7 +102,11 @@ function validate(i: AeoInformedInput): void {
 
 const rowsIn = (rows: PeecUrlRow[], w: Window) => rows.filter((r) => r.date !== undefined && r.date >= w.start && r.date <= w.end)
 
-export async function getAeoInformedSocial(input: AeoInformedInput): Promise<AeoInformedResult> {
+/**
+ * Pulls and builds everything, and returns it with the raw rows it was built from, UNGATED. Not for views: use getAeoInformedSocial.
+ * It exists so the gate can be run, and tested, against the raw rows (inspect.ts).
+ */
+export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft: GateInput; raw: GateRaw }> {
   validate(input)
   const selector = input.selector ?? { name: 'Organic Social', via: 'classification' as const }
   const inner = input.reader ?? createPeecReader({ apiKey: input.apiKey, projectId: input.projectId, deadlineMs: input.deadlineMs })
@@ -227,15 +231,22 @@ export async function getAeoInformedSocial(input: AeoInformedInput): Promise<Aeo
     },
   }
 
-  // 6) the data gate: nothing leaves this function without passing it (unless the caller asked only to be told)
-  const mode: GateMode = input.gate ?? 'enforce'
-  const violations = runGate(draft)
+  const raw: GateRaw = { selRows, gapRows, chatRows, dayRows, brands, today: new Date((input.now ?? Date.now)()).toISOString().slice(0, 10) }
+  return { draft, raw }
+}
+
+/**
+ * The only function a view should call. The result passes the data gate (see gate.ts) before it is returned; a result that breaks an error rule
+ * throws AeoGateError and nothing is returned.
+ */
+export async function getAeoInformedSocial(input: AeoInformedInput): Promise<AeoInformedResult> {
+  const { draft, raw } = await buildAeoInformed(input)
+  const violations = runGate(draft, raw)
   const report: GateReport = {
-    mode,
     rulesChecked: GATE_RULES.length,
     errors: violations.filter((v) => v.severity === 'error'),
     warnings: violations.filter((v) => v.severity === 'warning'),
   }
-  if (mode === 'enforce' && report.errors.length > 0) throw new AeoGateError(report)
+  if (report.errors.length > 0) throw new AeoGateError(report)
   return { ...draft, meta: { ...draft.meta, gate: report } }
 }

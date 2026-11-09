@@ -19,6 +19,16 @@ describe('the committed contract files match what contract.ts generates', () => 
   })
 })
 
+describe('the generator refuses what it cannot render faithfully', () => {
+  it('throws on an attribute combination it does not emit', async () => {
+    const { jsonTypeForTest } = await import('./contract-yaml')
+    expect(() => jsonTypeForTest({ name: 'a', kind: 'bool', nullable: true })).toThrow(/unsupported/)
+    expect(() => jsonTypeForTest({ name: 'a', kind: 'int', max: 3 })).toThrow(/unsupported/)
+    expect(() => jsonTypeForTest({ name: 'a', kind: 'idList', nullable: true })).toThrow(/unsupported/)
+    expect(() => jsonTypeForTest({ name: 'a', kind: 'string', oneOf: ['x'] })).toThrow(/unsupported/)
+  })
+})
+
 describe('what is generated', () => {
   const files = renderContractFiles()
   it('declares 6 raw boundaries, 1 input and 5 outputs, all in observe mode', () => {
@@ -32,7 +42,7 @@ describe('what is generated', () => {
     expect(s).toContain('{name: rank, type: int, minimum: 1}')
     expect(s).toContain('{name: retrievalsDelta, type: int, nullable: true}')
     expect(s).toContain('{name: retrievedPct, type: float, minimum: 0, maximum: 1}')
-    expect(files['schemas/aeo/graph_points/1.0.0.yaml']).toContain('enum: [used_as_source_all, citations_all, citations_linkedin, citations_instagram]')
+    expect(files['schemas/aeo/graph_points/1.0.0.yaml']).toContain('enum: ["used_as_source_all", "citations_all", "citations_linkedin", "citations_instagram"]')
   })
   it('a raw schema is a JSON Schema with the required fields of the contract', () => {
     const s = files['schemas/peec/reports_urls_response/1.0.0.yaml']

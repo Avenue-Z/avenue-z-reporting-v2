@@ -15,6 +15,8 @@ export const urlRow = (url: string, date: string, o: Record<string, unknown> = {
 export const OWN_URL = 'https://www.linkedin.com/pulse/own-1'
 export const THIRD = 'https://www.linkedin.com/pulse/third'
 export const GLOBEX_URL = 'https://www.linkedin.com/company/globex'
+export const GAP_B = 'https://www.linkedin.com/pulse/gap-b'
+export const GAP_C = 'https://www.linkedin.com/pulse/gap-c'
 export const BY_DAY = [
   urlRow(OWN_URL, '2026-09-04', { channel_title: 'Example Life', retrieval_count: 10, citation_count: 5, mentioned_brands: [{ id: GLOBEX }] }),
   urlRow(OWN_URL, '2026-09-20', { channel_title: 'Example Life', retrieval_count: 3, citation_count: 1 }),
@@ -25,6 +27,9 @@ export const BY_DAY = [
 export const GAP_ROWS = [
   urlRow(THIRD, '2026-09-10', { channel_title: 'Some Author', retrieval_count: 6, citation_count: 3, citation_position_sum: 9, citation_position_count: 3, mentioned_brands: [{ id: GLOBEX }] }),
   urlRow(THIRD, '2026-08-20', { channel_title: 'Some Author', retrieval_count: 2, citation_count: 1, mentioned_brands: [{ id: GLOBEX }] }),
+  // a second and third gap row: GAP_B ties with THIRD on retrievals (the URL breaks the tie), GAP_C has retrievals but no citations
+  urlRow(GAP_B, '2026-09-12', { channel_title: 'Some Author', retrieval_count: 6, citation_count: 2, citation_position_sum: 4, citation_position_count: 2, mentioned_brands: [{ id: GLOBEX }] }),
+  urlRow(GAP_C, '2026-09-15', { channel_title: 'Some Author', retrieval_count: 2, citation_count: 0, mentioned_brands: [{ id: GLOBEX }] }),
 ]
 export const CHAT_ROWS = [
   urlRow(OWN_URL, '2026-09-04', { channel_title: 'Example Life', chat: { id: 'c1' } }),
@@ -73,8 +78,8 @@ export const views = {
   gaps: { start: '2026-09-01', end: '2026-09-30' },
   graphs: {
     citations_all: { from: '2026-08-14', weeks: 12 }, citations_linkedin: { from: '2026-09-03', weeks: 4 },
-    citations_instagram: { from: '2026-09-03', weeks: 4 }, used_as_source_all: { from: '2026-09-03', weeks: 4 },
+    citations_instagram: { from: '2026-10-24', weeks: 4 }, used_as_source_all: { from: '2026-09-03', weeks: 4 },
   },
 }
-export const input = (reader: PeecReader, o: Record<string, unknown> = {}) => ({ apiKey: 'skc-SECRET-KEY', projectId: 'or_p', asOf: '2026-11-08', views, reader, ...o }) as AeoInformedInput
+export const input = (reader: PeecReader, o: Record<string, unknown> = {}) => ({ apiKey: 'skc-SECRET-KEY', projectId: 'or_p', asOf: '2026-11-08', now: () => Date.parse('2026-11-09T12:00:00Z'), views, reader, ...o }) as AeoInformedInput
 

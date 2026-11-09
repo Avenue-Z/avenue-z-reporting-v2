@@ -16,20 +16,30 @@ const BOUNDARY_NAMES: Record<keyof typeof RAW, string> = {
   classifications_response: 'peec_classifications_raw',
 }
 
+function unsupported(s: FieldSpec, what: string): never {
+  throw new Error(`contract-yaml: unsupported attribute for ${s.name} (${s.kind}): ${what}`)
+}
+
 function jsonType(s: FieldSpec): Record<string, unknown> {
   const nullableType = (t: string) => (s.nullable ? [t, 'null'] : t)
+  const only = (allowed: (keyof FieldSpec)[]) => {
+    for (const k of ['nullable', 'min', 'max', 'minLength', 'oneOf', 'prefix'] as (keyof FieldSpec)[]) if (s[k] !== undefined && !allowed.includes(k)) unsupported(s, String(k))
+  }
   switch (s.kind) {
-    case 'string': return { type: nullableType('string'), ...(s.minLength ? { minLength: s.minLength } : {}), ...(s.prefix ? { pattern: `^${s.prefix}` } : {}) }
-    case 'int': return { type: nullableType('integer'), ...(s.min !== undefined ? { minimum: s.min } : {}) }
+    case 'string': only(['nullable', 'minLength', 'prefix']); return { type: nullableType('string'), ...(s.minLength ? { minLength: s.minLength } : {}), ...(s.prefix ? { pattern: `^${s.prefix}` } : {}) }
+    case 'int': only(['nullable', 'min']); return { type: nullableType('integer'), ...(s.min !== undefined ? { minimum: s.min } : {}) }
     case 'float':
-    case 'number': return { type: nullableType('number'), ...(s.min !== undefined ? { minimum: s.min } : {}), ...(s.max !== undefined ? { maximum: s.max } : {}) }
-    case 'bool': return { type: 'boolean' }
-    case 'date': return { type: 'string', format: 'date' }
-    case 'idObject': return { type: 'object', required: ['id'], properties: { id: { type: 'string' } } }
-    case 'idList': return { type: 'array', items: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } }
-    case 'stringList': return { type: 'array', items: { type: 'string' } }
+    case 'number': only(['nullable', 'min', 'max']); return { type: nullableType('number'), ...(s.min !== undefined ? { minimum: s.min } : {}), ...(s.max !== undefined ? { maximum: s.max } : {}) }
+    case 'bool': only([]); return { type: 'boolean' }
+    case 'date': only([]); return { type: 'string', format: 'date' }
+    case 'datePrefix': only([]); return { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}' }
+    case 'idObject': only([]); return { type: 'object', required: ['id'], properties: { id: { type: 'string' } } }
+    case 'idList': only([]); return { type: 'array', items: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } }
+    case 'stringList': only([]); return { type: 'array', items: { type: 'string' } }
   }
 }
+/** Exposed for the generator's own test. */
+export const jsonTypeForTest = jsonType
 
 function objectSchema(fields: readonly FieldSpec[]): Record<string, unknown> {
   return {
@@ -45,10 +55,11 @@ function payloadYaml(schema: string, header: string, body: Record<string, unknow
   return `${header}\n${GENERATED}\nschema: ${schema}\nversion: ${CONTRACT_VERSION}\nkind: payload\njson_schema:\n${indent(JSON.stringify(body, null, 2), 2)}\n`
 }
 
-const flow = (v: unknown): string => (typeof v === 'string' ? v : String(v))
+const flow = (v: unknown): string => JSON.stringify(v)
 
 function tabularYaml(schema: string, header: string, fields: readonly FieldSpec[]): string {
   const lines = fields.map((s) => {
+    if (s.kind === 'datePrefix' || s.kind === 'idList' || s.kind === 'idObject' || s.kind === 'stringList' || s.prefix !== undefined) unsupported(s, 'kind or prefix in a tabular output')
     const parts = [`name: ${s.name}`, `type: ${s.kind === 'number' ? 'float' : s.kind}`]
     if (s.nullable) parts.push('nullable: true')
     if (s.min !== undefined) parts.push(`minimum: ${s.min}`)

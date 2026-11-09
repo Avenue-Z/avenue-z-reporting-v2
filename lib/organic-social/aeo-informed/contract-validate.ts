@@ -17,9 +17,14 @@ function kindOk(kind: FieldSpec['kind'], v: unknown): boolean {
     case 'float':
     case 'number': return isNum(v)
     case 'bool': return typeof v === 'boolean'
-    case 'date': {
+    case 'date':
+    case 'datePrefix': {
       if (typeof v !== 'string') return false
-      try { assertIsoDate(v); return true } catch { return false }
+      try {
+        if (kind === 'date') assertIsoDate(v)
+        else { if (!/^\d{4}-\d{2}-\d{2}(?:$|[T ])/.test(v)) return false; assertIsoDate(v.slice(0, 10)) }
+        return true
+      } catch { return false }
     }
     case 'idList': return Array.isArray(v) && v.every((x) => isObj(x) && typeof x.id === 'string')
     case 'idObject': return isObj(v) && typeof v.id === 'string'

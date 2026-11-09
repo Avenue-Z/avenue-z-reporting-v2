@@ -34,7 +34,7 @@ const result = await getAeoInformedSocial({
     },
   },
   // selector: { name: 'Organic Social', via: 'classification' },   // the default; via: 'tag' uses a source tag instead
-  // gate: 'enforce',                                               // the default; 'report' returns the result with the violations in meta.gate
+  // now: () => Date.now(),                                         // the clock for the as-of check; only tests change it
 })
 ```
 
@@ -50,7 +50,7 @@ const result = await getAeoInformedSocial({
 | `socialsCompetitor` | Rows owned by another brand that registered a channel, ranked from 1. |
 | `urlGaps` | Sources where our brand is not mentioned and at least one competitor is, for the gaps window. |
 | `graphs` | `GraphPoint[]`: `graphId`, `series`, `weekStart`, `weekEnd`, `value` (`null` = "No source data"), `unit` (`citations` or `percent`), `partial`. Ordered by graph, then week. |
-| `meta` | `asOf`, the start and weeks of each graph, windows used, own brand, selector, chats per window, request and row counts, `warnings`, `unverified`, and `gate` (the gate's verdict: mode, rules checked, errors, warnings). |
+| `meta` | `asOf`, the start and weeks of each graph, windows used, own brand, selector, chats per window, request and row counts, `warnings`, `unverified`, and `gate` (the gate's verdict: rules checked and warnings; a returned result never has errors). |
 
 Row types are `SocialsRow` and `GapRow` in `tables.ts`. Every delta is `number | null` (null when the URL has no row in the previous window). Percentages are fractions 0 to 1.
 
@@ -102,35 +102,39 @@ Tables decide ownership from a URL's most-retrieved title and graphs decide per 
 | A list endpoint returns exactly its limit (1,000) | `AeoPullError` (it may be cut off) |
 | Any pull fails after retries | `AeoPullError` naming the pull and window, wrapping the original error as `cause`. No partial result. |
 | A response changes shape | `PeecShapeError` naming the endpoint, row and field, never the value (rows hold client data) |
-| The finished result breaks a stopping rule of the data gate | `AeoGateError` listing the rule codes and places; nothing is returned. With `gate: 'report'` the result is returned and the violations are in `meta.gate`. |
+| The finished result breaks a stopping rule of the data gate | `AeoGateError` listing the rule codes and places; nothing is returned. `getAeoInformedSocial` has no ungated option; tests and probes use `inspect.ts`, which a view must not import. |
 | Zero rows after the selector | Valid empty tables; every graph bucket is `null` |
 | Days in a window with no chats row | `meta.warnings` entry, for example `days with no chats data in window: socialsPrior (2)` |
 
 ## The data contract and the gate
 
-Two things stand between Peec and a page, and both are enforced in code and in CI.
+Two things stand between Peec and a page.
 
 **The contract (`contract.ts`)** is the single source of truth, as typed field specs: the six raw Peec responses (open: extra fields ignored), the internal per-URL sum, and the three output shapes (closed: an extra field is a violation).
 Each field has a kind, nullability, a range, allowed values or a prefix. From it:
 
 - `gate.ts` validates every output row at runtime (`contract-validate.ts`; messages name a row and a field, never a value).
 - `contract.test.ts` proves `shape.ts` and the raw contracts agree: for every field of every raw contract, a sample row passes and a row with that field removed, retyped, nulled or below its minimum makes the parser throw.
-- `contract-yaml.ts` renders the contract-core YAML in `docs/contracts/aeo-informed-social/`; `npx tsx scripts/gen-aeo-contract.ts` writes it and `contract-yaml.test.ts` fails if a committed file differs from the generated one or a stray file appears. (contract-core is Python and cannot run in the app; the YAML lets a Python run lint the same shapes.)
+- `contract-yaml.ts` renders the contract-core YAML in `docs/contracts/aeo-informed-social/`; `npx tsx scripts/gen-aeo-contract.ts` writes it and `contract-yaml.test.ts` fails if a committed file differs from the generated one or a stray file appears. The YAML is a design copy that is checked for drift: contract-core is Python and does not run in the app, and its boundaries are in `observe` mode. The runtime enforcement is `gate.ts` and `shape.ts`.
 
-**The gate (`gate.ts`)** runs on the finished result. It checks the contract on every row, and then cross-checks that no field-by-field contract can express. `GATE_RULES` is the catalog: each rule has a code, a severity and a plain-English sentence.
-There are 36 (32 stop the result, 4 warn), in these groups:
+**The gate (`gate.ts`)** runs on the finished result, and the only function a view should call, `getAeoInformedSocial`, returns nothing if the gate finds an error. It runs against the raw Peec rows the result was built from, so a total, a change or a bound is checked against a simple independent recount, not against a number the same code just produced.
+`GATE_RULES` is the catalog: each rule has a code, a severity and a plain-English sentence. There are 44 (40 stop the result, 4 warn):
 
-| Group | What it proves |
+| Group | What it checks |
 |---|---|
 | Contract and numbers | every field is the right kind, range and value; no NaN or infinity anywhere |
-| Summary | each "change" window is the same length and ends the day before; no window runs past the as-of date; counts equal the rows; chat totals are whole numbers; the unverified list is complete; the own brand and tag are named |
+| Summary | each "change" window is the same length and ends the day before; no table window runs past the as-of date, and the as-of date is before today (so no unfinished day is counted); counts equal the rows; chat totals are whole numbers; the unverified list is complete; the own brand and the tag (and its id, for a tag) are named |
+| Independent recount | each window's chat total equals a recount of the daily chat counts; the tables hold exactly the sources Peec returned; the retrievals and citations add up; every row's numbers and its change against the previous window equal a recount, row by row |
 | First table and its splits | ranks 1..n and the sort order; the star equals "owned by our brand"; Retrieved % equals retrievals over chats; its change agrees with the retrievals change and the chats; a new URL has an empty change in both columns; the own and competitor tables are exact, ordered, ranked subsets with no overlap |
-| URL gaps | ranks and order; citation share is a row's citations over the table total; every row has a brand mentioned; new-URL changes agree |
-| Graphs | all four present with the right number of weeks; 7-day buckets starting on the graph's own start date; the partial flag matches the as-of date; own brand and the right unit; percentages within 0 to 1; whole citations; all-null or no nulls (unless a missing-chat-days warning explains it) |
-| Fit to use | a window with no chats is refused; an empty table, a previous window with no chats, and any adapter warning are passed on as warnings |
+| URL gaps | ranks and order (ties by URL); citation share is a row's citations over the table total; every row has a brand mentioned; no source behind the table mentions our own brand; new-URL changes agree |
+| Graphs | all four present, in order, with the right number of weeks; 7-day buckets from the graph's own start date; the partial flag matches the as-of date; own brand and the right unit; percentages within 0 to 1; whole citations; all "No source data" or data in every week (a week with no chats at all is the one exception); no point above what the raw rows allow; never "No source data" when our own channels were retrieved |
+| Fit to use | a window with no chats is refused; so is any day inside a window that has no chat count once the project has chat data (it would shrink the denominator and inflate every percentage). An empty table, a previous window with no chats, and adapter warnings (such as days before the project's first chat data) are passed on as warnings |
 
-Every rule is proven to fire: `gate.test.ts` corrupts a known-good result once per rule and asserts that rule appears, and a test fails if the catalog has a rule with no such test (or a test names a rule that is not in the catalog). The gate was also run live with the gate enforced against a real project on five different windows with no false alarm; a window that reaches before the project's first data correctly warns.
-Violations never contain a value from the data.
+**What is proven, and how.** `gate.test.ts` corrupts a known-good result (or its raw rows) at least once per rule and asserts that rule appears, with more than one corruption where a single one would leave a branch untested; a test fails if the catalog has a rule with no test, or a test names a rule that is not in the catalog. The tests assert that the rule appears, not that nothing else does.
+Run live against a real project with the gate enforced on 2026-11-09 (see the findings note): the window the outline uses and four others, with no false alarm.
+Violations never contain a value from the data; an adapter warning with anything but a window name and a count is withheld.
+
+**Limits.** The recount uses the same raw rows the builders used, so it catches a builder bug but not a wrong or incomplete pull (chunking and the Peec shape checks cover that). The competitor-mentioned rule on URL gaps assumes `gap` implies a mentioned competitor; that held on every live window tried. A window with no chats refuses the whole result, including tables that would have stood.
 
 ## What is not exact yet (`meta.unverified`, always returned)
 
@@ -151,5 +155,5 @@ each graph point.
 ## Tests
 
 `npx vitest run lib/organic-social/aeo-informed` (covered by the existing `lib/organic-social/**` glob, so `vitest.config.ts` needs no change). One test file per module: `windows`, `chunks`, `shape`,
-`peec-read`, `urls`, `ownership`, `platform`, `tables`, `graphs`, `index` (against a fake Peec server, `test-world.ts`, that pins every request body and the call order), `column-map`, `contract`, `contract-yaml` and `gate`.
+`peec-read`, `urls`, `ownership`, `platform`, `tables`, `graphs`, `index` (against a fake Peec server, `test-world.ts`, that pins every request body and the call order), `column-map`, `contract`, `contract-yaml` and `gate` (through `inspect.ts`).
 Fixtures use invented names and numbers. The generated YAML contract is in `docs/contracts/aeo-informed-social/`; `contract.ts` is the source of truth and `shape.ts` and `gate.ts` are the runtime checks.

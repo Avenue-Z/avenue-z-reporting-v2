@@ -4,10 +4,10 @@ schema: aeo.graph_points
 version: 1.0.0
 kind: tabular
 fields:
-  - {name: graphId, type: string, enum: [used_as_source_all, citations_all, citations_linkedin, citations_instagram]}
+  - {name: graphId, type: string, enum: ["used_as_source_all", "citations_all", "citations_linkedin", "citations_instagram"]}
   - {name: series, type: string, min_length: 1}
   - {name: weekStart, type: date}
   - {name: weekEnd, type: date}
   - {name: value, type: float, nullable: true, minimum: 0}
-  - {name: unit, type: string, enum: [citations, percent]}
+  - {name: unit, type: string, enum: ["citations", "percent"]}
   - {name: partial, type: bool}

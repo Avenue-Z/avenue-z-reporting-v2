@@ -5,7 +5,8 @@
 //   - contract-yaml.ts renders the YAML design copy in docs/contracts/aeo-informed-social/ from it, and a test fails if the committed files drift.
 // Raw shapes are from Peec's live OpenAPI (read 2026-11-09). Output shapes mirror SocialsRow, GapRow and GraphPoint.
 
-export type FieldKind = 'string' | 'int' | 'float' | 'number' | 'bool' | 'date' | 'idList' | 'idObject' | 'stringList'
+/** `date` is a plain YYYY-MM-DD. `datePrefix` starts with one and may carry a time after it (what Peec sends on a date dimension; the parser cuts it to the day). */
+export type FieldKind = 'string' | 'int' | 'float' | 'number' | 'bool' | 'date' | 'datePrefix' | 'idList' | 'idObject' | 'stringList'
 
 export type FieldSpec = {
   name: string
@@ -100,7 +101,7 @@ export const RAW = {
       f('classification', 'string', { nullable: true }),
       f('title', 'string', { nullable: true }),
       f('channel_title', 'string', { nullable: true, optional: true }),
-      f('date', 'date', { optional: true }),
+      f('date', 'datePrefix', { optional: true }),
       f('chat', 'idObject', { optional: true }),
       f('citation_count', 'number', { min: 0 }),
       f('retrieval_count', 'number', { min: 0 }),
@@ -113,7 +114,7 @@ export const RAW = {
   reports_brands_response: {
     path: 'POST /reports/brands (dimensions date, brand_id filter on the own brand)',
     note: 'One row per day. visibility_total is the number of chats that day and covers every day.',
-    rows: [f('date', 'date'), f('visibility_total', 'number', { min: 0 })],
+    rows: [f('date', 'datePrefix'), f('visibility_total', 'number', { min: 0 })],
   },
   brands_response: {
     path: 'GET /brands',
@@ -147,7 +148,8 @@ export function sampleRow(fields: readonly FieldSpec[]): Record<string, unknown>
       case 'float':
       case 'number': row[s.name] = Math.min(Math.max(s.min ?? 0, 0), s.max ?? Infinity); break
       case 'bool': row[s.name] = false; break
-      case 'date': row[s.name] = '2026-09-03'; break
+      case 'date':
+      case 'datePrefix': row[s.name] = '2026-09-03'; break
       case 'idList': row[s.name] = [{ id: 'a' }]; break
       case 'idObject': row[s.name] = { id: 'a' }; break
       case 'stringList': row[s.name] = ['a']; break

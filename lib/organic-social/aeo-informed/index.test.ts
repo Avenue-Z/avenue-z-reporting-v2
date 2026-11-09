@@ -2,7 +2,9 @@
 import { describe, it, expect } from 'vitest'
 import { getAeoInformedSocial, AeoPullError, PeecSelectorError, PeecBrandError, UNVERIFIED } from './index'
 import { PeecHttpError } from './peec-read'
-import { OWN, GLOBEX, urlRow, OWN_URL, THIRD, GLOBEX_URL, BY_DAY, world, views, input } from './test-world'
+import { OWN, GLOBEX, urlRow, OWN_URL, THIRD, GLOBEX_URL, GAP_B, GAP_C, BY_DAY, world, views, input } from './test-world'
+import { inspectAeoInformedSocial } from './inspect'
+import { AeoGateError } from './gate'
 import type { Body } from './test-world'
 
 describe('getAeoInformedSocial: the full flow', () => {
@@ -19,11 +21,13 @@ describe('getAeoInformedSocial: the full flow', () => {
     expect(r.socialsCompetitor.map((x) => x.url)).toEqual([GLOBEX_URL])
   })
 
-  it('builds URL Gaps from the gap-filtered pull for its own window', async () => {
+  it('builds URL Gaps from the gap-filtered pull for its own window, ties broken by URL', async () => {
     const r = await getAeoInformedSocial(input(world().reader))
-    expect(r.urlGaps).toHaveLength(1)
-    expect(r.urlGaps[0]).toMatchObject({ url: THIRD, retrievals: 6, retrievalsDelta: 4, totalCitations: 3, totalCitationsDelta: 2, citationShare: 1, mentionedBrandNames: 'Globex' })
-    expect(r.urlGaps[0].citationPosition).toBe(3)
+    expect(r.urlGaps.map((g) => [g.rank, g.url, g.retrievals])).toEqual([[1, GAP_B, 6], [2, THIRD, 6], [3, GAP_C, 2]])
+    expect(r.urlGaps[1]).toMatchObject({ retrievalsDelta: 4, totalCitations: 3, totalCitationsDelta: 2, mentionedBrandNames: 'Globex' })
+    expect(r.urlGaps[1].citationPosition).toBe(3)
+    expect(r.urlGaps.map((g) => g.citationShare)).toEqual([0.4, 0.6, 0])
+    expect(r.urlGaps[2].citationPosition).toBeNull()
   })
 
   it('builds the four graphs, each from its own start date', async () => {
@@ -43,7 +47,7 @@ describe('getAeoInformedSocial: the full flow', () => {
     expect(r.meta.windows).toEqual({ socials: views.socials, socialsPrior: { start: '2026-09-07', end: '2026-10-06' }, gaps: views.gaps, gapsPrior: { start: '2026-08-02', end: '2026-08-31' } })
     expect(r.meta).toMatchObject({ ownBrandId: OWN, ownBrandName: 'Example', selector: { name: 'Organic Social', via: 'classification', id: null } })
     expect(r.meta.chats).toEqual({ socials: 3000, socialsPrior: 3000, gaps: 3000, gapsPrior: 3000 })
-    expect(r.meta.counts).toMatchObject({ socialsAll: 3, socialsOwn: 1, socialsCompetitor: 1, urlGaps: 1 })
+    expect(r.meta.counts).toMatchObject({ socialsAll: 3, socialsOwn: 1, socialsCompetitor: 1, urlGaps: 3 })
     expect(r.meta.unverified).toEqual(['url_gaps_item_count', 'competitor_table_definition', 'own_channel_non_linkedin_and_competitor_matching', 'pdf_columns_cropped'])
     expect(r.meta.unverified).toEqual([...UNVERIFIED])
     expect(UNVERIFIED).toHaveLength(4)
@@ -67,7 +71,7 @@ describe('getAeoInformedSocial: what it asks Peec', () => {
     const w = world()
     await getAeoInformedSocial(input(w.reader))
     const sel = w.calls.filter((c) => c.label?.startsWith('socials-by-day'))
-    expect(sel.map((c) => [c.body!.start_date, c.body!.end_date])).toEqual([['2026-08-14', '2026-09-13'], ['2026-09-14', '2026-10-14'], ['2026-10-15', '2026-11-05']])
+    expect(sel.map((c) => [c.body!.start_date, c.body!.end_date])).toEqual([['2026-08-14', '2026-09-13'], ['2026-09-14', '2026-10-14'], ['2026-10-15', '2026-11-08']])
     expect(sel[0].body).toMatchObject({ dimensions: ['date'], filters: [{ field: 'domain_classification', operator: 'in', values: ['Organic Social'] }], limit: 10000, offset: 0 })
   })
 
@@ -104,17 +108,19 @@ describe('getAeoInformedSocial: chunk sizes, as-of and warnings', () => {
       expect(w.calls).toHaveLength(0)
     }
   })
-  it('warns when days in a window have no chats row (before the first data, or an outage)', async () => {
-    const r = await getAeoInformedSocial(input(world({ chatDaysMissing: ['2026-09-10', '2026-09-11'] }).reader))
-    expect(r.meta.warnings).toContain('days with no chats data in window: socialsPrior (2)')
+  it('days before the project\'s first chat data only warn', async () => {
+    const r = await getAeoInformedSocial(input(world({ chatDaysMissing: ['2026-08-02', '2026-08-03'] }).reader))
+    expect(r.meta.warnings).toContain('days with no chats data in window: gapsPrior (2)')
+    expect(r.meta.gate.errors).toEqual([])
   })
-  it('warns when the used-as-source window has days with no chats data, because its percentages would be inflated', async () => {
-    const r = await getAeoInformedSocial(input(world({ chatDaysMissing: ['2026-09-12'] }).reader))
-    expect(r.meta.warnings).toContain('days with no chats data in window: usedAsSource (1)')
+  it('a day with no chat count inside a window, once the project has chat data, is refused: it would shrink the denominator', async () => {
+    const e = (await getAeoInformedSocial(input(world({ chatDaysMissing: ['2026-09-12'] }).reader)).catch((x) => x)) as AeoGateError
+    expect(e).toBeInstanceOf(AeoGateError)
+    expect(e.report.errors.some((v) => v.code === 'view.chat-days')).toBe(true)
   })
   it('counts the by-day rows, the gap rows, the chat-level rows and the chat-day rows separately', async () => {
     const r = await getAeoInformedSocial(input(world().reader))
-    expect(r.meta.counts).toMatchObject({ selectorRowsByDay: 5, gapRowsByDay: 2, usedChatRows: 2 })
+    expect(r.meta.counts).toMatchObject({ selectorRowsByDay: 5, gapRowsByDay: 4, usedChatRows: 2 })
     expect(r.meta.counts.chatDayRows).toBeGreaterThan(80)
     expect(r.meta.counts.requests).toBeGreaterThan(8)
   })
@@ -216,7 +222,7 @@ describe('getAeoInformedSocial: failure behavior', () => {
     const w = world()
     const orig = w.reader.post
     w.reader.post = async (p, rb, l) => { const b = rb as Body; return (p === '/reports/brands' ? { data: Array.from({ length: 100 }, (_, i) => { const d = new Date(Date.parse(b.start_date + 'T00:00:00Z') + i * 86_400_000).toISOString().slice(0, 10); return d <= b.end_date ? { date: d, visibility_total: d >= '2026-10-07' ? 100 : 0 } : null }).filter(Boolean) } : orig(p, b, l)) }
-    const r = await getAeoInformedSocial(input(w.reader, { gate: 'report' }))
+    const r = (await inspectAeoInformedSocial(input(w.reader))).result
     expect(r.socialsAll[0].retrievedPctDelta).toBeNull()
     expect(r.socialsAll[0].retrievalsDelta).toBe(17)
     expect(r.meta.warnings.some((x) => x.includes('no chats in window: socialsPrior'))).toBe(true)

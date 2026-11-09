@@ -1,6 +1,6 @@
 // lib/organic-social/aeo-informed/contract.test.ts
 import { describe, it, expect } from 'vitest'
-import { OUTPUTS, RAW, sampleRow, type FieldSpec } from './contract'
+import { OUTPUTS, INPUTS, RAW, sampleRow, type FieldSpec } from './contract'
 import { validateRow, validateRows } from './contract-validate'
 import { parseUrlRows, parseBrands, parseSocialChannels, parseSourceTags, parseClassifications, parseBrandDayRows, PeecShapeError } from './shape'
 
@@ -18,11 +18,11 @@ describe('validateRow: one rule at a time', () => {
     expect(validateRow({ a: null }, [F({ name: 'a', kind: 'string', nullable: true })])).toEqual([])
   })
   it('the wrong type for each kind', () => {
-    const bad: [FieldSpec['kind'], unknown][] = [['string', 5], ['int', '5'], ['int', 5.5], ['float', '5'], ['number', '5'], ['bool', 1], ['date', '2026-9-3'], ['date', 5], ['idList', 'x'], ['idList', [{}]], ['idObject', { id: 5 }], ['stringList', [1]]]
+    const bad: [FieldSpec['kind'], unknown][] = [['string', 5], ['int', '5'], ['int', 5.5], ['float', '5'], ['number', '5'], ['bool', 1], ['date', '2026-9-3'], ['date', 5], ['datePrefix', '2026-9-3'], ['datePrefix', 'nope'], ['datePrefix', 5], ['idList', 'x'], ['idList', [{}]], ['idObject', { id: 5 }], ['stringList', [1]]]
     for (const [kind, value] of bad) expect(validateRow({ a: value }, [F({ name: 'a', kind })]).map((v) => v.rule), `${kind} ${JSON.stringify(value)}`).toEqual(['type'])
   })
   it('accepts a good value for each kind', () => {
-    const good: [FieldSpec['kind'], unknown][] = [['string', 'x'], ['int', 5], ['float', 0.5], ['number', 5.5], ['bool', false], ['date', '2026-09-03'], ['idList', [{ id: 'a' }]], ['idObject', { id: 'a' }], ['stringList', ['a']]]
+    const good: [FieldSpec['kind'], unknown][] = [['string', 'x'], ['int', 5], ['float', 0.5], ['number', 5.5], ['bool', false], ['date', '2026-09-03'], ['datePrefix', '2026-09-03'], ['datePrefix', '2026-09-03T00:00:00.000Z'], ['idList', [{ id: 'a' }]], ['idObject', { id: 'a' }], ['stringList', ['a']]]
     for (const [kind, value] of good) expect(validateRow({ a: value }, [F({ name: 'a', kind })]), kind).toEqual([])
   })
   it('NaN and Infinity are never a number', () => {
@@ -43,6 +43,16 @@ describe('validateRow: one rule at a time', () => {
     const v = validateRows([{ a: 'secret-value' }, { a: 5 }], [F({ name: 'a', kind: 'string' })], 'table')[0]
     expect(v.where).toBe('table[1].a')
     expect(JSON.stringify(v)).not.toContain('secret-value')
+  })
+})
+
+describe('the internal per-URL sum', () => {
+  it('what aggregateByUrl returns satisfies the url_agg contract, including nulls', async () => {
+    const { aggregateByUrl } = await import('./urls')
+    const rows = [
+      { url: 'https://x.com/a', classification: null, title: null, channel_title: null, citation_count: 1, retrieval_count: 2, citation_position: null, citation_position_sum: 0, citation_position_count: 0, mentioned_brands: [{ id: 'b' }] },
+    ]
+    for (const u of aggregateByUrl(rows)) expect(validateRow(u, INPUTS.url_agg, { closed: true })).toEqual([])
   })
 })
 
@@ -69,7 +79,7 @@ describe('shape.ts and the raw contracts agree (the parsers reject what the cont
     source_tags_response: (b) => parseSourceTags(b),
     classifications_response: (b) => parseClassifications(b, '/classifications/domains'),
   }
-  const wrongValue = (f: FieldSpec): unknown => ({ string: 5, int: 'x', float: 'x', number: 'x', bool: 'x', date: 'nope', idList: 'x', idObject: 'x', stringList: 'x' })[f.kind]
+  const wrongValue = (f: FieldSpec): unknown => ({ string: 5, int: 'x', float: 'x', number: 'x', bool: 'x', date: 'nope', datePrefix: 'nope', idList: 'x', idObject: 'x', stringList: 'x' })[f.kind]
   for (const [name, c] of Object.entries(RAW) as [keyof typeof RAW, (typeof RAW)[keyof typeof RAW]][]) {
     describe(name, () => {
       const parse = parsers[name]
