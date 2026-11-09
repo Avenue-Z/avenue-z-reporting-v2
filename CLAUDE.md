@@ -888,7 +888,7 @@ The adapter (`lib/organic-social/aeo-informed/`, guide in its `ENGINEERS.md`) is
 - [ ] **The competitor table has no reference.** The outline's screenshot for it is a copy of its first table and the filter sentence is cut off, so `socialsCompetitor` (a brand with a registered channel, matched by channel title) is our rule. Settle it from a real competitor view before it is shown to a client.
 - [ ] **Ownership is proven for the own brand on LinkedIn only** (`ownership.ts`). Matching is by channel title on a platform the brand registered; a channel titled "<Brand> Something" is credited to the brand. Check YouTube and Instagram and each competitor against Peec's own channel view.
 - [ ] **The outline crops its tables on the right**, so any column after "Total" is unmapped (`column-map.ts`).
-- [ ] **The data contract is a design copy** (`docs/contracts/aeo-informed-social/`; contract-core is Python and this repo is TypeScript). `shape.ts` is the runtime check. A drift test that compares the two would stop them diverging.
+- [x] **The data contract is enforced, not a design copy.** `contract.ts` is the source of truth; the YAML in `docs/contracts/aeo-informed-social/` is generated from it and a test fails on drift; `gate.ts` enforces it on every result and `contract.test.ts` proves the Peec parsers match it. Remaining: contract-core (Python) cannot run in the app, so its own `reconcile` check is not used.
 - [ ] **No URL carries the Organic Social source tag**, so a `url_tag_id` filter returns nothing; only the domain level works. Revisit if URLs get tagged.
 
 ## Roadmap / Future Considerations

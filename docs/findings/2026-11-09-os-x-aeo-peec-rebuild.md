@@ -32,6 +32,12 @@ The different tables in the outline use different windows (a 30-day window, a ca
 6. **The `gap` filter is per (url, day) row**, so a URL that is a gap on only some days contributes only those days.
 7. **A bucket before a project's first data has no chats.** Percentages there are `null`, not 0, and `meta.warnings` says which days had no chat data.
 
+## The gate and the contract
+
+A result that is wrong must not reach a page, so every result passes a data gate (`gate.ts`, 36 named rules, 32 of which stop the result). The contract it enforces is typed code (`contract.ts`) and the YAML in `docs/contracts/` is generated from it.
+Enforcement is in CI and at runtime: a mutation suite breaks a good result once per rule, a drift test fails if the YAML differs from the code, and a conformance test proves the Peec parsers reject everything the raw contracts forbid.
+Run live against a real project, the gate raised no false alarm on five windows; a window that reaches before the project's first data warns (days with no chat counts, no previous window) as it should.
+
 ## Not exact yet
 
 - URL gaps item count (fewer here than the outline shows, and the outline omits one row this includes).
@@ -48,6 +54,7 @@ Spec first, then code, with fresh-eyes review at each step:
 |---|---|
 | Spec, round 1 | 34 findings, 3 blockers (the chats source was unmeasured; `urlJoinKey` merges videos; what table 1 contains), all fixed or ruled |
 | Spec, round 2 (changed text only) | 0 blockers, 5 majors (chunk density for chat-level pulls, two contradictory pull designs, spec marking unbuilt code as built, zero-chat buckets, an untested rule), all fixed |
-| Whole-branch code review | 0 blockers, 2 majors (real figures in public test fixtures; no test on window edge days), 21 minors. Everything was fixed except one rule documented instead of changed (graphs with no own source are `null`, even when chats exist) |
+| Whole-branch code review | 0 blockers, 2 majors (real figures in public test fixtures; no test on window edge days), 21 minors. Everything was fixed or documented in code comments; one rule documented instead of changed (graphs with no own source are `null`, even when chats exist) |
+| Gate and contract review | See the PR; results are applied in follow-up commits |
 
-The 218 tests were written before each module. Beyond them: `tsc`, `eslint`, `check:rsc`, `next build` and the full suite pass.
+Tests were written before each module (the folder has well over 300 now). Beyond them: `tsc`, `eslint`, `check:rsc`, `next build` and the full suite pass.
