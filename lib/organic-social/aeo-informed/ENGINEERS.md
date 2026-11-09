@@ -48,7 +48,7 @@ const result = await getAeoInformedSocial({
 | `socialsAll` | Every tagged URL, ranked by retrievals, with `isOwnChannel` as the star. This is the table the outline screenshots show. |
 | `socialsOwn` | Rows owned by our brand, ranked from 1. |
 | `socialsCompetitor` | Rows owned by another brand that registered a channel, ranked from 1. |
-| `urlGaps` | Sources where our brand is not mentioned and at least one competitor is, for the gaps window. |
+| `urlGaps` | Sources where our brand is not mentioned and at least one competitor is, for the gaps window, as Peec's own rows (a URL can be several). Ordered by competitor brands times retrievals. |
 | `graphs` | `GraphPoint[]`: `graphId`, `series`, `weekStart`, `weekEnd`, `value` (`null` = "No source data"), `unit` (`citations` or `percent`), `partial`. Ordered by graph, then week. |
 | `meta` | `asOf`, the start and weeks of each graph, windows used, own brand, selector, chats per window, request and row counts, `warnings`, `unverified`, and `gate` (the gate's verdict: rules checked and warnings; a returned result never has errors). |
 
@@ -85,8 +85,12 @@ Tables decide ownership from a URL's most-retrieved title and graphs decide per 
 - **Never offset paging.** Peec's offset paging can shift when rows tie, so rows can be missed or repeated, and a repeated (url, day) row is legitimate, so a duplicate check cannot catch it.
   Every dated pull is split into chunks of at most 31 days (14 for the chat-level pull), one request each with `offset: 0` and `limit: 10000`.
   A chunk that comes back full is split in half and each half is pulled again, down to one day; a full single day throws `PeecPageCapError` instead of returning a partial day.
-- **One by-day span serves every window.** The adapter pulls one span covering the current window, the previous window and the citation graphs, then builds each window from it. Pulls are
-  `socials-by-day`, `gaps-by-day` (with the `gap >= 1` filter), `used-chat-level` (dimensions date and chat), and `chats-by-day`. Each is labeled in every error.
+- **One by-day span serves every window, except URL gaps.** The adapter pulls one span covering the current window, the previous window and the citation graphs, then builds each window from it.
+  Pulls are `socials-by-day`, `used-chat-level` (dimensions date and chat), and `chats-by-day`. Each is labeled in every error.
+- **URL gaps are Peec's own rows for the window, not merged URLs.** Peec returns a URL as several rows when different competitors cite it (about 9% more rows than URLs on the live check),
+  and the outline's item count is a row count. So `gaps-current` and `gaps-prior` are one request each, with `gap >= 1` and no date dimension (`pullWindow` in `chunks.ts`), a full page throws
+  because an offset cannot be trusted, and the table keeps the rows as returned. A row is compared with the previous-window row for the same URL and competitors, or with the URL's only row
+  on both sides; anything else has an empty change. (Merging by URL gave the same number of URLs the by-day pull had, which was the "item count" difference.)
 - **Never group Peec URLs with `lib/url.ts` `urlJoinKey`.** It drops the query string, so every `youtube.com/watch?v=...` video collapses into one row. Group on the exact string Peec returns.
 - **Reader behavior:** one request at a time through one gate (450 ms apart), a timeout per attempt (90 s, capped at the time left), 5 attempts on 429 (`Retry-After` capped at 60 s), 3 on 5xx and on network failures,
   no retry on other 4xx, a whole-call `deadlineMs` (default 10 minutes), `cache: 'no-store'`, redirects refused, and the key redacted from any error text. `onRetry` (default one `console.warn` line) reports each retry.
@@ -138,10 +142,11 @@ Violations never contain a value from the data; an adapter warning with anything
 
 ## What is not exact yet (`meta.unverified`, always returned)
 
-1. `url_gaps_item_count`: against the outline the gaps table has fewer items here, and the outline omits one row this includes. Peec evaluates `gap` per (url, day) row; the table's own definition of "competitor" may differ.
-2. `competitor_table_definition`: the outline's competitor screenshot is a copy of its first table, so the competitor rule (above) is ours.
-3. `own_channel_non_linkedin_and_competitor_matching`: ownership is proven for the own brand on LinkedIn.
-4. `pdf_columns_cropped`: the outline crops the right-hand columns of its tables.
+1. `url_gaps_item_count`: keeping Peec's rows lands within 1% of the outline's item count, not on it. Moving the window by a whole day either way changes the count by 5 to 20, and no whole-day window gives the outline's exact number, so the likely cause is data that moved after the screenshot was taken. Not proven.
+2. `url_gaps_sort_order`: the outline's five visible rows are ranks 1 to 5 under competitor brands mentioned times retrievals, and no other sort tried gives that (retrievals, citations, share, position, mentions). It is a fit to five rows, not a documented Peec rule.
+3. `competitor_table_definition`: the outline's competitor screenshot is a copy of its first table, so the competitor rule (above) is ours.
+4. `own_channel_non_linkedin_and_competitor_matching`: ownership is proven for the own brand on LinkedIn.
+5. `pdf_columns_cropped`: the outline crops the right-hand columns of its tables.
 
 `column-map.ts` maps every column, graph and setting in the outline to the field that carries it, with a status (`exact`, `derived`, `unverified`, `not_available`).
 A test keeps it in step with the output types. The status words are documentation tied to the live check below, not enforced.

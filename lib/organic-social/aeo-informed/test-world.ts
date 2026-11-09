@@ -67,7 +67,21 @@ export function world(over: { brands?: Record<string, unknown>[]; classes?: { na
       const hasGap = (body.filters ?? []).some((f) => f.field === 'gap')
       const isChat = (body.dimensions ?? []).includes('chat_id')
       const src = isChat ? CHAT_ROWS : hasGap ? (over.gapRows ?? GAP_ROWS) : (over.byDay ?? BY_DAY)
-      return { data: src.filter((r) => within(r.date)) }
+      const inWindow = src.filter((r) => within(r.date))
+      // Like Peec: without a date dimension the answer is one row per URL for the whole window, and the gap filter is judged on that whole window.
+      if (hasGap && !(body.dimensions ?? []).includes('date')) {
+        // ...and, as the live answer does, a URL whose rows name different competitors comes back as separate rows (one per set of brands).
+        const byUrl = new Map<string, Record<string, unknown>>()
+        for (const r of inWindow) {
+          const k = (r.url as string) + '|' + (r.mentioned_brands as { id: string }[]).map((b) => b.id).sort().join(',')
+          const e = byUrl.get(k)
+          if (!e) { const first: Record<string, unknown> = { ...r, mentioned_brands: [...(r.mentioned_brands as { id: string }[])] }; delete first.date; byUrl.set(k, first); continue }
+          for (const k of ['retrieval_count', 'citation_count', 'citation_position_sum', 'citation_position_count'] as const) e[k] = (e[k] as number) + (r[k] as number)
+          for (const b of r.mentioned_brands as { id: string }[]) if (!(e.mentioned_brands as { id: string }[]).some((x) => x.id === b.id)) (e.mentioned_brands as { id: string }[]).push(b)
+        }
+        return { data: [...byUrl.values()] }
+      }
+      return { data: inWindow }
     },
   }
   return { reader, calls, maxInFlight: () => maxInFlight }

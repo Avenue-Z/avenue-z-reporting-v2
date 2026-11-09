@@ -39,7 +39,7 @@ export const PDF_COLUMN_MAP: MapEntry[] = [
   S('Total change (cut off in the PDF)', 'totalCitationsDelta', 'unverified', 'As above'),
 
   // URL Gaps table
-  G('# (row number), URL Gaps', 'rank', 'exact', 'Retrievals descending, then URL'),
+  G('# (row number), URL Gaps', 'rank', 'unverified', 'Competitor brands mentioned times retrievals, descending, then retrievals, then URL. Fits the outline\'s five visible rows; Peec does not document it'),
   G('URL, URL Gaps', 'url', 'exact', 'The exact string Peec returns'),
   G('URL title, URL Gaps', 'title', 'exact', 'From the row with the most retrievals'),
   G('Channel name, URL Gaps', 'channelTitle', 'exact', 'channel_title'),

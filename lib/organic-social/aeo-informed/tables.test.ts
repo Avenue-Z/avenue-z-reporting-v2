@@ -126,11 +126,54 @@ describe('buildGapRows', () => {
     expect(rows[1].citationPosition).toBeCloseTo(4, 10)
     expect(rows[2].citationPosition).toBeNull()
   })
-  it('sorts by retrievals and fills deltas against the prior window, null when new', () => {
+  it('fills deltas against the prior window, null when new', () => {
     const rows = buildGapRows({ brands, domainType: 'Organic Social', current, prior: [agg('https://x.com/a', { retrievals: 60, citations: 20 }), agg('https://x.com/b', { retrievals: 40, citations: 30 })] })
     expect(rows.map((r) => [r.rank, r.url, r.retrievalsDelta, r.totalCitationsDelta])).toEqual([
       [1, 'https://x.com/a', 20, 10], [2, 'https://x.com/b', 10, 40], [3, 'https://x.com/c', null, null],
     ])
+  })
+  it('sorts by competitor brands mentioned times retrievals, highest first, as the outline screenshot is ordered; ties go to retrievals then URL', () => {
+    const rows = buildGapRows({
+      brands, domainType: 'Organic Social', prior: [],
+      current: [
+        agg('https://x.com/few', { retrievals: 40, brandIds: ['b_globex'] }),                                   // 1 x 40 = 40
+        agg('https://x.com/many', { retrievals: 7, brandIds: ['b_globex', 'b_initech', 'b_own'] }),             // 3 x 7 = 21
+        agg('https://x.com/mid', { retrievals: 19, brandIds: ['b_globex', 'b_initech'] }),                      // 2 x 19 = 38
+        agg('https://x.com/tie-b', { retrievals: 10, brandIds: ['b_globex', 'b_initech'] }),                    // 20
+        agg('https://x.com/tie-a', { retrievals: 10, brandIds: ['b_globex', 'b_initech'] }),                    // 20
+        agg('https://x.com/tie-c', { retrievals: 20, brandIds: ['b_globex'] }),                                 // 20, more retrievals
+      ],
+    })
+    expect(rows.map((r) => r.url.split('/').pop())).toEqual(['few', 'mid', 'many', 'tie-c', 'tie-a', 'tie-b'])
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5, 6])
+  })
+  it('keeps the rows Peec returned: a URL that comes back as two rows (different competitors) is two rows, each with its own numbers', () => {
+    const rows = buildGapRows({
+      brands, domainType: 'Organic Social', prior: [],
+      current: [agg('https://x.com/dup', { retrievals: 9, citations: 0, brandIds: ['b_globex'] }), agg('https://x.com/dup', { retrievals: 5, citations: 0, brandIds: ['b_initech'] }), agg('https://x.com/one', { retrievals: 4, citations: 2, brandIds: ['b_globex'] })],
+    })
+    expect(rows).toHaveLength(3)
+    expect(rows.filter((r) => r.url === 'https://x.com/dup').map((r) => r.retrievals).sort()).toEqual([5, 9])
+    expect(rows.reduce((s, r) => s + r.citationShare, 0)).toBeCloseTo(1, 10)
+  })
+  it('a repeated URL is compared with the previous row that names the same competitors, and with nothing when that is ambiguous', () => {
+    const rows = buildGapRows({
+      brands, domainType: 'Organic Social',
+      current: [
+        agg('https://x.com/dup', { retrievals: 9, citations: 1, brandIds: ['b_globex'] }), agg('https://x.com/dup', { retrievals: 5, citations: 0, brandIds: ['b_initech'] }),
+        agg('https://x.com/amb', { retrievals: 8, citations: 0, brandIds: ['b_globex'] }), agg('https://x.com/amb', { retrievals: 6, citations: 0, brandIds: ['b_initech'] }),
+        agg('https://x.com/solo', { retrievals: 7, citations: 3, brandIds: ['b_globex'] }),
+      ],
+      prior: [
+        agg('https://x.com/dup', { retrievals: 4, citations: 1, brandIds: ['b_globex'] }), agg('https://x.com/dup', { retrievals: 2, citations: 0, brandIds: ['b_initech'] }),
+        agg('https://x.com/amb', { retrievals: 20, citations: 0, brandIds: ['b_own'] }),
+        agg('https://x.com/solo', { retrievals: 2, citations: 1, brandIds: ['b_globex', 'b_initech'] }),
+      ],
+    })
+    const by = (u: string, r: number) => rows.find((x) => x.url === u && x.retrievals === r)!
+    expect([by('https://x.com/dup', 9).retrievalsDelta, by('https://x.com/dup', 5).retrievalsDelta]).toEqual([5, 3])
+    expect([by('https://x.com/amb', 8).retrievalsDelta, by('https://x.com/amb', 6).retrievalsDelta]).toEqual([null, null])
+    expect([by('https://x.com/solo', 7).retrievalsDelta, by('https://x.com/solo', 7).totalCitationsDelta]).toEqual([5, 2])
   })
   it('lists mentioned brands and the count, and keeps the URL type label and domain type', () => {
     const [r] = buildGapRows({ brands, domainType: 'Organic Social', current, prior: [] })

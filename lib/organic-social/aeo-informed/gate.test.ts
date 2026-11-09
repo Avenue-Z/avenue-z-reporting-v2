@@ -26,8 +26,12 @@ const MUTATIONS: Record<string, Mut[]> = {
   'meta.unverified': [(c) => { c.r.meta.unverified = [] }],
   'meta.identity': [(c) => { c.r.meta.ownBrandId = '' }, (c) => { c.r.meta.selector = { name: 'Organic Social', via: 'tag', id: null } }],
   'oracle.chats': [(c) => { c.r.meta.chats.socials += 1 }],
-  'oracle.rows': [(c) => { c.raw.selRows.push(urlRow('https://www.linkedin.com/pulse/never-tabled', '2026-10-10', { retrieval_count: 1 })) }],
-  'oracle.totals': [(c) => { c.raw.selRows.find((x) => x.date === '2026-10-10')!.retrieval_count += 5 }],
+  'oracle.rows': [
+    (c) => { c.raw.selRows.push(urlRow('https://www.linkedin.com/pulse/never-tabled', '2026-10-10', { retrieval_count: 1 })) },
+    (c) => { c.raw.gapCurrentRows.push(urlRow('https://www.linkedin.com/pulse/never-tabled-gap', '', { retrieval_count: 1, mentioned_brands: [{ id: 'b_globex' }] })) }, // a gap row Peec returned that the table lacks
+    (c) => { c.r.urlGaps.pop() }, // a table row Peec did not return
+  ],
+  'oracle.totals': [(c) => { c.raw.selRows.find((x) => x.date === '2026-10-10')!.retrieval_count += 5 }, (c) => { c.raw.gapCurrentRows[0].citation_count += 4 }],
   'oracle.deltas': [
     (c) => { c.r.socialsAll[0].totalCitationsDelta = -(c.r.socialsAll[0].totalCitationsDelta as number) },
     (c) => { c.r.urlGaps.find((g) => g.retrievalsDelta !== null)!.retrievalsDelta = 999 },
@@ -56,10 +60,11 @@ const MUTATIONS: Record<string, Mut[]> = {
   'url-gaps.rank-order': [
     (c) => { c.r.urlGaps[0].rank = 4 },
     (c) => { const [a, b] = [c.r.urlGaps[0], c.r.urlGaps[1]]; c.r.urlGaps[0] = { ...b, rank: 1 }; c.r.urlGaps[1] = { ...a, rank: 2 } }, // the 6 and 6 tie, URL order reversed
+    (c) => { c.r.urlGaps[0].mentionedBrandCount = 0; c.r.urlGaps[1].mentionedBrandCount = 9 }, // competitors x retrievals no longer descending
   ],
   'url-gaps.share': [(c) => { c.r.urlGaps[0].citationShare = 0.5 }],
   'url-gaps.competitor-mentioned': [(c) => { c.r.urlGaps[0].mentionedBrandCount = 0 }],
-  'url-gaps.own-absent': [(c) => { c.raw.gapRows[0].mentioned_brands.push({ id: c.r.meta.ownBrandId }) }],
+  'url-gaps.own-absent': [(c) => { c.raw.gapCurrentRows[0].mentioned_brands.push({ id: c.r.meta.ownBrandId }) }, (c) => { c.raw.gapPriorRows[0].mentioned_brands.push({ id: c.r.meta.ownBrandId }) }],
   'url-gaps.new-url-deltas': [(c) => { c.r.urlGaps.find((g) => g.retrievalsDelta !== null)!.retrievalsDelta = null }],
   'graphs.complete': [
     (c) => { c.r.graphs = c.r.graphs.filter((p) => p.graphId !== 'citations_all') },

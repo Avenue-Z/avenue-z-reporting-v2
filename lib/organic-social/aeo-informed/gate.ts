@@ -25,7 +25,7 @@ export type GateInput = Omit<AeoInformedResult, 'meta'> & { meta: Omit<Meta, 'ga
  * What the gate recomputes from. These are the raw Peec rows and the clock, kept apart from the result, so a total, a change or a bound is checked
  * against a simple independent recount and not against a number the same code produced.
  */
-export type GateRaw = { selRows: PeecUrlRow[]; gapRows: PeecUrlRow[]; chatRows: PeecUrlRow[]; dayRows: PeecBrandDayRow[]; brands: BrandChannels[]; today: string }
+export type GateRaw = { selRows: PeecUrlRow[]; gapCurrentRows: PeecUrlRow[]; gapPriorRows: PeecUrlRow[]; chatRows: PeecUrlRow[]; dayRows: PeecBrandDayRow[]; brands: BrandChannels[]; today: string }
 
 export class AeoGateError extends Error {
   constructor(public report: GateReport) {
@@ -62,7 +62,7 @@ export const GATE_RULES: GateRule[] = [
   { code: 'socials-competitor.membership', severity: 'error', plain: 'Everything in the competitor table is owned by another brand and not starred.' },
   { code: 'socials-split.complete', severity: 'error', plain: 'The own and competitor tables hold every matching row of the first table, in the same order, and no row is in both.' },
   { code: 'socials-split.rank', severity: 'error', plain: 'The own and competitor tables are each numbered from 1 with no gaps.' },
-  { code: 'url-gaps.rank-order', severity: 'error', plain: 'The URL gaps table is numbered 1, 2, 3 and sorted by retrievals, highest first.' },
+  { code: 'url-gaps.rank-order', severity: 'error', plain: 'The URL gaps table is numbered 1, 2, 3 and sorted by competitor brands mentioned times retrievals, highest first, as in the outline.' },
   { code: 'url-gaps.share', severity: 'error', plain: 'Citation share is each row\'s citations divided by all citations in the table, so the shares add up to 100%.' },
   { code: 'url-gaps.competitor-mentioned', severity: 'error', plain: 'Every URL gaps row has at least one brand mentioned: a gap needs a competitor.' },
   { code: 'url-gaps.own-absent', severity: 'error', plain: 'No source behind the URL gaps table mentions our own brand: a gap is where a competitor is mentioned and we are not.' },
@@ -98,11 +98,11 @@ const GRAPH_PLATFORMS: Record<(typeof GRAPH_IDS)[number], string[]> = {
   used_as_source_all: FIVE_PLATFORMS, citations_all: FIVE_PLATFORMS, citations_linkedin: ['linkedin'], citations_instagram: ['instagram'],
 }
 
-/** A fresh recount of the rows Peec returned, per URL, inside a window. Deliberately simple. */
-function recount(rows: readonly PeecUrlRow[], w: Window): Map<string, { ret: number; cit: number }> {
+/** A fresh recount of the rows Peec returned, per URL, inside a window (undated rows, as the whole-window gap pulls return, are all inside). Deliberately simple. */
+function recount(rows: readonly PeecUrlRow[], w: Window | null): Map<string, { ret: number; cit: number }> {
   const out = new Map<string, { ret: number; cit: number }>()
   for (const r of rows) {
-    if (!inWin(r.date, w)) continue
+    if (w !== null && !inWin(r.date, w)) continue
     const e = out.get(r.url) ?? { ret: 0, cit: 0 }
     e.ret += r.retrieval_count; e.cit += r.citation_count
     out.set(r.url, e)
@@ -162,8 +162,7 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
   const chatsOf = (win: Window) => raw.dayRows.filter((d) => inWin(d.date, win)).reduce((s, d) => s + d.visibility_total, 0)
   const chatChecks: [keyof typeof m.chats, Window][] = [['socials', w.socials], ['socialsPrior', w.socialsPrior], ['gaps', w.gaps], ['gapsPrior', w.gapsPrior]]
   for (const [k, win] of chatChecks) if (m.chats[k] !== chatsOf(win)) err('oracle.chats', `meta.chats.${k}`, 'the chat total does not equal a recount of the daily chat counts')
-  const recountTable = (label: string, rows: readonly { url: string; retrievals: number; totalCitations: number; retrievalsDelta: number | null; totalCitationsDelta: number | null }[], src: readonly PeecUrlRow[], cur: Window, prev: Window) => {
-    const now = recount(src, cur), before = recount(src, prev)
+  const recountTable = (label: string, rows: readonly { url: string; retrievals: number; totalCitations: number; retrievalsDelta: number | null; totalCitationsDelta: number | null }[], now: Map<string, { ret: number; cit: number }>, before: Map<string, { ret: number; cit: number }>) => {
     const urls = new Set(rows.map((x) => x.url))
     if (urls.size !== rows.length || urls.size !== now.size || [...now.keys()].some((u) => !urls.has(u))) err('oracle.rows', label, 'the table does not hold exactly the sources Peec returned for the window')
     let ret = 0, cit = 0, rawRet = 0, rawCit = 0
@@ -178,8 +177,30 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     })
     if (ret !== rawRet || cit !== rawCit) err('oracle.totals', label, 'the table totals do not equal a recount of the rows Peec returned')
   }
-  recountTable('socialsAll', r.socialsAll, raw.selRows, w.socials, w.socialsPrior)
-  recountTable('urlGaps', r.urlGaps, raw.gapRows, w.gaps, w.gapsPrior)
+  recountTable('socialsAll', r.socialsAll, recount(raw.selRows, w.socials), recount(raw.selRows, w.socialsPrior))
+  // URL gaps keep Peec's rows (a URL can be several rows), so they are recounted per URL: the table must hold exactly as many rows as Peec returned, every URL's rows must add up to the raw
+  // sum, and a URL that is one row on both sides must carry the plain difference. Rows of a repeated URL are checked for the null pairing only.
+  {
+    const rawNow = recount(raw.gapCurrentRows, null), rawBefore = recount(raw.gapPriorRows, null)
+    const count = (rows: readonly { url: string }[]) => rows.reduce((m, x) => m.set(x.url, (m.get(x.url) ?? 0) + 1), new Map<string, number>())
+    const nowN = count(raw.gapCurrentRows), beforeN = count(raw.gapPriorRows)
+    const sums = new Map<string, { ret: number; cit: number }>()
+    let ret = 0, cit = 0
+    r.urlGaps.forEach((x, i) => {
+      const e = sums.get(x.url) ?? { ret: 0, cit: 0 }
+      e.ret += x.retrievals; e.cit += x.totalCitations; sums.set(x.url, e)
+      ret += x.retrievals; cit += x.totalCitations
+      if (nowN.get(x.url) === 1 && beforeN.get(x.url) === 1) {
+        const a = rawNow.get(x.url)!, b = rawBefore.get(x.url)!
+        if (x.retrievalsDelta !== a.ret - b.ret || x.totalCitationsDelta !== a.cit - b.cit) err('oracle.deltas', `urlGaps[${i}]`, 'the change against the previous window does not equal a recount')
+      }
+    })
+    if (r.urlGaps.length !== raw.gapCurrentRows.length || sums.size !== rawNow.size || [...rawNow.keys()].some((u) => !sums.has(u))) err('oracle.rows', 'urlGaps', 'the table does not hold exactly the rows Peec returned for the window')
+    for (const [u, a] of rawNow) { const s = sums.get(u); if (s && (s.ret !== a.ret || s.cit !== a.cit)) err('oracle.deltas', 'urlGaps', 'a source\'s numbers do not equal a recount') }
+    let rawRet = 0, rawCit = 0
+    for (const a of rawNow.values()) { rawRet += a.ret; rawCit += a.cit }
+    if (ret !== rawRet || cit !== rawCit) err('oracle.totals', 'urlGaps', 'the table totals do not equal a recount of the rows Peec returned')
+  }
 
   // ---- 5. the first table and its two splits ----
   const rankOrder = <T extends { rank: number; retrievals: number; url: string }>(rows: readonly T[], rankCode: string, orderCode: string, label: string) => {
@@ -221,7 +242,11 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
   if (r.socialsOwn.some((x) => r.socialsCompetitor.some((y) => y.url === x.url))) err('socials-split.complete', 'socialsOwn/socialsCompetitor', 'a row is in both tables')
 
   // ---- 6. URL gaps ----
-  rankOrder(r.urlGaps, 'url-gaps.rank-order', 'url-gaps.rank-order', 'urlGaps')
+  r.urlGaps.forEach((x, i) => { if (x.rank !== i + 1) err('url-gaps.rank-order', `urlGaps[${i}].rank`, 'rank is not the row position') })
+  for (let i = 1; i < r.urlGaps.length; i++) {
+    const a = r.urlGaps[i - 1], b = r.urlGaps[i], sa = a.mentionedBrandCount * a.retrievals, sb = b.mentionedBrandCount * b.retrievals
+    if (!(sa > sb || (sa === sb && (a.retrievals > b.retrievals || (a.retrievals === b.retrievals && a.url <= b.url))))) err('url-gaps.rank-order', `urlGaps[${i}]`, 'rows are not sorted by competitor brands times retrievals, then retrievals, then URL')
+  }
   const gapTotal = r.urlGaps.reduce((s, x) => s + x.totalCitations, 0)
   r.urlGaps.forEach((x: GapRow, i) => {
     const at = `urlGaps[${i}]`
@@ -229,7 +254,7 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if (x.mentionedBrandCount < 1) err('url-gaps.competitor-mentioned', at, 'a gap row needs at least one brand mentioned')
     if ((x.retrievalsDelta === null) !== (x.totalCitationsDelta === null)) err('url-gaps.new-url-deltas', at, 'one change is empty and the other is not')
   })
-  if (raw.gapRows.some((g) => g.mentioned_brands.some((b) => b.id === m.ownBrandId))) err('url-gaps.own-absent', 'urlGaps', 'a source behind the table mentions our own brand')
+  if ([...raw.gapCurrentRows, ...raw.gapPriorRows].some((g) => g.mentioned_brands.some((b) => b.id === m.ownBrandId))) err('url-gaps.own-absent', 'urlGaps', 'a source behind the table mentions our own brand')
 
   // ---- 7. chat days, then graphs ----
   const present = new Set(raw.dayRows.map((d) => d.date))

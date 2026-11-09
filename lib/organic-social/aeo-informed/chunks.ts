@@ -53,3 +53,22 @@ export async function pullChunks<T>(
   for (const c of chunkWindow(w, opts.chunkDays ?? 31)) out.push(...(await pullSpan(c)))
   return out
 }
+
+/**
+ * One request for the whole window, with no date dimension: Peec answers with its own rows for the window (one per URL, or several when a URL's rows differ). Use it where the
+ * answer must be Peec's own rows for the window (the URL gaps table is) and so cannot be rebuilt by adding up days. A full page throws, because there is no safe way to continue (an offset can shift under ties).
+ */
+export async function pullWindow<T>(
+  reader: PeecReader,
+  path: string,
+  body: Record<string, unknown>,
+  w: Window,
+  parse: (json: unknown, path: string) => T[],
+  label: string,
+): Promise<T[]> {
+  assertIsoDate(w.start); assertIsoDate(w.end)
+  const l = `${label} ${w.start}..${w.end}`
+  const rows = parse(await reader.post(path, { ...body, start_date: w.start, end_date: w.end, limit: PAGE, offset: 0 }, l), path)
+  if (rows.length >= PAGE) throw new PeecPageCapError(path, l)
+  return rows
+}

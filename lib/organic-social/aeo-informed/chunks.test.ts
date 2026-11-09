@@ -1,6 +1,6 @@
 // lib/organic-social/aeo-informed/chunks.test.ts
 import { describe, it, expect } from 'vitest'
-import { chunkWindow, pullChunks } from './chunks'
+import { chunkWindow, pullChunks, pullWindow } from './chunks'
 import { PeecPageCapError, PeecHttpError } from './peec-read'
 import type { PeecReader } from './peec-read'
 import { daysIn } from './windows'
@@ -106,5 +106,27 @@ describe('pullChunks', () => {
     const f = fakeReader(() => [{}], 1)
     await expect(pullChunks(f.reader, '/reports/urls', {}, { start: '2026-08-14', end: '2026-11-09' }, parse, 'x')).rejects.toBeInstanceOf(PeecHttpError)
     expect(f.bodies).toHaveLength(2)
+  })
+})
+
+describe('pullWindow', () => {
+  it('sends one request for the whole window, with no offset and no date dimension, and labels it with the window', async () => {
+    const f = fakeReader(() => [{ u: 1 }])
+    const rows = await pullWindow(f.reader, '/reports/urls', { filters: [] }, { start: '2026-09-01', end: '2026-09-30' }, parse, 'gaps-current')
+    expect(f.bodies).toHaveLength(1)
+    expect(f.bodies[0]).toMatchObject({ start_date: '2026-09-01', end_date: '2026-09-30', offset: 0, limit: 10000 })
+    expect(f.bodies[0].dimensions).toBeUndefined()
+    expect(f.labels[0]).toBe('gaps-current 2026-09-01..2026-09-30')
+    expect(rows).toEqual([{ u: 1 }])
+  })
+  it('a long window is still one request, because a per-URL answer cannot be added up from chunks', async () => {
+    const f = fakeReader(() => [])
+    await pullWindow(f.reader, '/reports/urls', {}, { start: '2026-01-01', end: '2026-11-08' }, parse, 'gaps-current')
+    expect(f.bodies).toHaveLength(1)
+  })
+  it('a full page throws instead of returning a partial list, and never continues with an offset', async () => {
+    const f = fakeReader(() => Array.from({ length: 10000 }, () => ({})))
+    await expect(pullWindow(f.reader, '/reports/urls', {}, { start: '2026-09-01', end: '2026-09-30' }, parse, 'gaps-current')).rejects.toBeInstanceOf(PeecPageCapError)
+    expect(f.bodies).toHaveLength(1)
   })
 })

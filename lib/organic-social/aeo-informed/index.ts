@@ -3,7 +3,7 @@
 // Read only. Not wired to any page or route yet. Every rule here was reproduced against the client's own PDF from live data; what was
 // not is listed in `UNVERIFIED` and returned in `meta.unverified`.
 import { createPeecReader, type PeecReader } from './peec-read'
-import { pullChunks } from './chunks'
+import { pullChunks, pullWindow } from './chunks'
 import { parseBrandDayRows, parseBrands, parseClassifications, parseSocialChannels, parseSourceTags, parseUrlRows } from './shape'
 import { aggregateByUrl } from './urls'
 import { buildBrandChannels } from './ownership'
@@ -63,7 +63,7 @@ export type Meta = {
   ownBrandName: string
   selector: { name: string; via: string; id: string | null }
   chats: { socials: number; socialsPrior: number; gaps: number; gapsPrior: number }
-  counts: { socialsAll: number; socialsOwn: number; socialsCompetitor: number; urlGaps: number; selectorRowsByDay: number; gapRowsByDay: number; usedChatRows: number; chatDayRows: number; requests: number }
+  counts: { socialsAll: number; socialsOwn: number; socialsCompetitor: number; urlGaps: number; selectorRowsByDay: number; gapRows: number; usedChatRows: number; chatDayRows: number; requests: number }
   warnings: string[]
   unverified: UnverifiedId[]
   /** The data gate's verdict on this result. A returned result has no errors; warnings are passed on. */
@@ -159,16 +159,17 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     start: minDate(socialsPrior.start, ...citWins.map((w) => w.start)),
     end: maxDate(socials.end, ...citWins.map((w) => w.end)),
   }
-  const gapSpan: Window = { start: gapsPrior.start, end: gaps.end }
   const usedWin = graphWin('used_as_source_all')
 
   // 4) pulls, one at a time
   const selRows = await step('socials-by-day', selSpan, () =>
     pullChunks(reader, '/reports/urls', { dimensions: ['date'], filters: [selFilter] }, selSpan, (b, p) => parseUrlRows(b, p, { requireDate: true }), 'socials-by-day'))
-  // Peec evaluates `gap` per (url, day) row, so a URL that is a gap on only some days contributes only those days. That is why the item count can differ
-  // from a URL-level reading (see url_gaps_item_count in UNVERIFIED).
-  const gapRows = await step('gaps-by-day', gapSpan, () =>
-    pullChunks(reader, '/reports/urls', { dimensions: ['date'], filters: [selFilter, { field: 'gap', operator: 'gte', value: 1 }] }, gapSpan, (b, p) => parseUrlRows(b, p, { requireDate: true }), 'gaps-by-day'))
+  // The outline's URL gaps table lists Peec's own rows, and Peec returns a URL as several rows when different competitors cite it (445 rows for 410 URLs on the September check, against
+  // the outline's 442). A by-day pull splits rows by day and merging by URL loses the split, so each window is one request with no date dimension and the table keeps the rows as returned.
+  // A previous-window URL that is not a gap in that window has no prior row and its change is empty.
+  const gapFilters = [selFilter, { field: 'gap', operator: 'gte', value: 1 }]
+  const gapCurrentRows = await step('gaps-current', gaps, () => pullWindow(reader, '/reports/urls', { filters: gapFilters }, gaps, (b, p) => parseUrlRows(b, p), 'gaps-current'))
+  const gapPriorRows = await step('gaps-prior', gapsPrior, () => pullWindow(reader, '/reports/urls', { filters: gapFilters }, gapsPrior, (b, p) => parseUrlRows(b, p), 'gaps-prior'))
   const chatRows = usedWin.start <= usedWin.end
     ? await step('used-chat-level', usedWin, () =>
         pullChunks(reader, '/reports/urls', { dimensions: ['date', 'chat_id'], filters: [selFilter] }, usedWin, (b, p) => parseUrlRows(b, p, { requireDate: true, requireChat: true }), 'used-chat-level', { chunkDays: 14 }))
@@ -199,9 +200,9 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     chatsCurrent: chats.socials, chatsPrior: chats.socialsPrior, brands, domainType: selector.name,
   })
   const split = splitSocials(socialsAll, ownBrand.id)
-  const gapCurrent = aggregateByUrl(rowsIn(gapRows, gaps))
+  const gapCurrent = gapCurrentRows.flatMap((r) => aggregateByUrl([r]))
   if (gapCurrent.length === 0) warnings.push('gap view is empty for the gaps window')
-  const urlGaps = buildGapRows({ current: gapCurrent, prior: aggregateByUrl(rowsIn(gapRows, gapsPrior)), brands, domainType: selector.name })
+  const urlGaps = buildGapRows({ current: gapCurrent, prior: gapPriorRows.flatMap((r) => aggregateByUrl([r])), brands, domainType: selector.name })
 
   const common = (id: GraphId) => ({ brands, ownBrandId: ownBrand.id, ownBrandName: ownBrand.name, from: graphs[id].from, weeks: graphs[id].weeks, asOf: input.asOf })
   const graphPoints: GraphPoint[] = [
@@ -225,13 +226,13 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
       ownBrandName: ownBrand.name,
       selector: { name: selector.name, via: selector.via, id: selId },
       chats,
-      counts: { socialsAll: socialsAll.length, socialsOwn: split.own.length, socialsCompetitor: split.competitor.length, urlGaps: urlGaps.length, selectorRowsByDay: selRows.length, gapRowsByDay: gapRows.length, usedChatRows: chatRows.length, chatDayRows: dayRows.length, requests },
+      counts: { socialsAll: socialsAll.length, socialsOwn: split.own.length, socialsCompetitor: split.competitor.length, urlGaps: urlGaps.length, selectorRowsByDay: selRows.length, gapRows: gapCurrentRows.length + gapPriorRows.length, usedChatRows: chatRows.length, chatDayRows: dayRows.length, requests },
       warnings,
       unverified: [...UNVERIFIED],
     },
   }
 
-  const raw: GateRaw = { selRows, gapRows, chatRows, dayRows, brands, today: new Date((input.now ?? Date.now)()).toISOString().slice(0, 10) }
+  const raw: GateRaw = { selRows, gapCurrentRows, gapPriorRows, chatRows, dayRows, brands, today: new Date((input.now ?? Date.now)()).toISOString().slice(0, 10) }
   return { draft, raw }
 }
 

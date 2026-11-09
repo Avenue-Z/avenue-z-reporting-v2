@@ -59,6 +59,9 @@ function brandNames(ids: string[], brands: BrandChannels[]): string | null {
 }
 
 const byRetrievals = <T extends { retrievals: number; url: string }>(a: T, b: T) => b.retrievals - a.retrievals || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0)
+/** Competitor brands mentioned times retrievals. */
+export const gapScore = (u: { brandIds: readonly string[]; retrievals: number }) => u.brandIds.length * u.retrievals
+const byGapScore = <T extends { brandIds: readonly string[]; retrievals: number; url: string; citations: number }>(a: T, b: T) => gapScore(b) - gapScore(a) || byRetrievals(a, b) || b.citations - a.citations
 const delta = (cur: number, prior: UrlAgg | undefined, pick: (u: UrlAgg) => number): number | null => (prior ? cur - pick(prior) : null)
 
 export type SocialsInput = { current: UrlAgg[]; prior: UrlAgg[]; chatsCurrent: number; chatsPrior: number; brands: BrandChannels[]; domainType: string }
@@ -109,12 +112,28 @@ export function splitSocials(rows: SocialsRow[], ownBrandId: string): { own: Soc
 
 export type GapInput = { current: UrlAgg[]; prior: UrlAgg[]; brands: BrandChannels[]; domainType: string }
 
-/** URL Gaps. The caller pulls with the gap filter, so every row is a source where our brand is not mentioned. Citation share is over every row of the pull. */
+/**
+ * URL Gaps. The caller pulls the whole window with the gap filter, so every row is a source where our brand is not mentioned. Citation share is over every row of the pull.
+ * Rows are ordered by competitor brands mentioned times retrievals, highest first (ties: retrievals, then URL). That is the order the outline's screenshot is in: on a live
+ * September pull its five visible rows come out as ranks 1 to 5 under this score and no other sort tried (retrievals, citations, share, position, mentions) gives it.
+ * It is a fit to those five rows, not something Peec documents, so it is listed in UNVERIFIED.
+ */
 export function buildGapRows(i: GapInput): GapRow[] {
-  const prior = new Map(i.prior.map((u) => [u.url, u]))
+  // Peec returns a URL as more than one row when different competitors cite it, and the outline's table lists each row, so a row here is a Peec row, never a merged URL.
+  // A row is compared with the previous-window row for the same URL and the same competitors; a URL that is one row on both sides is compared whatever its competitors were;
+  // anything else (several rows and no exact partner) has no honest partner and its change is empty.
+  const keyOf = (u: UrlAgg) => u.url + '|' + [...u.brandIds].sort().join(',')
+  const group = <K,>(rows: UrlAgg[], k: (u: UrlAgg) => K) => rows.reduce((m, u) => m.set(k(u), [...(m.get(k(u)) ?? []), u]), new Map<K, UrlAgg[]>())
+  const priorByKey = group(i.prior, keyOf), priorByUrl = group(i.prior, (u) => u.url), currentByUrl = group(i.current, (u) => u.url)
+  const partner = (u: UrlAgg): UrlAgg | undefined => {
+    const same = priorByKey.get(keyOf(u))
+    if (same && same.length === 1) return same[0]
+    const urlRows = priorByUrl.get(u.url)
+    return currentByUrl.get(u.url)!.length === 1 && urlRows && urlRows.length === 1 ? urlRows[0] : undefined
+  }
   const total = i.current.reduce((s, u) => s + u.citations, 0)
-  return [...i.current].sort(byRetrievals).map((u, idx) => {
-    const p = prior.get(u.url)
+  return [...i.current].sort(byGapScore).map((u, idx) => {
+    const p = partner(u)
     return {
       rank: idx + 1,
       url: u.url,
