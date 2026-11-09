@@ -1,0 +1,29 @@
+# Raw response of POST /reports/urls, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). Deprecated fields are left out on purpose.
+# The runtime check is lib/organic-social/aeo-informed/shape.ts (parseUrlRows); keep the two in step. `date` is required on every by-day pull and `chat.id` on the chat-level pull.
+schema: peec.reports_urls_response
+version: 1.0.0
+kind: payload
+json_schema:
+  type: object
+  required: [data]
+  properties:
+    data:
+      type: array
+      items:
+        type: object
+        required: [url, classification, title, citation_count, retrieval_count, citation_position, citation_position_sum, citation_position_count, mentioned_brands]
+        properties:
+          url: {type: string, minLength: 1}
+          classification: {type: [string, "null"]}
+          title: {type: [string, "null"]}
+          channel_title: {type: [string, "null"]}
+          date: {type: string, format: date}
+          chat: {type: object, required: [id], properties: {id: {type: string}}}
+          citation_count: {type: number, minimum: 0}
+          retrieval_count: {type: number, minimum: 0}
+          citation_position: {type: [number, "null"]}
+          citation_position_sum: {type: number, minimum: 0}
+          citation_position_count: {type: number, minimum: 0}
+          mentioned_brands:
+            type: array
+            items: {type: object, required: [id], properties: {id: {type: string}}}

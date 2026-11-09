@@ -1,0 +1,19 @@
+# Raw response of GET /brands (live OpenAPI, 2026-11-09). There is a color but no logo or image field.
+schema: peec.brands_response
+version: 1.0.0
+kind: payload
+json_schema:
+  type: object
+  required: [data]
+  properties:
+    data:
+      type: array
+      items:
+        type: object
+        required: [id, name, is_own, color]
+        properties:
+          id: {type: string, minLength: 1}
+          name: {type: string, minLength: 1}
+          is_own: {type: boolean}
+          color: {type: string}
+          domains: {type: array, items: {type: string}}

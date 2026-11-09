@@ -1,0 +1,19 @@
+# Raw response of GET /brands/social-channels (live OpenAPI, 2026-11-09). No url field, only platform + handle + channel id.
+schema: peec.brand_social_channels_response
+version: 1.0.0
+kind: payload
+json_schema:
+  type: object
+  required: [data]
+  properties:
+    data:
+      type: array
+      items:
+        type: object
+        required: [id, brand_id, platform, channel_id, channel_handle]
+        properties:
+          id: {type: string}
+          brand_id: {type: string}
+          platform: {type: string, enum: [reddit, youtube, instagram, tiktok, linkedin, medium, facebook, quora]}
+          channel_id: {type: string}
+          channel_handle: {type: string}

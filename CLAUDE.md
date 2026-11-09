@@ -879,6 +879,18 @@ deliberately left out of its scope so it stayed reviewable.
   fixing it changes Renaissance's numbers: its own PR, off `dev`, with a Renaissance proof. Locked
   months' "(in progress)" label follows the window as sent (#256), so it moves with the fix.
 
+## Known Follow-ups: AEO Informed Social adapter (from PR #444)
+
+The adapter (`lib/organic-social/aeo-informed/`, guide in its `ENGINEERS.md`) is built and tested but nothing uses it. None of these blocks that PR.
+
+- [ ] **A page that shows it.** No route, tab or sidebar entry exists. Brand logos are not available from Peec (the brands endpoint returns a color and no image), so Mentions shows names and colors.
+- [ ] **URL gaps item count.** The outline's table shows more items than `gap >= 1` returns, and omits one row the adapter includes. Peec evaluates `gap` per (url, day) row; the table's definition of "competitor" may differ. `meta.unverified` carries `url_gaps_item_count` until it is settled.
+- [ ] **The competitor table has no reference.** The outline's screenshot for it is a copy of its first table and the filter sentence is cut off, so `socialsCompetitor` (a brand with a registered channel, matched by channel title) is our rule. Settle it from a real competitor view before it is shown to a client.
+- [ ] **Ownership is proven for the own brand on LinkedIn only** (`ownership.ts`). Matching is by channel title on a platform the brand registered; a channel titled "<Brand> Something" is credited to the brand. Check YouTube and Instagram and each competitor against Peec's own channel view.
+- [ ] **The outline crops its tables on the right**, so any column after "Total" is unmapped (`column-map.ts`).
+- [ ] **The data contract is a design copy** (`docs/contracts/aeo-informed-social/`; contract-core is Python and this repo is TypeScript). `shape.ts` is the runtime check. A drift test that compares the two would stop them diverging.
+- [ ] **No URL carries the Organic Social source tag**, so a `url_tag_id` filter returns nothing; only the domain level works. Revisit if URLs get tagged.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports

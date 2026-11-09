@@ -1,0 +1,17 @@
+# Raw response of POST /reports/brands with dimensions ['date'] and a brand_id filter on the own brand: one row per day. visibility_total is the number of chats
+# that day, and it covers every day (the domains report, used earlier, skips days when its chosen domain has no row). Runtime check: shape.ts parseBrandDayRows.
+schema: peec.reports_brands_response
+version: 1.0.0
+kind: payload
+json_schema:
+  type: object
+  required: [data]
+  properties:
+    data:
+      type: array
+      items:
+        type: object
+        required: [date, visibility_total]
+        properties:
+          date: {type: string, format: date}
+          visibility_total: {type: number, minimum: 0}
