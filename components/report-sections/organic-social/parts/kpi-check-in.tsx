@@ -4,7 +4,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { organicSocialSubsections } from '@/lib/constants'
 import { isInternalStaff } from '@/lib/dashboard/permissions'
 import { CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/metrics'
-import { readSheetTabTitles, readYtdTab, YtdSheetReadError } from '@/lib/organic-social/ytd-sheet'
+import { readMonthTab, readSheetTabTitles, readYtdTab, YtdSheetReadError } from '@/lib/organic-social/ytd-sheet'
 import { KpiSheetLayoutError, kpiPeriodLabel, kpiSheetFor, MONTH_NAMES, monthIndex, monthTabFor, parseKpiGrid, type KpiPlatform } from '@/lib/organic-social/kpi-sheet'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { resolveDateRange } from '@/lib/date-range'
@@ -137,12 +137,10 @@ async function monthTabRows(a: { slug: string; sheetId: string; carriedFrom?: st
     const tab = monthTabFor(titles, a.year, m)
     if (tab.kind === 'none') return { kind: 'missing' }
     if (tab.kind === 'ambiguous') return { kind: 'notReady', missing: 'month tab ambiguous' }
-    let grid: unknown[][]
-    try { grid = await readYtdTab(a.sheetId, tab.title) } catch (e) {
-      // The titles are cached for minutes; a tab renamed or deleted since then answers 400.
-      if (e instanceof YtdSheetReadError && e.status === '400') return { kind: 'missing' }
-      return fail(e)
-    }
+    let grid: unknown[][] | 'gone'
+    try { grid = await readMonthTab(a.sheetId, tab.title) } catch (e) { return fail(e) }
+    // The titles are cached for minutes; a tab renamed or deleted since then answers 400, which the reader returns as 'gone'.
+    if (grid === 'gone') return { kind: 'missing' }
     try {
       const tracker = parseKpiGrid(grid, a.year)
       return {
@@ -173,10 +171,18 @@ async function monthTabRows(a: { slug: string; sheetId: string; carriedFrom?: st
     }
     return r
   }
+  // Newest ready month first. A month skipped because its tab exists but is not ready is logged with its reason, and when
+  // nothing is ready the note says what is true of the end month: its tab isn't ready, or it has none (Paul, #445, #446).
+  let endNotReady = false
   for (let m = a.month; m >= 0; m--) {
     const r = await check(m)
     if (r.kind === 'rows' || r.kind === 'error') return r
+    if (r.kind === 'notReady') {
+      console.warn(`[organic-social] kpi month tab not ready ${at(m)} missing=${r.missing}`)
+      if (m === a.month) endNotReady = true
+    }
   }
+  if (endNotReady) return { kind: 'note', text: `The ${name(a.month)} KPI tab isn't ready yet.` }
   return missingNote(a.month)
 }
 

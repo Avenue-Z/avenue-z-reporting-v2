@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { render } from '@testing-library/react'
-const { getClientBySlug, readYtdTab, readSheetTabTitles, requestClock } = vi.hoisted(() => ({ getClientBySlug: vi.fn(), readYtdTab: vi.fn(), readSheetTabTitles: vi.fn(), requestClock: vi.fn() }))
+const { getClientBySlug, readYtdTab, readSheetTabTitles, readMonthTab, requestClock } = vi.hoisted(() => ({ getClientBySlug: vi.fn(), readYtdTab: vi.fn(), readSheetTabTitles: vi.fn(), readMonthTab: vi.fn(), requestClock: vi.fn() }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug }))
-vi.mock('@/lib/organic-social/ytd-sheet', async () => ({ ...(await vi.importActual<typeof import('@/lib/organic-social/ytd-sheet')>('@/lib/organic-social/ytd-sheet')), readYtdTab, readSheetTabTitles }))
+vi.mock('@/lib/organic-social/ytd-sheet', async () => ({ ...(await vi.importActual<typeof import('@/lib/organic-social/ytd-sheet')>('@/lib/organic-social/ytd-sheet')), readYtdTab, readSheetTabTitles, readMonthTab }))
 vi.mock('@/lib/organic-social/locked-range', async () => ({ ...(await vi.importActual<typeof import('@/lib/organic-social/locked-range')>('@/lib/organic-social/locked-range')), requestClock }))
 
 import { KpiCheckInSection, kpiCheckInV1 } from './kpi-check-in'
@@ -29,7 +29,7 @@ const GRID_OCT = [
 ]
 
 // 2026-11-03: October opens to clients on the 12th, so September is the newest month a client may see.
-beforeEach(() => { getClientBySlug.mockReset(); readYtdTab.mockReset(); readSheetTabTitles.mockReset(); requestClock.mockReset(); requestClock.mockReturnValue(clockFor(new Date('2026-11-03T12:00:00Z'))) })
+beforeEach(() => { getClientBySlug.mockReset(); readYtdTab.mockReset(); readSheetTabTitles.mockReset(); readMonthTab.mockReset(); requestClock.mockReset(); requestClock.mockReturnValue(clockFor(new Date('2026-11-03T12:00:00Z'))) })
 
 test('registered unpublished, renders only on Overview', () => {
   expect(ORGANIC_SOCIAL_PARTS['kpi-check-in'][1]).toBe(kpiCheckInV1)
@@ -230,13 +230,10 @@ const monthGrid = (m: number, rows: Record<string, unknown[]> = {}) => [
   rows.linkedin ?? ['LinkedIn', `End of ${MONTH[m]}`, '9,000', '47,000', '6,300'], ['', 'H2 2026 Target', '9,400', '80,000', '10,000'],
 ]
 const BY_MONTH = { 2026: { sheetId: ID, byMonth: true } }
-/** Tabs answer by title; a title not in the map answers 400, as Google does for a missing tab. */
+/** Tabs answer by title through the month-tab reader; a title not in the map answers "gone" (Google's 400). */
 const tabs = (byTitle: Record<string, unknown[][]>) => {
   readSheetTabTitles.mockResolvedValue(Object.keys(byTitle))
-  readYtdTab.mockImplementation(async (_id: string, title: string) => {
-    if (title in byTitle) return byTitle[title]
-    throw new YtdSheetReadError('400')
-  })
+  readMonthTab.mockImplementation(async (_id: string, title: string) => (title in byTitle ? byTitle[title] : 'gone'))
 }
 const SEP = { ...CTX, dateRange: 'custom:2026-09-01,2026-09-30' }
 const OCT = { ...CTX, dateRange: 'custom:2026-10-01,2026-10-31' }
@@ -247,12 +244,13 @@ test('month tabs: the picked month reads its own tab, so past months stay viewab
   getClientBySlug.mockResolvedValue(onMonths(BY_MONTH))
   tabs({ 'September 2026': monthGrid(8), 'October 2026': monthGrid(9) })
   const sep = render(await KpiCheckInSection({ ctx: SEP }))
-  expect(readYtdTab).toHaveBeenLastCalledWith(ID, 'September 2026')
+  expect(readMonthTab).toHaveBeenLastCalledWith(ID, 'September 2026')
+  expect(readYtdTab).not.toHaveBeenCalled() // month tabs never go through the hourly YTD reader
   expect(sep.getAllByText('1/1/26 to 9/30/26')).toHaveLength(2)
   sep.unmount()
   requestClock.mockReturnValue(clockFor(new Date('2026-11-13T12:00:00Z'))) // October has opened
   const oct = render(await KpiCheckInSection({ ctx: OCT }))
-  expect(readYtdTab).toHaveBeenLastCalledWith(ID, 'October 2026')
+  expect(readMonthTab).toHaveBeenLastCalledWith(ID, 'October 2026')
   expect(oct.getAllByText('1/1/26 to 10/31/26')).toHaveLength(2)
   expect(oct.getAllByRole('img')).toHaveLength(6)
 })
@@ -261,7 +259,7 @@ test('month tabs: the raw title is what is read (spaces and case kept)', async (
   getClientBySlug.mockResolvedValue(onMonths(BY_MONTH))
   tabs({ ' september 2026 ': monthGrid(8) })
   render(await KpiCheckInSection({ ctx: SEP }))
-  expect(readYtdTab).toHaveBeenCalledWith(ID, ' september 2026 ')
+  expect(readMonthTab).toHaveBeenCalledWith(ID, ' september 2026 ')
 })
 
 test('a fixed { sheetId, tab } entry never reads the tab titles', async () => {
@@ -269,6 +267,7 @@ test('a fixed { sheetId, tab } entry never reads the tab titles', async () => {
   readYtdTab.mockResolvedValue(GRID)
   render(await KpiCheckInSection({ ctx: SEP }))
   expect(readSheetTabTitles).not.toHaveBeenCalled()
+  expect(readMonthTab).not.toHaveBeenCalled()
   expect(readYtdTab).toHaveBeenCalledWith(ID, 'KPIs')
 })
 
@@ -316,10 +315,10 @@ test('month tabs: a shown channel missing from the month tab is "not ready"', as
   warn.mockRestore()
 })
 
-test('month tabs: a tab that vanished after the titles were cached (the read answers 400) is the missing note', async () => {
+test('month tabs: a tab that vanished after the titles were cached (the read answers "gone", Google\'s 400) is the missing note', async () => {
   getClientBySlug.mockResolvedValue(onMonths(BY_MONTH))
   readSheetTabTitles.mockResolvedValue(['September 2026'])
-  readYtdTab.mockRejectedValue(new YtdSheetReadError('400'))
+  readMonthTab.mockResolvedValue('gone')
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   expect(render(await KpiCheckInSection({ ctx: staffOf(SEP) })).getByText('No KPI tab for September 2026 yet.')).toBeTruthy()
   warn.mockRestore()
@@ -334,7 +333,7 @@ test('month tabs: a failed titles read or a failed tab read (not 400) is the err
   first.unmount()
   expect(logs(err)).toContain('[organic-social] kpi sheet read failed slug=c year=2026 status=timeout')
   readSheetTabTitles.mockResolvedValue(['September 2026'])
-  readYtdTab.mockRejectedValue(new YtdSheetReadError('403'))
+  readMonthTab.mockRejectedValue(new YtdSheetReadError('403'))
   expect(render(await KpiCheckInSection({ ctx: SEP })).getByText("Couldn't load this section.")).toBeTruthy()
   expect(logs(err)).toContain('[organic-social] kpi sheet read failed slug=c year=2026 status=403')
   expect(JSON.stringify(err.mock.calls)).not.toContain(ID)
@@ -348,7 +347,7 @@ test('month tabs: two tabs matching the month is a staff note, never a guess', a
   expect(await KpiCheckInSection({ ctx: SEP })).toBeNull()
   expect(render(await KpiCheckInSection({ ctx: staffOf(SEP) })).getByText("The September 2026 KPI tab isn't ready yet.")).toBeTruthy()
   expect(logs(warn)).toContain('[organic-social] kpi month tab not ready slug=c year=2026 month=2026-09 missing=month tab ambiguous')
-  expect(readYtdTab).not.toHaveBeenCalled()
+  expect(readMonthTab).not.toHaveBeenCalled()
   warn.mockRestore()
 })
 
@@ -376,7 +375,7 @@ test('month tabs: January reads the same tracker when last year\'s entry is byMo
   const grid = monthGrid(0).map((r) => r.map((c) => (c === 'H2 2026 Target' ? 'H1 2027 Target' : c)))
   tabs({ 'January 2027': grid })
   render(await KpiCheckInSection({ ctx: jan }))
-  expect(readYtdTab).toHaveBeenCalledWith(ID, 'January 2027')
+  expect(readMonthTab).toHaveBeenCalledWith(ID, 'January 2027')
   tabs({ 'December 2026': monthGrid(11) })
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   expect(render(await KpiCheckInSection({ ctx: staffOf(jan) })).getByText('No KPI tab for January 2027 yet (using the 2026 tracker).')).toBeTruthy()
@@ -408,12 +407,49 @@ describe('month tabs, a client without reporting months', () => {
     warn.mockRestore()
   })
 
-  test('no ready tab up to the range end is the staff note naming the end month, nothing for a client', async () => {
+  // Paul, #445 review (#446): a skipped month is logged with its reason, and a tab that exists is never called missing.
+  test('a skipped month that is not ready is logged with its reason, even when an earlier month is shown', async () => {
+    getClientBySlug.mockResolvedValue(client(BY_MONTH))
+    tabs({ 'October 2026': monthGrid(9), 'November 2026': notReadyNov })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const c = render(await KpiCheckInSection({ ctx: { ...CTX, dateRange: 'last_30_days' } }))
+    expect(c.getAllByText('1/1/26 to 10/31/26')).toHaveLength(2)
+    expect(logs(warn)).toEqual(['[organic-social] kpi month tab not ready slug=c year=2026 month=2026-11 missing=Instagram month mismatch'])
+    warn.mockRestore()
+  })
+
+  test('an ambiguous month in the search is logged and skipped, never guessed', async () => {
+    getClientBySlug.mockResolvedValue(client(BY_MONTH))
+    tabs({ 'October 2026': monthGrid(9), 'November 2026': monthGrid(10), ' november 2026': monthGrid(10) })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const c = render(await KpiCheckInSection({ ctx: { ...CTX, dateRange: 'last_30_days' } }))
+    expect(c.getAllByText('1/1/26 to 10/31/26')).toHaveLength(2)
+    expect(logs(warn)).toEqual(['[organic-social] kpi month tab not ready slug=c year=2026 month=2026-11 missing=month tab ambiguous'])
+    warn.mockRestore()
+  })
+
+  test('nothing ready and the end month\'s tab exists: the "isn\'t ready" note, not "No KPI tab"; nothing for a client', async () => {
     getClientBySlug.mockResolvedValue(client(BY_MONTH))
     tabs({ 'November 2026': notReadyNov })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(await KpiCheckInSection({ ctx: { ...CTX, dateRange: 'last_30_days' } })).toBeNull()
+    const staff = render(await KpiCheckInSection({ ctx: staffOf({ ...CTX, dateRange: 'last_30_days' }) }))
+    expect(staff.getByText("The November 2026 KPI tab isn't ready yet.")).toBeTruthy()
+    expect(staff.queryByText(/No KPI tab/)).toBeNull()
+    expect(logs(warn)).toContain('[organic-social] kpi month tab not ready slug=c year=2026 month=2026-11 missing=Instagram month mismatch')
+    expect(logs(warn).some((l) => l.includes('kpi month tab missing'))).toBe(false)
+    warn.mockRestore()
+  })
+
+  test('nothing ready and the end month has no tab: the "No KPI tab" note for the end month', async () => {
+    getClientBySlug.mockResolvedValue(client(BY_MONTH))
+    tabs({ 'October 2026': monthGrid(8) }) // October still says "End of September": not ready
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(render(await KpiCheckInSection({ ctx: staffOf({ ...CTX, dateRange: 'last_30_days' }) })).getByText('No KPI tab for November 2026 yet.')).toBeTruthy()
+    expect(logs(warn)).toEqual([
+      '[organic-social] kpi month tab not ready slug=c year=2026 month=2026-10 missing=Instagram month mismatch',
+      '[organic-social] kpi month tab missing slug=c year=2026 month=2026-11',
+    ])
     warn.mockRestore()
   })
 
@@ -423,7 +459,7 @@ describe('month tabs, a client without reporting months', () => {
     getClientBySlug.mockResolvedValue(client(BY_MONTH))
     tabs({ 'December 2026': monthGrid(11) })
     const c = render(await KpiCheckInSection({ ctx: { ...CTX, dateRange: 'last_month' } }))
-    expect(readYtdTab).toHaveBeenCalledWith(ID, 'December 2026')
+    expect(readMonthTab).toHaveBeenCalledWith(ID, 'December 2026')
     expect(c.getAllByText('1/1/26 to 12/31/26')).toHaveLength(2)
   })
 })

@@ -175,3 +175,22 @@ async function titles(sheetId: string, signal: AbortSignal): Promise<string[]> {
 export const readSheetTabTitles = cached('google-sheets', 'sheetTabTitles', readSheetTabTitlesImpl, {
   version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true,
 })
+
+/** A KPI month tab's cells, or 'gone' when Google answers 400 for it: the tab was renamed or deleted after the titles were
+ *  listed (the titles are cached for minutes). Here that is an answer, not a failure, so cached() records a healthy fetch
+ *  and the health beacon never reads a renamed tab as an outage (Paul, #445 review, #447). Any other failure still throws
+ *  and still counts. */
+export async function readMonthTabImpl(sheetId: string, tab: string): Promise<unknown[][] | 'gone'> {
+  try {
+    return await readYtdTabImpl(sheetId, tab)
+  } catch (e) {
+    if (e instanceof YtdSheetReadError && e.status === '400') return 'gone'
+    throw e
+  }
+}
+
+/** Month tabs are cached 5 minutes, not the YTD reader's hour, so a tab the team copies and then relabels shows within
+ *  about 5 minutes (Paul's #445 staging note); the YTD graphs keep readYtdTab and its hour. */
+export const readMonthTab = cached('google-sheets', 'kpiMonthTab', readMonthTabImpl, {
+  version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true,
+})

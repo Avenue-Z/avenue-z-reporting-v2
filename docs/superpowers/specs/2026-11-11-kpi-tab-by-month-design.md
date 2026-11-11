@@ -34,7 +34,9 @@ change on our side; past months stay viewable; the same for any client whose tra
    the current month, `last_month` gives last month, and `last_30_days`, `this_month` or a free custom range give the month
    of their last day. **Clients without reporting months** (rolling ranges such as `last_30_days`, which end in the
    current month, whose tab is filled only after it ends): the block shows the newest month tab that exists and is ready,
-   searching back from the end day's month to January of that year (my decision, 2026-11-11). Clients on reporting months
+   searching back from the end day's month to January of that year (my decision, 2026-11-11). A month skipped because
+   its tab exists but is not ready (or is ambiguous) is logged with its reason, as in section 4. If nothing is ready, the
+   note describes the end month: "isn't ready yet" when its tab exists, "No KPI tab" when it has none (Paul, #446). Clients on reporting months
    get exactly the picked month. Fixed mode keeps today's year rule exactly. **Which year's entry:** the entry is looked up with
    today's year rule (`kpi-check-in.tsx:20,43`); if that gives `byMonth` (direct or carried forward), it is looked up again
    with the end day's year, and that year is the one used for the tab name, `parseKpiGrid`'s target-year check
@@ -48,8 +50,11 @@ change on our side; past months stay viewable; the same for any client whose tra
    A body without a `sheets` array, or a title that is not a string, is `YtdSheetReadError('malformed')`, as the tab
    reader does (`ytd-sheet.ts:117-118`). A tab added or renamed shows within about 5 minutes (the cache serves the old list
    once after it expires: Next's `unstable_cache` behaviour, called at `lib/cache.ts:128-132`, not verified in this repo).
-   A tab already read stays cached for an hour (`ytd-sheet.ts:139-140`), so a tab fixed after it was read as "not ready"
-   can keep the note up to an hour; checked on staging. The raw title (untrimmed) is what is passed to `readYtdTab`. Two titles
+   A month tab is read through its own wrapper, `readMonthTab` (`ytd-sheet.ts`), cached 5 minutes (not the YTD reader's
+   hour), so a tab copied, read as "not ready", then relabelled shows within about 5 minutes (Paul, #445 review). A 400
+   there is returned as the answer `'gone'`, never thrown, so `cached()` records a healthy fetch and the health beacon
+   never reads a renamed tab as an outage (`lib/cache.ts:174,191`, `lib/health/derive.ts:31-32`; #447). Any other
+   failure still throws and still counts. The YTD graphs keep `readYtdTab` and its hour. The raw title (untrimmed) is what is passed to `readYtdTab`. Two titles
    that both match the month are ambiguous: staff note, client nothing (never a guess). The matcher is
    `monthTabFor(titles: string[], year: string, month: number): { kind: 'one'; title: string } | { kind: 'none' } | { kind: 'ambiguous' }`
    (`month` 0 to 11; `title` is the raw title). Fixed mode never reads titles. The
@@ -65,8 +70,8 @@ change on our side; past months stay viewable; the same for any client whose tra
 5. **No tab for the month yet.** Staff see "No KPI tab for <Month> <Year> yet." (the same style as today's
    "No KPI sheet configured for <year>.", `kpi-check-in.tsx:49`, printed through `PrintAsClient` with `client={null}`, so a
    staff PDF prints nothing there); clients see nothing; one warning is logged. A tab read that answers 400 in `byMonth`
-   (the tab was renamed or deleted after the titles were cached; Google's answer for a missing tab, unverified, checked on
-   staging) is handled the same way. When the entry was carried forward from last year, the staff note and the log say
+   (the tab was renamed or deleted after the titles were cached; Google answers 400 for a missing tab: verified read-only
+   against the real tracker on 2026-11-11) is handled the same way: the month-tab reader returns it as `'gone'`. When the entry was carried forward from last year, the staff note and the log say
    so ("carried from <year>"), so a forgotten new tracker is visible. This keeps the team's rule that
    the block stays on and forces the tracker to be filled (team call 2026-10-06, private notes S3-D5).
 6. **Release rule unchanged.** A client can only pick opened months (`reporting-months.ts:166-181`). A month that has not

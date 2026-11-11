@@ -1,11 +1,11 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 
-const { getAccessToken } = vi.hoisted(() => ({ getAccessToken: vi.fn(async () => 'tok') }))
+const { getAccessToken, cachedCalls } = vi.hoisted(() => ({ getAccessToken: vi.fn(async () => 'tok'), cachedCalls: [] as unknown[][] }))
 vi.mock('google-auth-library', () => ({ GoogleAuth: vi.fn(function () { return { getAccessToken } }) }))
-vi.mock('@/lib/cache', () => ({ cached: (_v: string, _f: string, impl: unknown) => impl }))
+vi.mock('@/lib/cache', () => ({ cached: (...a: unknown[]) => { cachedCalls.push(a); return a[2] } }))
 
 import { GoogleAuth } from 'google-auth-library'
-import { classifyCell, parseYtdGrid, rangeFor, readSheetTabTitlesImpl, readYtdTab, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
+import { classifyCell, parseYtdGrid, rangeFor, readMonthTabImpl, readSheetTabTitlesImpl, readYtdTab, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
 
 // Made-up sheet id and numbers only.
 const ID = 'TESTSHEETID_abcdefghij0123'
@@ -204,4 +204,26 @@ test('the tab titles: the 10 second limit covers the token and the body', async 
   } finally {
     vi.useRealTimers()
   }
+})
+
+// Paul, #445 review (#447 and the staging note): a month tab is read through its own wrapper. A 400 there means the tab
+// was renamed or deleted after the titles were listed, so it is an ANSWER ('gone'), never a rejection the cache wrapper
+// would record as an outage; any other failure still rejects. Cached 5 minutes, so a relabelled tab shows soon.
+test('the month tab read: the grid comes back; a 400 is the answer "gone"; any other failure still throws its status', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ values: [['a']] }), { status: 200 })))
+  expect(await readMonthTabImpl(ID, 'October 2026')).toEqual([['a']])
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('Unable to parse range', { status: 400 })))
+  expect(await readMonthTabImpl(ID, 'October 2026')).toBe('gone')
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status: 403 })))
+  const e = await readMonthTabImpl(ID, 'October 2026').catch((x) => x)
+  expect(e).toBeInstanceOf(YtdSheetReadError)
+  expect(e.status).toBe('403')
+})
+
+test('cache settings: month tabs and tab titles 5 minutes, the YTD tab reader keeps its hour; all health-critical', () => {
+  const opts = (fn: string) => cachedCalls.find((c) => c[1] === fn)?.[3]
+  expect(opts('kpiMonthTab')).toEqual({ version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true })
+  expect(opts('sheetTabTitles')).toEqual({ version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true })
+  expect(opts('ytdTab')).toEqual({ version: '1', ttlSeconds: 3600, negativeTtlSeconds: 30, healthCritical: true })
+  expect(cachedCalls.find((c) => c[1] === 'kpiMonthTab')?.[0]).toBe('google-sheets')
 })
