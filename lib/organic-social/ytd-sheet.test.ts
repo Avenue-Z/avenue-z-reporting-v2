@@ -5,7 +5,7 @@ vi.mock('google-auth-library', () => ({ GoogleAuth: vi.fn(function () { return {
 vi.mock('@/lib/cache', () => ({ cached: (_v: string, _f: string, impl: unknown) => impl }))
 
 import { GoogleAuth } from 'google-auth-library'
-import { classifyCell, parseYtdGrid, rangeFor, readYtdTab, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
+import { classifyCell, parseYtdGrid, rangeFor, readSheetTabTitlesImpl, readYtdTab, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
 
 // Made-up sheet id and numbers only.
 const ID = 'TESTSHEETID_abcdefghij0123'
@@ -160,5 +160,48 @@ test('a shared failure reaches both callers, is not kept, and leaves no unhandle
     expect(seen).toEqual([])
   } finally {
     process.off('unhandledRejection', onUnhandled)
+  }
+})
+
+// KPI month tabs (spec 2026-11-11-kpi-tab-by-month-design.md): the tab titles, read like a tab.
+test('the tab titles: one readonly GET of the titles only; titles come back raw; non-200 throws the status without the id', async () => {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ sheets: [{ properties: { title: 'September 2026' } }, { properties: { title: ' October 2026 ' } }] }), { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+  expect(await readSheetTabTitlesImpl(ID)).toEqual(['September 2026', ' October 2026 '])
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+  expect(url).toBe(`https://sheets.googleapis.com/v4/spreadsheets/${ID}?fields=sheets.properties(title)`)
+  expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok')
+  expect(init.signal).toBeInstanceOf(AbortSignal)
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status: 403 })))
+  const e = await readSheetTabTitlesImpl(ID).catch((x) => x)
+  expect(e).toBeInstanceOf(YtdSheetReadError)
+  expect(e.status).toBe('403')
+  expect(String(e.message)).not.toContain(ID)
+})
+
+test.each([
+  ['no sheets array', {}],
+  ['sheets not an array', { sheets: 'x' }],
+  ['a sheet without properties', { sheets: [{}] }],
+  ['a title that is not a string', { sheets: [{ properties: { title: 7 } }] }],
+])('the tab titles: %s is malformed', async (_n, body) => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })))
+  expect((await readSheetTabTitlesImpl(ID).catch((x) => x)).status).toBe('malformed')
+})
+
+test('the tab titles: the 10 second limit covers the token and the body', async () => {
+  vi.useFakeTimers()
+  try {
+    const never = () => new Promise<never>(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: never }) as unknown as Response))
+    const body = readSheetTabTitlesImpl(ID).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(((await Promise.race([body, Promise.resolve('pending')])) as YtdSheetReadError).status).toBe('timeout')
+    getAccessToken.mockImplementationOnce(never as never)
+    const tok = readSheetTabTitlesImpl(ID).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(((await Promise.race([tok, Promise.resolve('pending')])) as YtdSheetReadError).status).toBe('timeout')
+  } finally {
+    vi.useRealTimers()
   }
 })
