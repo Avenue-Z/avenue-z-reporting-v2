@@ -32,7 +32,10 @@ change on our side; past months stay viewable; the same for any client whose tra
    `resolveDateRange(dateRange).endDate` (`lib/date-range.ts:43`), the helper the rest of the page uses. So a locked month
    gives that month, the team's in-progress month (`custom:<first>,<lastCompleteUtcDay>`, `reporting-months.ts:160`) gives
    the current month, `last_month` gives last month, and `last_30_days`, `this_month` or a free custom range give the month
-   of their last day. Fixed mode keeps today's year rule exactly. **Which year's entry:** the entry is looked up with
+   of their last day. **Clients without reporting months** (rolling ranges such as `last_30_days`, which end in the
+   current month, whose tab is filled only after it ends): the block shows the newest month tab that exists and is ready,
+   searching back from the end day's month to January of that year (my decision, 2026-11-11). Clients on reporting months
+   get exactly the picked month. Fixed mode keeps today's year rule exactly. **Which year's entry:** the entry is looked up with
    today's year rule (`kpi-check-in.tsx:20,43`); if that gives `byMonth` (direct or carried forward), it is looked up again
    with the end day's year, and that year is the one used for the tab name, `parseKpiGrid`'s target-year check
    (`kpi-sheet.ts:50`) and the release key (`kpi-check-in.tsx:73`).
@@ -44,19 +47,27 @@ change on our side; past months stay viewable; the same for any client whose tra
    `cached('google-sheets', 'sheetTabTitles', ..., { version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true })`.
    A body without a `sheets` array, or a title that is not a string, is `YtdSheetReadError('malformed')`, as the tab
    reader does (`ytd-sheet.ts:117-118`). A tab added or renamed shows within about 5 minutes (the cache serves the old list
-   once after it expires, `lib/cache.ts:128-132`). The raw title (untrimmed) is what is passed to `readYtdTab`. Two titles
-   that both match the month are ambiguous: staff note, client nothing (never a guess). Fixed mode never reads titles. The
+   once after it expires: Next's `unstable_cache` behaviour, called at `lib/cache.ts:128-132`, not verified in this repo).
+   A tab already read stays cached for an hour (`ytd-sheet.ts:139-140`), so a tab fixed after it was read as "not ready"
+   can keep the note up to an hour; checked on staging. The raw title (untrimmed) is what is passed to `readYtdTab`. Two titles
+   that both match the month are ambiguous: staff note, client nothing (never a guess). The matcher is
+   `monthTabFor(titles: string[], year: string, month: number): { kind: 'one'; title: string } | { kind: 'none' } | { kind: 'ambiguous' }`
+   (`month` 0 to 11; `title` is the raw title). Fixed mode never reads titles. The
    titles read and the tab read run one after the other, so a slow sheet can hold the loading state up to 20 seconds.
 4. **A month tab that is not ready is treated like a missing one, never an error card.** In `byMonth`, every SHOWN
    platform row must say `End of <that month>` and parse (`kpi-sheet.ts:37-63`). A tab copied from last month and not yet
-   relabelled, a part-filled tab, or any other layout problem in the month tab shows staff "The <Month> <Year> KPI tab
-   isn't ready yet." and clients nothing, logged as `kpi month tab not ready ... missing=<item>` (a relabel miss is
+   relabelled, a part-filled tab, or any other layout problem in the month tab (the parser checks every platform row in
+   the tab, shown or not, `kpi-sheet.ts:41-58`; the month-mismatch check covers shown rows only) shows staff "The <Month>
+   <Year> KPI tab isn't ready yet." and clients nothing, logged with `console.warn` as
+   `kpi month tab not ready ... missing=<item>` (a relabel miss is
    `<Platform> month mismatch`, distinct from the parser's `<Platform> month`). Fixed-tab mode keeps today's rules exactly
    (each row its own month, a layout error is the error card).
 5. **No tab for the month yet.** Staff see "No KPI tab for <Month> <Year> yet." (the same style as today's
    "No KPI sheet configured for <year>.", `kpi-check-in.tsx:49`, printed through `PrintAsClient` with `client={null}`, so a
    staff PDF prints nothing there); clients see nothing; one warning is logged. A tab read that answers 400 in `byMonth`
-   (the tab was renamed or deleted after the titles were cached) is handled the same way. This keeps the team's rule that
+   (the tab was renamed or deleted after the titles were cached; Google's answer for a missing tab, unverified, checked on
+   staging) is handled the same way. When the entry was carried forward from last year, the staff note and the log say
+   so ("carried from <year>"), so a forgotten new tracker is visible. This keeps the team's rule that
    the block stays on and forces the tracker to be filled (team call 2026-10-06, private notes S3-D5).
 6. **Release rule unchanged.** A client can only pick opened months (`reporting-months.ts:166-181`). A month that has not
    opened still shows staff the rings and the note "KPI Check-In updates with the <Month> report."
@@ -68,9 +79,10 @@ change on our side; past months stay viewable; the same for any client whose tra
 
 - In: `ctx.clientSlug`, `ctx.dateRange`, `ctx.role` (`ctx.ts:4-22`); the client row's `dashSocialConfig.kpiSheets` and
   `channels`; the clock; the sheet's tab titles; the chosen tab's cells `A1:Z40`.
-- Out: the same JSX as today, or the staff note / nothing (missing tab), or the error card (read or layout failure).
+- Out: the same JSX as today; in `byMonth` the staff note / nothing (missing, not ready or ambiguous tab); the error card
+  for a failed read (and, in fixed mode only, a layout failure).
 - Logs (slug, year, month key, status or layout item; never the sheet id, a tab title or a value):
-  `kpi month tab missing slug= year= month=YYYY-MM`, `kpi month tab not ready slug= year= month=YYYY-MM missing=`, `kpi sheet read failed ... status=`, `kpi sheet layout not found ... missing=`.
+  `kpi month tab missing slug= year= month=YYYY-MM`, `kpi month tab not ready slug= year= month=YYYY-MM missing=` (warn; ambiguous titles use `missing=month tab ambiguous`), `kpi sheet read failed ... status=`, `kpi sheet layout not found ... missing=`.
 
 ## Edge cases
 
@@ -86,7 +98,8 @@ change on our side; past months stay viewable; the same for any client whose tra
 | January, no entry for the new year, last year's entry is `byMonth` | last year's tracker, "January <year>" tab |
 | two tabs match the month (case or spaces) | staff note, client nothing, `missing=month tab ambiguous` logged |
 | metadata read fails (403, 404, timeout) | error card, `status=` logged |
-| `last_30_days` in November | the November tab if it exists and is ready, else as missing |
+| `last_30_days` in November, client without reporting months | the newest ready tab: October if November is not ready |
+| same, client on reporting months | n/a: these clients are served whole months |
 | picked month in another year | that year's `kpiSheets` entry, as today |
 | `{ sheetId, tab }` (fixed) | exactly today's behaviour, every existing test unchanged |
 | both `tab` and `byMonth`, or `byMonth: "yes"` | invalid, as today |
@@ -101,17 +114,18 @@ change on our side; past months stay viewable; the same for any client whose tra
 3. Production, after the team approves on staging: deploy, then the same one-field change (guarded, `--rollback` puts
    `{ sheetId, tab: "October 2026" }` back). The code accepts both shapes, so deploy and switch are independent.
 4. A new client: share the tracker with the app's service account, set `kpiSheets["<year>"] = { sheetId, byMonth: true }`,
-   pin `kpi-check-in@1` on its Overview. No code change. The `kpiSheets` comment in `lib/db/schema.ts:151-153` is updated
+   pin `kpi-check-in@1` on its Overview. No code change. The `kpiSheets` comment in `lib/db/schema.ts:151-153` and the January comment at `kpi-check-in.tsx:47` are updated
    in this PR to document both shapes.
 
 ## Tests (written first)
 
 `kpi-sheet.test.ts`: `kpiSheetFor` (fixed, byMonth, both, neither, `byMonth` not `true`, bad id, missing year);
-`monthTabFor` (exact, case, spaces, missing, two matches, abbreviations refused, newest-not-after for presets).
+`monthTabFor` (exact, case, spaces, missing, two matches, abbreviations refused, raw title returned).
 `kpi-check-in.test.tsx`: byMonth reads the picked month's tab (September range reads "September 2026", October range
 reads "October 2026"); missing tab (staff note, client nothing, one warning, no sheet id in it); row month mismatch is the
 "isn't ready" note (relabel miss, blank cell); a 400 tab read is the missing note; metadata failure is the error card with
-the status; ambiguous titles; `last_month` and `last_30_days` pick the end day's month; the team's in-progress month; the
+the status; ambiguous titles; a client without reporting months on `last_30_days`, `this_month` and a free custom range
+shows the newest ready tab (skipping a not-ready current month); `last_month` on reporting months is not served; the team's in-progress month; the
 release note names the picked month; January carry-forward; the raw title reaches `readYtdTab`; fixed mode never reads
 titles; staff PDF prints nothing for a missing tab; no log line holds the sheet id or a tab title; every fixed-tab test
 unchanged. Cache timing (5 minutes, the stale read once) cannot be unit tested: checked on staging. `ytd-sheet.test.ts`: the metadata reader's URL, deadline and error mapping, mirroring the tab reader's tests.
