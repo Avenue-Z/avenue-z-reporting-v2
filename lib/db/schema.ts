@@ -148,8 +148,10 @@ export interface DashSocialConfig {
    *  { "INSTAGRAM": { "hidden": true } } or { "INSTAGRAM": { "label": "Partnership Posts" } }. Validated at runtime
    *  (parseInfluencerSection), so typed unknown. */
   influencerSection?: unknown
-  /** The team's KPI tracker sheet per year, read by kpi-check-in@1 (10/6 calls): { "<year>": { sheetId, tab } }, the
-   *  same shape as ytdSheets, validated at runtime (ytdSheetFor), so typed unknown. */
+  /** The team's KPI tracker sheet per year, read by kpi-check-in@1 (10/6 calls). Two shapes, validated at runtime
+   *  (kpiSheetFor in lib/organic-social/kpi-sheet.ts), so typed unknown: { "<year>": { sheetId, tab } } reads that one tab
+   *  (the ytdSheets shape); { "<year>": { sheetId, byMonth: true } } reads the tab named for the month on screen
+   *  ("October 2026") and carries into the next year until that year has its own entry. */
   kpiSheets?: unknown
   /** Written notes on the v2 graphs for a client without reportingMonths (PR #306). Only exactly
    *  `true` turns them on (notesOn), so typed unknown. */
