@@ -32,7 +32,10 @@ change on our side; past months stay viewable; the same for any client whose tra
    `resolveDateRange(dateRange).endDate` (`lib/date-range.ts:43`), the helper the rest of the page uses. So a locked month
    gives that month, the team's in-progress month (`custom:<first>,<lastCompleteUtcDay>`, `reporting-months.ts:160`) gives
    the current month, `last_month` gives last month, and `last_30_days`, `this_month` or a free custom range give the month
-   of their last day. Fixed mode keeps today's year rule exactly.
+   of their last day. Fixed mode keeps today's year rule exactly. **Which year's entry:** the entry is looked up with
+   today's year rule (`kpi-check-in.tsx:20,43`); if that gives `byMonth` (direct or carried forward), it is looked up again
+   with the end day's year, and that year is the one used for the tab name, `parseKpiGrid`'s target-year check
+   (`kpi-sheet.ts:50`) and the release key (`kpi-check-in.tsx:73`).
 3. **Which tab.** The tab whose title is `"<Month> <Year>"` with the full English month name, matched after trimming and
    ignoring case ("October 2026", " october 2026 "). No other spelling matches ("Oct 2026", "10/2026"). The titles come
    from `readSheetTabTitles(sheetId): Promise<string[]>`, a new export in `ytd-sheet.ts` beside the tab reader: one
