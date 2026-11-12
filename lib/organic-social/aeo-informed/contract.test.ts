@@ -61,6 +61,7 @@ describe('the output contracts', () => {
     expect(OUTPUTS.socials_table.map((f) => f.name)).toEqual(['rank', 'url', 'title', 'channelTitle', 'ownerBrandId', 'isOwnChannel', 'urlType', 'domainType', 'ownBrandMentioned', 'mentionedBrandCount', 'mentionedBrandNames', 'mentionedBrandIds', 'retrievals', 'retrievalsDelta', 'retrievedPct', 'retrievedPctDelta', 'totalCitations', 'totalCitationsDelta', 'citationRate', 'citationRateDelta'])
     expect(OUTPUTS.url_gaps_table.map((f) => f.name)).toEqual(['rank', 'url', 'title', 'channelTitle', 'urlType', 'domainType', 'mentionedBrandCount', 'mentionedBrandNames', 'mentionedBrandIds', 'citationShare', 'citationPosition', 'retrievals', 'retrievalsDelta', 'totalCitations', 'totalCitationsDelta', 'citationRate', 'citationRateDelta'])
     expect(OUTPUTS.graph_points.map((f) => f.name)).toEqual(['graphId', 'series', 'weekStart', 'weekEnd', 'value', 'unit', 'partial'])
+    expect(OUTPUTS.totals.map((f) => f.name)).toEqual(['urlsCited', 'retrievals', 'citations', 'citationRate'])
   })
   it('citation rate is a nullable float with a minimum of 0 and no maximum (a source can be cited more than once per retrieval)', () => {
     for (const t of [OUTPUTS.socials_table, OUTPUTS.url_gaps_table]) {

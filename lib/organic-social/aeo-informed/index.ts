@@ -6,8 +6,8 @@ import { createPeecReader, type PeecReader } from './peec-read'
 import { pullChunks, pullWindow } from './chunks'
 import { parseBrandDayRows, parseBrands, parseClassifications, parseSocialChannels, parseSourceTags, parseUrlRows } from './shape'
 import { aggregateByUrl } from './urls'
-import { buildBrandChannels } from './ownership'
-import { buildGapRows, buildSocialsRows, splitSocials, type GapRow, type SocialsRow } from './tables'
+import { buildBrandChannels, ownerOf } from './ownership'
+import { buildGapRows, buildSocialsRows, buildTotals, splitSocials, type AeoTotals, type GapRow, type SocialsRow } from './tables'
 import { buildCitationGraph, buildUsedAsSource, FIVE_PLATFORMS, type GraphId, type GraphPoint } from './graphs'
 import { assertIsoDate, daysIn, eachDay, previousWindow, type Window } from './windows'
 import type { PeecUrlRow } from './types'
@@ -17,7 +17,7 @@ import { runGate, AeoGateError, GATE_RULES, type GateInput, type GateRaw, type G
 export { PDF_COLUMN_MAP } from './column-map'
 export { UNVERIFIED, type UnverifiedId } from './unverified'
 export { AeoGateError, GATE_RULES, type GateReport, type GateViolation } from './gate'
-export type { SocialsRow, GapRow, GraphPoint, GraphId }
+export type { SocialsRow, GapRow, GraphPoint, GraphId, AeoTotals }
 export type { Window } from './windows'
 
 export class AeoPullError extends Error {
@@ -78,6 +78,8 @@ export type AeoInformedResult = {
   socialsCompetitor: SocialsRow[]
   urlGaps: GapRow[]
   graphs: GraphPoint[]
+  /** The tiles before the tables: totals over socialsOwn, with the previous window's (team feedback 2026-11-12). */
+  totals: AeoTotals
   meta: Meta
 }
 
@@ -197,11 +199,15 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     if (missing > 0) warnings.push(`days with no chats data in window: ${k} (${missing})`)
   }
 
+  const socialsPriorAgg = aggregateByUrl(rowsIn(selRows, socialsPrior))
   const socialsAll = buildSocialsRows({
-    current: aggregateByUrl(rowsIn(selRows, socials)), prior: aggregateByUrl(rowsIn(selRows, socialsPrior)),
+    current: aggregateByUrl(rowsIn(selRows, socials)), prior: socialsPriorAgg,
     chatsCurrent: chats.socials, chatsPrior: chats.socialsPrior, brands, domainType: selector.name,
   })
   const split = splitSocials(socialsAll, ownBrand.id)
+  // The previous window's own URLs, by the rule splitSocials uses (the URL's chosen channel title), including URLs with no row this window.
+  const priorOwn = socialsPriorAgg.filter((u) => ownerOf({ url: u.url, channelTitle: u.channelTitle }, brands) === ownBrand.id)
+  const totals = buildTotals(split.own, chats.socialsPrior > 0 ? priorOwn : null)
   const gapCurrent = gapCurrentRows.flatMap((r) => aggregateByUrl([r]))
   if (gapCurrent.length === 0) warnings.push('gap view is empty for the gaps window')
   const urlGaps = buildGapRows({ current: gapCurrent, prior: gapPriorRows.flatMap((r) => aggregateByUrl([r])), brands, domainType: selector.name })
@@ -220,6 +226,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     socialsCompetitor: split.competitor,
     urlGaps,
     graphs: graphPoints,
+    totals,
     meta: {
       asOf: input.asOf,
       graphs,

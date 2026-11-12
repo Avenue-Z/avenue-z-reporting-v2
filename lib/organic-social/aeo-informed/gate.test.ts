@@ -37,7 +37,7 @@ const MUTATIONS: Record<string, Mut[]> = {
     (c) => { c.r.urlGaps.find((g) => g.retrievalsDelta !== null)!.retrievalsDelta = 999 },
     (c) => { c.r.socialsAll[0].retrievals += 1 },
   ],
-  'no-nan': [(c) => { c.r.socialsAll[0].retrievedPct = NaN }],
+  'no-nan': [(c) => { c.r.socialsAll[0].retrievedPct = NaN }, (c) => { c.r.totals.citationRate = NaN }, (c) => { c.r.totals.prior!.citationRate = Infinity }],
   'socials-all.rank': [(c) => { c.r.socialsAll[0].rank = 5 }],
   'socials-all.order': [(c) => { c.r.socialsAll[0].retrievals = 0 }, (c) => { const [a, b] = [c.r.socialsAll[0], c.r.socialsAll[1]]; a.retrievals = b.retrievals; a.url = 'https://www.linkedin.com/pulse/zzz' }],
   'socials-all.own-flag': [(c) => { c.r.socialsAll[0].isOwnChannel = !c.r.socialsAll[0].isOwnChannel }],
@@ -60,6 +60,19 @@ const MUTATIONS: Record<string, Mut[]> = {
   'socials-all.mentions': [
     (c) => { c.r.socialsAll.find((x) => x.mentionedBrandCount === 0)!.ownBrandMentioned = true },
     (c) => { c.r.socialsAll.find((x) => x.mentionedBrandCount === 0)!.mentionedBrandNames = 'Someone' },
+  ],
+  'totals.recount': [
+    (c) => { c.r.totals.retrievals += 1 },
+    (c) => { c.r.totals.citations += 1 },
+    (c) => { c.r.totals.urlsCited += 1 },
+    (c) => { c.r.totals.citationRate = 0.99 },
+  ],
+  'totals.prior-recount': [
+    (c) => { c.r.totals.prior!.retrievals += 1 },
+    (c) => { c.r.totals.prior!.urlsCited = 0 },
+    (c) => { c.r.totals.prior!.citationRate = null },
+    (c) => { c.r.totals.prior = null },
+    (c) => { c.r.meta.chats.socialsPrior = 0 }, // a previous window with no chats has no totals to compare with
   ],
   'socials-split.subset': [(c) => { c.r.socialsOwn[0].url = 'https://x.example/not-in-all' }, (c) => { c.r.socialsOwn[0].retrievals += 1 }],
   'socials-own.membership': [(c) => { c.r.socialsOwn[0].ownerBrandId = 'someone-else' }],
@@ -179,9 +192,11 @@ describe('contract rules, from the typed field specs', () => {
     ;(c.r.urlGaps[0] as unknown as Record<string, unknown>).citationShare = 'x'
     ;(c.r.graphs[0] as unknown as Record<string, unknown>).graphId = 'made_up'
     ;(c.r.socialsOwn[0] as unknown as Record<string, unknown>).surprise = 1
+    ;(c.r.totals as unknown as Record<string, unknown>).surprise = 1
     const k = codes(c)
     expect(k).toContain('contract.socials_table.min')
     expect(k).toContain('contract.url_gaps_table.type')
+    expect(k).toContain('contract.totals.extra')
     expect(k).toContain('contract.graph_points.oneOf')
     expect(k).toContain('contract.socials_table.extra')
   })

@@ -183,3 +183,27 @@ export function buildGapRows(i: GapInput): GapRow[] {
     }
   })
 }
+
+/** One window's totals for the tiles before the tables (team feedback 2026-11-12: "similar to the OS data"). */
+export type TotalsWindow = { urlsCited: number; retrievals: number; citations: number; citationRate: number | null }
+/** The totals over the client's own channels (the own table), and the same over the previous window, or null when that window has no chats. */
+export type AeoTotals = TotalsWindow & { prior: TotalsWindow | null }
+
+function sumWindow(rows: readonly { retrievals: number; citations: number }[]): TotalsWindow {
+  const retrievals = rows.reduce((s, x) => s + x.retrievals, 0)
+  const citations = rows.reduce((s, x) => s + x.citations, 0)
+  return { urlsCited: rows.filter((x) => x.citations > 0).length, retrievals, citations, citationRate: citationRateOf(citations, retrievals) }
+}
+
+/**
+ * Total URLs cited (rows with at least one citation), total retrievals, total citations, and the average citation rate, which is total citations over
+ * total retrievals: weighted, so a URL retrieved once cannot swing it. `current` is the own table for the window. `prior` is the previous window's
+ * per-URL sums, already narrowed to the own channels by the same ownership rule, including a URL that has no row this window; null means there is
+ * nothing to compare with.
+ */
+export function buildTotals(current: readonly SocialsRow[], prior: readonly UrlAgg[] | null): AeoTotals {
+  return {
+    ...sumWindow(current.map((x) => ({ retrievals: x.retrievals, citations: x.totalCitations }))),
+    prior: prior === null ? null : sumWindow(prior),
+  }
+}

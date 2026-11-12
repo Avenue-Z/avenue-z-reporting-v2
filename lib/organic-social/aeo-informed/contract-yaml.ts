@@ -74,6 +74,7 @@ function tabularYaml(schema: string, header: string, fields: readonly FieldSpec[
 const OUTPUT_HEADERS: Record<keyof typeof OUTPUTS, [string, string]> = {
   socials_table: ['aeo.socials_table', '# SocialsRow (tables.ts): socialsAll, socialsOwn and socialsCompetitor. Percentages are fractions 0..1. A delta is null when the URL has no row in the previous window.'],
   url_gaps_table: ['aeo.url_gaps_table', '# GapRow (tables.ts). citationShare is a row\'s citations over the sum across every row of the same pull. citationPosition is null when no chat cited the URL inline.'],
+  totals: ['aeo.totals', '# AeoTotals (tables.ts buildTotals): one object for the window (totals) and one for the previous window (totals_prior, absent when it has no chats). Over the own table only. citationRate is total citations over total retrievals, null at 0 retrievals, with no maximum.'],
   graph_points: ['aeo.graph_points', '# GraphPoint (graphs.ts). value is null in every bucket of a graph that has no own source in its window ("No source data").'],
 }
 
@@ -109,6 +110,8 @@ export function renderContractFiles(): Record<string, string> {
     '  - {name: socials_competitor, schema: aeo.socials_table@1, sink: {kind: file, format: json}, mode: observe}',
     '  - {name: url_gaps, schema: aeo.url_gaps_table@1, sink: {kind: file, format: json}, mode: observe}',
     '  - {name: graph_points, schema: aeo.graph_points@1, sink: {kind: file, format: json}, mode: observe}',
+    '  - {name: totals, schema: aeo.totals@1, sink: {kind: file, format: json}, mode: observe}',
+    '  - {name: totals_prior, schema: aeo.totals@1, sink: {kind: file, format: json}, mode: observe}',
     '',
   ].join('\n')
   return files

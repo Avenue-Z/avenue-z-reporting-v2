@@ -1,6 +1,6 @@
 // lib/organic-social/aeo-informed/tables.test.ts
 import { describe, it, expect } from 'vitest'
-import { buildSocialsRows, splitSocials, buildGapRows, urlTypeLabel } from './tables'
+import { buildSocialsRows, splitSocials, buildGapRows, urlTypeLabel, buildTotals } from './tables'
 import type { UrlAgg } from './types'
 import type { BrandChannels } from './ownership'
 
@@ -212,5 +212,29 @@ describe('citation rate (team feedback 2026-11-12)', () => {
     expect(g.mentionedBrandIds).toBe('b_globex|b_initech')
     const [none] = buildSocialsRows({ ...base, current: [agg('https://x.com/n', { retrievals: 1, brandIds: ['b_unknown'] })], prior: [] })
     expect([none.mentionedBrandNames, none.mentionedBrandIds]).toEqual([null, null])
+  })
+})
+
+describe('buildTotals (the four tiles before the tables, team feedback 2026-11-12)', () => {
+  const rows = (list: [number, number][]) => buildSocialsRows({ ...base, current: list.map(([retrievals, citations], i) => agg(`https://x.com/${i}`, { retrievals, citations })), prior: [] })
+  it('totals count URLs with at least one citation', () => {
+    expect(buildTotals(rows([[4, 0], [4, 1], [4, 3]]), null).urlsCited).toBe(2)
+  })
+  it('totals sum retrievals and citations', () => {
+    expect(buildTotals(rows([[4, 0], [6, 1], [10, 3]]), null)).toMatchObject({ retrievals: 20, citations: 4 })
+  })
+  it('totals rate is total citations over total retrievals, not the mean of the row rates', () => {
+    expect(buildTotals(rows([[10, 5], [95, 0]]), null).citationRate).toBeCloseTo(5 / 105, 12)
+  })
+  it('rate is null at 0 retrievals, and an empty table gives zeros', () => {
+    expect(buildTotals(rows([[0, 0]]), null)).toEqual({ urlsCited: 0, retrievals: 0, citations: 0, citationRate: null, prior: null })
+    expect(buildTotals([], null)).toEqual({ urlsCited: 0, retrievals: 0, citations: 0, citationRate: null, prior: null })
+  })
+  it('prior is the same sums over the previous window rows it is given, including a URL that is not in this window', () => {
+    const t = buildTotals(rows([[10, 2]]), [agg('https://x.com/0', { retrievals: 4, citations: 1 }), agg('https://x.com/gone', { retrievals: 6, citations: 0 })])
+    expect(t.prior).toEqual({ urlsCited: 1, retrievals: 10, citations: 1, citationRate: 0.1 })
+  })
+  it('prior is null when no previous window rows are given', () => {
+    expect(buildTotals(rows([[10, 2]]), null).prior).toBeNull()
   })
 })

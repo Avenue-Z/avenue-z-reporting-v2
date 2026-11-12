@@ -283,3 +283,30 @@ describe('team feedback 2026-11-12: citation rate and brand colors', () => {
     expect(r.socialsAll[0].mentionedBrandIds).toBe(OWN)
   })
 })
+
+describe('team feedback 2026-11-12: totals over your channels', () => {
+  it('totals are over the own table, with the previous window recounted from its own rows', async () => {
+    const r = await getAeoInformedSocial(input(world().reader))
+    expect(r.totals).toEqual({ urlsCited: 1, retrievals: 20, citations: 8, citationRate: 0.4, prior: { urlsCited: 1, retrievals: 3, citations: 1, citationRate: 1 / 3 } })
+  })
+  it('the previous window counts an own URL cited only then, and leaves out other brands\' URLs', async () => {
+    const extra = [
+      urlRow('https://www.linkedin.com/pulse/own-2', '2026-09-25', { channel_title: 'Example Life', retrieval_count: 4, citation_count: 2 }),
+      urlRow('https://www.linkedin.com/company/globex/posts/1', '2026-09-26', { channel_title: 'Globex', retrieval_count: 9, citation_count: 9 }),
+    ]
+    const r = await getAeoInformedSocial(input(world({ byDay: [...BY_DAY, ...extra] }).reader))
+    expect(r.totals.prior).toEqual({ urlsCited: 2, retrievals: 7, citations: 3, citationRate: 3 / 7 })
+    expect(r.totals).toMatchObject({ urlsCited: 1, retrievals: 20, citations: 8 })
+  })
+  it('a URL whose rows disagree on the channel is owned by the title urls.ts picks, and the gate recount agrees (no gate error)', async () => {
+    // own-3 in the previous window: a row with no title (skipped), then a tie on retrievals between Globex and Example Life, which goes to the smaller title
+    const own3 = 'https://www.linkedin.com/pulse/own-3'
+    const extra = [
+      urlRow(own3, '2026-09-21', { channel_title: null, retrieval_count: 5, citation_count: 1 }),
+      urlRow(own3, '2026-09-22', { channel_title: 'Globex', retrieval_count: 2, citation_count: 0 }),
+      urlRow(own3, '2026-09-23', { channel_title: 'Example Life', retrieval_count: 2, citation_count: 0 }),
+    ]
+    const r = await getAeoInformedSocial(input(world({ byDay: [...BY_DAY, ...extra] }).reader))
+    expect(r.totals.prior).toEqual({ urlsCited: 2, retrievals: 12, citations: 2, citationRate: 2 / 12 })
+  })
+})

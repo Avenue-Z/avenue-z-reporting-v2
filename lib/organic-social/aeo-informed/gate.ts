@@ -69,6 +69,8 @@ export const GATE_RULES: GateRule[] = [
   { code: 'url-gaps.competitor-mentioned', severity: 'error', plain: 'Every URL gaps row has at least one brand mentioned: a gap needs a competitor.' },
   { code: 'url-gaps.own-absent', severity: 'error', plain: 'No source behind the URL gaps table mentions our own brand: a gap is where a competitor is mentioned and we are not.' },
   { code: 'url-gaps.new-url-deltas', severity: 'error', plain: 'A new URL has an empty change in both retrievals and citations, never one without the other.' },
+  { code: 'totals.recount', severity: 'error', plain: 'The four totals before the tables equal a recount of the own table: URLs with at least one citation, the sums of retrievals and citations, and total citations divided by total retrievals.' },
+  { code: 'totals.prior-recount', severity: 'error', plain: 'The previous window\'s totals equal a recount of the rows Peec returned for that window, narrowed to our own channels, and are empty exactly when that window has no chats.' },
   { code: 'graphs.complete', severity: 'error', plain: 'Each of the four graphs is present, in order, with the right number of weekly points up to the as-of date.' },
   { code: 'graphs.buckets', severity: 'error', plain: 'Each graph\'s points are 7-day buckets, one right after the other, starting on the graph\'s own start date.' },
   { code: 'graphs.partial', severity: 'error', plain: 'A weekly point is flagged "partial" exactly when its week has not finished by the as-of date.' },
@@ -141,6 +143,9 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     ['socialsCompetitor', r.socialsCompetitor, OUTPUTS.socials_table, 'socials_table'],
     ['urlGaps', r.urlGaps, OUTPUTS.url_gaps_table, 'url_gaps_table'],
     ['graphs', r.graphs, OUTPUTS.graph_points, 'graph_points'],
+    // every key but prior, so an unexpected extra field is still caught by the closed check
+    ['totals', [Object.fromEntries(Object.entries(r.totals).filter(([k]) => k !== 'prior'))], OUTPUTS.totals, 'totals'],
+    ['totals.prior', r.totals.prior ? [r.totals.prior] : [], OUTPUTS.totals, 'totals'],
   ]
   for (const [label, rows, fields, name] of tables) for (const v of validateRows(rows, fields, label, { closed: true })) err(`contract.${name}.${v.rule}`, v.where, v.message)
 
@@ -151,7 +156,7 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if (Array.isArray(v)) { v.forEach((x, i) => scan(x, `${path}[${i}]`)); return }
     if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) scan(x, `${path}.${k}`)
   }
-  scan({ socialsAll: r.socialsAll, socialsOwn: r.socialsOwn, socialsCompetitor: r.socialsCompetitor, urlGaps: r.urlGaps, graphs: r.graphs, chats: m.chats }, 'result')
+  scan({ socialsAll: r.socialsAll, socialsOwn: r.socialsOwn, socialsCompetitor: r.socialsCompetitor, urlGaps: r.urlGaps, graphs: r.graphs, totals: r.totals, chats: m.chats }, 'result')
 
   // ---- 3. summary ----
   try {
@@ -273,6 +278,36 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if ((x.retrievalsDelta === null) !== (x.totalCitationsDelta === null)) err('url-gaps.new-url-deltas', at, 'one change is empty and the other is not')
   })
   if ([...raw.gapCurrentRows, ...raw.gapPriorRows].some((g) => g.mentioned_brands.some((b) => b.id === m.ownBrandId))) err('url-gaps.own-absent', 'urlGaps', 'a source behind the table mentions our own brand')
+
+  // ---- 6b. the totals before the tables ----
+  {
+    type T = { urlsCited: number; retrievals: number; citations: number; citationRate: number | null }
+    const totalsOf = (rows: readonly { ret: number; cit: number }[]): T => {
+      const retrievals = rows.reduce((s, x) => s + x.ret, 0), citations = rows.reduce((s, x) => s + x.cit, 0)
+      return { urlsCited: rows.filter((x) => x.cit > 0).length, retrievals, citations, citationRate: retrievals > 0 ? citations / retrievals : null }
+    }
+    const same = (a: T, b: T) => a.urlsCited === b.urlsCited && a.retrievals === b.retrievals && a.citations === b.citations
+      && (a.citationRate === null ? b.citationRate === null : b.citationRate !== null && near(a.citationRate, b.citationRate))
+    // This window: a recount of the own table, which the oracle and split rules above already prove against the raw rows.
+    if (!same(r.totals, totalsOf(r.socialsOwn.map((x) => ({ ret: x.retrievals, cit: x.totalCitations }))))) err('totals.recount', 'totals', 'a total does not equal a recount of the own table')
+    // The previous window: recounted from the raw rows, with each URL's channel title chosen as urls.ts does (the row with the most retrievals that
+    // has one, ties to the smallest), then owned by the same rule as the own table. A URL with no row this window still counts.
+    if (m.chats.socialsPrior === 0) {
+      if (r.totals.prior !== null) err('totals.prior-recount', 'totals.prior', 'the previous window has no chats, so it has no totals to compare with')
+    } else {
+      const byUrl = new Map<string, { ret: number; cit: number; title: { weight: number; value: string } | null }>()
+      for (const x of raw.selRows) {
+        if (!inWin(x.date, w.socialsPrior)) continue
+        const e = byUrl.get(x.url) ?? { ret: 0, cit: 0, title: null }
+        e.ret += x.retrieval_count; e.cit += x.citation_count
+        const t = x.channel_title
+        if (t !== null && t !== undefined && (!e.title || x.retrieval_count > e.title.weight || (x.retrieval_count === e.title.weight && t < e.title.value))) e.title = { weight: x.retrieval_count, value: t }
+        byUrl.set(x.url, e)
+      }
+      const own = [...byUrl].filter(([url, e]) => ownerOf({ url, channelTitle: e.title?.value ?? null }, raw.brands) === m.ownBrandId).map(([, e]) => e)
+      if (r.totals.prior === null || !same(r.totals.prior, totalsOf(own))) err('totals.prior-recount', 'totals.prior', 'the previous window\'s totals do not equal a recount of our own channels in that window')
+    }
+  }
 
   // ---- 7. chat days, then graphs ----
   const present = new Set(raw.dayRows.map((d) => d.date))

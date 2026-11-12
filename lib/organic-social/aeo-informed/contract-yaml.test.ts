@@ -42,9 +42,11 @@ describe('the generator refuses what it cannot render faithfully', () => {
 
 describe('what is generated', () => {
   const files = renderContractFiles()
-  it('declares 6 raw boundaries, 1 input and 5 outputs, all in observe mode', () => {
+  it('declares 6 raw boundaries, 1 input and 7 outputs, all in observe mode', () => {
     const c = files['contract.yaml']
-    expect((c.match(/mode: observe/g) ?? []).length).toBe(12)
+    expect((c.match(/mode: observe/g) ?? []).length).toBe(14)
+    expect(c).toContain('  - {name: totals, schema: aeo.totals@1, sink: {kind: file, format: json}, mode: observe}')
+    expect(c).toContain('  - {name: totals_prior, schema: aeo.totals@1, sink: {kind: file, format: json}, mode: observe}')
     expect(c).not.toMatch(/mode: (warn|enforce)/)
     expect(c).toContain('system: aeo-informed-social')
   })

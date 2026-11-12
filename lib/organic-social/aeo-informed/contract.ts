@@ -72,6 +72,13 @@ export const OUTPUTS = {
     f('citationRate', 'float', { nullable: true, min: 0 }),
     f('citationRateDelta', 'float', { nullable: true }),
   ],
+  // One object per window (totals and totals.prior): the tiles before the tables. citationRate has no maximum, like the row rate.
+  totals: [
+    f('urlsCited', 'int', { min: 0 }),
+    f('retrievals', 'int', { min: 0 }),
+    f('citations', 'int', { min: 0 }),
+    f('citationRate', 'float', { nullable: true, min: 0 }),
+  ],
   graph_points: [
     f('graphId', 'string', { oneOf: GRAPH_IDS }),
     f('series', 'string', { minLength: 1 }),

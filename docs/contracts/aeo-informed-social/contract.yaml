@@ -18,3 +18,5 @@ outputs:
   - {name: socials_competitor, schema: aeo.socials_table@1, sink: {kind: file, format: json}, mode: observe}
   - {name: url_gaps, schema: aeo.url_gaps_table@1, sink: {kind: file, format: json}, mode: observe}
   - {name: graph_points, schema: aeo.graph_points@1, sink: {kind: file, format: json}, mode: observe}
+  - {name: totals, schema: aeo.totals@1, sink: {kind: file, format: json}, mode: observe}
+  - {name: totals_prior, schema: aeo.totals@1, sink: {kind: file, format: json}, mode: observe}
