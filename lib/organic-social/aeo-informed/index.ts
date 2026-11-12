@@ -8,7 +8,7 @@ import { parseBrandDayRows, parseBrands, parseClassifications, parseSocialChanne
 import { aggregateByUrl } from './urls'
 import { buildBrandChannels, ownerOf } from './ownership'
 import { buildGapRows, buildSocialsRows, buildTotals, splitSocials, type AeoTotals, type GapRow, type SocialsRow } from './tables'
-import { buildCitationGraph, buildUsedAsSource, FIVE_PLATFORMS, type GraphId, type GraphPoint } from './graphs'
+import { buildCitationGraph, buildUsedAsSource, CITATION_PLATFORMS, FOURTH_GRAPHS, graphOrder, type FourthGraph, type GraphId, type GraphPoint } from './graphs'
 import { assertIsoDate, daysIn, eachDay, previousWindow, type Window } from './windows'
 import type { PeecUrlRow } from './types'
 import { UNVERIFIED, type UnverifiedId } from './unverified'
@@ -17,7 +17,8 @@ import { runGate, AeoGateError, GATE_RULES, type GateInput, type GateRaw, type G
 export { PDF_COLUMN_MAP } from './column-map'
 export { UNVERIFIED, type UnverifiedId } from './unverified'
 export { AeoGateError, GATE_RULES, type GateReport, type GateViolation } from './gate'
-export type { SocialsRow, GapRow, GraphPoint, GraphId, AeoTotals }
+export type { SocialsRow, GapRow, GraphPoint, GraphId, AeoTotals, FourthGraph }
+export { graphOrder, FOURTH_GRAPHS } from './graphs'
 export type { Window } from './windows'
 
 export class AeoPullError extends Error {
@@ -42,8 +43,13 @@ export type AeoInformedInput = {
   views: {
     socials: Window
     gaps: Window
-    graphs: Record<GraphId, { from: string; weeks: number }>
+    /** Exactly the four graphs drawn: graphOrder(fourthGraph). */
+    graphs: Partial<Record<GraphId, { from: string; weeks: number }>>
   }
+  /** URL Gaps keeps rows mentioned by at least this many competitor brands (Peec's gap filter, gte). A whole number 1 to 5. Default 1. */
+  minCompetitors?: number
+  /** The fourth graph. Default 'instagram'. */
+  fourthGraph?: FourthGraph
   selector?: { name: string; via: 'classification' | 'tag' }
   /** Test seam. */
   reader?: PeecReader
@@ -57,7 +63,11 @@ export type Meta = {
   /** The as-of date the call was made with. */
   asOf: string
   /** The start date and number of weeks each graph was asked for. */
-  graphs: Record<GraphId, { from: string; weeks: number }>
+  graphs: Partial<Record<GraphId, { from: string; weeks: number }>>
+  /** The URL Gaps min competitors the call was made with. */
+  minCompetitors: number
+  /** The fourth graph drawn. */
+  fourthGraph: FourthGraph
   windows: { socials: Window; socialsPrior: Window; gaps: Window; gapsPrior: Window }
   ownBrandId: string
   ownBrandName: string
@@ -83,7 +93,6 @@ export type AeoInformedResult = {
   meta: Meta
 }
 
-const GRAPH_ORDER: GraphId[] = ['used_as_source_all', 'citations_all', 'citations_linkedin', 'citations_instagram']
 const LIST_LIMIT = 1000
 
 const minDate = (...d: string[]) => d.reduce((a, b) => (a < b ? a : b))
@@ -96,9 +105,16 @@ function validate(i: AeoInformedInput): void {
     assertIsoDate(w.start); assertIsoDate(w.end); daysIn(w)
     if (w.end > i.asOf) throw new RangeError(`views.${name}.end (${w.end}) is after asOf (${i.asOf})`)
   }
-  for (const id of GRAPH_ORDER) {
-    const g = i.views.graphs[id]
-    if (!g) throw new RangeError(`views.graphs.${id} is missing`)
+  // Only an absent value takes the default: null is a mistake, not a choice.
+  const min = i.minCompetitors === undefined ? 1 : i.minCompetitors
+  if (typeof min !== 'number' || !Number.isInteger(min) || min < 1 || min > 5) throw new RangeError(`minCompetitors must be a whole number from 1 to 5, got ${String(min)}`)
+  const fourth = i.fourthGraph === undefined ? 'instagram' : i.fourthGraph
+  if (!FOURTH_GRAPHS.includes(fourth)) throw new RangeError(`fourthGraph must be one of ${FOURTH_GRAPHS.join(', ')}, got ${String(fourth)}`)
+  const drawn = graphOrder(fourth)
+  for (const id of drawn) if (!i.views.graphs[id]) throw new RangeError(`views.graphs.${id} is missing`)
+  for (const id of Object.keys(i.views.graphs)) if (!drawn.includes(id as GraphId)) throw new RangeError(`views.graphs.${id} is not drawn (the graphs are ${drawn.join(', ')})`)
+  for (const id of drawn) {
+    const g = i.views.graphs[id]!
     assertIsoDate(g.from)
     if (!Number.isInteger(g.weeks) || g.weeks < 1) throw new RangeError(`views.graphs.${id}.weeks must be a whole number of at least 1, got ${g.weeks}`)
   }
@@ -112,6 +128,10 @@ const rowsIn = (rows: PeecUrlRow[], w: Window) => rows.filter((r) => r.date !== 
  */
 export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft: GateInput; raw: GateRaw }> {
   validate(input)
+  // validate() refused anything but undefined or a valid value
+  const minCompetitors = input.minCompetitors ?? 1
+  const fourthGraph = input.fourthGraph ?? 'instagram'
+  const order = graphOrder(fourthGraph)
   const selector = input.selector ?? { name: 'Organic Social', via: 'classification' as const }
   const inner = input.reader ?? createPeecReader({ apiKey: input.apiKey, projectId: input.projectId, deadlineMs: input.deadlineMs })
   let requests = 0
@@ -153,11 +173,13 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   }
 
   // 3) windows. Counts add across days, so one by-day span serves every window that needs it.
-  const { socials, gaps, graphs } = input.views
+  const { socials, gaps } = input.views
+  // validate() proved every drawn id is present
+  const graphs = input.views.graphs as Record<GraphId, { from: string; weeks: number }>
   const socialsPrior = previousWindow(socials)
   const gapsPrior = previousWindow(gaps)
   const graphWin = (id: GraphId): Window => ({ start: graphs[id].from, end: minDate(addDays(graphs[id].from, graphs[id].weeks * 7 - 1), input.asOf) })
-  const citationIds: GraphId[] = ['citations_all', 'citations_linkedin', 'citations_instagram']
+  const citationIds = order.filter((id): id is Exclude<GraphId, 'used_as_source_all'> => id !== 'used_as_source_all')
   const citWins = citationIds.map(graphWin).filter((w) => w.start <= w.end)
   const selSpan: Window = {
     start: minDate(socialsPrior.start, ...citWins.map((w) => w.start)),
@@ -171,7 +193,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   // The outline's URL gaps table lists Peec's own rows, and Peec returns a URL as several rows when different competitors cite it (445 rows for 410 URLs on the September check, against
   // the outline's 442). A by-day pull splits rows by day and merging by URL loses the split, so each window is one request with no date dimension and the table keeps the rows as returned.
   // A previous-window URL that is not a gap in that window has no prior row and its change is empty.
-  const gapFilters = [selFilter, { field: 'gap', operator: 'gte', value: 1 }]
+  const gapFilters = [selFilter, { field: 'gap', operator: 'gte', value: minCompetitors }]
   const gapCurrentRows = await step('gaps-current', gaps, () => pullWindow(reader, '/reports/urls', { filters: gapFilters }, gaps, (b, p) => parseUrlRows(b, p), 'gaps-current'))
   const gapPriorRows = await step('gaps-prior', gapsPrior, () => pullWindow(reader, '/reports/urls', { filters: gapFilters }, gapsPrior, (b, p) => parseUrlRows(b, p), 'gaps-prior'))
   const chatRows = usedWin.start <= usedWin.end
@@ -215,9 +237,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   const common = (id: GraphId) => ({ brands, ownBrandId: ownBrand.id, ownBrandName: ownBrand.name, from: graphs[id].from, weeks: graphs[id].weeks, asOf: input.asOf })
   const graphPoints: GraphPoint[] = [
     ...buildUsedAsSource({ ...common('used_as_source_all'), rows: chatRows, chatsByDay }),
-    ...buildCitationGraph({ ...common('citations_all'), graphId: 'citations_all', platforms: FIVE_PLATFORMS, rows: selRows }),
-    ...buildCitationGraph({ ...common('citations_linkedin'), graphId: 'citations_linkedin', platforms: ['linkedin'], rows: selRows }),
-    ...buildCitationGraph({ ...common('citations_instagram'), graphId: 'citations_instagram', platforms: ['instagram'], rows: selRows }),
+    ...citationIds.flatMap((id) => buildCitationGraph({ ...common(id), graphId: id, platforms: CITATION_PLATFORMS[id], rows: selRows })),
   ]
 
   const draft = {
@@ -229,7 +249,9 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     totals,
     meta: {
       asOf: input.asOf,
-      graphs,
+      graphs: input.views.graphs,
+      minCompetitors,
+      fourthGraph,
       windows: { socials, socialsPrior, gaps, gapsPrior },
       ownBrandId: ownBrand.id,
       ownBrandName: ownBrand.name,

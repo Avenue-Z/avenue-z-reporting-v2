@@ -7,7 +7,13 @@ import { ownerOf, type BrandChannels } from './ownership'
 import { peecPlatformOf } from './platform'
 import type { PeecUrlRow } from './types'
 
-export type GraphId = 'used_as_source_all' | 'citations_all' | 'citations_linkedin' | 'citations_instagram'
+export type GraphId = 'used_as_source_all' | 'citations_all' | 'citations_linkedin' | 'citations_instagram' | 'citations_tiktok'
+/** The client's fourth graph (dash_social_config.aeoInformedSocial.fourthGraph): the outline's Instagram, or TikTok. Only the platforms with a
+ *  line color on the other Organic Social tabs that are not already graph 3 (spec section 1). */
+export type FourthGraph = 'instagram' | 'tiktok'
+export const FOURTH_GRAPHS: readonly FourthGraph[] = ['instagram', 'tiktok']
+/** The four graphs drawn, in page order. */
+export const graphOrder = (fourth: FourthGraph): GraphId[] => ['used_as_source_all', 'citations_all', 'citations_linkedin', `citations_${fourth}`]
 export type Platform = 'linkedin' | 'youtube' | 'instagram' | 'tiktok' | 'reddit'
 export type GraphPoint = {
   graphId: GraphId
@@ -20,6 +26,10 @@ export type GraphPoint = {
 }
 
 export const FIVE_PLATFORMS: Platform[] = ['linkedin', 'youtube', 'instagram', 'tiktok', 'reddit']
+/** The platforms each citations graph counts. */
+export const CITATION_PLATFORMS: Record<Exclude<GraphId, 'used_as_source_all'>, Platform[]> = {
+  citations_all: FIVE_PLATFORMS, citations_linkedin: ['linkedin'], citations_instagram: ['instagram'], citations_tiktok: ['tiktok'],
+}
 
 /** The graph platform a URL belongs to, or null (a facebook or medium URL is not on any of these charts). */
 export function platformOf(url: string): Platform | null {

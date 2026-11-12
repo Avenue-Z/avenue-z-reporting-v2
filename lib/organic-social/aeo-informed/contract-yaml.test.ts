@@ -55,7 +55,7 @@ describe('what is generated', () => {
     expect(s).toContain('{name: rank, type: int, minimum: 1}')
     expect(s).toContain('{name: retrievalsDelta, type: int, nullable: true}')
     expect(s).toContain('{name: retrievedPct, type: float, minimum: 0, maximum: 1}')
-    expect(files[`schemas/aeo/graph_points/${CONTRACT_VERSION}.yaml`]).toContain('enum: ["used_as_source_all", "citations_all", "citations_linkedin", "citations_instagram"]')
+    expect(files[`schemas/aeo/graph_points/${CONTRACT_VERSION}.yaml`]).toContain('enum: ["used_as_source_all", "citations_all", "citations_linkedin", "citations_instagram", "citations_tiktok"]')
   })
   it('a raw schema is a JSON Schema with the required fields of the contract', () => {
     const s = files[`schemas/peec/reports_urls_response/${CONTRACT_VERSION}.yaml`]

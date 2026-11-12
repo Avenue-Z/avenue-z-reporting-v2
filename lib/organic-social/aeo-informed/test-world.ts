@@ -36,7 +36,8 @@ export const CHAT_ROWS = [
   urlRow(OWN_URL, '2026-09-05', { channel_title: 'Example Life', chat: { id: 'c2' } }),
 ]
 
-export function world(over: { brands?: Record<string, unknown>[]; classes?: { name: string }[]; tags?: { id: string; name: string }[]; failOn?: (path: string, body?: Body) => boolean; chatsPerDay?: number; byDay?: Row[]; chatDaysMissing?: string[]; gapRows?: Row[]; failStatus?: number } = {}) {
+/** `channels` replaces the registered social channels; `chatsFrom` is the project's first day of chat data (no brands-report row before it). */
+export function world(over: { brands?: Record<string, unknown>[]; channels?: { brand_id: string; platform: string; channel_handle: string }[]; classes?: { name: string }[]; tags?: { id: string; name: string }[]; failOn?: (path: string, body?: Body) => boolean; chatsPerDay?: number; byDay?: Row[]; chatDaysMissing?: string[]; chatsFrom?: string; gapRows?: Row[]; failStatus?: number } = {}) {
   const calls: { method: string; path: string; body?: Body; label?: string }[] = []
   let inFlight = 0, maxInFlight = 0
   const brands = over.brands ?? [{ id: OWN, name: 'Example', is_own: true }, { id: GLOBEX, name: 'Globex', is_own: false }]
@@ -47,7 +48,7 @@ export function world(over: { brands?: Record<string, unknown>[]; classes?: { na
       await Promise.resolve(); inFlight--
       if (over.failOn?.(path)) throw new PeecHttpError(over.failStatus ?? 500, path, 'boom', label)
       if (path === '/brands') return { data: brands }
-      if (path === '/brands/social-channels') return { data: [{ brand_id: OWN, platform: 'linkedin', channel_handle: 'company/examplebenefits' }, { brand_id: GLOBEX, platform: 'linkedin', channel_handle: 'company/globex' }] }
+      if (path === '/brands/social-channels') return { data: over.channels ?? [{ brand_id: OWN, platform: 'linkedin', channel_handle: 'company/examplebenefits' }, { brand_id: GLOBEX, platform: 'linkedin', channel_handle: 'company/globex' }] }
       if (path === '/classifications/domains') return { data: over.classes ?? [{ name: 'Organic Social' }, { name: 'Editorial - Trade' }] }
       if (path === '/source-tags') return { data: over.tags ?? [{ id: 'stg_1', name: 'Organic Social' }] }
       throw new Error('unexpected GET ' + path)
@@ -61,7 +62,7 @@ export function world(over: { brands?: Record<string, unknown>[]; classes?: { na
       const within = (d: string) => d >= body.start_date && d <= body.end_date
       if (path === '/reports/brands') {
         const out: Record<string, unknown>[] = []
-        for (let t = Date.parse(body.start_date + 'T00:00:00Z'); t <= Date.parse(body.end_date + 'T00:00:00Z'); t += 86_400_000) { const dd = new Date(t).toISOString().slice(0, 10); if (!over.chatDaysMissing?.includes(dd)) out.push({ date: dd, visibility_total: over.chatsPerDay ?? 100 }) }
+        for (let t = Date.parse(body.start_date + 'T00:00:00Z'); t <= Date.parse(body.end_date + 'T00:00:00Z'); t += 86_400_000) { const dd = new Date(t).toISOString().slice(0, 10); if (!over.chatDaysMissing?.includes(dd) && !(over.chatsFrom && dd < over.chatsFrom)) out.push({ date: dd, visibility_total: over.chatsPerDay ?? 100 }) }
         return { data: out }
       }
       const hasGap = (body.filters ?? []).some((f) => f.field === 'gap')
@@ -79,7 +80,9 @@ export function world(over: { brands?: Record<string, unknown>[]; classes?: { na
           for (const k of ['retrieval_count', 'citation_count', 'citation_position_sum', 'citation_position_count'] as const) e[k] = (e[k] as number) + (r[k] as number)
           for (const b of r.mentioned_brands as { id: string }[]) if (!(e.mentioned_brands as { id: string }[]).some((x) => x.id === b.id)) (e.mentioned_brands as { id: string }[]).push(b)
         }
-        return { data: [...byUrl.values()] }
+        // ...and keeps only rows mentioned by at least `gap` brands, which is what the live filter returned when measured on 2026-11-11.
+        const min = Number((body.filters ?? []).find((f) => f.field === 'gap')?.value ?? 1)
+        return { data: [...byUrl.values()].filter((r) => (r.mentioned_brands as { id: string }[]).length >= min) }
       }
       return { data: inWindow }
     },

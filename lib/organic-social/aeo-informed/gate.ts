@@ -66,12 +66,13 @@ export const GATE_RULES: GateRule[] = [
   { code: 'url-gaps.rank-order', severity: 'error', plain: 'The URL gaps table is numbered 1, 2, 3 and sorted by competitor brands mentioned times retrievals, highest first, as in the outline.' },
   { code: 'url-gaps.share', severity: 'error', plain: 'Citation share is each row\'s citations divided by all citations in the table, so the shares add up to 100%.' },
   { code: 'url-gaps.citation-rate', severity: 'error', plain: 'In the URL gaps table, citation rate equals the row\'s citations divided by its retrievals, and is empty when there are no retrievals; its change is this rate minus the previous window\'s, and is empty when either is missing.' },
+  { code: 'url-gaps.min-competitors', severity: 'error', plain: 'The min competitors setting is a whole number from 1 to 5, and every row Peec returned for the URL gaps table mentions at least that many brands.' },
   { code: 'url-gaps.competitor-mentioned', severity: 'error', plain: 'Every URL gaps row has at least one brand mentioned: a gap needs a competitor.' },
   { code: 'url-gaps.own-absent', severity: 'error', plain: 'No source behind the URL gaps table mentions our own brand: a gap is where a competitor is mentioned and we are not.' },
   { code: 'url-gaps.new-url-deltas', severity: 'error', plain: 'A new URL has an empty change in both retrievals and citations, never one without the other.' },
   { code: 'totals.recount', severity: 'error', plain: 'The four totals before the tables equal a recount of the own table: URLs with at least one citation, the sums of retrievals and citations, and total citations divided by total retrievals.' },
   { code: 'totals.prior-recount', severity: 'error', plain: 'The previous window\'s totals equal a recount of the rows Peec returned for that window, narrowed to our own channels, and are empty exactly when that window has no chats.' },
-  { code: 'graphs.complete', severity: 'error', plain: 'Each of the four graphs is present, in order, with the right number of weekly points up to the as-of date.' },
+  { code: 'graphs.complete', severity: 'error', plain: 'Exactly the four graphs asked for are present (the first three, then Instagram or TikTok), in order, each with the right number of weekly points up to the as-of date.' },
   { code: 'graphs.buckets', severity: 'error', plain: 'Each graph\'s points are 7-day buckets, one right after the other, starting on the graph\'s own start date.' },
   { code: 'graphs.partial', severity: 'error', plain: 'A weekly point is flagged "partial" exactly when its week has not finished by the as-of date.' },
   { code: 'graphs.series-unit', severity: 'error', plain: 'Every point is for our brand and uses the graph\'s unit (citations or percent).' },
@@ -108,10 +109,10 @@ const sameWindow = (a: Window, b: Window) => a.start === b.start && a.end === b.
 const inWin = (d: string | undefined, w: Window) => d !== undefined && d >= w.start && d <= w.end
 
 const GRAPH_UNIT: Record<(typeof GRAPH_IDS)[number], 'citations' | 'percent'> = {
-  used_as_source_all: 'percent', citations_all: 'citations', citations_linkedin: 'citations', citations_instagram: 'citations',
+  used_as_source_all: 'percent', citations_all: 'citations', citations_linkedin: 'citations', citations_instagram: 'citations', citations_tiktok: 'citations',
 }
 const GRAPH_PLATFORMS: Record<(typeof GRAPH_IDS)[number], string[]> = {
-  used_as_source_all: FIVE_PLATFORMS, citations_all: FIVE_PLATFORMS, citations_linkedin: ['linkedin'], citations_instagram: ['instagram'],
+  used_as_source_all: FIVE_PLATFORMS, citations_all: FIVE_PLATFORMS, citations_linkedin: ['linkedin'], citations_instagram: ['instagram'], citations_tiktok: ['tiktok'],
 }
 
 /** A fresh recount of the rows Peec returned, per URL, inside a window (undated rows, as the whole-window gap pulls return, are all inside). Deliberately simple. */
@@ -264,6 +265,11 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
 
   // ---- 6. URL gaps ----
   r.urlGaps.forEach((x, i) => { if (x.rank !== i + 1) err('url-gaps.rank-order', `urlGaps[${i}].rank`, 'rank is not the row position') })
+  // Peec's gap filter, gte n, returns rows mentioned by at least n brands (measured 2026-11-11), so a raw row below the min means the filter did not hold.
+  if (!Number.isInteger(m.minCompetitors) || m.minCompetitors < 1 || m.minCompetitors > 5) err('url-gaps.min-competitors', 'meta.minCompetitors', 'the min competitors setting is not a whole number from 1 to 5')
+  else for (const [label, rows] of [['gapCurrentRows', raw.gapCurrentRows], ['gapPriorRows', raw.gapPriorRows]] as const) {
+    rows.forEach((x, i) => { if (x.mentioned_brands.length < m.minCompetitors) err('url-gaps.min-competitors', `${label}[${i}]`, 'a row mentions fewer brands than the min competitors setting') })
+  }
   for (let i = 1; i < r.urlGaps.length; i++) {
     const a = r.urlGaps[i - 1], b = r.urlGaps[i], sa = a.mentionedBrandCount * a.retrievals, sb = b.mentionedBrandCount * b.retrievals
     if (!(sa > sb || (sa === sb && (a.retrievals > b.retrievals || (a.retrievals === b.retrievals && a.url <= b.url))))) err('url-gaps.rank-order', `urlGaps[${i}]`, 'rows are not sorted by competitor brands times retrievals, then retrievals, then URL')
@@ -312,7 +318,8 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
   // ---- 7. chat days, then graphs ----
   const present = new Set(raw.dayRows.map((d) => d.date))
   const firstDataDay = raw.dayRows.reduce<string | null>((a, d) => (a === null || d.date < a ? d.date : a), null)
-  const usedCfg = m.graphs.used_as_source_all
+  // Always asked for (graphs.complete reports it if not); a missing one checks no extra window here.
+  const usedCfg = m.graphs.used_as_source_all ?? { from: m.asOf, weeks: 0 }
   const usedWin: Window = { start: usedCfg.from, end: addDays(usedCfg.from, usedCfg.weeks * 7 - 1) < m.asOf ? addDays(usedCfg.from, usedCfg.weeks * 7 - 1) : m.asOf }
   const dayWindows: [string, Window][] = [['socials', w.socials], ['socialsPrior', w.socialsPrior], ['gaps', w.gaps], ['gapsPrior', w.gapsPrior]]
   if (usedWin.start <= usedWin.end) dayWindows.push(['usedAsSource', usedWin])
@@ -322,11 +329,17 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if (holes > 0) err('view.chat-days', `meta.windows.${k}`, `${holes} day(s) inside the window have no chat count, so every percentage would be inflated`)
   }
 
-  const order = r.graphs.map((p) => GRAPH_IDS.indexOf(p.graphId))
+  // The four graphs asked for, written out here rather than taken from graphs.ts, so the check does not lean on the code it checks.
+  const drawn: (typeof GRAPH_IDS)[number][] = ['used_as_source_all', 'citations_all', 'citations_linkedin', m.fourthGraph === 'tiktok' ? 'citations_tiktok' : 'citations_instagram']
+  const asked = Object.keys(m.graphs).sort().join(',')
+  if ((m.fourthGraph !== 'instagram' && m.fourthGraph !== 'tiktok') || asked !== [...drawn].sort().join(',')) err('graphs.complete', 'meta.graphs', 'the graphs asked for are not the four graphs drawn for this fourth graph')
+  if (r.graphs.some((p) => !drawn.includes(p.graphId))) err('graphs.complete', 'graphs', 'a point belongs to a graph that is not drawn')
+  const order = r.graphs.map((p) => drawn.indexOf(p.graphId))
   if (order.some((o, i) => i > 0 && o < order[i - 1])) err('graphs.complete', 'graphs', 'the points are not grouped in graph order')
-  const byId = new Map<string, GraphPoint[]>(GRAPH_IDS.map((id) => [id, r.graphs.filter((p) => p.graphId === id)]))
-  for (const id of GRAPH_IDS) {
+  const byId = new Map<string, GraphPoint[]>(drawn.map((id) => [id, r.graphs.filter((p) => p.graphId === id)]))
+  for (const id of drawn) {
     const cfg = m.graphs[id]
+    if (!cfg) continue // reported above
     const pts = byId.get(id)!
     let expected = 0
     for (let i = 0; i < cfg.weeks; i++) if (addDays(cfg.from, 7 * i) <= m.asOf) expected++

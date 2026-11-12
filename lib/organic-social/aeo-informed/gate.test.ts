@@ -85,6 +85,10 @@ const MUTATIONS: Record<string, Mut[]> = {
     (c) => { c.r.urlGaps[0].mentionedBrandCount = 0; c.r.urlGaps[1].mentionedBrandCount = 9 }, // competitors x retrievals no longer descending
   ],
   'url-gaps.share': [(c) => { c.r.urlGaps[0].citationShare = 0.5 }],
+  'url-gaps.min-competitors': [
+    (c) => { c.r.meta.minCompetitors = 2 }, // Peec returned rows mentioned by one competitor for a min of two
+    (c) => { c.r.meta.minCompetitors = 0 },
+  ],
   'url-gaps.competitor-mentioned': [(c) => { c.r.urlGaps[0].mentionedBrandCount = 0 }],
   'url-gaps.own-absent': [(c) => { c.raw.gapCurrentRows[0].mentioned_brands.push({ id: c.r.meta.ownBrandId }) }, (c) => { c.raw.gapPriorRows[0].mentioned_brands.push({ id: c.r.meta.ownBrandId }) }],
   'url-gaps.new-url-deltas': [(c) => { c.r.urlGaps.find((g) => g.retrievalsDelta !== null)!.retrievalsDelta = null }],
@@ -92,6 +96,7 @@ const MUTATIONS: Record<string, Mut[]> = {
     (c) => { c.r.graphs = c.r.graphs.filter((p) => p.graphId !== 'citations_all') },
     (c) => { c.r.graphs = [...c.r.graphs].reverse() },
     (c) => { const last = c.r.graphs.map((p, i) => [p, i] as const).filter(([p]) => p.graphId === 'citations_instagram').pop()!; c.r.graphs.splice(last[1], 1) },
+    (c) => { c.r.meta.fourthGraph = 'tiktok' }, // the fourth graph drawn is not the one asked for
   ],
   'graphs.buckets': [(c) => { pt(c, 'citations_linkedin').weekStart = '2026-09-04' }, (c) => { pt(c, 'citations_linkedin').weekEnd = '2026-09-10' }],
   'graphs.partial': [(c) => { pt(c, 'citations_linkedin').partial = true }, (c) => { const p = c.r.graphs.filter((q) => q.graphId === 'citations_instagram').find((q) => q.partial)!; p.partial = false }],

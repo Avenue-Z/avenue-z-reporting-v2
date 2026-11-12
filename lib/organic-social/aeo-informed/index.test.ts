@@ -310,3 +310,84 @@ describe('team feedback 2026-11-12: totals over your channels', () => {
     expect(r.totals.prior).toEqual({ urlsCited: 2, retrievals: 12, citations: 2, citationRate: 2 / 12 })
   })
 })
+
+describe('minCompetitors: the URL Gaps min competitors control', () => {
+  const INITECH = 'b_initech'
+  const threeBrands = [{ id: OWN, name: 'Example', is_own: true }, { id: GLOBEX, name: 'Globex', is_own: false }, { id: INITECH, name: 'Initech', is_own: false }]
+  // GAP_B is mentioned by two competitors; THIRD and GAP_C by one.
+  const gapRows = [
+    urlRow(THIRD, '2026-09-10', { channel_title: 'Some Author', retrieval_count: 6, citation_count: 3, mentioned_brands: [{ id: GLOBEX }] }),
+    urlRow(GAP_B, '2026-09-12', { channel_title: 'Some Author', retrieval_count: 6, citation_count: 2, mentioned_brands: [{ id: GLOBEX }, { id: INITECH }] }),
+    urlRow(GAP_B, '2026-08-12', { channel_title: 'Some Author', retrieval_count: 1, citation_count: 1, mentioned_brands: [{ id: GLOBEX }, { id: INITECH }] }),
+    urlRow(GAP_C, '2026-09-15', { channel_title: 'Some Author', retrieval_count: 2, citation_count: 0, mentioned_brands: [{ id: GLOBEX }] }),
+  ]
+  const gapValues = (w: ReturnType<typeof world>) => w.calls.flatMap((c) => (c.body?.filters ?? []).filter((f) => f.field === 'gap').map((f) => [f.operator, f.value]))
+
+  it('default sends gap gte 1 in both gap pulls (today\'s request bodies unchanged)', async () => {
+    const w = world()
+    const r = await getAeoInformedSocial(input(w.reader))
+    expect(gapValues(w)).toEqual([['gte', 1], ['gte', 1]])
+    expect(r.meta.minCompetitors).toBe(1)
+  })
+  it('minCompetitors 2 sends gap gte 2 in both gap pulls, keeps only rows with two competitors, and passes the gate', async () => {
+    const w = world({ brands: threeBrands, gapRows })
+    const r = await getAeoInformedSocial(input(w.reader, { minCompetitors: 2 }))
+    expect(gapValues(w)).toEqual([['gte', 2], ['gte', 2]])
+    expect(r.urlGaps.map((g) => [g.url, g.mentionedBrandCount, g.citationShare])).toEqual([[GAP_B, 2, 1]])
+    expect(r.urlGaps[0]).toMatchObject({ retrievals: 6, retrievalsDelta: 5 })
+    expect(r.meta.minCompetitors).toBe(2)
+  })
+  it('minCompetitors 0, 6, 2.5 or a string is a RangeError before any request', async () => {
+    for (const bad of [0, 6, 2.5, '2', null]) {
+      const w = world()
+      await expect(getAeoInformedSocial(input(w.reader, { minCompetitors: bad }))).rejects.toThrow(RangeError)
+      expect(w.calls).toEqual([])
+    }
+  })
+})
+
+describe('fourthGraph: Instagram or TikTok as the fourth graph', () => {
+  const TIKTOK_URL = 'https://www.tiktok.com/@example/video/1'
+  const channels = [
+    { brand_id: OWN, platform: 'linkedin', channel_handle: 'company/examplebenefits' },
+    { brand_id: OWN, platform: 'tiktok', channel_handle: '@example' },
+    { brand_id: GLOBEX, platform: 'linkedin', channel_handle: 'company/globex' },
+  ]
+  const byDay = [...BY_DAY, urlRow(TIKTOK_URL, '2026-10-26', { channel_title: 'Example Life', retrieval_count: 5, citation_count: 4 })]
+  const tiktokViews = { ...views, graphs: { used_as_source_all: views.graphs.used_as_source_all, citations_all: views.graphs.citations_all, citations_linkedin: views.graphs.citations_linkedin, citations_tiktok: views.graphs.citations_instagram } }
+
+  it('fourthGraph tiktok builds citations_tiktok fourth from TikTok rows, and no citations_instagram, and passes the gate', async () => {
+    const r = await getAeoInformedSocial(input(world({ channels, byDay }).reader, { fourthGraph: 'tiktok', views: tiktokViews }))
+    expect([...new Set(r.graphs.map((p) => p.graphId))]).toEqual(['used_as_source_all', 'citations_all', 'citations_linkedin', 'citations_tiktok'])
+    const tt = r.graphs.filter((p) => p.graphId === 'citations_tiktok')
+    expect(tt.map((p) => p.value)).toEqual([4, 0, 0])
+    expect(r.meta.fourthGraph).toBe('tiktok')
+  })
+  it('the default is instagram', async () => {
+    const r = await getAeoInformedSocial(input(world().reader))
+    expect(r.meta.fourthGraph).toBe('instagram')
+    expect(r.graphs.some((p) => p.graphId === 'citations_tiktok')).toBe(false)
+  })
+  it('fourthGraph linkedin (already graph 3), youtube or reddit is a RangeError before any request', async () => {
+    for (const bad of ['linkedin', 'youtube', 'reddit', 'TikTok']) {
+      const w = world()
+      await expect(getAeoInformedSocial(input(w.reader, { fourthGraph: bad }))).rejects.toThrow(RangeError)
+      expect(w.calls).toEqual([])
+    }
+  })
+  it('views.graphs must hold exactly the four graphs drawn: a missing or an extra graph is a RangeError', async () => {
+    await expect(getAeoInformedSocial(input(world().reader, { fourthGraph: 'tiktok' }))).rejects.toThrow(/citations_tiktok is missing/)
+    await expect(getAeoInformedSocial(input(world().reader, { fourthGraph: 'tiktok', views: { ...tiktokViews, graphs: { ...tiktokViews.graphs, citations_instagram: views.graphs.citations_instagram } } }))).rejects.toThrow(/citations_instagram is not drawn/)
+  })
+})
+
+describe('Review Focus 3: a window whose previous window lies before the project\'s first data day', () => {
+  it('returns a result, with the previous window\'s no-chats as a warning, no changes and no previous totals', async () => {
+    const allTime = { start: '2026-09-01', end: '2026-11-05' }
+    const r = await getAeoInformedSocial(input(world({ chatsFrom: '2026-09-01' }).reader, { views: { ...views, socials: allTime, gaps: allTime } }))
+    expect(r.meta.chats.socialsPrior).toBe(0)
+    expect(r.meta.gate.warnings.map((v) => v.code)).toContain('view.no-chats-previous')
+    expect(r.socialsAll.every((x) => x.retrievalsDelta === null && x.citationRateDelta === null)).toBe(true)
+    expect(r.totals.prior).toBeNull()
+  })
+})

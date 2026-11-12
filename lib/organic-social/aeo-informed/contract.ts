@@ -26,7 +26,8 @@ export const CONTRACT_VERSION = '1.1.0'
 
 const f = (name: string, kind: FieldKind, rest: Omit<FieldSpec, 'name' | 'kind'> = {}): FieldSpec => ({ name, kind, ...rest })
 
-export const GRAPH_IDS = ['used_as_source_all', 'citations_all', 'citations_linkedin', 'citations_instagram'] as const
+// Every graph id there is; a result draws four of them (graphOrder in graphs.ts: the first three and Instagram or TikTok).
+export const GRAPH_IDS = ['used_as_source_all', 'citations_all', 'citations_linkedin', 'citations_instagram', 'citations_tiktok'] as const
 
 // ---- outputs (closed: an extra field is a violation) ----
 export const OUTPUTS = {

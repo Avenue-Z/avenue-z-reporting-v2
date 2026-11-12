@@ -38,6 +38,10 @@ describe('PDF_COLUMN_MAP', () => {
       expect(PDF_COLUMN_MAP.filter((m) => m.output === out && m.field === field).map((m) => m.status), `${out}.${field}`).toEqual(['derived'])
     }
   })
+  it('maps the TikTok fourth graph (not in the outline, our addition for clients without Instagram) as derived', () => {
+    const tt = PDF_COLUMN_MAP.filter((m) => m.output === 'graph' && m.pdf.toLowerCase().includes('citations on tiktok'))
+    expect(tt.map((m) => m.status)).toEqual(['derived'])
+  })
   it('every entry has a status and a note', () => {
     for (const m of PDF_COLUMN_MAP) { expect(['exact', 'derived', 'unverified', 'not_available']).toContain(m.status); expect(m.note.length).toBeGreaterThan(0) }
   })
