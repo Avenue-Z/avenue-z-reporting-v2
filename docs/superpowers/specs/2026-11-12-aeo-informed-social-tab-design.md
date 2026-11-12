@@ -126,7 +126,8 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
   Finished months are cached 6 hours, the in-progress month 1 hour.
 - Speed: a live call took 8 to 10 seconds for a month and 39 to 55 seconds for YTD or All time (2026-11-09 runs, private
   evidence). The section renders behind its own Suspense with a skeleton and passes the adapter a `deadlineMs` under the
-  route's limit (page: from the scratch trial; export: 30 seconds, inside the export's 40 second ready budget,
+  route's limit (page: 120 seconds, under the 300 second limit report pages run with in production,
+  `docs/findings/2026-11-12-aeo-tab-page-time-limit.md`; export: 30 seconds, inside the export's 40 second ready budget,
   `components/export/report-element.tsx:43-44`), so a slow pull ends as the section's error card, never a dead page.
 - The hourly cache warmer (`app/api/cache-warm/route.ts`, 300 second ceiling, today warming only `last_30_days` base URLs,
   `:56-68`) gains, for each opted-in client, the three views of the newest month a client viewer is served: at most three
