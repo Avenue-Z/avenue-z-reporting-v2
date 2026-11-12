@@ -109,7 +109,7 @@ export default async function ReportPage({
   // The error boundary below reuses it, as the SPA's does. deep-link-parity.test.tsx holds the two
   // routes together, so neither can drift from the other.
   const reportName =
-    reportSlug === 'organic-social' && (organicChannel != null || organicEntry.view === 'influencer')
+    reportSlug === 'organic-social' && (organicChannel != null || organicEntry.view != null)
       ? organicEntry.label
       : (REPORT_NAMES[reportSlug] ?? reportSlug)
   const dateRange = dateRangeParam ?? 'last_30_days'

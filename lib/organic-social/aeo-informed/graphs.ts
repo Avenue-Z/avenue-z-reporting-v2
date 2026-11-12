@@ -6,12 +6,10 @@ import { eachDay, weeklyBuckets, assertIsoDate } from './windows'
 import { ownerOf, type BrandChannels } from './ownership'
 import { peecPlatformOf } from './platform'
 import type { PeecUrlRow } from './types'
+import type { FourthGraph } from './fourth-graph'
 
 export type GraphId = 'used_as_source_all' | 'citations_all' | 'citations_linkedin' | 'citations_instagram' | 'citations_tiktok'
-/** The client's fourth graph (dash_social_config.aeoInformedSocial.fourthGraph): the outline's Instagram, or TikTok. Only the platforms with a
- *  line color on the other Organic Social tabs that are not already graph 3 (spec section 1). */
-export type FourthGraph = 'instagram' | 'tiktok'
-export const FOURTH_GRAPHS: readonly FourthGraph[] = ['instagram', 'tiktok']
+export { FOURTH_GRAPHS, type FourthGraph } from './fourth-graph'
 /** The four graphs drawn, in page order. */
 export const graphOrder = (fourth: FourthGraph): GraphId[] => ['used_as_source_all', 'citations_all', 'citations_linkedin', `citations_${fourth}`]
 export type Platform = 'linkedin' | 'youtube' | 'instagram' | 'tiktok' | 'reddit'

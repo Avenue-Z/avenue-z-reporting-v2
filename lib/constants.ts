@@ -2,6 +2,7 @@ import type { AEOModel } from '@/lib/peec/models'
 import type { Client } from '@/lib/db/schema'
 import { resolveChannels, type DashChannel } from '@/lib/organic-social/metrics'
 import { hasInfluencerTab, INFLUENCER_TAB_ID, INSTAGRAM_TAB_ID } from '@/lib/organic-social/influencer-tab'
+import { hasAeoInformedTab } from '@/lib/organic-social/aeo-tab/setting'
 
 /** Chart color mapping — consistent across all charts */
 export const CHART_COLORS = {
@@ -197,10 +198,11 @@ export const ORGANIC_OVERVIEW_TAB_ID = 'organic-overview'
  *  and Paid Media's subsection ids already include a bare `'linkedin'` — an un-namespaced
  *  `'linkedin'` here would collide, so hiding one platform's LinkedIn tab would silently hide
  *  the other's too. */
-/** The view a tab shows besides a channel: the Influencer tab ('influencer'); null for Overview and the platform tabs. */
-export type OrganicView = 'influencer' | null
+/** The view a tab shows besides a channel: the Influencer tab ('influencer'), the AEO Informed Social tab ('aeo-informed'); null for
+ *  Overview and the platform tabs. */
+export type OrganicView = 'influencer' | 'aeo-informed' | null
 
-export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; channel: DashChannel | null; view?: 'influencer' }[] = [
+export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; channel: DashChannel | null; view?: Exclude<OrganicView, null> }[] = [
   { id: null,                  label: 'Overview',  channel: null },
   // The Influencer tab (10/6 calls): Instagram's influencer posts on their own page. Directly under Overview since
   // Jasmine's 10/9 feedback ("Can we please move this tab under the Overview Tab?"). Offered only by hasInfluencerTab
@@ -214,13 +216,21 @@ export const ORGANIC_SOCIAL_SUBSECTIONS: { id: string | null; label: string; cha
   // Last among the platform tabs. Offered only to a client whose allowlist names
   // TikTok: a client with no allowlist resolves to the four original channels (DEFAULT_CHANNELS).
   { id: 'organic-tiktok',      label: 'TikTok',    channel: 'TIKTOK' },
+  // The AEO Informed Social tab (spec 2026-11-12): the client's social sources as AI answer engines cite them, from Peec. Last. Offered only
+  // by hasAeoInformedTab (the client's aeoInformedSocial setting and a Peec project). No channel, so with Overview hidden the report still
+  // opens on the first platform tab.
+  { id: 'organic-aeo-informed', label: 'AEO Informed Social', channel: null, view: 'aeo-informed' },
 ]
 
 /** What choosing a client's Organic Social tabs reads: its channel allowlist, its per-channel influencer section
  *  setting and its hidden tabs. A full `Client` fits, and so does the trimmed record the portal sidebar receives. */
 export type OrganicTabsClient = {
-  dashSocialConfig?: { channels?: string[]; influencerSection?: unknown } | null
+  dashSocialConfig?: { channels?: string[]; influencerSection?: unknown; aeoInformedSocial?: unknown } | null
   hiddenReports?: readonly string[] | null
+  /** A full row's Peec project, read by hasAeoInformedTab. A trimmed record never carries it; it carries aeoInformedTab instead. */
+  peecCustomerProjectId?: string | null
+  /** The AEO tab, computed on the server for a trimmed record (toPortalSidebarClient). */
+  aeoInformedTab?: boolean
 }
 
 /** With Overview hidden the report opens on the first tab, which must stay a platform tab, so the Influencer tab (no
@@ -235,12 +245,13 @@ function influencerUnderInstagram<T extends { id: string | null }>(subs: T[]): T
 }
 
 /** Overview + the platform tabs this client is configured for AND has not hidden, plus the Influencer tab when
- *  hasInfluencerTab says so. */
+ *  hasInfluencerTab says so, and the AEO Informed Social tab when hasAeoInformedTab says so. */
 export function organicSocialSubsections(client: OrganicTabsClient) {
   const allowed = resolveChannels(client.dashSocialConfig?.channels)
   const influencer = hasInfluencerTab(client)
+  const aeo = hasAeoInformedTab(client)
   const subs = visibleSubsections(ORGANIC_SOCIAL_SUBSECTIONS, client.hiddenReports)
-    .filter((s) => (s.view === 'influencer' ? influencer : s.channel == null || allowed.includes(s.channel)))
+    .filter((s) => (s.view === 'influencer' ? influencer : s.view === 'aeo-informed' ? aeo : s.channel == null || allowed.includes(s.channel)))
   // A client can hide Overview (ORGANIC_OVERVIEW_TAB_ID); its report then opens on its first
   // platform tab. Overview is kept anyway when no platform tab is left, so a client never ends
   // up with no tabs. visibleSubsections is shared with the other sections and still keeps theirs.

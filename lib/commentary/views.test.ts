@@ -100,3 +100,10 @@ test('the Influencer tab keeps Insights and has no Recommendations key (Jasmine,
   expect(recommendationsViewKeyFor('organic-social')).toBe('organic-social:recommendations')
   expect(recommendationsViewKeyFor('organic-social:instagram')).toBe('organic-social:instagram:recommendations')
 })
+
+test('the AEO Informed Social tab has its own Insights key and no Recommendations key (spec 2026-11-12 section 1)', () => {
+  expect(isCommentaryViewKey('organic-social:aeo-informed')).toBe(true)
+  expect(recommendationsViewKeyFor('organic-social:aeo-informed')).toBeNull()
+  expect(isCommentaryViewKey('organic-social:aeo-informed:recommendations')).toBe(false)
+  expect(COMMENTARY_VIEWS['organic-social:aeo-informed']).toEqual({ label: 'Organic Social, AEO Informed Social', owner: 'Jasmine / Kyleah' })
+})

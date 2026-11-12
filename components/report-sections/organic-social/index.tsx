@@ -24,7 +24,8 @@ export function OrganicSocialReport({
   dateRange?: string
   compareRange?: string | null
   channel?: DashChannel | null
-  /** 'influencer' on the Influencer tab (channel stays null there); null for Overview and the platform tabs. */
+  /** 'influencer' on the Influencer tab, 'aeo-informed' on the AEO Informed Social tab (channel stays null on both); null for Overview
+   *  and the platform tabs. */
   view?: OrganicView
 }) {
   const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, view })
@@ -34,6 +35,7 @@ export function OrganicSocialReport({
   // 'organic-social' key; the Influencer tab has its own. The bottom box derives its own key from this one
   // (recommendationsViewKeyFor).
   const commentaryViewKey: CommentaryViewKey = view === 'influencer' ? 'organic-social:influencer'
+    : view === 'aeo-informed' ? 'organic-social:aeo-informed'
     : channel ? orgSocialChannelViewKey(channel) : 'organic-social'
   // The outer component is SYNCHRONOUS so the section's own skeletons paint on first render.
   // Both async dependencies — the viewer-role read (`await auth()`) and the template/config lookup
@@ -55,6 +57,9 @@ export function OrganicSocialReport({
 /** Resolves the viewer role, the composition (DB template + per-client override), and renders the
  *  parts. Async and isolated behind the Suspense above so its awaits don't gate first paint. */
 export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
+  // The AEO Informed Social tab has its own section, not template parts (spec 2026-11-12 section 1); it is wired in plan Task 9. Until then
+  // it renders nothing, never Overview's parts under the AEO title. No client has the setting, so no page reaches this today.
+  if (ctx.view === 'aeo-informed') return null
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
   // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a

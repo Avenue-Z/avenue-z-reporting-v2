@@ -81,6 +81,28 @@ test('a platform subpage keys commentary per channel while opting in via the bas
   expect(header?.props.configKey).toBe('organic-social')
 })
 
+test('the AEO Informed Social tab keys its Insights to its own view, opting in via the base config', () => {
+  const el = OrganicSocialReport({ clientSlug: 'renaissance', channel: null, view: 'aeo-informed' })
+  const headers: { props: { viewKey: string; configKey: string } }[] = []
+  const walk = (n: unknown) => {
+    if (!n || typeof n !== 'object') return
+    const e = n as { type?: unknown; props?: { children?: unknown } }
+    if (typeof e.type === 'function' && (e.type as { name: string }).name === 'SharedPartsHeader') headers.push(e as never)
+    const kids = e.props?.children
+    for (const k of Array.isArray(kids) ? kids : [kids]) walk(k)
+  }
+  walk(el)
+  expect(headers.map((h) => [h.props.viewKey, h.props.configKey])).toEqual([['organic-social:aeo-informed', 'organic-social'], ['organic-social:aeo-informed', 'organic-social']])
+})
+
+// The AEO tab's section is wired in plan Task 9. Until then its body renders nothing, never Overview's parts under the AEO title.
+test('OrganicSocialBody on the AEO Informed Social view renders no Organic Social parts and reads no template', async () => {
+  getSectionTemplate.mockReset()
+  const out = await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: null, view: 'aeo-informed' }) })
+  expect(out).toBeNull()
+  expect(getSectionTemplate).not.toHaveBeenCalled()
+})
+
 // Pre-change record for locked months (spec section 8): for a client without reportingMonths the
 // section's OUTPUT (every part and the ctx it receives) is unchanged, on the happy path and when
 // BOTH lookups fail. Extends the truthy-only test above.

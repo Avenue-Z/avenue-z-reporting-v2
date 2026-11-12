@@ -140,6 +140,25 @@ test('the Influencer tab resolves to its id, no channel, the influencer view and
     .toEqual({ section: 'organic-social', subsectionId: 'organic-influencer', channel: null, view: 'influencer', pageTitle: 'Influencer' })
 })
 
+// The AEO Informed Social tab (spec 2026-11-12 section 1): no channel but its own view, titled by its label on both routes and in the export.
+const AEO_CLIENT = { ...CLIENT, dashSocialConfig: { brandId: 1, aeoInformedSocial: { enabled: true, allTimeFrom: '2026-01-22' } }, peecCustomerProjectId: 'or_p' }
+test('the AEO Informed Social tab resolves to its id, no channel, the aeo-informed view and the title AEO Informed Social', () => {
+  expect(resolveExportView(AEO_CLIENT as ExportViewClient, 'organic-social', 'organic-aeo-informed'))
+    .toEqual({ section: 'organic-social', subsectionId: 'organic-aeo-informed', channel: null, view: 'aeo-informed', pageTitle: 'AEO Informed Social' })
+  // a client without the tab: the same subsection is the Overview, as on the page
+  expect(resolveExportView(CLIENT as ExportViewClient, 'organic-social', 'organic-aeo-informed').pageTitle).toBe('Organic Social')
+})
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  test(`${routeName}: the AEO Informed Social tab is titled AEO Informed Social, renders the aeo-informed view, and exports the same`, async () => {
+    const { report, button } = await onPage(Route, AEO_CLIENT as unknown as typeof CLIENT, 'organic-social', 'organic-aeo-informed')
+    expect(button.props.pageTitle).toBe('AEO Informed Social')
+    expect(report.props).toMatchObject({ channel: null, view: 'aeo-informed' })
+    const view = resolveExportView(AEO_CLIENT as ExportViewClient, 'organic-social', 'organic-aeo-informed')
+    expect(view.pageTitle).toBe(button.props.pageTitle)
+    expect(exportReportElement(view, params).props).toEqual(report.props)
+  })
+}
+
 // The button exports on the server only for sections switched on (lib/export/sections.ts); every other section
 // keeps the browser print until its own PR switches it on.
 for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
