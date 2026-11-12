@@ -35,16 +35,28 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
   the last Organic Social tab. `OrganicView` gains `'aeo-informed'`.
 - **Opt in, per client, default off, nothing client-specific in code.** One setting per client,
   `dash_social_config.aeoInformedSocial = { enabled: true, allTimeFrom: "YYYY-MM-DD", selector?: "<Peec domain
-  classification>", fourthGraph?: "<platform>" }` (`selector` defaults to "Organic Social", `fourthGraph` to
-  `instagram`, one of the adapter's five platforms), plus the client's own `peec_customer_project_id`
+  classification>", fourthGraph?: "instagram" | "tiktok" }` (`selector` defaults to "Organic Social", `fourthGraph` to
+  `instagram`; only Instagram and TikTok, because they are the adapter platforms with a line color on the other tabs,
+  `CHANNEL_COLOR` in `trends.tsx:24-30`, and are not already graph 3: YouTube and Reddit have no color, LinkedIn is graph
+  3), plus the client's own `peec_customer_project_id`
   (`lib/db/schema.ts:219`). Brand names, competitors and colors come from that client's Peec project. A malformed setting
-  is no tab and one warning. No client has the setting today, so no client's tabs, pages or behaviour change when this
-  ships (read-only check before merge: list every client whose tabs change; expected none).
-- **The project id never reaches the browser.** The server computes one boolean, `aeoInformedTab`, from the setting and
-  the project id (logging the warning there, never in the pure tab rules) and adds only that boolean to the trimmed
-  records the tab rules read: `OrganicTabsClient` (`lib/constants.ts:221-224`), the portal sidebar's
+  is no tab and a warning on each render that reads it. No client has the setting today, so no client's tabs, pages or
+  behaviour change when this ships (read-only check before merge: list every client whose tabs change; expected none).
+- **One tab rule for every caller.** `hasAeoInformedTab(client)` (pure, beside `hasInfluencerTab`) returns the record's
+  `aeoInformedTab` boolean when it carries one, and otherwise computes it from a full row's setting and
+  `peecCustomerProjectId`. `OrganicTabsClient` (`lib/constants.ts:221-224`) gains both as optional fields. So the callers
+  that pass a full `Client` work unchanged and agree with the trimmed records: the dashboard and portal report pages
+  (`app/dashboard/[clientSlug]/reports/page.tsx:174,283,294`, `app/portal/[clientSlug]/reports/page.tsx:218,298,309`),
+  the export page and PDF route (`app/export/[clientSlug]/[section]/page.tsx:46`, `app/api/export/pdf/route.ts:66`), the
+  staff sidebar (`components/layout/sidebar.tsx:630,648`) and the lock sweep (`lib/organic-social/lock-sweep.ts:29`). A
+  test proves a full row and its trimmed record give the same tab list. The warning is logged on the server (the
+  mappers below and the section), never in the pure rules.
+- **The project id never reaches a client's browser.** The client-facing trimmed records carry only the boolean:
   `PortalSidebarClient` (`lib/portal/sidebar-client.ts:9-17`, whose test pins its fields) and `ExportViewClient`
-  (`lib/export/report-view.ts:8`). A test proves the project id is in none of them.
+  (`lib/export/report-view.ts:8`). A test proves the project id is in neither. The staff sidebar is different and is not
+  changed here: it is a client component (`components/layout/sidebar.tsx:1,165`) fed whole rows by `getVisibleClients()`
+  (`app/dashboard/layout.tsx:18,23`), so staff browsers already receive this column today. That is the open "staff
+  sidebar receives whole client rows" follow-up (PR #250, CLAUDE.md), outside Organic Social, so it stays its own PR.
 - **Renaissance.** The outline is a Renaissance report, and Renaissance is the only client whose Peec project the adapter
   was proven on (production and staging both carry it). Switching it on writes Renaissance's row and adds a tab to its
   page, which the Renaissance rule forbids without my explicit go, in any environment. So the switch-on is its own
@@ -112,7 +124,12 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
    text wins), with a min control 1 to 5. Each min value is its own Peec pull with `gap >= n` (the adapter gains a
    `minCompetitors` input, default 1, replacing the hard-coded 1 at `aeo-informed/index.ts:170`), so citation share stays
    over the table's own rows (`tables.ts:134,146`, gate `url-gaps.share`). Measured 2026-11-11: `gap >= 2` returns
-   exactly the rows mentioned by 2 or more brands (225 for September).
+   exactly the rows mentioned by 2 or more brands (225 for September). The min lives in the URL like the range,
+   `aeomin=1..5` (anything else is 2), and the export carries it the way it carries `models`: an `aeomin` field on
+   `ExportRequest`, validated strictly in `parseExportRequest` and written by `exportPagePath`
+   (`lib/export/request.ts:6-63`, `models` at `:43,50,61`), passed through by bulk export (`lib/export/bulk.ts:34-37`).
+   The adapter is one call (`aeo-informed/index.ts:109-182`), so a new min re-runs the whole pull (up to 55 seconds for
+   YTD) until cached; only the default 2 is warmed.
 
 Tables page 14 rows at a time like the outline's screenshots (71 pages for 987 rows, 32 for 442), with search and the
 sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec returns brand colors, not logos.
@@ -122,7 +139,7 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
 - One call per view to `getAeoInformedSocial` (`aeo-informed/index.ts`), gate enforced, with the client's
   `peec_customer_project_id` and the existing `PEEC_AI_CUSTOMER_TOKEN` (`.env.example:48`). No new secret.
 - Selector: the "Organic Social" domain classification (R3); indicators untouched (R4).
-- Cached per (project, windows) with `cached()` (`lib/cache.ts`), health-critical, so a failure shows in the beacon.
+- Cached per (project, selector, windows, minCompetitors, fourthGraph), every input that changes the answer, with `cached()` (`lib/cache.ts`), health-critical, so a failure shows in the beacon.
   Finished months are cached 6 hours, the in-progress month 1 hour.
 - Speed: a live call took 8 to 10 seconds for a month and 39 to 55 seconds for YTD or All time (2026-11-09 runs, private
   evidence). The section renders behind its own Suspense with a skeleton and passes the adapter a `deadlineMs` under the
@@ -157,11 +174,18 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
   - Total citations: the sum of citations.
   - Average citation rate: total citations divided by total retrievals (a weighted average, so a URL retrieved once
     cannot swing it; our reading of "average", stated in the tile's tooltip); the empty mark when total retrievals are 0.
-- The feedback names the screenshots' cut-off "Total" column as total citations, so `pdf_columns_cropped` leaves
-  `meta.unverified` and the column map marks it exact.
+
   Computed in the adapter as `totals` (with previous-window values for the Month change), checked by new gate rules
   (each total recounted from the raw rows; the rate equals citations over retrievals), added to `contract.ts`, the
   generated YAML regenerated.
+- The feedback names the screenshots' cut-off "Total" column as total citations, so the column map marks the socials
+  "Total" `derived` (named by the team, not reproduced to the digit; `exact` means reproduced, `column-map.ts:3`). Its
+  change columns are still cut off and unproven (`column-map.ts:39,55`), so `pdf_columns_cropped` stays in
+  `meta.unverified` (`gate.ts:47`) for them.
+- **Fourth graph (`fourthGraph`)**: the adapter takes `fourthGraph: 'instagram' | 'tiktok'` (default `instagram`, so
+  today's output is unchanged). `GraphId` gains `citations_tiktok` (`aeo-informed/graphs.ts:10`), `GRAPH_ORDER`
+  (`aeo-informed/index.ts:82`) puts the chosen graph fourth, and the contract's graph ids and the gate's graph checks
+  accept it. Any other value is a malformed setting (no tab, section 1).
 
 ## Edge cases
 
@@ -173,7 +197,7 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
 | First day of the team's in-progress month | "No data for <Month> yet." for staff |
 | A window with no chats | "No data for this window." |
 | Citation rate above 100% | shown as is, e.g. 152% |
-| Min competitors changed | a fresh (cached) pull with `gap >= n` |
+| Min competitors changed | `aeomin` in the URL; a fresh pull with `gap >= n`, cached under its own key |
 | Uncached YTD in a PDF export | the 30 second deadline ends as the error card; the warmer normally prevents it |
 | Malformed `aeoInformedSocial` setting | no tab, one warning |
 | Month with no own-channel rows | tiles show 0 and the empty mark; tables show their empty state |
@@ -196,7 +220,10 @@ id; export passes `aeo`. Commentary: the new view key is separate. Also: the as-
 rate over 100%; `minCompetitors` sends `gap >= n` and share adds to 100%; the page title on every route and the export;
 the trimmed portal and export records hold the boolean and never the project id; the lock sweep skips the tab; the
 warmer adds three views per opted-in client; "No source data"; paging at 14 rows, search, sort; Mentions dots; the
-export stamp; the fourth graph follows `fourthGraph`.
+export stamp; the fourth graph follows `fourthGraph` (TikTok in TikTok's color; LinkedIn, YouTube or Reddit is a
+malformed setting). Also: a full row and its trimmed record give the same tab list on every caller; the cache key changes
+with selector, min and `fourthGraph`; the `aeomin` param (1 to 5, unknown, missing) and its export pass-through;
+`pdf_columns_cropped` still fires for the change columns.
 
 ## Not in this PR
 
