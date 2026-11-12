@@ -98,7 +98,7 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
 
 ## 5. Feedback changes to the adapter and the tables
 
-- **Citation rate (R11)**: a row's citations divided by its retrievals, `null` when retrievals are 0 (shown "—"). Added
+- **Citation rate (R11)**: a row's citations divided by its retrievals, `null` when retrievals are 0 (shown as the table's empty mark). Added
   to `SocialsRow` and `GapRow` with its change in points against the previous window. "Retrieved" is removed from the
   two socials tables. Column order in all three tables ends Retrievals, Total citations, Citation rate; URL Gaps keeps
   its Citation share and Citation position before them. `retrievedPct` stays in the adapter result (nothing on the
@@ -109,7 +109,7 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
   - Total retrievals: the sum of retrievals.
   - Total citations: the sum of citations.
   - Average citation rate: total citations divided by total retrievals (a weighted average, so a URL retrieved once
-    cannot swing it); "—" when total retrievals are 0.
+    cannot swing it); the empty mark when total retrievals are 0.
   Computed in the adapter as `totals` (with previous-window values for the Month change), checked by new gate rules
   (each total recounted from the raw rows; the rate equals citations over retrievals), added to `contract.ts`, the
   generated YAML regenerated.
@@ -121,8 +121,8 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
 | Client without the key, or without a Peec project | no tab; nothing else changes |
 | Key set, project missing | no tab, one warning logged |
 | `aeo` missing or unknown | Month |
-| Month with no own-channel rows | tiles show 0 and "—"; tables show their empty state |
-| A row with 0 retrievals | citation rate "—", no change shown |
+| Month with no own-channel rows | tiles show 0 and the empty mark; tables show their empty state |
+| A row with 0 retrievals | citation rate shows the empty mark, no change shown |
 | YTD or All time | no change columns, no tile changes |
 | Peec 401, 429 after retries, timeout, gate error | section error card, logged; the rest of the page renders |
 | Instagram has no data | the "No source data" card |
