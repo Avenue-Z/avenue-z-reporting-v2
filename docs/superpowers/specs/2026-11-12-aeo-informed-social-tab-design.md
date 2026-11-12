@@ -70,7 +70,8 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
   `app/portal/[clientSlug]/reports/page.tsx:240`, `lib/export/report-view.ts:36`) and the deep-link routes
   (`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:112`, portal `:133`) all show "AEO Informed Social" here;
   bulk export (`lib/export/pages.ts:26`) carries the `aeo` choice. The lock sweep (`lib/organic-social/lock-sweep.ts:19-32`)
-  skips this tab: it locks Dash answers, and this tab asks Peec. The health sweep does not probe the tab in this PR
+  renders this tab three times per swept month (`aeo=month|ytd|all`, default min) so its numbers lock on the lock day
+  with the Dash ones (section 4). The health sweep does not probe the tab in this PR
   (follow-up).
 - The body renders a dedicated section component for this view (no DB template row, so no write to `section_templates` in
   any environment); the Influencer view's part-registry route is not needed because the tab has one fixed layout.
@@ -94,9 +95,11 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
   complete day yet, so staff see "No data for <Month> yet." (clients never see an in-progress month).
 - Graphs bucket weekly from the window's start; a bucket running past the data's last day is cut there and marked
   partial (`aeo-informed/graphs.ts:32-37`).
-- **Locked months:** this tab's numbers are read from Peec live (cached hourly), not stored when a month locks, so a
-  locked month's AEO numbers can move a little after it closes (Peec adds late citations, `ENGINEERS.md`). The tab says
-  so in one line under the range control. Locking them like the Dash numbers is a separate decision (open item).
+- **Locked months** (my call, 2026-11-12: lock them, on): for a client on locked months, a window that ends on or
+  before its last locked day is stored once and served from storage from then on, exactly like the Dash numbers, so a
+  closed month's AEO numbers stop moving when Peec adds late citations. Month, YTD and All time of a locked month all
+  end on its last day, so all three lock. The in-progress month (staff only) and every client not on locked months stay
+  live. Mechanism in section 4.
 
 ## 3. What the tab shows, top to bottom
 
@@ -140,7 +143,27 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
   `peec_customer_project_id` and the existing `PEEC_AI_CUSTOMER_TOKEN` (`.env.example:48`). No new secret.
 - Selector: the "Organic Social" domain classification (R3); indicators untouched (R4).
 - Cached per (project, selector, windows, minCompetitors, fourthGraph), every input that changes the answer, with `cached()` (`lib/cache.ts`), health-critical, so a failure shows in the beacon.
-  Finished months are cached 6 hours, the in-progress month 1 hour.
+  Finished months are cached 6 hours, the in-progress month 1 hour. This is for windows that do not lock.
+- **Locking** reuses the Dash lock mechanism, with no new table or migration:
+  - When: the client has `reportingMonths` (`hasReportingMonths`) and the window's end is on or before
+    `settledThrough(rm, today)` and on or after `lockedFrom(rm)` (`lib/organic-social/lock-day.ts:32,46`), the rule
+    Dash uses (`lib/organic-social/locking-client.ts:79`). `today` is the New York date (`requestClock().today`).
+  - Where: `dash_response_locks` (`lib/db/schema.ts:470`, one row per client and exact request) through `readLock` and
+    `writeLock` (`lib/organic-social/response-lock-store.ts:24,32`). The key is `requestKey('aeoInformedSocial', ...)`
+    (`lock-day.ts:93`) over project, selector, window, as-of, min, fourth graph and the contract version, pinned by a
+    test like `lib/organic-social/lock-key-pin.test.ts`. `period_end` is the window end, so the existing way out of a bad
+    lock (delete the month's rows by `period_end`) covers these rows too.
+  - Capture: on the first read of a locked window, straight from Peec (Peec reads are `cache: 'no-store'`,
+    `aeo-informed/peec-read.ts:97`), never through the 6 hour cache, so what is stored is what Peec says now. Only a
+    result that passed the gate and has at least one socials row is stored; otherwise it is shown, not stored, and
+    `lock skipped (incomplete answer)` is logged. A capture after the lock day logs `late lock` (`isLateLock`).
+  - Stored trimmed: the own and competitor tables are subsets of the first table (gate `socials-split.subset`), so they
+    are stored empty and rebuilt with `splitSocials` on read.
+  - Change values are kept as captured. They compare with the same-length window before (Peec's default), not the
+    previous calendar month, so Dash's locked-baseline swap (`withLockedBaseline`) does not apply.
+  - Fail closed, like Dash: a lock store failure is the error card and a log line, never live numbers.
+  - Timing: the lock sweep renders the three ranges on the lock day. Other min values, and months that had already
+    settled when a client's tab is switched on, lock on their first view, as late locks.
 - Speed: a live call took 8 to 10 seconds for a month and 39 to 55 seconds for YTD or All time (2026-11-09 runs, private
   evidence). The section renders behind its own Suspense with a skeleton and passes the adapter a `deadlineMs` under the
   route's limit (page: 120 seconds, under the 300 second limit report pages run with in production,
@@ -197,7 +220,11 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
 | First day of the team's in-progress month | "No data for <Month> yet." for staff |
 | A window with no chats | "No data for this window." |
 | Citation rate above 100% | shown as is, e.g. 152% |
-| Min competitors changed | `aeomin` in the URL; a fresh pull with `gap >= n`, cached under its own key |
+| Min competitors changed | `aeomin` in the URL; a fresh pull with `gap >= n`, cached under its own key (locked under its own key in a locked month) |
+| A locked month, first view | captured from Peec, stored, then served from storage |
+| A locked month whose capture has an empty socials table | shown, not stored, logged; the next view tries again |
+| Lock store down | error card and log line, never live numbers |
+| Tab switched on after some months already locked | those months lock on first view, logged as late locks |
 | Uncached YTD in a PDF export | the 30 second deadline ends as the error card; the warmer normally prevents it |
 | Malformed `aeoInformedSocial` setting | no tab, one warning |
 | Month with no own-channel rows | tiles show 0 and the empty mark; tables show their empty state |
@@ -218,7 +245,7 @@ distinct colors; tiles and their Month-only changes; column order of each table;
 `aeo` param (three values, unknown, missing); error card on a failed pull with a log line that holds no key or project
 id; export passes `aeo`. Commentary: the new view key is separate. Also: the as-of clamp and day 1 of a month; a
 rate over 100%; `minCompetitors` sends `gap >= n` and share adds to 100%; the page title on every route and the export;
-the trimmed portal and export records hold the boolean and never the project id; the lock sweep skips the tab; the
+the trimmed portal and export records hold the boolean and never the project id; the lock sweep renders the tab's three ranges; a locked window is stored once and served from storage, an empty capture is not stored, a store failure is the error card, and the lock key is pinned; the
 warmer adds three views per opted-in client; "No source data"; paging at 14 rows, search, sort; Mentions dots; the
 export stamp; the fourth graph follows `fourthGraph` (TikTok in TikTok's color; LinkedIn, YouTube or Reddit is a
 malformed setting). Also: a full row and its trimmed record give the same tab list on every caller; the cache key changes
