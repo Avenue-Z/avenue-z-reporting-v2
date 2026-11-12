@@ -1,7 +1,7 @@
-# Raw response of GET /brands/social-channels, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). No url field, only platform, handle and channel id.
+# Raw response of GET /brands, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). A color is returned but no logo or image. color is read leniently for the Mentions dots (shape.ts hexColor): a hex string is kept, anything else is null, never an error, because a cosmetic field must not fail the view. So it is not a checked field here.
 # Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
-schema: peec.brand_social_channels_response
-version: 1.0.0
+schema: peec.brands_response
+version: 1.1.0
 kind: payload
 json_schema:
   {
@@ -15,22 +15,21 @@ json_schema:
         "items": {
           "type": "object",
           "required": [
-            "brand_id",
-            "platform",
-            "channel_handle"
+            "id",
+            "name",
+            "is_own"
           ],
           "properties": {
-            "brand_id": {
+            "id": {
               "type": "string",
               "minLength": 1
             },
-            "platform": {
+            "name": {
               "type": "string",
               "minLength": 1
             },
-            "channel_handle": {
-              "type": "string",
-              "minLength": 1
+            "is_own": {
+              "type": "boolean"
             }
           }
         }

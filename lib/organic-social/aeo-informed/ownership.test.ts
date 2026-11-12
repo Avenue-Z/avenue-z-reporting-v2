@@ -74,7 +74,7 @@ describe('ownerOf: the channel title, on a platform the brand registered', () =>
 describe('buildBrandChannels', () => {
   it('lists, for each brand, the distinct platforms it registered a channel on', () => {
     const out = buildBrandChannels(
-      [{ id: 'b1', name: 'Example', is_own: true }, { id: 'b2', name: 'Globex', is_own: false }, { id: 'b3', name: 'NoChannels', is_own: false }],
+      [{ id: 'b1', name: 'Example', is_own: true, color: null }, { id: 'b2', name: 'Globex', is_own: false, color: null }, { id: 'b3', name: 'NoChannels', is_own: false, color: null }],
       [
         { brand_id: 'b1', platform: 'linkedin', channel_handle: 'company/examplebenefits' },
         { brand_id: 'b1', platform: 'LinkedIn', channel_handle: 'company/other' },

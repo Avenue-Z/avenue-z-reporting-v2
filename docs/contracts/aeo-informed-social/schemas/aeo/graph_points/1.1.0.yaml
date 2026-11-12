@@ -1,7 +1,7 @@
 # GraphPoint (graphs.ts). value is null in every bucket of a graph that has no own source in its window ("No source data").
 # Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
 schema: aeo.graph_points
-version: 1.0.0
+version: 1.1.0
 kind: tabular
 fields:
   - {name: graphId, type: string, enum: ["used_as_source_all", "citations_all", "citations_linkedin", "citations_instagram"]}

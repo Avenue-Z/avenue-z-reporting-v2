@@ -22,7 +22,7 @@ export type FieldSpec = {
   prefix?: string
 }
 
-export const CONTRACT_VERSION = '1.0.0'
+export const CONTRACT_VERSION = '1.1.0'
 
 const f = (name: string, kind: FieldKind, rest: Omit<FieldSpec, 'name' | 'kind'> = {}): FieldSpec => ({ name, kind, ...rest })
 
@@ -42,12 +42,16 @@ export const OUTPUTS = {
     f('ownBrandMentioned', 'bool'),
     f('mentionedBrandCount', 'int', { min: 0 }),
     f('mentionedBrandNames', 'string', { nullable: true }),
+    f('mentionedBrandIds', 'string', { nullable: true }),
     f('retrievals', 'int', { min: 0 }),
     f('retrievalsDelta', 'int', { nullable: true }),
     f('retrievedPct', 'float', { min: 0, max: 1 }),
     f('retrievedPctDelta', 'float', { nullable: true, min: -1, max: 1 }),
     f('totalCitations', 'int', { min: 0 }),
     f('totalCitationsDelta', 'int', { nullable: true }),
+    // No maximum: a source can be cited more than once per retrieval (the outline's URL Gaps has 220 on 145, 152%).
+    f('citationRate', 'float', { nullable: true, min: 0 }),
+    f('citationRateDelta', 'float', { nullable: true }),
   ],
   url_gaps_table: [
     f('rank', 'int', { min: 1 }),
@@ -58,12 +62,15 @@ export const OUTPUTS = {
     f('domainType', 'string', { minLength: 1 }),
     f('mentionedBrandCount', 'int', { min: 0 }),
     f('mentionedBrandNames', 'string', { nullable: true }),
+    f('mentionedBrandIds', 'string', { nullable: true }),
     f('citationShare', 'float', { min: 0, max: 1 }),
     f('citationPosition', 'float', { nullable: true, min: 1 }),
     f('retrievals', 'int', { min: 0 }),
     f('retrievalsDelta', 'int', { nullable: true }),
     f('totalCitations', 'int', { min: 0 }),
     f('totalCitationsDelta', 'int', { nullable: true }),
+    f('citationRate', 'float', { nullable: true, min: 0 }),
+    f('citationRateDelta', 'float', { nullable: true }),
   ],
   graph_points: [
     f('graphId', 'string', { oneOf: GRAPH_IDS }),
@@ -118,7 +125,7 @@ export const RAW = {
   },
   brands_response: {
     path: 'GET /brands',
-    note: 'A color is returned but no logo or image.',
+    note: 'A color is returned but no logo or image. color is read leniently for the Mentions dots (shape.ts hexColor): a hex string is kept, anything else is null, never an error, because a cosmetic field must not fail the view. So it is not a checked field here.',
     rows: [f('id', 'string', { minLength: 1 }), f('name', 'string', { minLength: 1 }), f('is_own', 'bool')],
   },
   brand_social_channels_response: {

@@ -180,3 +180,37 @@ describe('buildGapRows', () => {
     expect(r).toMatchObject({ mentionedBrandCount: 2, mentionedBrandNames: 'Globex|Initech', urlType: 'Article', domainType: 'Organic Social' })
   })
 })
+
+describe('citation rate (team feedback 2026-11-12)', () => {
+  it('citation rate is citations over retrievals, and is not capped at 100%', () => {
+    const [r] = buildSocialsRows({ ...base, current: [agg('https://x.com/a', { retrievals: 145, citations: 220 })], prior: [] })
+    expect(r.citationRate).toBeCloseTo(220 / 145, 10)
+    const [g] = buildGapRows({ current: [agg('https://x.com/a', { retrievals: 145, citations: 220, brandIds: ['b_globex'] })], prior: [], brands, domainType: 'Organic Social' })
+    expect(g.citationRate).toBeCloseTo(220 / 145, 10)
+  })
+  it('citation rate is null at 0 retrievals and its change is null', () => {
+    const [r] = buildSocialsRows({ ...base, current: [agg('https://x.com/a', { retrievals: 0, citations: 0 })], prior: [agg('https://x.com/a', { retrievals: 4, citations: 2 })] })
+    expect(r.citationRate).toBeNull()
+    expect(r.citationRateDelta).toBeNull()
+  })
+  it('rate change is current rate minus previous rate, null for a new URL or a previous rate of null', () => {
+    const rows = buildSocialsRows({ ...base,
+      current: [agg('https://x.com/a', { retrievals: 10, citations: 5 }), agg('https://x.com/b', { retrievals: 8, citations: 4 }), agg('https://x.com/c', { retrievals: 6, citations: 3 })],
+      prior: [agg('https://x.com/a', { retrievals: 20, citations: 4 }), agg('https://x.com/c', { retrievals: 0, citations: 0 })] })
+    const by = new Map(rows.map((r) => [r.url, r]))
+    expect(by.get('https://x.com/a')!.citationRateDelta).toBeCloseTo(0.5 - 0.2, 10)
+    expect(by.get('https://x.com/b')!.citationRateDelta).toBeNull()
+    expect(by.get('https://x.com/c')!.citationRateDelta).toBeNull()
+    const [g] = buildGapRows({ current: [agg('https://x.com/g', { retrievals: 10, citations: 5, brandIds: ['b_globex'] })], prior: [agg('https://x.com/g', { retrievals: 10, citations: 2, brandIds: ['b_globex'] })], brands, domainType: 'Organic Social' })
+    expect(g.citationRateDelta).toBeCloseTo(0.5 - 0.2, 10)
+  })
+  it('mentionedBrandIds follows the names order, own brand first, and skips ids that are not a brand', () => {
+    const [r] = buildSocialsRows({ ...base, current: [agg('https://x.com/a', { retrievals: 1, brandIds: ['b_initech', 'b_unknown', 'b_globex', 'b_own'] })], prior: [] })
+    expect(r.mentionedBrandNames).toBe('Example|Globex|Initech')
+    expect(r.mentionedBrandIds).toBe('b_own|b_globex|b_initech')
+    const [g] = buildGapRows({ current: [agg('https://x.com/g', { retrievals: 1, brandIds: ['b_initech', 'b_globex'] })], prior: [], brands, domainType: 'Organic Social' })
+    expect(g.mentionedBrandIds).toBe('b_globex|b_initech')
+    const [none] = buildSocialsRows({ ...base, current: [agg('https://x.com/n', { retrievals: 1, brandIds: ['b_unknown'] })], prior: [] })
+    expect([none.mentionedBrandNames, none.mentionedBrandIds]).toEqual([null, null])
+  })
+})

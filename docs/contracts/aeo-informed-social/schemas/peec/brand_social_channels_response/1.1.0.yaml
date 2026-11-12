@@ -1,7 +1,7 @@
-# Raw response of GET /source-tags, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). Source tags are a different thing from prompt tags (GET /tags). Filter ids start stg_ and go in url_tag_id or domain_tag_id, never tag_id.
+# Raw response of GET /brands/social-channels, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). No url field, only platform, handle and channel id.
 # Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
-schema: peec.source_tags_response
-version: 1.0.0
+schema: peec.brand_social_channels_response
+version: 1.1.0
 kind: payload
 json_schema:
   {
@@ -15,16 +15,20 @@ json_schema:
         "items": {
           "type": "object",
           "required": [
-            "id",
-            "name"
+            "brand_id",
+            "platform",
+            "channel_handle"
           ],
           "properties": {
-            "id": {
+            "brand_id": {
               "type": "string",
-              "minLength": 1,
-              "pattern": "^stg_"
+              "minLength": 1
             },
-            "name": {
+            "platform": {
+              "type": "string",
+              "minLength": 1
+            },
+            "channel_handle": {
               "type": "string",
               "minLength": 1
             }

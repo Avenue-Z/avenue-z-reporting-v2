@@ -81,16 +81,16 @@ export function renderContractFiles(): Record<string, string> {
   const files: Record<string, string> = {}
   for (const name of raw) {
     const c = RAW[name]
-    files[`schemas/peec/${name}/1.0.0.yaml`] = payloadYaml(
+    files[`schemas/peec/${name}/${CONTRACT_VERSION}.yaml`] = payloadYaml(
       `peec.${name}`,
       `# Raw response of ${c.path}, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). ${c.note}`,
       { type: 'object', required: ['data'], properties: { data: { type: 'array', items: objectSchema(c.rows) } } },
     )
   }
-  files['schemas/aeo/url_agg/1.0.0.yaml'] = payloadYaml('aeo.url_agg', '# One URL after summing every row Peec returned for it (urls.ts aggregateByUrl). The key is the exact Peec URL string: never lib/url.ts urlJoinKey, which drops the query string.', objectSchema(INPUTS.url_agg))
+  files[`schemas/aeo/url_agg/${CONTRACT_VERSION}.yaml`] = payloadYaml('aeo.url_agg', '# One URL after summing every row Peec returned for it (urls.ts aggregateByUrl). The key is the exact Peec URL string: never lib/url.ts urlJoinKey, which drops the query string.', objectSchema(INPUTS.url_agg))
   for (const name of Object.keys(OUTPUTS) as (keyof typeof OUTPUTS)[]) {
     const [schema, header] = OUTPUT_HEADERS[name]
-    files[`schemas/aeo/${name}/1.0.0.yaml`] = tabularYaml(schema, header, OUTPUTS[name])
+    files[`schemas/aeo/${name}/${CONTRACT_VERSION}.yaml`] = tabularYaml(schema, header, OUTPUTS[name])
   }
   const rawLines = raw.map((n) => `  - {name: ${BOUNDARY_NAMES[n]}, schema: peec.${n}@1, source: {kind: api, format: json}, mode: observe}`)
   files['contract.yaml'] = [

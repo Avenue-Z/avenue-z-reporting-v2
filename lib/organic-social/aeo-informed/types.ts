@@ -17,7 +17,8 @@ export type PeecUrlRow = {
   mentioned_brands: { id: string }[]
 }
 
-export type PeecBrand = { id: string; name: string; is_own: boolean }
+/** `color` is Peec's display color for the brand (the Mentions dots), or null when it is absent or not a hex color. */
+export type PeecBrand = { id: string; name: string; is_own: boolean; color: string | null }
 export type PeecSocialChannel = { brand_id: string; platform: string; channel_handle: string }
 export type PeecBrandDayRow = { date: string; visibility_total: number }
 

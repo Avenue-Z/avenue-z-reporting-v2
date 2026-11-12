@@ -1,7 +1,7 @@
-# Raw response of GET /brands, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). A color is returned but no logo or image.
+# Raw response of GET /classifications/domains and /classifications/urls, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). A custom classification is referenced by name in the domain_classification and url_classification filters.
 # Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
-schema: peec.brands_response
-version: 1.0.0
+schema: peec.classifications_response
+version: 1.1.0
 kind: payload
 json_schema:
   {
@@ -15,21 +15,12 @@ json_schema:
         "items": {
           "type": "object",
           "required": [
-            "id",
-            "name",
-            "is_own"
+            "name"
           ],
           "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
             "name": {
               "type": "string",
               "minLength": 1
-            },
-            "is_own": {
-              "type": "boolean"
             }
           }
         }

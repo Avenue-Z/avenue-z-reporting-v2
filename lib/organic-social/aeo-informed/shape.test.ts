@@ -84,7 +84,15 @@ describe('dates are checked, not silently dropped', () => {
 
 describe('parseBrands', () => {
   it('reads id, name and is_own', () => {
-    expect(parseBrands({ data: [{ id: 'b1', name: 'Example', is_own: true, color: '#fff', domains: [] }] })).toEqual([{ id: 'b1', name: 'Example', is_own: true }])
+    expect(parseBrands({ data: [{ id: 'b1', name: 'Example', is_own: true, color: '#fff', domains: [] }] })).toEqual([{ id: 'b1', name: 'Example', is_own: true, color: '#fff' }])
+  })
+  it('parseBrands keeps a hex color and gives null when color is absent, not a string, or not a hex color', () => {
+    const one = (color: unknown) => parseBrands({ data: [{ id: 'b1', name: 'X', is_own: false, ...(color === undefined ? {} : { color }) }] })[0].color
+    expect(one('#60FDFF')).toBe('#60FDFF')
+    expect(one('#60fdff80')).toBe('#60fdff80')
+    expect(one(undefined)).toBeNull()
+    expect(one(42)).toBeNull()
+    expect(one('red;background:url(x)')).toBeNull()
   })
   it('rejects a missing is_own and an empty name', () => {
     expect(() => parseBrands({ data: [{ id: 'b1', name: 'X' }] })).toThrow(PeecShapeError)

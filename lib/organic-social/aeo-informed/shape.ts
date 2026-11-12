@@ -82,11 +82,16 @@ export function parseUrlRows(body: unknown, path: string, opts: UrlRowOptions = 
   })
 }
 
+/** A brand color is cosmetic, so a missing or odd one is null, never an error. Only #RGB, #RRGGBB or #RRGGBBAA passes: the value is
+ *  rendered into a style attribute, so anything else (a CSS expression) is refused. */
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i
+const hexColor = (v: unknown): string | null => (typeof v === 'string' && HEX_COLOR.test(v) ? v : null)
+
 export function parseBrands(body: unknown): PeecBrand[] {
   const p = '/brands'
   return dataArray(body, p).map((o, i) => {
     if (typeof o.is_own !== 'boolean') throw new PeecShapeError(p, `data[${i}].is_own`, 'boolean', kind(o.is_own))
-    return { id: str(o, 'id', p, i, true), name: str(o, 'name', p, i, true), is_own: o.is_own }
+    return { id: str(o, 'id', p, i, true), name: str(o, 'name', p, i, true), is_own: o.is_own, color: hexColor(o.color) }
   })
 }
 

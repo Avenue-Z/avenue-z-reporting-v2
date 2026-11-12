@@ -35,8 +35,11 @@ export const PDF_COLUMN_MAP: MapEntry[] = [
   S('Retrievals change', 'retrievalsDelta', 'exact', 'Against the previous window; null when the URL is new'),
   S('Retrieved (percent)', 'retrievedPct', 'exact', 'Retrievals over the window chats (brands report visibility_total)'),
   S('Retrieved change', 'retrievedPctDelta', 'exact', 'Percentage points against the previous window'),
-  S('Total (column cut off in the PDF)', 'totalCitations', 'unverified', 'Probably total citations; the PDF crops the table at this column'),
-  S('Total change (cut off in the PDF)', 'totalCitationsDelta', 'unverified', 'As above'),
+  S('Total (column cut off in the PDF)', 'totalCitations', 'derived', 'Named total citations by the team (2026-11-12 feedback); citation_count summed over the window, not reproduced to the digit against the PDF'),
+  S('Total change (cut off in the PDF)', 'totalCitationsDelta', 'unverified', 'Cut off in the PDF; against the previous window'),
+  S('Citation rate (team feedback 2026-11-12)', 'citationRate', 'derived', 'Citations over retrievals for the window, null at 0 retrievals; the same ratio as the citation_rate Peec returns per row'),
+  S('Citation rate change', 'citationRateDelta', 'derived', 'This rate minus the previous window\'s, as a fraction'),
+  S('Mentions (brand ids for the colored dots)', 'mentionedBrandIds', 'derived', 'The ids behind the names, joined with | in the same order; colors from meta.brands'),
 
   // URL Gaps table
   G('# (row number), URL Gaps', 'rank', 'unverified', 'Competitor brands mentioned times retrievals, descending, then retrievals, then URL. Fits the outline\'s five visible rows; Peec does not document it'),
@@ -53,6 +56,9 @@ export const PDF_COLUMN_MAP: MapEntry[] = [
   G('Retrievals change, URL Gaps', 'retrievalsDelta', 'exact', 'Against the previous window of the same length'),
   G('Total citations, URL Gaps', 'totalCitations', 'exact', 'Matches her rows to the digit'),
   G('Total citations change, URL Gaps', 'totalCitationsDelta', 'unverified', 'Her change column is cut off in the PDF'),
+  G('Citation rate, URL Gaps (team feedback 2026-11-12)', 'citationRate', 'derived', 'Citations over retrievals for the row, null at 0 retrievals'),
+  G('Citation rate change, URL Gaps', 'citationRateDelta', 'derived', 'This rate minus the previous window\'s, as a fraction'),
+  G('Mentions (brand ids), URL Gaps', 'mentionedBrandIds', 'derived', 'The ids behind the names, joined with | in the same order; colors from meta.brands'),
 
   // Graphs
   R('Used as a source on Reddit, YouTube, Instagram, TikTok and LinkedIn', 'value', 'exact', 'Chats with an own source over chats; all four weekly points match within 0.1 percentage point'),

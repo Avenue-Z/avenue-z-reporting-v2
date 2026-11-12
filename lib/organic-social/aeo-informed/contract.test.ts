@@ -58,9 +58,19 @@ describe('the internal per-URL sum', () => {
 
 describe('the output contracts', () => {
   it('describe exactly the fields the builders return', () => {
-    expect(OUTPUTS.socials_table.map((f) => f.name)).toEqual(['rank', 'url', 'title', 'channelTitle', 'ownerBrandId', 'isOwnChannel', 'urlType', 'domainType', 'ownBrandMentioned', 'mentionedBrandCount', 'mentionedBrandNames', 'retrievals', 'retrievalsDelta', 'retrievedPct', 'retrievedPctDelta', 'totalCitations', 'totalCitationsDelta'])
-    expect(OUTPUTS.url_gaps_table.map((f) => f.name)).toEqual(['rank', 'url', 'title', 'channelTitle', 'urlType', 'domainType', 'mentionedBrandCount', 'mentionedBrandNames', 'citationShare', 'citationPosition', 'retrievals', 'retrievalsDelta', 'totalCitations', 'totalCitationsDelta'])
+    expect(OUTPUTS.socials_table.map((f) => f.name)).toEqual(['rank', 'url', 'title', 'channelTitle', 'ownerBrandId', 'isOwnChannel', 'urlType', 'domainType', 'ownBrandMentioned', 'mentionedBrandCount', 'mentionedBrandNames', 'mentionedBrandIds', 'retrievals', 'retrievalsDelta', 'retrievedPct', 'retrievedPctDelta', 'totalCitations', 'totalCitationsDelta', 'citationRate', 'citationRateDelta'])
+    expect(OUTPUTS.url_gaps_table.map((f) => f.name)).toEqual(['rank', 'url', 'title', 'channelTitle', 'urlType', 'domainType', 'mentionedBrandCount', 'mentionedBrandNames', 'mentionedBrandIds', 'citationShare', 'citationPosition', 'retrievals', 'retrievalsDelta', 'totalCitations', 'totalCitationsDelta', 'citationRate', 'citationRateDelta'])
     expect(OUTPUTS.graph_points.map((f) => f.name)).toEqual(['graphId', 'series', 'weekStart', 'weekEnd', 'value', 'unit', 'partial'])
+  })
+  it('citation rate is a nullable float with a minimum of 0 and no maximum (a source can be cited more than once per retrieval)', () => {
+    for (const t of [OUTPUTS.socials_table, OUTPUTS.url_gaps_table]) {
+      const rate = t.find((f) => f.name === 'citationRate') as Record<string, unknown> | undefined
+      expect(rate).toMatchObject({ kind: 'float', nullable: true, min: 0 })
+      expect(rate && 'max' in rate).toBe(false)
+      const d = t.find((f) => f.name === 'citationRateDelta') as Record<string, unknown> | undefined
+      expect(d).toMatchObject({ kind: 'float', nullable: true })
+      expect(d && ('min' in d || 'max' in d)).toBe(false)
+    }
   })
   it('a sample row built from each contract passes it', () => {
     for (const fields of Object.values(OUTPUTS)) expect(validateRow(sampleRow(fields), fields, { closed: true })).toEqual([])

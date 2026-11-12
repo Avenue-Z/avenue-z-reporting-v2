@@ -61,6 +61,8 @@ export type Meta = {
   windows: { socials: Window; socialsPrior: Window; gaps: Window; gapsPrior: Window }
   ownBrandId: string
   ownBrandName: string
+  /** Every brand in the project with Peec's display color (null when it has none), for the Mentions dots. */
+  brands: { id: string; name: string; color: string | null; isOwn: boolean }[]
   selector: { name: string; via: string; id: string | null }
   chats: { socials: number; socialsPrior: number; gaps: number; gapsPrior: number }
   counts: { socialsAll: number; socialsOwn: number; socialsCompetitor: number; urlGaps: number; selectorRowsByDay: number; gapRows: number; usedChatRows: number; chatDayRows: number; requests: number }
@@ -224,6 +226,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
       windows: { socials, socialsPrior, gaps, gapsPrior },
       ownBrandId: ownBrand.id,
       ownBrandName: ownBrand.name,
+      brands: brandsRaw.map((b) => ({ id: b.id, name: b.name, color: b.color, isOwn: b.is_own })),
       selector: { name: selector.name, via: selector.via, id: selId },
       chats,
       counts: { socialsAll: socialsAll.length, socialsOwn: split.own.length, socialsCompetitor: split.competitor.length, urlGaps: urlGaps.length, selectorRowsByDay: selRows.length, gapRows: gapCurrentRows.length + gapPriorRows.length, usedChatRows: chatRows.length, chatDayRows: dayRows.length, requests },

@@ -266,3 +266,20 @@ describe('getAeoInformedSocial: failure behavior', () => {
     expect(r.graphs.filter((p) => p.graphId === 'citations_linkedin').every((p) => p.value === null)).toBe(true)
   })
 })
+
+describe('team feedback 2026-11-12: citation rate and brand colors', () => {
+  it('meta.brands lists every brand with its color, null when Peec gives none', async () => {
+    const w = world({ brands: [{ id: OWN, name: 'Example', is_own: true, color: '#60FDFF' }, { id: GLOBEX, name: 'Globex', is_own: false }] })
+    const r = await getAeoInformedSocial(input(w.reader))
+    expect(r.meta.brands).toEqual([
+      { id: OWN, name: 'Example', color: '#60FDFF', isOwn: true },
+      { id: GLOBEX, name: 'Globex', color: null, isOwn: false },
+    ])
+  })
+  it('a socials row carries its citation rate and its change, and the result passes the gate', async () => {
+    const r = await getAeoInformedSocial(input(world().reader))
+    expect(r.socialsAll[0].citationRate).toBeCloseTo(8 / 20, 12)
+    expect(r.socialsAll[0].citationRateDelta).toBeCloseTo(8 / 20 - 1 / 3, 12)
+    expect(r.socialsAll[0].mentionedBrandIds).toBe(OWN)
+  })
+})

@@ -16,12 +16,21 @@ export type SocialsRow = {
   ownBrandMentioned: boolean
   mentionedBrandCount: number
   mentionedBrandNames: string | null
+  /** The ids behind mentionedBrandNames, joined with "|" in the same order (own brand first, then by name), or null when no name is listed.
+   *  Ids that are not a brand in the project are left out of both. Text, not a list, so the table stays tabular for the data contract;
+   *  Peec brand ids are a prefix and a UUID, so they never hold the separator. */
+  mentionedBrandIds: string | null
   retrievals: number
   retrievalsDelta: number | null
   retrievedPct: number
   retrievedPctDelta: number | null
   totalCitations: number
   totalCitationsDelta: number | null
+  /** Citations over retrievals for the window (team feedback 2026-11-12); null at 0 retrievals. Can exceed 1: a source can be cited
+   *  more than once per retrieval. Peec's per-row citation_rate is the same ratio. */
+  citationRate: number | null
+  /** This window's rate minus the previous window's, as a fraction (0.12 is 12 points); null for a new URL or when either rate is null. */
+  citationRateDelta: number | null
 }
 
 export type GapRow = {
@@ -33,12 +42,15 @@ export type GapRow = {
   domainType: string
   mentionedBrandCount: number
   mentionedBrandNames: string | null
+  mentionedBrandIds: string | null
   citationShare: number
   citationPosition: number | null
   retrievals: number
   retrievalsDelta: number | null
   totalCitations: number
   totalCitationsDelta: number | null
+  citationRate: number | null
+  citationRateDelta: number | null
 }
 
 const URL_TYPES: Record<string, string> = {
@@ -51,11 +63,20 @@ export function urlTypeLabel(c: string | null): string | null {
   return c === null ? null : URL_TYPES[c] ?? c
 }
 
-function brandNames(ids: string[], brands: BrandChannels[]): string | null {
+/** The mentioned brands that exist in the project, own brand first, then by name: their names and their ids, each joined with "|" in the same order. */
+function mentioned(ids: string[], brands: BrandChannels[]): { names: string | null; ids: string | null } {
   const byId = new Map(brands.map((b) => [b.id, b]))
   const named = ids.map((id) => byId.get(id)).filter((b): b is BrandChannels => b !== undefined)
   named.sort((a, b) => Number(b.isOwn) - Number(a.isOwn) || a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
-  return named.length ? named.map((b) => b.name).join('|') : null
+  return named.length ? { names: named.map((b) => b.name).join('|'), ids: named.map((b) => b.id).join('|') } : { names: null, ids: null }
+}
+
+/** Citations over retrievals, or null when there were no retrievals. */
+export const citationRateOf = (citations: number, retrievals: number): number | null => (retrievals > 0 ? citations / retrievals : null)
+/** Current rate minus the previous window's; null when there is no previous row or either rate is null. */
+const rateDelta = (rate: number | null, prior: UrlAgg | undefined): number | null => {
+  const before = prior ? citationRateOf(prior.citations, prior.retrievals) : null
+  return rate === null || before === null ? null : rate - before
 }
 
 const byRetrievals = <T extends { retrievals: number; url: string }>(a: T, b: T) => b.retrievals - a.retrievals || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0)
@@ -79,6 +100,8 @@ export function buildSocialsRows(i: SocialsInput): SocialsRow[] {
     const pct = i.chatsCurrent > 0 ? u.retrievals / i.chatsCurrent : 0
     const priorPct = p && i.chatsPrior > 0 ? p.retrievals / i.chatsPrior : null
     const owner = ownerOf({ url: u.url, channelTitle: u.channelTitle }, i.brands)
+    const m = mentioned(u.brandIds, i.brands)
+    const rate = citationRateOf(u.citations, u.retrievals)
     return {
       rank: idx + 1,
       url: u.url,
@@ -90,13 +113,16 @@ export function buildSocialsRows(i: SocialsInput): SocialsRow[] {
       domainType: i.domainType,
       ownBrandMentioned: ownId !== null && u.brandIds.includes(ownId),
       mentionedBrandCount: u.brandIds.length,
-      mentionedBrandNames: brandNames(u.brandIds, i.brands),
+      mentionedBrandNames: m.names,
+      mentionedBrandIds: m.ids,
       retrievals: u.retrievals,
       retrievalsDelta: delta(u.retrievals, p, (x) => x.retrievals),
       retrievedPct: pct,
       retrievedPctDelta: priorPct === null || i.chatsCurrent <= 0 ? null : pct - priorPct,
       totalCitations: u.citations,
       totalCitationsDelta: delta(u.citations, p, (x) => x.citations),
+      citationRate: rate,
+      citationRateDelta: rateDelta(rate, p),
     }
   })
 }
@@ -134,6 +160,8 @@ export function buildGapRows(i: GapInput): GapRow[] {
   const total = i.current.reduce((s, u) => s + u.citations, 0)
   return [...i.current].sort(byGapScore).map((u, idx) => {
     const p = partner(u)
+    const m = mentioned(u.brandIds, i.brands)
+    const rate = citationRateOf(u.citations, u.retrievals)
     return {
       rank: idx + 1,
       url: u.url,
@@ -142,13 +170,16 @@ export function buildGapRows(i: GapInput): GapRow[] {
       urlType: urlTypeLabel(u.classification),
       domainType: i.domainType,
       mentionedBrandCount: u.brandIds.length,
-      mentionedBrandNames: brandNames(u.brandIds, i.brands),
+      mentionedBrandNames: m.names,
+      mentionedBrandIds: m.ids,
       citationShare: total > 0 ? u.citations / total : 0,
       citationPosition: citationPosition(u),
       retrievals: u.retrievals,
       retrievalsDelta: delta(u.retrievals, p, (x) => x.retrievals),
       totalCitations: u.citations,
       totalCitationsDelta: delta(u.citations, p, (x) => x.citations),
+      citationRate: rate,
+      citationRateDelta: rateDelta(rate, p),
     }
   })
 }

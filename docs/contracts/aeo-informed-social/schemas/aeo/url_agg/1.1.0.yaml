@@ -1,7 +1,7 @@
 # One URL after summing every row Peec returned for it (urls.ts aggregateByUrl). The key is the exact Peec URL string: never lib/url.ts urlJoinKey, which drops the query string.
 # Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
 schema: aeo.url_agg
-version: 1.0.0
+version: 1.1.0
 kind: payload
 json_schema:
   {

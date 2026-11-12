@@ -57,6 +57,7 @@ export const GATE_RULES: GateRule[] = [
   { code: 'socials-all.pct-delta', severity: 'error', plain: 'The Retrieved % change equals today\'s % minus the previous window\'s %, and is empty when there is nothing to compare.' },
   { code: 'socials-all.new-url-deltas', severity: 'error', plain: 'A URL that is new this window has an empty change in both retrievals and citations, never one without the other.' },
   { code: 'socials-all.mentions', severity: 'error', plain: 'If our brand is mentioned, at least one brand is counted; no names are listed when nothing is counted.' },
+  { code: 'socials-all.citation-rate', severity: 'error', plain: 'Citation rate equals the row\'s citations divided by its retrievals, and is empty when there are no retrievals; its change is this rate minus the previous window\'s, and is empty when either is missing.' },
   { code: 'socials-split.subset', severity: 'error', plain: 'Every row of the own and competitor tables is a row of the first table with the same numbers.' },
   { code: 'socials-own.membership', severity: 'error', plain: 'Everything in the own table is owned by our brand and starred.' },
   { code: 'socials-competitor.membership', severity: 'error', plain: 'Everything in the competitor table is owned by another brand and not starred.' },
@@ -64,6 +65,7 @@ export const GATE_RULES: GateRule[] = [
   { code: 'socials-split.rank', severity: 'error', plain: 'The own and competitor tables are each numbered from 1 with no gaps.' },
   { code: 'url-gaps.rank-order', severity: 'error', plain: 'The URL gaps table is numbered 1, 2, 3 and sorted by competitor brands mentioned times retrievals, highest first, as in the outline.' },
   { code: 'url-gaps.share', severity: 'error', plain: 'Citation share is each row\'s citations divided by all citations in the table, so the shares add up to 100%.' },
+  { code: 'url-gaps.citation-rate', severity: 'error', plain: 'In the URL gaps table, citation rate equals the row\'s citations divided by its retrievals, and is empty when there are no retrievals; its change is this rate minus the previous window\'s, and is empty when either is missing.' },
   { code: 'url-gaps.competitor-mentioned', severity: 'error', plain: 'Every URL gaps row has at least one brand mentioned: a gap needs a competitor.' },
   { code: 'url-gaps.own-absent', severity: 'error', plain: 'No source behind the URL gaps table mentions our own brand: a gap is where a competitor is mentioned and we are not.' },
   { code: 'url-gaps.new-url-deltas', severity: 'error', plain: 'A new URL has an empty change in both retrievals and citations, never one without the other.' },
@@ -88,6 +90,18 @@ const EPS = 1e-9
 const DAY_MS = 86_400_000
 const addDays = (s: string, n: number) => new Date(Date.parse(`${s}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10)
 const near = (a: number, b: number) => Math.abs(a - b) <= EPS
+/** The row's citation rate and its change, recomputed from the row's own counts and changes (the previous window's counts are the
+ *  current ones minus the change). Null where there is nothing to divide by or compare with. */
+function rateIssue(x: { retrievals: number; totalCitations: number; retrievalsDelta: number | null; totalCitationsDelta: number | null; citationRate: number | null; citationRateDelta: number | null }): string | null {
+  const rate = x.retrievals > 0 ? x.totalCitations / x.retrievals : null
+  if (rate === null ? x.citationRate !== null : x.citationRate === null || !near(x.citationRate, rate)) return 'citation rate is not citations over retrievals'
+  const priorRet = x.retrievalsDelta === null ? null : x.retrievals - x.retrievalsDelta
+  const priorCit = x.totalCitationsDelta === null ? null : x.totalCitations - x.totalCitationsDelta
+  const before = priorRet !== null && priorCit !== null && priorRet > 0 ? priorCit / priorRet : null
+  const change = rate === null || before === null ? null : rate - before
+  if (change === null ? x.citationRateDelta !== null : x.citationRateDelta === null || !near(x.citationRateDelta, change)) return 'the citation rate change is not this rate minus the previous window\'s'
+  return null
+}
 const sameWindow = (a: Window, b: Window) => a.start === b.start && a.end === b.end
 const inWin = (d: string | undefined, w: Window) => d !== undefined && d >= w.start && d <= w.end
 
@@ -224,6 +238,8 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if ((x.retrievalsDelta === null) !== (x.totalCitationsDelta === null)) err('socials-all.new-url-deltas', at, 'one change is empty and the other is not')
     if (x.ownBrandMentioned && x.mentionedBrandCount < 1) err('socials-all.mentions', at, 'our brand is mentioned but no brand is counted')
     if (x.mentionedBrandCount === 0 && x.mentionedBrandNames !== null) err('socials-all.mentions', at, 'names are listed but no brand is counted')
+    const rateMsg = rateIssue(x)
+    if (rateMsg) err('socials-all.citation-rate', at, rateMsg)
   })
   const byUrl = new Map(r.socialsAll.map((x) => [x.url, x]))
   const strip = (x: SocialsRow) => ({ ...x, rank: 0 })
@@ -252,6 +268,8 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     const at = `urlGaps[${i}]`
     if (!near(x.citationShare, gapTotal > 0 ? x.totalCitations / gapTotal : 0)) err('url-gaps.share', at, 'citation share is not citations over the table total')
     if (x.mentionedBrandCount < 1) err('url-gaps.competitor-mentioned', at, 'a gap row needs at least one brand mentioned')
+    const rateMsg = rateIssue(x)
+    if (rateMsg) err('url-gaps.citation-rate', at, rateMsg)
     if ((x.retrievalsDelta === null) !== (x.totalCitationsDelta === null)) err('url-gaps.new-url-deltas', at, 'one change is empty and the other is not')
   })
   if ([...raw.gapCurrentRows, ...raw.gapPriorRows].some((g) => g.mentioned_brands.some((b) => b.id === m.ownBrandId))) err('url-gaps.own-absent', 'urlGaps', 'a source behind the table mentions our own brand')

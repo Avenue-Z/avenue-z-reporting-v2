@@ -30,6 +30,14 @@ describe('PDF_COLUMN_MAP', () => {
     }
     expect(PDF_COLUMN_MAP.find((m) => m.pdf.toLowerCase().includes('mentions (logos)'))!.status).toBe('not_available')
   })
+  it('the socials Total is derived (named by the team, not reproduced), its change stays unverified, and citation rate is mapped on both tables', () => {
+    const socials = (field: string) => PDF_COLUMN_MAP.filter((m) => m.output === 'socials' && m.field === field)
+    expect(socials('totalCitations').map((m) => m.status)).toEqual(['derived'])
+    expect(socials('totalCitationsDelta').map((m) => m.status)).toEqual(['unverified'])
+    for (const out of ['socials', 'gaps']) for (const field of ['citationRate', 'citationRateDelta']) {
+      expect(PDF_COLUMN_MAP.filter((m) => m.output === out && m.field === field).map((m) => m.status), `${out}.${field}`).toEqual(['derived'])
+    }
+  })
   it('every entry has a status and a note', () => {
     for (const m of PDF_COLUMN_MAP) { expect(['exact', 'derived', 'unverified', 'not_available']).toContain(m.status); expect(m.note.length).toBeGreaterThan(0) }
   })

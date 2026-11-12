@@ -1,7 +1,7 @@
 # Raw response of POST /reports/urls, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). date is required on every by-day pull and chat.id on the chat-level pull (shape.ts parseUrlRows options). Deprecated fields are not listed.
 # Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
 schema: peec.reports_urls_response
-version: 1.0.0
+version: 1.1.0
 kind: payload
 json_schema:
   {

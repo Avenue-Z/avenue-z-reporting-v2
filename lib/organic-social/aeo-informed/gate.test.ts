@@ -47,6 +47,15 @@ const MUTATIONS: Record<string, Mut[]> = {
     (c) => { c.r.socialsAll.find((x) => x.retrievalsDelta === null)!.retrievedPctDelta = 0.1 },
     (c) => { c.r.meta.chats.socialsPrior = 0 },
   ],
+  'socials-all.citation-rate': [
+    (c) => { c.r.socialsAll[0].citationRate = (c.r.socialsAll[0].citationRate as number) + 0.01 },
+    (c) => { c.r.socialsAll[0].citationRateDelta = 0.9 },
+    (c) => { c.r.socialsAll.find((x) => x.retrievalsDelta === null)!.citationRateDelta = 0.1 },
+  ],
+  'url-gaps.citation-rate': [
+    (c) => { c.r.urlGaps[0].citationRate = (c.r.urlGaps[0].citationRate as number) + 0.01 },
+    (c) => { c.r.urlGaps.find((g) => g.retrievalsDelta !== null)!.citationRateDelta = 0.9 },
+  ],
   'socials-all.new-url-deltas': [(c) => { c.r.socialsAll[0].retrievalsDelta = null }],
   'socials-all.mentions': [
     (c) => { c.r.socialsAll.find((x) => x.mentionedBrandCount === 0)!.ownBrandMentioned = true },

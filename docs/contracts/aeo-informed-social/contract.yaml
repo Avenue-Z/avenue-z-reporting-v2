@@ -2,7 +2,7 @@
 # Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
 # The runtime enforcement is lib/organic-social/aeo-informed/gate.ts (outputs) and shape.ts (raw responses); see README.md in this folder.
 system: aeo-informed-social
-version: 1.0.0
+version: 1.1.0
 raw:
   - {name: peec_urls_raw, schema: peec.reports_urls_response@1, source: {kind: api, format: json}, mode: observe}
   - {name: peec_brand_days_raw, schema: peec.reports_brands_response@1, source: {kind: api, format: json}, mode: observe}
