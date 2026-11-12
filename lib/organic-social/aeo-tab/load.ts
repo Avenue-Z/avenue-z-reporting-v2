@@ -3,7 +3,7 @@
 // docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.md, section 4). A window of a locked month goes through the lock instead
 // (data.ts, plan Task 7); this is every other window. Server only: it reads the Peec key from the environment.
 import { cached } from '@/lib/cache'
-import { AeoGateError, getAeoInformedSocial, graphOrder, type AeoInformedResult, type FourthGraph, type GraphId } from '@/lib/organic-social/aeo-informed'
+import { AeoGateError, getAeoInformedSocial, graphOrder, type AeoInformedInput, type AeoInformedResult, type FourthGraph, type GraphId } from '@/lib/organic-social/aeo-informed'
 import { graphViews, type AeoRange } from './params'
 import type { AeoInformedSetting } from './setting'
 
@@ -18,18 +18,20 @@ export function toTabResult(r: AeoInformedResult): AeoTabResult {
 
 /** The adapter's own whole-call budget. Longer than any caller waits (page 120 s, export 30 s), so a caller that stops waiting does not cut
  *  off a pull the cache still wants, and under the 300 s the function runs for (docs/findings/2026-11-12-aeo-tab-page-time-limit.md). */
-const PULL_BUDGET_MS = 240_000
+export const PULL_BUDGET_MS = 240_000
 /** Next's data cache refuses an item over 2 MB; warn well before. */
 const WARN_BYTES = 1.5 * 1024 * 1024
 
 /** Every input that changes the answer, plus the slug and range for the log line (the slug is one-to-one with the project and the range with
  *  the window, so neither splits an entry in practice). Never the key. */
-type PullArgs = { slug: string; range: AeoRange; projectId: string; selector: string; window: { start: string; end: string }; asOf: string; min: number; fourthGraph: FourthGraph }
+export type PullArgs = { slug: string; range: AeoRange; projectId: string; selector: string; window: { start: string; end: string }; asOf: string; min: number; fourthGraph: FourthGraph }
 
-async function pull(a: PullArgs): Promise<AeoTabResult> {
+/** The adapter call for one view: both tables over the window, the four graphs weekly from its start, the key from the environment. The
+ *  cached pull and the lock capture (data.ts) both use it, so a locked month is asked for exactly as a live one is. */
+export function adapterInput(a: PullArgs): AeoInformedInput {
   const graph = graphViews(a.window)
   const graphs = Object.fromEntries(graphOrder(a.fourthGraph).map((id) => [id, graph])) as Partial<Record<GraphId, { from: string; weeks: number }>>
-  const result = toTabResult(await getAeoInformedSocial({
+  return {
     apiKey: process.env.PEEC_AI_CUSTOMER_TOKEN ?? '',
     projectId: a.projectId,
     asOf: a.asOf,
@@ -38,9 +40,18 @@ async function pull(a: PullArgs): Promise<AeoTabResult> {
     minCompetitors: a.min,
     fourthGraph: a.fourthGraph,
     deadlineMs: PULL_BUDGET_MS,
-  }))
+  }
+}
+
+/** Logs a stored result near Next's 2 MB cache item, which both the cache and the lock store's cached read keep. */
+export function warnIfLarge(result: AeoTabResult, a: { slug: string; range: AeoRange; min: number }): void {
   const bytes = Buffer.byteLength(JSON.stringify(result), 'utf8')
   if (bytes > WARN_BYTES) console.warn(`[aeo-informed] result near the 2 MB cache limit slug=${a.slug} range=${a.range} min=${a.min} size_kb=${Math.round(bytes / 1024)}`)
+}
+
+async function pull(a: PullArgs): Promise<AeoTabResult> {
+  const result = toTabResult(await getAeoInformedSocial(adapterInput(a)))
+  warnIfLarge(result, a)
   return result
 }
 
@@ -53,13 +64,13 @@ export function cacheTtlFor(windowEnd: string, today: string): '6h' | '1h' {
   return windowEnd < `${today.slice(0, 7)}-01` ? '6h' : '1h'
 }
 
-class AeoDeadlineError extends Error {
+export class AeoDeadlineError extends Error {
   constructor(ms: number) { super(`the AEO pull took longer than ${ms} ms`); this.name = 'AeoDeadlineError' }
 }
 
 /** The caller's deadline around the (possibly cached) pull. The timer is always cleared; the pull keeps running if it loses, so its answer
  *  can still land in the cache, and its rejection is handled so it is never unhandled. */
-async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+export async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new AeoDeadlineError(ms)), ms) })
   work.catch(() => {})
@@ -88,12 +99,19 @@ export async function loadAeoTab(a: {
     const run = cacheTtlFor(a.window.end, a.today) === '6h' ? pull6h : pull1h
     return { kind: 'ok', result: await withDeadline(run(args), a.deadlineMs) }
   } catch (e) {
-    if (e instanceof AeoDeadlineError) return fail(e.name, 'timeout')
-    if (e instanceof AeoGateError) {
-      const codes = e.report.errors.map((v) => v.code)
-      if (codes.includes('view.no-chats')) return { kind: 'no-chats' }
-      return fail(`AeoGateError codes=${[...new Set(codes)].join(',')}`, 'error')
-    }
-    return fail(e instanceof Error ? e.name : 'Error', 'error')
+    const f = failureOf(e)
+    return f.kind === 'no-chats' ? f : fail(f.name, f.reason)
   }
+}
+
+/** How a failed pull reaches the section: a window with no chats (gate rule view.no-chats, which other rules cascade from) is no-chats; a
+ *  missed deadline a timeout; anything else an error. `name` is what a log line may say: the error's name, and a gate error's rule codes. */
+export function failureOf(e: unknown): { kind: 'no-chats' } | { kind: 'error'; reason: 'timeout' | 'error'; name: string } {
+  if (e instanceof AeoDeadlineError) return { kind: 'error', reason: 'timeout', name: e.name }
+  if (e instanceof AeoGateError) {
+    const codes = e.report.errors.map((v) => v.code)
+    if (codes.includes('view.no-chats')) return { kind: 'no-chats' }
+    return { kind: 'error', reason: 'error', name: `AeoGateError codes=${[...new Set(codes)].join(',')}` }
+  }
+  return { kind: 'error', reason: 'error', name: e instanceof Error ? e.name : 'Error' }
 }

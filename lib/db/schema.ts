@@ -467,7 +467,8 @@ export const topContentSnapshots = pgTable('top_content_snapshots', {
   ),
 }))
 
-/** Lock every number (D27): the stored Dash answer for one exact request of a locked month, per
+/** Lock every number (D27): one row per exact request of a locked month, Dash or Peec (the AEO Informed Social tab, keyed by
+ *  aeoLockKey in lib/organic-social/aeo-tab/data.ts). For Dash: the stored Dash answer for one exact request of a locked month, per
  *  client. Written once (the first read after the lock day), then served forever. Only clients with
  *  reportingMonths ever read or write it. */
 export const dashResponseLocks = pgTable('dash_response_locks', {
