@@ -117,10 +117,12 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
 3. **Totals**, before the tables (R7): four tiles built with the Organic Social tiles' `KpiCard`
    (`components/report-sections/organic-social/outline-tiles.tsx:1,18-28`), each with a definition tooltip like theirs:
    Total URLs cited, Total retrievals, Total citations, Average citation rate (definitions in section 5). Labeled
-   "Your channels"; they do not follow the table's switch. In Month view each shows its change like the other tiles;
+   "Your channels", the same rows as the table below them. In Month view each shows its change like the other tiles;
    not in YTD or All time.
-4. **Renaissance Only Socials**: default "your channels only" (P029), with a switch to all tagged URLs (the outline's
-   screenshot shows all of them). The brand name in the title and column comes from the client's own brand in Peec.
+4. **Renaissance Only Socials**: your channels only (P029). No switch to all tagged URLs (my call, 2026-11-12): the full
+   tagged list is 7,377 rows and 4.4 MB for YTD, over Next's 2 MB cache item, so it would be pulled cold on every view
+   (`docs/findings/2026-11-12-aeo-tab-result-size.md`). The brand name in the title and column comes from the client's own
+   brand in Peec.
 5. **Competitor Socials**: tagged channels Peec has registered to a competitor brand. The outline's filter sentence is
    cut off (P032), so this is our reading, written on the page in one line.
 6. **URL Gaps**: default min 2 competitors (P035, the written filter; the screenshot shows its "Min 1" control, so the
@@ -157,8 +159,9 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
     `aeo-informed/peec-read.ts:97`), never through the 6 hour cache, so what is stored is what Peec says now. Only a
     result that passed the gate and has at least one socials row is stored; otherwise it is shown, not stored, and
     `lock skipped (incomplete answer)` is logged. A capture after the lock day logs `late lock` (`isLateLock`).
-  - Stored trimmed: the own and competitor tables are subsets of the first table (gate `socials-split.subset`), so they
-    are stored empty and rebuilt with `splitSocials` on read.
+  - Stored trimmed, in the lock and in the 6 and 1 hour caches alike: everything the tab shows, without the first table
+    (every tagged URL, not shown). Measured 2026-11-12 for YTD: 676 KB at min 2, 1,386 KB at min 1, against Next's 2 MB
+    item limit. A stored result over 1.5 MB logs a warning.
   - Change values are kept as captured. They compare with the same-length window before (Peec's default), not the
     previous calendar month, so Dash's locked-baseline swap (`withLockedBaseline`) does not apply.
   - Fail closed, like Dash: a lock store failure is the error card and a log line, never live numbers.
