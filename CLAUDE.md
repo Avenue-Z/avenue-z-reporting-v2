@@ -1070,3 +1070,33 @@ findings that were not fixed in the PR are filed as issues and linked from it.
   range on screen (`parts/chart-notes.ts:92-103`), so a note always shows on the range it was made on.
 - The tiles' prior-year sheet read counts toward health, so an unreadable prior-year entry flags the page.
   Deliberate: it signals a broken sheet. No client has a prior-year entry until 2027.
+
+## Known Follow-ups: AEO Informed Social tab (from PR #444)
+
+The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.md`, plan
+`docs/superpowers/plans/2026-11-12-aeo-informed-social-tab.md`, code `lib/organic-social/aeo-tab/` and
+`components/report-sections/organic-social/aeo-informed/`. Opt in per client; no client has it when this ships.
+
+- [ ] **The health sweep does not probe the tab.** `app/api/health/sweep/route.ts` builds one Organic Social URL per
+  client with no subsection, so a broken AEO tab is not flagged. Its own 60 s limit also covers many pages, and a cold
+  YTD pull takes about 45 s (`docs/findings/2026-11-12-aeo-tab-page-time-limit.md`). Add it with a warm cache in mind.
+- [ ] **AEO locks live in `dash_response_locks`,** one row per exact request, keyed by `aeoLockKey`
+  (`lib/organic-social/aeo-tab/data.ts`). The "no way to undo a bad lock" entry above covers them: deleting a month's
+  rows by `period_end` removes its Month, YTD and All time AEO rows too (all three end on the month's last day).
+- [ ] **The AEO lock key is pinned** (`lib/organic-social/aeo-tab/aeo-lock-key-pin.test.ts`), as the Dash keys are. It
+  hashes the project, selector, window, as-of, min, fourth graph and the contract version, so a new adapter field
+  (a `CONTRACT_VERSION` bump) orphans every stored AEO lock and those months recapture from live Peec. Decide that
+  deliberately, as for the Dash keys.
+- [ ] **Months already settled when a client's tab is switched on lock on their first view,** logged as late locks,
+  with Peec's numbers as of that day. The lock sweep only captures on a month's lock day, and only the default min;
+  any other min locks on its first view.
+- [ ] **The staff sidebar receives whole client rows, now including `peecCustomerProjectId`.** The portal's trimmed
+  record carries only the `aeoInformedTab` boolean (`lib/portal/sidebar-client.ts`). The staff side is the open
+  "staff sidebar receives whole client rows" item above (PR #250); fixing that fixes this.
+- [ ] **All time grows every month.** A stored result is everything the tab shows without the list of every tagged
+  URL: 676 KB for YTD at min 2 and 1,386 KB at min 1 (measured 2026-11-12), against Next's 2 MB cache item. Over
+  1.5 MB logs `[aeo-informed] result near the 2 MB cache limit`; that line is the signal to trim the URL gap rows or
+  cap min 1.
+- [ ] **A cold export can time out.** The PDF export gives Peec 30 s (inside its 40 s ready budget); the warmer covers
+  only the three views of the newest month a client is served, so a staff export of the month in progress, an older
+  month's YTD or another min may print the timeout card until the cache is warm.

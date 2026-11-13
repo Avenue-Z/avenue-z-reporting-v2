@@ -19,7 +19,7 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
 | R2 | P004 to P008 | Order: Insights, Graphs, Renaissance Only Socials, Competitor Socials, URL Gaps | 3 |
 | R3 | P010, P011 | Domain tag Organic Social; URL tag Organic Social only | 4 (no URL carries the tag; the domain classification selects the same rows, `ENGINEERS.md`) |
 | R4 | P012 | Indicators stay on default | 4 (nothing to set through the API) |
-| R5 | P013 to P016 | Date range flexible: MoM, YTD, All time | 2 |
+| R5 | P013 to P016 | Date range flexible: MoM, YTD, All time (Month compares with the same number of days before it, Peec's default; every tile says so) | 2 |
 | R6 | P018 to P021 | The four graphs and their titles | 3 |
 | R7 | P023 to P027, comment C0 ("to add data totals similar to OS"), Slack | Before the tables: Total URLs cited, Total # of retrievals, Total # of citations, Average citation rate | 3, 5 |
 | R8 | P028, P029 | Renaissance Only Socials, "Filters: your channels only" | 3 |
@@ -67,9 +67,11 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
   `COMMENTARY_VIEWS` (`:101`), so its Insights are separate from the other tabs'. The outline lists Insights only, so no
   Recommendations key is added for it, as with the Influencer tab (`lib/commentary/views.ts:112-114`).
 - **Every place that names a tab learns this view:** the page title rules (`app/dashboard/[clientSlug]/reports/page.tsx:197`,
-  `app/portal/[clientSlug]/reports/page.tsx:240`, `lib/export/report-view.ts:36`) and the deep-link routes
-  (`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:112`, portal `:133`) all show "AEO Informed Social" here;
-  bulk export (`lib/export/pages.ts:26`) carries the `aeo` choice. The lock sweep (`lib/organic-social/lock-sweep.ts:19-32`)
+  `app/portal/[clientSlug]/reports/page.tsx:240`, `lib/export/report-view.ts:36`) show "AEO Informed Social" here; the
+  deep-link routes (`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:112`, portal `:133`) open on a client's first
+  tab and never land on this one, so their rule is kept in parity only. The export carries `aeo` and `aeomin` on this tab
+  only: optional `aeo` and `aeoMin` on `ExportRequest`, validated strictly in `parseExportRequest` and written by
+  `exportPagePath` (`lib/export/request.ts`), and in a bulk export given to this tab's page only (`lib/export/bulk.ts`). The lock sweep (`lib/organic-social/lock-sweep.ts:19-32`)
   renders this tab three times per swept month (`aeo=month|ytd|all`, default min) so its numbers lock on the lock day
   with the Dash ones (section 4). The health sweep does not probe the tab in this PR
   (follow-up).
@@ -87,7 +89,7 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
 - **YTD** runs January 1 to the end of the served month; **All time** runs from the client's `allTimeFrom` (set when the
   tab is switched on: the first day of data in its Peec project, 2026-01-22 for Renaissance, measured 2026-11-09) to the
   end of the served month. Neither shows change columns: their previous windows hold little or no data.
-- Every window ends on the served month's end (or the team's in-progress day), so a client never sees data from a month
+- Every window ends on the served month's end, clamped to the data's last day below, so a client never sees data from a month
   that has not opened to them, by the same rule as every other tab.
 - **The data's last day** (the adapter's `asOf`) is the earlier of the window's last day and yesterday (UTC), because
   the adapter refuses an as-of that is not before today (`gate.ts:152`) and a window that ends after it
@@ -218,7 +220,7 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
 | Case | Behaviour |
 |---|---|
 | Client without the key, or without a Peec project | no tab; nothing else changes |
-| Key set, project missing | no tab, one warning logged |
+| Key set, project missing | no tab, a warning on each render that reads it |
 | `aeo` missing or unknown | Month |
 | First day of the team's in-progress month | "No data for <Month> yet." for staff |
 | A window with no chats | "No data for this window." |
@@ -228,8 +230,8 @@ sort arrows the screenshots show. Mentions shows one colored dot per brand: Peec
 | A locked month whose capture has an empty socials table | shown, not stored, logged; the next view tries again |
 | Lock store down | error card and log line, never live numbers |
 | Tab switched on after some months already locked | those months lock on first view, logged as late locks |
-| Uncached YTD in a PDF export | the 30 second deadline ends as the error card; the warmer normally prevents it |
-| Malformed `aeoInformedSocial` setting | no tab, one warning |
+| Uncached YTD in a PDF export | the 30 second deadline ends as the timeout card. The warmer covers only the three views (default min) of the newest month a client is served, so a staff export of the month in progress, an older month's YTD or another min can be cold |
+| Malformed `aeoInformedSocial` setting | no tab, a warning on each render that reads it |
 | Month with no own-channel rows | tiles show 0 and the empty mark; tables show their empty state |
 | A row with 0 retrievals | citation rate shows the empty mark, no change shown |
 | YTD or All time | no change columns, no tile changes |
