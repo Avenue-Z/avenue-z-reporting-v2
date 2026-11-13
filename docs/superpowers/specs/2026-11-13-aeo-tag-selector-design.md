@@ -96,7 +96,8 @@ The data contract YAML: `meta` is not in it (`docs/contracts/aeo-informed-social
   injected clock as ISO and `raw.today` is its date.
 - `aeo-tab/load.test.ts`: a `PeecSelectorError` from the adapter gives the error card (`kind: 'error'`) and one log line
   `error=PeecSelectorError`, never a number.
-- `gate.test.ts`: `meta.pulled-at` fires on a missing, malformed or future `pulledAt` (the catalog test requires every rule to fire).
+- `gate.test.ts`: `meta.pulled-at` fires on a missing `pulledAt`, an unparseable one, one that does not round-trip (for example
+  `2026-11-13T00:00:00+00:00`), and one whose date differs from `raw.today` (the catalog test requires every rule to fire).
 - `aeo-tab/load.test.ts`: the adapter is called with `via: 'tag'`; both caches use version `v2`.
 - `aeo-tab/data.test.ts`: the lock key hashes `AEO_TAB_SELECTOR_VIA`; the lock capture's adapter input has `via` equal to it.
 - `aeo-lock-key-pin.test.ts`: re-pinned on purpose, with the reason in the file.
