@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getClientBySlug } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection, type OrganicView } from '@/lib/constants'
+import { parseAeoMin, parseAeoRange, type AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -74,7 +75,7 @@ function SectionSkeleton() {
 // gap is exactly why AEO's date/model pickers were missing here until they were
 // hand-ported. TODO: extract a single shared report-render module that both the
 // dashboard and portal routes import, so they can't diverge again.
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null, view: OrganicView = null) {
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null, view: OrganicView = null, aeo: AeoRange = 'month', aeoMin = 2) {
   switch (slug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -123,7 +124,8 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
     case 'ticket-sales':
       return <TicketSalesReport clientSlug={clientSlug} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} />
+      // aeo and aeoMin reach the section on the AEO Informed Social tab only; every other tab's props are unchanged.
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} />
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'executive-overview':
@@ -164,11 +166,14 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string; aeo?: string; aeomin?: string }>
 }) {
   const { clientSlug } = await params
   await requirePortalAccess(clientSlug)
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam, aeo: aeoParam, aeomin: aeoMinParam } = await searchParams
+  // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
+  const aeo = parseAeoRange(aeoParam)
+  const aeoMin = parseAeoMin(aeoMinParam)
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -201,6 +206,8 @@ export default async function PortalReportPage({
     if (compareRangeParam) sp.set('compareRange', compareRangeParam)
     if (subsectionParam)   sp.set('subsection', subsectionParam)
     if (modelsParam)       sp.set('models', modelsParam)
+    if (aeo !== 'month')   sp.set('aeo', aeo)
+    if (aeoMin !== 2)      sp.set('aeomin', String(aeoMin))
     sp.set('section', defaultSection)
     redirect(`/portal/${clientSlug}/reports?${sp.toString()}`)
   }
@@ -229,6 +236,9 @@ export default async function PortalReportPage({
     if (section)         sp.set('section', section)
     if (subsectionParam) sp.set('subsection', subsectionParam)
     if (modelsParam)     sp.set('models', modelsParam)
+    // Kept through the redirect, so a viewer's YTD or min is not reset to the default (Review Focus 1); a default value is left out.
+    if (aeo !== 'month') sp.set('aeo', aeo)
+    if (aeoMin !== 2)    sp.set('aeomin', String(aeoMin))
     sp.set('dateRange', locked.month.dateRange)
     redirect(`/portal/${clientSlug}/reports?${sp.toString()}`)
   }
@@ -325,8 +335,8 @@ export default async function PortalReportPage({
             identically to a plain Overview visit, or it forces a needless remount
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null)}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin)}
         </Suspense>
       </ReportErrorBoundary>
 

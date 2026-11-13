@@ -4,6 +4,7 @@
 import type { ReactElement } from 'react'
 import type { AEOModel } from '@/lib/peec/models'
 import type { ExportView } from '@/lib/export/report-view'
+import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
@@ -20,13 +21,18 @@ export interface ExportViewParams {
   dateRange: string
   compareRange: string | null
   models: AEOModel[] | null
+  /** The AEO Informed Social tab's range and min competitors; Month and 2 when absent, as on the page. */
+  aeo?: AeoRange
+  aeoMin?: number
 }
 
-export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models }: ExportViewParams): ReactElement {
+export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models, aeo, aeoMin }: ExportViewParams): ReactElement {
   switch (view.section) {
     case 'organic-social':
       // Locked months resolve inside OrganicSocialReport from the raw range, as on the page.
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} view={view.view} />
+      // aeo and aeoMin on the AEO Informed Social tab only, as the report pages pass them (getReportComponent).
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} view={view.view}
+        {...(view.view === 'aeo-informed' ? { aeo: aeo ?? 'month', aeoMin: aeoMin ?? 2 } : {})} />
     case 'peec-ai':
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (view.subsectionId === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
