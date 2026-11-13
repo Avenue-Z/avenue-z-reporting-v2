@@ -2,9 +2,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { AeoInformedResult } from '@/lib/organic-social/aeo-informed'
 
 // The lock store, the adapter and the live loader are replaced; the lock rules (lock-day.ts) and the shared helpers in load.ts are real.
-const { readLock, writeLock, capture, live } = vi.hoisted(() => ({
-  readLock: vi.fn(), writeLock: vi.fn(), capture: vi.fn(), live: vi.fn(),
+const { readLock, writeLock, capture, live, afterSpy } = vi.hoisted(() => ({
+  readLock: vi.fn(), writeLock: vi.fn(), capture: vi.fn(), live: vi.fn(), afterSpy: vi.fn(),
 }))
+// after() is recorded, never run: the test runs the task it was handed, as the platform would once the response has ended (#450).
+vi.mock('next/server', async (orig) => ({ ...(await orig<object>()), after: afterSpy }))
 vi.mock('@/lib/organic-social/response-lock-store', () => ({ readLock, writeLock }))
 vi.mock('@/lib/organic-social/aeo-informed', async (orig) => ({ ...(await orig<object>()), getAeoInformedSocial: capture }))
 vi.mock('./load', async (orig) => ({ ...(await orig<object>()), loadAeoTab: live }))
@@ -31,7 +33,7 @@ const base = {
 const LIVE_OK = { kind: 'ok' as const, result: { live: true } }
 
 beforeEach(() => {
-  for (const f of [readLock, writeLock, capture, live]) f.mockReset()
+  for (const f of [readLock, writeLock, capture, live, afterSpy]) f.mockReset()
   readLock.mockResolvedValue(null)
   writeLock.mockImplementation(async (_c: string, _k: string, _p: string, response: unknown) => response)
   capture.mockResolvedValue(FULL)
@@ -167,8 +169,12 @@ describe('a locked window', () => {
     await vi.advanceTimersByTimeAsync(30_000)
     expect(await p).toEqual({ kind: 'error', reason: 'timeout' })
     expect(writeLock).not.toHaveBeenCalled()
+    // The capture and its write are handed to after() (#450), so the platform keeps them running once the response has ended.
+    expect(afterSpy).toHaveBeenCalledTimes(1)
+    const task = (afterSpy.mock.calls[0][0] as () => Promise<unknown>)()
     land(FULL)
-    await vi.waitFor(() => expect(writeLock).toHaveBeenCalledTimes(1))
+    await task
+    expect(writeLock).toHaveBeenCalledTimes(1)
   })
   it('missing PEEC_AI_CUSTOMER_TOKEN on a miss is an error, logged, and nothing is captured', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})

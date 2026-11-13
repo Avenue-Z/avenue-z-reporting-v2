@@ -32,7 +32,7 @@ export function aeoLockKey(a: { projectId: string; selector: string; window: { s
  * - Locked: a stored answer is served as is (locked: true). A miss captures straight from Peec (Peec reads are no-store, so the answer is
  *   what Peec says now, never a cached one), stores the tab result (no socialsAll) with period_end = the window end, and serves the stored
  *   row (writeLock returns the first one when two captures race). A capture with no socialsAll rows is shown but not stored. A capture that
- *   outlives the viewer's deadline still stores its answer when it lands.
+ *   outlives the viewer's deadline still stores its answer when it lands: withDeadline hands it to after() (load.ts, #450).
  * - Fail closed: a lock store failure is an error, never live numbers. Change values are kept as captured: they compare with the same-length
  *   window before (Peec's default), not the previous calendar month, so Dash's locked-baseline swap does not apply.
  */
@@ -62,7 +62,8 @@ export async function getAeoTabData(a: {
   if (hit) return { kind: 'ok', result: hit.response as AeoTabResult, locked: true }
 
   if (!process.env.PEEC_AI_CUSTOMER_TOKEN) return failed('lock capture failed', 'error', 'PeecKeyMissing')
-  // The capture and its write run together, so a capture the viewer stopped waiting for still stores its answer when it lands.
+  // The capture and its write run together, so a capture the viewer stopped waiting for still stores its answer when it lands: withDeadline
+  // hands it to after(), which keeps it running once the response has ended (#450).
   const captureAndStore = (async (): Promise<AeoTabData> => {
     const full = await getAeoInformedSocial(adapterInput(args))
     const result = toTabResult(full)

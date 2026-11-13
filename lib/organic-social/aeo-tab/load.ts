@@ -2,6 +2,7 @@
 // The AEO Informed Social tab's live read: one adapter call per view, cached, with the caller's deadline (spec
 // docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.md, section 4). A window of a locked month goes through the lock instead
 // (data.ts, plan Task 7); this is every other window. Server only: it reads the Peec key from the environment.
+import { after } from 'next/server'
 import { cached } from '@/lib/cache'
 import { AeoGateError, getAeoInformedSocial, graphOrder, type AeoInformedInput, type AeoInformedResult, type FourthGraph, type GraphId } from '@/lib/organic-social/aeo-informed'
 import { graphViews, type AeoRange } from './params'
@@ -68,11 +69,23 @@ export class AeoDeadlineError extends Error {
   constructor(ms: number) { super(`the AEO pull took longer than ${ms} ms`); this.name = 'AeoDeadlineError' }
 }
 
-/** The caller's deadline around the (possibly cached) pull. The timer is always cleared; the pull keeps running if it loses, so its answer
- *  can still land in the cache, and its rejection is handled so it is never unhandled. */
+/** Hands a pull the caller stopped waiting for to after(), the only work Vercel keeps running once the response has ended (#450; Next's
+ *  after.md: Server Components, and waitUntil for the route's max duration). The task never rejects: Next logs a rejected after() task
+ *  with the whole error (after-context.js), and an adapter error's message can name the project. Outside a request after() throws; there is
+ *  nothing to keep alive then, and the viewer's timeout card must not become a crash. */
+function keepAlive(work: Promise<unknown>): void {
+  try {
+    after(() => work.then(() => undefined, () => undefined))
+  } catch {
+    // Not in a request (a script or a test): nothing to keep alive.
+  }
+}
+
+/** The caller's deadline around the (possibly cached) pull. The timer is always cleared; a pull that loses keeps running, kept alive with
+ *  after(), so its answer can still land in the cache, and its rejection is handled so it is never unhandled. */
 export async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new AeoDeadlineError(ms)), ms) })
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { keepAlive(work); reject(new AeoDeadlineError(ms)) }, ms) })
   work.catch(() => {})
   try {
     return await Promise.race([work, timeout])

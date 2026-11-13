@@ -2,11 +2,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { AeoInformedInput, AeoInformedResult } from '@/lib/organic-social/aeo-informed'
 
 // cached() is recorded and passed through, so each test sees which cache a call went to and with what arguments.
-const { cachedCalls, invoked, pull } = vi.hoisted(() => ({
+const { cachedCalls, invoked, pull, afterSpy } = vi.hoisted(() => ({
   cachedCalls: [] as { fn: string; opts: Record<string, unknown> }[],
   invoked: [] as { fn: string; args: unknown[] }[],
   pull: vi.fn(),
+  afterSpy: vi.fn(),
 }))
+// after() is recorded, never run: each test calls the task it was handed, as the platform would once the response has ended (#450).
+vi.mock('next/server', async (orig) => ({ ...(await orig<object>()), after: afterSpy }))
 vi.mock('@/lib/cache', () => ({
   cached: (_vendor: string, fn: string, impl: (...a: unknown[]) => unknown, opts: Record<string, unknown>) => {
     cachedCalls.push({ fn, opts })
@@ -34,6 +37,7 @@ const base = {
 }
 beforeEach(() => {
   invoked.length = 0
+  afterSpy.mockReset()
   pull.mockReset()
   pull.mockResolvedValue(RESULT)
   vi.stubEnv('PEEC_AI_CUSTOMER_TOKEN', KEY)
@@ -92,6 +96,50 @@ describe('what is cached', () => {
     pull.mockResolvedValue(RESULT)
     await loadAeoTab(base)
     expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+// #450 (Paul, PR 444): once the timeout card ends the response, only work registered with after() is sure to keep running on Vercel.
+describe('a pull that loses its deadline is kept alive with after()', () => {
+  const timedOut = async (deadlineMs = 30_000) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const p = loadAeoTab({ ...base, deadlineMs })
+    await vi.advanceTimersByTimeAsync(deadlineMs)
+    return p
+  }
+  it('hands the losing pull to after(), and the task it hands over settles when the pull does', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    let land!: (r: AeoInformedResult) => void
+    pull.mockImplementation(() => new Promise((res) => { land = res }))
+    expect(await timedOut()).toEqual({ kind: 'error', reason: 'timeout' })
+    expect(afterSpy).toHaveBeenCalledTimes(1)
+    let settled = false
+    const task = (afterSpy.mock.calls[0][0] as () => Promise<unknown>)().then(() => { settled = true })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    land(RESULT)
+    await task
+    expect(settled).toBe(true)
+  })
+  it('the task never rejects, so Next never logs the pull\'s error, whose message can name the project', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    let fail!: (e: Error) => void
+    pull.mockImplementation(() => new Promise((_, rej) => { fail = rej }))
+    await timedOut()
+    const task = (afterSpy.mock.calls[0][0] as () => Promise<unknown>)()
+    fail(new Error(`Peec said no for ${PROJECT}`))
+    await expect(task).resolves.toBeUndefined()
+  })
+  it('a pull that finishes in time is never handed to after()', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    expect((await loadAeoTab(base)).kind).toBe('ok')
+    expect(afterSpy).not.toHaveBeenCalled()
+  })
+  it('outside a request, where after() throws, the viewer still gets the timeout card', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    afterSpy.mockImplementation(() => { throw new Error('`after` was called outside a request scope.') })
+    pull.mockImplementation(() => new Promise(() => {}))
+    expect(await timedOut()).toEqual({ kind: 'error', reason: 'timeout' })
   })
 })
 
