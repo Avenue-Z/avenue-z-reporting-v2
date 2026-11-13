@@ -28,8 +28,10 @@ export class AeoPullError extends Error {
     this.name = 'AeoPullError'
   }
 }
+/** `kind` says which selector failure it was, so a log line can tell a missing tag from a second one without the message, which lists
+ *  names from the Peec project (issue 457). */
 export class PeecSelectorError extends Error {
-  constructor(message: string) { super(message); this.name = 'PeecSelectorError' }
+  constructor(message: string, public readonly kind: 'missing' | 'duplicate') { super(message); this.name = 'PeecSelectorError' }
 }
 export class PeecBrandError extends Error {
   constructor(message: string) { super(message); this.name = 'PeecBrandError' }
@@ -176,15 +178,15 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     // Exactly one: the tag is what Jasmine applies in Peec (spec 2026-11-13), so a second tag with the name is refused, never silently
     // picked. No tag keeps today's message, which lists the tags that exist.
     const matches = tags.filter((x) => x.name === selector.name)
-    if (matches.length === 0) throw new PeecSelectorError(`no source tag named "${selector.name}". Tags that exist: ${tags.map((x) => x.name).join(', ') || '(none)'}`)
-    if (matches.length > 1) throw new PeecSelectorError(`expected exactly one source tag named "${selector.name}", found ${matches.length}`)
+    if (matches.length === 0) throw new PeecSelectorError(`no source tag named "${selector.name}". Tags that exist: ${tags.map((x) => x.name).join(', ') || '(none)'}`, 'missing')
+    if (matches.length > 1) throw new PeecSelectorError(`expected exactly one source tag named "${selector.name}", found ${matches.length}`, 'duplicate')
     const t = matches[0]
     selId = t.id
     selFilter = { field: 'domain_tag_id', operator: 'in', values: [t.id] }
   } else {
     const cls = await step('domain-classifications', null, async () => parseClassifications(await reader.get('/classifications/domains', { limit: String(LIST_LIMIT) }, 'domain-classifications'), '/classifications/domains'))
     if (cls.length >= LIST_LIMIT) throw new AeoPullError('domain-classifications', null, new Error(`the classification list returned ${LIST_LIMIT} rows, the limit, so it may be cut off`))
-    if (!cls.some((x) => x.name === selector.name)) throw new PeecSelectorError(`no domain classification named "${selector.name}". Classifications that exist: ${cls.map((x) => x.name).join(', ') || '(none)'}`)
+    if (!cls.some((x) => x.name === selector.name)) throw new PeecSelectorError(`no domain classification named "${selector.name}". Classifications that exist: ${cls.map((x) => x.name).join(', ') || '(none)'}`, 'missing')
     selFilter = { field: 'domain_classification', operator: 'in', values: [selector.name] }
   }
 

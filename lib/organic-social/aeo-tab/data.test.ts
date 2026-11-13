@@ -206,12 +206,19 @@ describe('aeoLockKey', () => {
     await getAeoTabData(base)
     expect((capture.mock.calls[0][0] as { selector?: unknown }).selector).toEqual({ name: 'Organic Social', via: AEO_TAB_SELECTOR_VIA })
   })
-  it('a capture that hits a missing or duplicated tag is the error card, logs lock capture failed with PeecSelectorError, and stores nothing', async () => {
+  // issue 457: the lock path says which selector failure it was, as the live path does, and never the tag names
+  it.each([
+    ['missing', 'no source tag named "Organic Social". Tags that exist: (none)'],
+    ['duplicate', 'expected exactly one source tag named "Organic Social", found 2'],
+  ] as const)('a capture that hits a %s tag is the error card, logs lock capture failed with PeecSelectorError and the reason, and stores nothing', async (kind, message) => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
-    capture.mockRejectedValue(new PeecSelectorError('no source tag named "Organic Social". Tags that exist: (none)'))
+    capture.mockRejectedValue(new PeecSelectorError(message, kind))
     expect(await getAeoTabData(base)).toEqual({ kind: 'error', reason: 'error' })
     expect(writeLock).not.toHaveBeenCalled()
-    expect(String(err.mock.calls[0][0])).toMatch(/^\[aeo-informed\] lock capture failed slug=a-client period_end=2026-09-30 key=[0-9a-f]{12} error=PeecSelectorError$/)
+    expect(err).toHaveBeenCalledTimes(1)
+    const line = String(err.mock.calls[0][0])
+    expect(line).toMatch(new RegExp(`^\\[aeo-informed\\] lock capture failed slug=a-client period_end=2026-09-30 key=[0-9a-f]{12} error=PeecSelectorError reason=${kind}$`))
+    expect(line).not.toMatch(/Organic Social/)
   })
   it('in January MoM and YTD are the same window, and still two keys, because only MoM compares (issue 451)', () => {
     const jan = { projectId: 'p', selector: 'Organic Social', window: { start: '2027-01-01', end: '2027-01-31' }, asOf: '2027-01-31', min: 2, fourthGraph: 'instagram' as const }

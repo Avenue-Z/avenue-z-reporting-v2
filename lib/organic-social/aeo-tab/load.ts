@@ -4,7 +4,7 @@
 // (data.ts, plan Task 7); this is every other window. Server only: it reads the Peec key from the environment.
 import { after } from 'next/server'
 import { cached } from '@/lib/cache'
-import { AeoGateError, getAeoInformedSocial, graphOrder, type AeoInformedInput, type AeoInformedResult, type FourthGraph, type GraphId } from '@/lib/organic-social/aeo-informed'
+import { AeoGateError, PeecSelectorError, getAeoInformedSocial, graphOrder, type AeoInformedInput, type AeoInformedResult, type FourthGraph, type GraphId } from '@/lib/organic-social/aeo-informed'
 import { graphViews, type AeoRange } from './params'
 import type { AeoInformedSetting } from './setting'
 
@@ -130,7 +130,8 @@ export async function loadAeoTab(a: {
 }
 
 /** How a failed pull reaches the section: a window with no chats (gate rule view.no-chats, which other rules cascade from) is no-chats; a
- *  missed deadline a timeout; anything else an error. `name` is what a log line may say: the error's name, and a gate error's rule codes. */
+ *  missed deadline a timeout; anything else an error. `name` is what a log line may say: the error's name, a gate error's rule codes, and a
+ *  selector error's kind (missing or duplicate, issue 457), never its message. */
 export function failureOf(e: unknown): { kind: 'no-chats' } | { kind: 'error'; reason: 'timeout' | 'error'; name: string } {
   if (e instanceof AeoDeadlineError) return { kind: 'error', reason: 'timeout', name: e.name }
   if (e instanceof AeoGateError) {
@@ -138,5 +139,6 @@ export function failureOf(e: unknown): { kind: 'no-chats' } | { kind: 'error'; r
     if (codes.includes('view.no-chats')) return { kind: 'no-chats' }
     return { kind: 'error', reason: 'error', name: `AeoGateError codes=${[...new Set(codes)].join(',')}` }
   }
+  if (e instanceof PeecSelectorError) return { kind: 'error', reason: 'error', name: `${e.name} reason=${e.kind}` }
   return { kind: 'error', reason: 'error', name: e instanceof Error ? e.name : 'Error' }
 }

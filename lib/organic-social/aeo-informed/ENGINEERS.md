@@ -113,7 +113,7 @@ Tables decide ownership from a URL's most-retrieved title and graphs decide per 
 | Situation | Result |
 |---|---|
 | Bad date, `start > end`, `weeks < 1`, or `socials.end` / `gaps.end` after `asOf` | `RangeError` before any call |
-| Selector name not found | `PeecSelectorError` listing the names that exist |
+| Selector name not found, or (tag) more than one tag with the name | `PeecSelectorError`, `kind` `missing` (the message lists the names that exist) or `duplicate`. The tab logs `error=PeecSelectorError reason=<kind>`, never the message |
 | No own brand, or more than one | `PeecBrandError` |
 | A list endpoint returns exactly its limit (1,000) | `AeoPullError` (it may be cut off) |
 | Any pull fails after retries | `AeoPullError` naming the pull and window, wrapping the original error as `cause`. No partial result. |

@@ -184,6 +184,7 @@ describe('getAeoInformedSocial: the selector', () => {
     const w = world({ classes: [{ name: 'Editorial - Trade' }] })
     const e = (await getAeoInformedSocial(input(w.reader)).catch((x) => x)) as PeecSelectorError
     expect(e).toBeInstanceOf(PeecSelectorError)
+    expect(e.kind).toBe('missing')
     expect(e.message).toContain('Organic Social')
     expect(e.message).toContain('Editorial - Trade')
     expect(w.calls.some((c) => c.path === '/reports/urls')).toBe(false)
@@ -468,15 +469,21 @@ describe('the source tag selector: exactly one tag, and nothing pulled without i
     await expect(getAeoInformedSocial(input(w.reader, tagged))).rejects.toThrow(PeecSelectorError)
     await expect(getAeoInformedSocial(input(world({ tags: [{ id: 'stg_9', name: 'Editorial' }] }).reader, tagged))).rejects.toThrow(/no source tag named "Organic Social". Tags that exist: Editorial/)
     expect(reports(w)).toEqual([])
+    // issue 457: the kind is what a log line may say, so a missing tag and a second tag read differently at 3am
+    expect(((await getAeoInformedSocial(input(world({ tags: [] }).reader, tagged)).catch((x) => x)) as PeecSelectorError).kind).toBe('missing')
   })
   it('two tags with the name: PeecSelectorError, never a silent pick of the first, before any report is pulled', async () => {
     const w = world({ tags: [{ id: 'stg_1', name: 'Organic Social' }, { id: 'stg_2', name: 'Organic Social' }] })
     await expect(getAeoInformedSocial(input(w.reader, tagged))).rejects.toThrow(/expected exactly one source tag named "Organic Social", found 2/)
     expect(reports(w)).toEqual([])
+    const e = (await getAeoInformedSocial(input(world({ tags: [{ id: 'stg_1', name: 'Organic Social' }, { id: 'stg_2', name: 'Organic Social' }] }).reader, tagged)).catch((x) => x)) as PeecSelectorError
+    expect(e).toBeInstanceOf(PeecSelectorError)
+    expect(e.kind).toBe('duplicate')
   })
   it('a tag name differing only in case is not a match', async () => {
     const w = world({ tags: [{ id: 'stg_1', name: 'organic social' }] })
     await expect(getAeoInformedSocial(input(w.reader, tagged))).rejects.toThrow(PeecSelectorError)
+    expect(((await getAeoInformedSocial(input(world({ tags: [{ id: 'stg_1', name: 'organic social' }] }).reader, tagged)).catch((x) => x)) as PeecSelectorError).kind).toBe('missing')
   })
 })
 

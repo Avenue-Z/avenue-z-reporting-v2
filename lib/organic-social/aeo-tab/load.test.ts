@@ -193,11 +193,19 @@ describe('what the section gets on a failure', () => {
     expect(line).toBe('[aeo-informed] load failed slug=a-client range=all min=4 error=PeecHttpError')
     expect(err.mock.calls[0].length).toBe(1)
   })
-  it('a missing or duplicated source tag is the error card and one log line naming PeecSelectorError, never a number', async () => {
+  // issue 457: a missing tag and a second tag need different fixes in Peec, so the line says which, and never the tag names
+  it.each([
+    ['missing', 'no source tag named "Organic Social". Tags that exist: Editorial'],
+    ['duplicate', 'expected exactly one source tag named "Organic Social", found 2'],
+  ] as const)('a %s source tag is the error card and one log line naming PeecSelectorError and the reason, never a number', async (kind, message) => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
-    pull.mockRejectedValue(new PeecSelectorError('expected exactly one source tag named "Organic Social", found 2'))
+    pull.mockRejectedValue(new PeecSelectorError(message, kind))
     expect(await loadAeoTab(base)).toEqual({ kind: 'error', reason: 'error' })
-    expect(String(err.mock.calls[0][0])).toBe('[aeo-informed] load failed slug=a-client range=month min=2 error=PeecSelectorError')
+    expect(err).toHaveBeenCalledTimes(1)
+    expect(err.mock.calls[0].length).toBe(1)
+    const line = String(err.mock.calls[0][0])
+    expect(line).toBe(`[aeo-informed] load failed slug=a-client range=month min=2 error=PeecSelectorError reason=${kind}`)
+    expect(line).not.toMatch(/Organic Social|Editorial/)
   })
   it('a gate error without view.no-chats is an error, and the log names the rule codes', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
