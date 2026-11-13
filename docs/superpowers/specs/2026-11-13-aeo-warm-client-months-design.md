@@ -6,9 +6,18 @@ Status: draft, 2026-11-13. Builds on `2026-11-12-aeo-informed-social-tab-design.
 
 The hourly cache warmer pre-loads the tab's three views (MoM, YTD, All time, default min) so a client never waits for a cold Peec pull
 (about 30 s for YTD and All time, `docs/findings/2026-11-12-aeo-tab-page-time-limit.md`). It warms only the newest month a client viewer
-is served: `lockedRangeFor(client, 'CLIENT_VIEWER', undefined, clock)?.month` (`lib/organic-social/aeo-tab/warm.ts:17`). Since
-2026-11-13 every locked-months client lets clients pick two months (`reportingMonths.clientMonths: 2`, all six clients, read only that
-day), so the second month's views are cold on first open.
+is served: `lockedRangeFor(client, 'CLIENT_VIEWER', undefined, clock)?.month` (`lib/organic-social/aeo-tab/warm.ts:17`). Clients can now
+pick two months (production, all six locked-months clients, `reportingMonths.clientMonths: 2` since 2026-11-13).
+
+What the older month costs today, read from the code (review round 1, major 2): every month a client can pick has already locked
+(`lockOn` never falls after the opening day, `lib/organic-social/lock-day.ts:25`), and the lock sweep captures MoM, YTD and All time for
+the two newest locked months on their lock day (`lib/organic-social/lock-sweep.ts:30-38`). A captured view is a lock read
+(`aeo-tab/data.ts:61-63`), kept in Next's cache for a day (`lib/organic-social/response-lock-store.ts:22`). So the older month is
+normally one database read a day, not a Peec pull. It is a cold Peec pull (about 30 s for YTD and All time) only when the month was never
+captured: the tab was switched on after that month's sweep window (`lock-sweep.ts:29`), or a capture failed or stored nothing.
+
+The two real benefits: (1) on the day the tab is switched on, the hourly warmer captures both client months by itself, so no client is
+the first to wait 30 s; (2) the older month's day-long lock cache stays warm.
 
 ## Measured
 
@@ -21,12 +30,13 @@ day), so the second month's views are cold on first open.
 
 ## Change
 
-`aeoWarmUrls` warms the three views for each of the newest **two** months a client viewer can pick
-(`lockedRangeFor(...).months.slice(0, 2)`), newest month first, in the same three-view order as today. `WARM_MONTHS = 2` is a named
-constant. For a client not on locked months nothing changes (`last_30_days`, three views). A client with no month open to clients still
+`aeoWarmUrls` returns `{ served, extra }`: `served` is today's three URLs (the newest month a client viewer is served); `extra` is the
+same three views for the next month a client can pick (`lockedRangeFor(...).months[1]`), or none. `WARM_MONTHS = 2` is a named constant
+(served plus at most one more). The route (`app/api/cache-warm/route.ts:77`) appends every AEO client's `served` first, then every
+client's `extra` (review round 1, major 1), so no URL warmed today moves behind a new one, across clients as well as within one. For a client not on locked months nothing changes (`last_30_days`, three views). A client with no month open to clients still
 gets none.
 
-The first three URLs for every client are exactly today's (the newest month's three views), so nothing warmed today moves or is dropped.
+Every URL warmed today keeps its position: `served` is exactly today's list, and all `extra` URLs come after every `served` URL.
 
 ## Inputs and outputs
 
@@ -37,8 +47,10 @@ The first three URLs for every client are exactly today's (the newest month's th
 
 ## Failure behavior
 
-Unchanged: each URL is one self-fetch through the shared runner (`lib/cache-warm/run.ts`); a failing view is counted and logged by the
-runner as today and never stops the others. A settled month that has not been captured is captured by its first warm (a `late lock`
+Each URL is one self-fetch through the shared runner (`lib/cache-warm/run.ts`); one view failing never stops the others. The runner
+counts only the HTTP status (`run.ts:37`), and a failed AEO capture is an error card inside a 200 page
+(`components/report-sections/organic-social/aeo-informed/section.tsx:79`), so the runner's `ok` count does not show it. The signal is the
+log line `[aeo-informed] lock capture failed ...` (`aeo-tab/data.ts:57`), as for the views warmed today. A settled month that has not been captured is captured by its first warm (a `late lock`
 line, as for any late capture, `aeo-tab/data.ts`); after that it is a lock read.
 
 ## Edge cases
@@ -62,5 +74,5 @@ pull.
 ## Tests (written first)
 
 - `warm.test.ts`: edge cases 1 to 7, each exact URL list in order.
-- `cache-warm-route.test.ts`: every URL warmed before is still warmed in the same order; an AEO client on two client months gets its six
-  views after them, newest month first.
+- `cache-warm-route.test.ts`: every URL warmed before is still warmed in the same order; with two AEO clients on two client months, every
+  `served` URL comes before any `extra` URL.
