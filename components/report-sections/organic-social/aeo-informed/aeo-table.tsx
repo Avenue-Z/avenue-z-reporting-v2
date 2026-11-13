@@ -1,9 +1,10 @@
 'use client'
-// One of the tab's three tables (spec section 3 items 4 to 6, section 5). The columns are the outline screenshots': #, URL, URL type, Domain
-// type, then "<brand> mentioned" in the socials tables only (a gap never mentions our own brand), then Mentions; they end Retrievals, Total
-// citations, Citation rate (the team's feedback, 2026-11-12: "Retrieved" removed); URL Gaps keeps Citation share and Citation position before them. 14 rows a page, as the
-// outline's screenshots, with search (URL, title, channel) and sortable number columns. Mentions is one dot per brand in Peec's color for it
-// (grey for a brand with none), own brand first. In the PDF export: the page the table opens on, with its count, and no search or buttons.
+// One of the tab's three tables (spec section 3 items 4 to 6, section 5). The columns are the outline screenshots': #, URL, URL type,
+// Domain type, then "<brand> mentioned" in the socials tables only (a gap never mentions our own brand), then Mentions; they end
+// Retrievals, Total citations, Citation rate (the team's feedback, 2026-11-12: "Retrieved" removed); URL Gaps keeps Citation share and
+// Citation position before them. 14 rows a page, as the outline's screenshots, with search (URL, title, channel) and sortable number
+// columns. Mentions is one dot per brand in Peec's color for it (grey for a brand with none), own brand first. In the PDF export: the page
+// the table opens on, with its count, and no search or buttons.
 import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { CHART_COLORS } from '@/lib/constants'
