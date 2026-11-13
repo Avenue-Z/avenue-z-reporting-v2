@@ -10,11 +10,26 @@ import type { AeoRange } from './params'
 
 const RANGES: AeoRange[] = ['month', 'ytd', 'all']
 
-/** None for a client without the tab or without Organic Social. The range: the newest month a client viewer is served for a client on locked
- *  months (none if no month is open to clients yet), else the page's default, last_30_days. */
-export function aeoWarmUrls(baseUrl: string, client: Client, clock: Clock): string[] {
-  if (!client.enabledReports.includes('organic-social') || client.hiddenReports?.includes('organic-social') || !hasAeoInformedTab(client)) return []
-  const range = hasReportingMonths(client) ? lockedRangeFor(client, 'CLIENT_VIEWER', undefined, clock)?.month?.dateRange ?? null : 'last_30_days'
-  if (!range) return []
-  return RANGES.map((r) => `${baseUrl}/portal/${client.slug}/reports?section=organic-social&subsection=${AEO_TAB_ID}${r === 'month' ? '' : `&aeo=${r}`}&dateRange=${encodeURIComponent(range)}`)
+/** At most this many months are warmed per client: the one a client viewer is served, and the next one they can pick (spec
+ *  2026-11-13-aeo-warm-client-months-design.md). Bounded on purpose: a client without clientMonths can pick every opened month. */
+export const WARM_MONTHS = 2
+
+/**
+ * The three views for each month a client viewer can pick, at most WARM_MONTHS.
+ * - `served`: the newest month a client viewer is served (months[0], reporting-months.ts) for a client on locked months, else the page's
+ *   default, last_30_days. Exactly the list warmed before this change.
+ * - `extra`: the next month a client can pick (months[1]), or none. The route warms every client's `served` before any `extra`, so nothing
+ *   warmed before moves behind a new URL.
+ * None for a client without the tab, without Organic Social, or with no month open to clients.
+ */
+export function aeoWarmUrls(baseUrl: string, client: Client, clock: Clock): { served: string[]; extra: string[] } {
+  const none = { served: [], extra: [] }
+  if (!client.enabledReports.includes('organic-social') || client.hiddenReports?.includes('organic-social') || !hasAeoInformedTab(client)) return none
+  const views = (range: string) => RANGES.map((r) => `${baseUrl}/portal/${client.slug}/reports?section=organic-social&subsection=${AEO_TAB_ID}${r === 'month' ? '' : `&aeo=${r}`}&dateRange=${encodeURIComponent(range)}`)
+  if (!hasReportingMonths(client)) return { served: views('last_30_days'), extra: [] }
+  const locked = lockedRangeFor(client, 'CLIENT_VIEWER', undefined, clock)
+  const served = locked?.month?.dateRange ?? null
+  if (!served) return none
+  const next = (locked?.months ?? []).filter((m) => m.dateRange !== served).slice(0, WARM_MONTHS - 1)
+  return { served: views(served), extra: next.flatMap((m) => views(m.dateRange)) }
 }
