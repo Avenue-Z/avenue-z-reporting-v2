@@ -6,6 +6,9 @@ import { beforeEach, expect, test, vi } from 'vitest'
 // If a hash below changes, the key's inputs changed (a field, its name, the contract version). That is never free: every lock already stored
 // under the old key becomes unreachable, and those months silently recapture from live Peec, the only signal a `late lock` warning. Decide
 // deliberately, then update the pin: recapture is fine for a month no client has seen; otherwise map the old keys forward first.
+//
+// 2026-11-13, issue 451: the key gained `compare` (only MoM compares; in January MoM and YTD are the same window). Re-pinned deliberately: a
+// read-only check that day found no AEO lock row in production, staging or dev (no client has the tab on), so no stored lock was orphaned.
 
 const { readLock } = vi.hoisted(() => ({ readLock: vi.fn(async (): Promise<{ response: unknown } | null> => ({ response: { stored: true } })) }))
 vi.mock('@/lib/organic-social/response-lock-store', () => ({ readLock, writeLock: vi.fn() }))
@@ -28,9 +31,9 @@ test('the lock keys a September view hands the store, per range and min, are pin
     keys.push(String((readLock.mock.calls[0] as unknown[])[1]))
   }
   expect(keys).toEqual([
-    '60ef45181344f7696594181b6978286701502b122f503294414814ffa9fdd6ab', // Month, min 2
-    'b9969d92287f804d616212c57c49a1659d8c34b4b9df80a42063153c8178ee4b', // YTD, min 2
-    '08fc004279d1cc6664f9307c89dae1ae6a753b1afa82d60b1eb20cc53b55c55d', // All time, min 2
-    'baf3f67ba69271c4dc262308ad5ac41687ca1547f29a966fdee1059ef33be8b6', // Month, min 1
+    '5354edc46713671812db4cdcde55978ff1fdf6e47554941476b8ef30efa096a6', // Month, min 2
+    'bdbb6a4201788834c9ba860548e08fe0487c13864eb7c18b18be35b7c3181bf4', // YTD, min 2
+    '1b2a5f69a59c38b0495028e63c67f3f67a89faa8b41797e029ee530a8c02bb14', // All time, min 2
+    'fb4cdfa2f2233747bd21052e4007b4c0a75781f847da44a8e6b6313cb6ad90d0', // Month, min 1
   ])
 })

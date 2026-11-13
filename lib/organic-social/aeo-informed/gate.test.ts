@@ -19,10 +19,14 @@ const pt = (c: Ctx, id: string, i = 0) => c.r.graphs.filter((p) => p.graphId ===
 
 // code -> corruptions, each of which must make exactly that rule fire (several where one corruption would leave a branch of the rule untested)
 const MUTATIONS: Record<string, Mut[]> = {
-  'meta.windows': [(c) => { c.r.meta.windows.socialsPrior.start = '2026-01-01' }, (c) => { c.r.meta.windows.gapsPrior.start = '2026-01-01' }],
+  'meta.windows': [
+    (c) => { c.r.meta.windows.socialsPrior!.start = '2026-01-01' },
+    (c) => { c.r.meta.windows.gapsPrior!.start = '2026-01-01' },
+    (c) => { c.r.meta.windows.socialsPrior = null }, // comparing, but no previous window (issue 451)
+  ],
   'meta.as-of': [(c) => { c.r.meta.windows.socials.end = '2026-11-09' }, (c) => { c.r.meta.windows.gaps.end = '2026-11-09' }, (c) => { c.raw.today = c.r.meta.asOf }],
   'meta.counts': [(c) => { c.r.meta.counts.socialsAll += 1 }, (c) => { c.r.meta.counts.requests = 1 }],
-  'meta.chats': [(c) => { c.r.meta.chats.socials = -1 }, (c) => { c.r.meta.chats.gaps = 10.5 }],
+  'meta.chats': [(c) => { c.r.meta.chats.socials = -1 }, (c) => { c.r.meta.chats.gaps = 10.5 }, (c) => { c.r.meta.chats.socialsPrior = null }], // comparing needs the previous count
   'meta.unverified': [(c) => { c.r.meta.unverified = [] }],
   'meta.identity': [(c) => { c.r.meta.ownBrandId = '' }, (c) => { c.r.meta.selector = { name: 'Organic Social', via: 'tag', id: null } }],
   'oracle.chats': [(c) => { c.r.meta.chats.socials += 1 }],
@@ -275,4 +279,41 @@ describe('enforcement in getAeoInformedSocial', () => {
     expect(r.meta.gate).toMatchObject({ errors: [], warnings: [] })
     expect(r.meta.gate.rulesChecked).toBe(GATE_RULES.length)
   })
+})
+
+// Issue 451 (Paul, PR 444): a result asked for with compare false has no previous window. The gate must pass a good one and catch a result that
+// still carries anything from a previous window, since nothing was pulled to back it.
+describe('compare false', () => {
+  const goodOff = async (): Promise<Ctx> => {
+    const i = await inspectAeoInformedSocial(input(world().reader, { compare: false }))
+    return { r: i.result, raw: i.raw }
+  }
+  it('a good compare false result passes the gate with no errors and no warnings', async () => {
+    const c = await goodOff()
+    expect(c.r.meta.compare).toBe(false)
+    expect(runGate(c.r, c.raw)).toEqual([])
+  })
+  const OFF: Record<string, Mut[]> = {
+    'meta.windows': [
+      (c) => { c.r.meta.windows.socialsPrior = { start: '2026-09-07', end: '2026-10-06' } },
+      (c) => { c.r.meta.windows.gapsPrior = { start: '2026-08-02', end: '2026-08-31' } },
+      (c) => { c.r.meta.chats.socialsPrior = 0 },
+      (c) => { c.r.meta.chats.gapsPrior = 5 },
+    ],
+    'oracle.deltas': [
+      (c) => { c.r.socialsAll[0].retrievalsDelta = 1; c.r.socialsAll[0].totalCitationsDelta = 1 },
+      (c) => { c.r.urlGaps[0].retrievalsDelta = 1; c.r.urlGaps[0].totalCitationsDelta = 1 },
+    ],
+    'oracle.rows': [(c) => { c.raw.gapPriorRows.push(structuredClone(c.raw.gapCurrentRows[0])) }],
+    'totals.prior-recount': [(c) => { c.r.totals.prior = { urlsCited: 0, retrievals: 0, citations: 0, citationRate: null } }],
+  }
+  for (const [code, muts] of Object.entries(OFF)) {
+    muts.forEach((mutate, k) => {
+      it(`${code} fires on a compare false result that carries a previous window (${k + 1} of ${muts.length})`, async () => {
+        const c = clone(await goodOff())
+        mutate(c)
+        expect(codes(c), `${code} did not fire`).toContain(code)
+      })
+    })
+  }
 })

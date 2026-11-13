@@ -40,7 +40,7 @@ export type GateRule = { code: string; severity: GateSeverity; plain: string }
 export const GATE_RULES: GateRule[] = [
   { code: 'contract', severity: 'error', plain: 'Every row of every table and every graph point matches the data contract: the right type, an allowed range, allowed values only, and no extra fields.' },
   { code: 'no-nan', severity: 'error', plain: 'No number anywhere in the result is "not a number" or infinite.' },
-  { code: 'meta.windows', severity: 'error', plain: 'Each "change" window is exactly as long as the window it is compared with and ends the day before it starts.' },
+  { code: 'meta.windows', severity: 'error', plain: 'Each "change" window is exactly as long as the window it is compared with and ends the day before it starts; with compare false there is none, and no previous chat count.' },
   { code: 'meta.as-of', severity: 'error', plain: 'No table window runs past the as-of date, and the as-of date is before today, so no day that is not finished is counted.' },
   { code: 'meta.counts', severity: 'error', plain: 'The row counts in the result summary equal the real number of rows.' },
   { code: 'meta.chats', severity: 'error', plain: 'Chat totals are whole numbers and never negative.' },
@@ -71,7 +71,7 @@ export const GATE_RULES: GateRule[] = [
   { code: 'url-gaps.own-absent', severity: 'error', plain: 'No source behind the URL gaps table mentions our own brand: a gap is where a competitor is mentioned and we are not.' },
   { code: 'url-gaps.new-url-deltas', severity: 'error', plain: 'A new URL has an empty change in both retrievals and citations, never one without the other.' },
   { code: 'totals.recount', severity: 'error', plain: 'The four totals before the tables equal a recount of the own table: URLs with at least one citation, the sums of retrievals and citations, and total citations divided by total retrievals.' },
-  { code: 'totals.prior-recount', severity: 'error', plain: 'The previous window\'s totals equal a recount of the rows Peec returned for that window, narrowed to our own channels, and are empty exactly when that window has no chats.' },
+  { code: 'totals.prior-recount', severity: 'error', plain: 'The previous window\'s totals equal a recount of the rows Peec returned for that window, narrowed to our own channels, and are empty exactly when that window has no chats or nothing is compared.' },
   { code: 'graphs.complete', severity: 'error', plain: 'Exactly the four graphs asked for are present (the first three, then Instagram or TikTok), in order, each with the right number of weekly points up to the as-of date.' },
   { code: 'graphs.buckets', severity: 'error', plain: 'Each graph\'s points are 7-day buckets, one right after the other, starting on the graph\'s own start date.' },
   { code: 'graphs.partial', severity: 'error', plain: 'A weekly point is flagged "partial" exactly when its week has not finished by the as-of date.' },
@@ -161,9 +161,15 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
 
   // ---- 3. summary ----
   try {
-    if (!sameWindow(w.socialsPrior, previousWindow(w.socials))) err('meta.windows', 'meta.windows.socialsPrior', 'the previous window is not the same length ending the day before')
-    if (!sameWindow(w.gapsPrior, previousWindow(w.gaps))) err('meta.windows', 'meta.windows.gapsPrior', 'the previous window is not the same length ending the day before')
-    for (const [k, win] of Object.entries(w)) if (daysIn(win) < 1) err('meta.windows', `meta.windows.${k}`, 'the window is empty')
+    if (m.compare !== false) {
+      if (w.socialsPrior === null || !sameWindow(w.socialsPrior, previousWindow(w.socials))) err('meta.windows', 'meta.windows.socialsPrior', 'the previous window is not the same length ending the day before')
+      if (w.gapsPrior === null || !sameWindow(w.gapsPrior, previousWindow(w.gaps))) err('meta.windows', 'meta.windows.gapsPrior', 'the previous window is not the same length ending the day before')
+    } else {
+      // Nothing compared (issue 451): nothing was pulled for a previous window, so nothing may claim one.
+      if (w.socialsPrior !== null || w.gapsPrior !== null) err('meta.windows', 'meta.windows', 'a previous window is set although nothing is compared')
+      if (m.chats.socialsPrior !== null || m.chats.gapsPrior !== null) err('meta.windows', 'meta.chats', 'a previous chat count is set although nothing is compared')
+    }
+    for (const [k, win] of Object.entries(w)) if (win !== null && daysIn(win) < 1) err('meta.windows', `meta.windows.${k}`, 'the window is empty')
   } catch {
     err('meta.windows', 'meta.windows', 'a window is not a valid range of dates')
   }
@@ -174,14 +180,18 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
   const countChecks: [string, number, number][] = [['socialsAll', c.socialsAll, r.socialsAll.length], ['socialsOwn', c.socialsOwn, r.socialsOwn.length], ['socialsCompetitor', c.socialsCompetitor, r.socialsCompetitor.length], ['urlGaps', c.urlGaps, r.urlGaps.length]]
   for (const [k, said, real] of countChecks) if (said !== real) err('meta.counts', `meta.counts.${k}`, 'the count does not match the rows')
   if (!Number.isInteger(c.requests) || c.requests < 6) err('meta.counts', 'meta.counts.requests', 'implausible request count')
-  for (const [k, v] of Object.entries(m.chats)) if (!Number.isInteger(v) || v < 0) err('meta.chats', `meta.chats.${k}`, 'chats must be a whole number, 0 or more')
+  for (const [k, v] of Object.entries(m.chats)) {
+    // A previous window's count is null exactly when nothing is compared; meta.windows checks that pairing.
+    if (v === null && m.compare === false && (k === 'socialsPrior' || k === 'gapsPrior')) continue
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) err('meta.chats', `meta.chats.${k}`, 'chats must be a whole number, 0 or more')
+  }
   if (JSON.stringify(m.unverified) !== JSON.stringify([...UNVERIFIED])) err('meta.unverified', 'meta.unverified', 'the unverified list is not the complete list')
   if (!m.ownBrandId || !m.ownBrandName || !m.selector.name || (m.selector.via === 'tag' && !m.selector.id)) err('meta.identity', 'meta', 'the own brand or the selector is not named')
 
   // ---- 4. an independent recount from the raw rows ----
   const chatsOf = (win: Window) => raw.dayRows.filter((d) => inWin(d.date, win)).reduce((s, d) => s + d.visibility_total, 0)
-  const chatChecks: [keyof typeof m.chats, Window][] = [['socials', w.socials], ['socialsPrior', w.socialsPrior], ['gaps', w.gaps], ['gapsPrior', w.gapsPrior]]
-  for (const [k, win] of chatChecks) if (m.chats[k] !== chatsOf(win)) err('oracle.chats', `meta.chats.${k}`, 'the chat total does not equal a recount of the daily chat counts')
+  const chatChecks: [keyof typeof m.chats, Window | null][] = [['socials', w.socials], ['socialsPrior', w.socialsPrior], ['gaps', w.gaps], ['gapsPrior', w.gapsPrior]]
+  for (const [k, win] of chatChecks) if (win !== null && m.chats[k] !== chatsOf(win)) err('oracle.chats', `meta.chats.${k}`, 'the chat total does not equal a recount of the daily chat counts')
   const recountTable = (label: string, rows: readonly { url: string; retrievals: number; totalCitations: number; retrievalsDelta: number | null; totalCitationsDelta: number | null }[], now: Map<string, { ret: number; cit: number }>, before: Map<string, { ret: number; cit: number }>) => {
     const urls = new Set(rows.map((x) => x.url))
     if (urls.size !== rows.length || urls.size !== now.size || [...now.keys()].some((u) => !urls.has(u))) err('oracle.rows', label, 'the table does not hold exactly the sources Peec returned for the window')
@@ -197,7 +207,8 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     })
     if (ret !== rawRet || cit !== rawCit) err('oracle.totals', label, 'the table totals do not equal a recount of the rows Peec returned')
   }
-  recountTable('socialsAll', r.socialsAll, recount(raw.selRows, w.socials), recount(raw.selRows, w.socialsPrior))
+  // With nothing compared there is no previous window to recount, so every change must be empty.
+  recountTable('socialsAll', r.socialsAll, recount(raw.selRows, w.socials), w.socialsPrior === null ? new Map() : recount(raw.selRows, w.socialsPrior))
   // URL gaps keep Peec's rows (a URL can be several rows), so they are recounted per URL: the table must hold exactly as many rows as Peec returned, every URL's rows must add up to the raw
   // sum, and a URL that is one row on both sides must carry the plain difference. Rows of a repeated URL are checked for the null pairing only.
   {
@@ -216,6 +227,11 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
       }
     })
     if (r.urlGaps.length !== raw.gapCurrentRows.length || sums.size !== rawNow.size || [...rawNow.keys()].some((u) => !sums.has(u))) err('oracle.rows', 'urlGaps', 'the table does not hold exactly the rows Peec returned for the window')
+    // With nothing compared, no previous-window gap pull may exist and no gap row may carry a change.
+    if (w.gapsPrior === null) {
+      if (raw.gapPriorRows.length > 0) err('oracle.rows', 'gapPriorRows', 'previous-window gap rows exist although nothing is compared')
+      r.urlGaps.forEach((x, i) => { if (x.retrievalsDelta !== null || x.totalCitationsDelta !== null) err('oracle.deltas', `urlGaps[${i}]`, 'a change is set although nothing is compared') })
+    }
     for (const [u, a] of rawNow) { const s = sums.get(u); if (s && (s.ret !== a.ret || s.cit !== a.cit)) err('oracle.deltas', 'urlGaps', 'a source\'s numbers do not equal a recount') }
     let rawRet = 0, rawCit = 0
     for (const a of rawNow.values()) { rawRet += a.ret; rawCit += a.cit }
@@ -236,7 +252,7 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if ((x.ownerBrandId === m.ownBrandId) !== x.isOwnChannel) err('socials-all.own-flag', at, 'the star does not match the owner')
     const expectPct = m.chats.socials > 0 ? x.retrievals / m.chats.socials : 0
     if (!near(x.retrievedPct, expectPct)) err('socials-all.retrieved-pct', at, 'retrieved % is not retrievals over chats')
-    if (m.chats.socials === 0 || m.chats.socialsPrior === 0 || x.retrievalsDelta === null) {
+    if (m.chats.socials === 0 || !m.chats.socialsPrior || x.retrievalsDelta === null) {
       if (x.retrievedPctDelta !== null) err('socials-all.pct-delta', at, 'the change should be empty here')
     } else if (x.retrievedPctDelta === null || !near(x.retrievedPctDelta, x.retrievedPct - (x.retrievals - x.retrievalsDelta) / m.chats.socialsPrior)) {
       err('socials-all.pct-delta', at, 'the change does not agree with the retrievals change and the chats')
@@ -298,12 +314,15 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if (!same(r.totals, totalsOf(r.socialsOwn.map((x) => ({ ret: x.retrievals, cit: x.totalCitations }))))) err('totals.recount', 'totals', 'a total does not equal a recount of the own table')
     // The previous window: recounted from the raw rows, with each URL's channel title chosen as urls.ts does (the row with the most retrievals that
     // has one, ties to the smallest), then owned by the same rule as the own table. A URL with no row this window still counts.
-    if (m.chats.socialsPrior === 0) {
+    if (w.socialsPrior === null || m.chats.socialsPrior === null) {
+      if (r.totals.prior !== null) err('totals.prior-recount', 'totals.prior', 'nothing is compared, so there are no previous totals')
+    } else if (m.chats.socialsPrior === 0) {
       if (r.totals.prior !== null) err('totals.prior-recount', 'totals.prior', 'the previous window has no chats, so it has no totals to compare with')
     } else {
+      const prior = w.socialsPrior
       const byUrl = new Map<string, { ret: number; cit: number; title: { weight: number; value: string } | null }>()
       for (const x of raw.selRows) {
-        if (!inWin(x.date, w.socialsPrior)) continue
+        if (!inWin(x.date, prior)) continue
         const e = byUrl.get(x.url) ?? { ret: 0, cit: 0, title: null }
         e.ret += x.retrieval_count; e.cit += x.citation_count
         const t = x.channel_title
@@ -321,7 +340,8 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
   // Always asked for (graphs.complete reports it if not); a missing one checks no extra window here.
   const usedCfg = m.graphs.used_as_source_all ?? { from: m.asOf, weeks: 0 }
   const usedWin: Window = { start: usedCfg.from, end: addDays(usedCfg.from, usedCfg.weeks * 7 - 1) < m.asOf ? addDays(usedCfg.from, usedCfg.weeks * 7 - 1) : m.asOf }
-  const dayWindows: [string, Window][] = [['socials', w.socials], ['socialsPrior', w.socialsPrior], ['gaps', w.gaps], ['gapsPrior', w.gapsPrior]]
+  const dayWindows = ([['socials', w.socials], ['socialsPrior', w.socialsPrior], ['gaps', w.gaps], ['gapsPrior', w.gapsPrior]] as [string, Window | null][])
+    .filter((e): e is [string, Window] => e[1] !== null)
   if (usedWin.start <= usedWin.end) dayWindows.push(['usedAsSource', usedWin])
   for (const [k, win] of dayWindows) {
     if (firstDataDay === null) break

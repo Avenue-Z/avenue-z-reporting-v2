@@ -27,6 +27,11 @@ const WARN_BYTES = 1.5 * 1024 * 1024
  *  the window, so neither splits an entry in practice). Never the key. */
 export type PullArgs = { slug: string; range: AeoRange; projectId: string; selector: string; window: { start: string; end: string }; asOf: string; min: number; fourthGraph: FourthGraph }
 
+/** Whether a view compares with the previous window: MoM only, the one range that shows a change (params.ts aeoWindow, previousDays).
+ *  YTD and All time would pull a previous window as long as themselves and never show it (issue 451). The lock key (data.ts) holds it too,
+ *  because in January MoM and YTD are the same window. */
+export const comparesPrevious = (range: AeoRange): boolean => range === 'month'
+
 /** The adapter call for one view: both tables over the window, the four graphs weekly from its start, the key from the environment. The
  *  cached pull and the lock capture (data.ts) both use it, so a locked month is asked for exactly as a live one is. */
 export function adapterInput(a: PullArgs): AeoInformedInput {
@@ -41,6 +46,7 @@ export function adapterInput(a: PullArgs): AeoInformedInput {
     minCompetitors: a.min,
     fourthGraph: a.fourthGraph,
     deadlineMs: PULL_BUDGET_MS,
+    compare: comparesPrevious(a.range),
   }
 }
 

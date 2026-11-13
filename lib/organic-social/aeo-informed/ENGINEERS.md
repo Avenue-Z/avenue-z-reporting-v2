@@ -40,6 +40,8 @@ const result = await getAeoInformedSocial({
   // fourthGraph: 'tiktok',                                         // the fourth graph, 'instagram' (default) or 'tiktok'; views.graphs then
   //                                                                // holds citations_tiktok instead of citations_instagram (exactly the four drawn)
   // selector: { name: 'Organic Social', via: 'classification' },   // the default; via: 'tag' uses a source tag instead
+  // compare: false,                                                // default true; false pulls no previous window and returns every change,
+  //                                                                // previous window, previous chat count and totals.prior as null (YTD and All time)
   // now: () => Date.now(),                                         // the clock for the as-of check; only tests change it
 })
 ```
@@ -57,7 +59,7 @@ const result = await getAeoInformedSocial({
 | `urlGaps` | Sources where our brand is not mentioned and at least one competitor is, for the gaps window, as Peec's own rows (a URL can be several). Ordered by competitor brands times retrievals. |
 | `graphs` | `GraphPoint[]`: `graphId`, `series`, `weekStart`, `weekEnd`, `value` (`null` = "No source data"), `unit` (`citations` or `percent`), `partial`. Ordered by graph, then week. |
 | `totals` | `AeoTotals` over `socialsOwn`: `urlsCited`, `retrievals`, `citations`, `citationRate`, and `prior`, the same over the previous window's own URLs (`null` when that window has no chats). The tab's four tiles. |
-| `meta` | `asOf`, the start and weeks of each graph, windows used, own brand, `brands` (every brand with Peec's color, `null` when none), `minCompetitors`, `fourthGraph`, selector, chats per window, request and row counts, `warnings`, `unverified`, and `gate` (the gate's verdict: rules checked and warnings; a returned result never has errors). |
+| `meta` | `asOf`, the start and weeks of each graph, windows used, own brand, `brands` (every brand with Peec's color, `null` when none), `minCompetitors`, `fourthGraph`, `compare`, selector, chats per window (a previous window's `null` when `compare` is false), request and row counts, `warnings`, `unverified`, and `gate` (the gate's verdict: rules checked and warnings; a returned result never has errors). |
 
 Row types are `SocialsRow` and `GapRow` in `tables.ts`. Every delta is `number | null` (null when the URL has no row in the previous window). Percentages are fractions 0 to 1, except `citationRate`, which can exceed 1. Both rows carry `citationRate`, `citationRateDelta` and `mentionedBrandIds` (the ids behind `mentionedBrandNames`, joined with "|" in the same order).
 

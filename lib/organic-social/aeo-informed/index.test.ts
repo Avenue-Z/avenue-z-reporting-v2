@@ -391,3 +391,61 @@ describe('Review Focus 3: a window whose previous window lies before the project
     expect(r.totals.prior).toBeNull()
   })
 })
+
+// Issue 451 (Paul, PR 444): YTD and All time never show a change (aeo-tab/params.ts, previousDays null), so the tab asks for no previous
+// window. The views here are the tab's shape: both tables over one window and every graph from its start (aeo-tab/load.ts adapterInput).
+describe('compare false: no previous window is pulled or returned', () => {
+  const W = { start: '2026-10-07', end: '2026-11-05' }
+  const G = { from: '2026-10-07', weeks: 5 }
+  const tabViews = { socials: W, gaps: W, graphs: { used_as_source_all: G, citations_all: G, citations_linkedin: G, citations_instagram: G } }
+  const run = async (compare?: boolean) => {
+    const w = world()
+    const r = await getAeoInformedSocial(input(w.reader, { views: tabViews, ...(compare === undefined ? {} : { compare }) }))
+    const starts = (step: string) => w.calls.filter((c) => c.label?.startsWith(step)).map((c) => c.body!.start_date)
+    return { r, w, starts }
+  }
+  const noChange = (rows: Record<string, unknown>[]) => rows.map((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !k.endsWith('Delta'))))
+
+  it('asks Peec for nothing before the window: no gaps-prior pull, and the by-day and chat pulls start at the window', async () => {
+    const on = await run(true)
+    expect(on.starts('gaps-prior')).toEqual(['2026-09-07'])
+    expect(on.starts('socials-by-day')[0]).toBe('2026-09-07')
+    expect(on.starts('chats-by-day')[0]).toBe('2026-09-07')
+    const off = await run(false)
+    expect(off.w.calls.some((c) => c.label?.startsWith('gaps-prior'))).toBe(false)
+    expect(off.starts('socials-by-day')[0]).toBe('2026-10-07')
+    expect(off.starts('chats-by-day')[0]).toBe('2026-10-07')
+    expect(off.w.calls.length).toBeLessThan(on.w.calls.length)
+    expect(off.r.meta.counts.requests).toBe(off.w.calls.length)
+  })
+  it('shows exactly what compare true shows, with every change, previous window, previous chat count and previous total empty', async () => {
+    const on = (await run(true)).r
+    const off = (await run(false)).r
+    for (const k of ['socialsAll', 'socialsOwn', 'socialsCompetitor', 'urlGaps'] as const) {
+      expect(noChange(off[k] as never)).toEqual(noChange(on[k] as never))
+      expect((off[k] as Record<string, unknown>[]).every((x) => Object.entries(x).every(([key, v]) => !key.endsWith('Delta') || v === null))).toBe(true)
+    }
+    expect(off.graphs).toEqual(on.graphs)
+    expect({ ...off.totals, prior: 'set aside' }).toEqual({ ...on.totals, prior: 'set aside' })
+    expect(off.totals.prior).toBeNull()
+    expect(off.meta.compare).toBe(false)
+    expect(on.meta.compare).toBe(true)
+    expect(off.meta.windows).toEqual({ socials: W, socialsPrior: null, gaps: W, gapsPrior: null })
+    expect(off.meta.chats.socialsPrior).toBeNull()
+    expect(off.meta.chats.gapsPrior).toBeNull()
+    expect(off.meta.chats.socials).toBe(on.meta.chats.socials)
+    expect(off.meta.gate.warnings.map((v) => v.code)).not.toContain('view.no-chats-previous')
+  })
+  it('compare is true when absent, exactly as before', async () => {
+    const r = (await run()).r
+    expect(r.meta.compare).toBe(true)
+    expect(r.meta.windows.socialsPrior).toEqual({ start: '2026-09-07', end: '2026-10-06' })
+  })
+  it('a compare that is not true or false is a RangeError before any request', async () => {
+    for (const bad of [null, 'false', 0]) {
+      const w = world()
+      await expect(getAeoInformedSocial(input(w.reader, { views: tabViews, compare: bad }))).rejects.toThrow(/compare must be true or false/)
+      expect(w.calls).toEqual([])
+    }
+  })
+})

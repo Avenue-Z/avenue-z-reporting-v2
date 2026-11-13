@@ -82,6 +82,13 @@ describe('what is cached', () => {
     expect(call.views.gaps).toEqual(base.window)
     expect(call.views.graphs).toEqual({ used_as_source_all: { from: '2026-10-01', weeks: 5 }, citations_all: { from: '2026-10-01', weeks: 5 }, citations_linkedin: { from: '2026-10-01', weeks: 5 }, citations_tiktok: { from: '2026-10-01', weeks: 5 } })
   })
+  it('only MoM asks the adapter to compare: YTD and All time show no change, so nothing before their window is pulled (issue 451)', async () => {
+    for (const [range, compare] of [['month', true], ['ytd', false], ['all', false]] as const) {
+      pull.mockClear()
+      await loadAeoTab({ ...base, range })
+      expect((pull.mock.calls[0][0] as AeoInformedInput).compare).toBe(compare)
+    }
+  })
   it('a stored value over 1.5 MB logs a warning naming the slug, range, min and its size in KB, never the project or the key', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const big = { ...RESULT, urlGaps: Array.from({ length: 4000 }, (_, i) => ({ ...RESULT.urlGaps[0], url: `https://example.com/${'x'.repeat(300)}/${i}` })) }

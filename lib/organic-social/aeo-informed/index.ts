@@ -57,6 +57,10 @@ export type AeoInformedInput = {
   deadlineMs?: number
   /** The clock, for the as-of check (a result must not count an unfinished day). Default: the real clock. */
   now?: () => number
+  /** Pull and compare the previous window of the same length (the change values and totals.prior). Default true. False pulls nothing
+   *  before the windows and returns every change, previous window, previous chat count and totals.prior as null: for a view that shows
+   *  no change (the tab's YTD and All time, issue 451). */
+  compare?: boolean
 }
 
 export type Meta = {
@@ -68,13 +72,17 @@ export type Meta = {
   minCompetitors: number
   /** The fourth graph drawn. */
   fourthGraph: FourthGraph
-  windows: { socials: Window; socialsPrior: Window; gaps: Window; gapsPrior: Window }
+  /** Whether the previous windows were pulled and compared (input.compare). */
+  compare: boolean
+  /** The previous windows are null exactly when compare is false. */
+  windows: { socials: Window; socialsPrior: Window | null; gaps: Window; gapsPrior: Window | null }
   ownBrandId: string
   ownBrandName: string
   /** Every brand in the project with Peec's display color (null when it has none), for the Mentions dots. */
   brands: { id: string; name: string; color: string | null; isOwn: boolean }[]
   selector: { name: string; via: string; id: string | null }
-  chats: { socials: number; socialsPrior: number; gaps: number; gapsPrior: number }
+  /** The previous windows' chats are null exactly when compare is false. */
+  chats: { socials: number; socialsPrior: number | null; gaps: number; gapsPrior: number | null }
   counts: { socialsAll: number; socialsOwn: number; socialsCompetitor: number; urlGaps: number; selectorRowsByDay: number; gapRows: number; usedChatRows: number; chatDayRows: number; requests: number }
   warnings: string[]
   unverified: UnverifiedId[]
@@ -108,6 +116,7 @@ function validate(i: AeoInformedInput): void {
   // Only an absent value takes the default: null is a mistake, not a choice.
   const min = i.minCompetitors === undefined ? 1 : i.minCompetitors
   if (typeof min !== 'number' || !Number.isInteger(min) || min < 1 || min > 5) throw new RangeError(`minCompetitors must be a whole number from 1 to 5, got ${String(min)}`)
+  if (i.compare !== undefined && typeof i.compare !== 'boolean') throw new RangeError(`compare must be true or false, got ${String(i.compare)}`)
   const fourth = i.fourthGraph === undefined ? 'instagram' : i.fourthGraph
   if (!FOURTH_GRAPHS.includes(fourth)) throw new RangeError(`fourthGraph must be one of ${FOURTH_GRAPHS.join(', ')}, got ${String(fourth)}`)
   const drawn = graphOrder(fourth)
@@ -133,6 +142,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   const fourthGraph = input.fourthGraph ?? 'instagram'
   const order = graphOrder(fourthGraph)
   const selector = input.selector ?? { name: 'Organic Social', via: 'classification' as const }
+  const compare = input.compare ?? true
   const inner = input.reader ?? createPeecReader({ apiKey: input.apiKey, projectId: input.projectId, deadlineMs: input.deadlineMs })
   let requests = 0
   const reader: PeecReader = {
@@ -176,13 +186,15 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   const { socials, gaps } = input.views
   // validate() proved every drawn id is present
   const graphs = input.views.graphs as Record<GraphId, { from: string; weeks: number }>
-  const socialsPrior = previousWindow(socials)
-  const gapsPrior = previousWindow(gaps)
+  // No previous window when nothing is compared (issue 451): nothing before the windows is pulled.
+  const socialsPrior = compare ? previousWindow(socials) : null
+  const gapsPrior = compare ? previousWindow(gaps) : null
+  const priorStarts = [socialsPrior, gapsPrior].flatMap((w) => (w ? [w.start] : []))
   const graphWin = (id: GraphId): Window => ({ start: graphs[id].from, end: minDate(addDays(graphs[id].from, graphs[id].weeks * 7 - 1), input.asOf) })
   const citationIds = order.filter((id): id is Exclude<GraphId, 'used_as_source_all'> => id !== 'used_as_source_all')
   const citWins = citationIds.map(graphWin).filter((w) => w.start <= w.end)
   const selSpan: Window = {
-    start: minDate(socialsPrior.start, ...citWins.map((w) => w.start)),
+    start: minDate(socials.start, ...(socialsPrior ? [socialsPrior.start] : []), ...citWins.map((w) => w.start)),
     end: maxDate(socials.end, ...citWins.map((w) => w.end)),
   }
   const usedWin = graphWin('used_as_source_all')
@@ -195,13 +207,15 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   // A previous-window URL that is not a gap in that window has no prior row and its change is empty.
   const gapFilters = [selFilter, { field: 'gap', operator: 'gte', value: minCompetitors }]
   const gapCurrentRows = await step('gaps-current', gaps, () => pullWindow(reader, '/reports/urls', { filters: gapFilters }, gaps, (b, p) => parseUrlRows(b, p), 'gaps-current'))
-  const gapPriorRows = await step('gaps-prior', gapsPrior, () => pullWindow(reader, '/reports/urls', { filters: gapFilters }, gapsPrior, (b, p) => parseUrlRows(b, p), 'gaps-prior'))
+  const gapPriorRows = gapsPrior
+    ? await step('gaps-prior', gapsPrior, () => pullWindow(reader, '/reports/urls', { filters: gapFilters }, gapsPrior, (b, p) => parseUrlRows(b, p), 'gaps-prior'))
+    : []
   const chatRows = usedWin.start <= usedWin.end
     ? await step('used-chat-level', usedWin, () =>
         pullChunks(reader, '/reports/urls', { dimensions: ['date', 'chat_id'], filters: [selFilter] }, usedWin, (b, p) => parseUrlRows(b, p, { requireDate: true, requireChat: true }), 'used-chat-level', { chunkDays: 14 }))
     : []
   const chatSpan: Window = {
-    start: minDate(socialsPrior.start, gapsPrior.start, ...citWins.map((w) => w.start), usedWin.start),
+    start: minDate(socials.start, gaps.start, ...priorStarts, ...citWins.map((w) => w.start), usedWin.start),
     end: maxDate(socials.end, gaps.end, ...citWins.map((w) => w.end), usedWin.end),
   }
   const dayRows = await step('chats-by-day', chatSpan, () =>
@@ -212,24 +226,25 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
 
   // 5) build
   const warnings: string[] = []
-  const chats = { socials: chatsIn(socials), socialsPrior: chatsIn(socialsPrior), gaps: chatsIn(gaps), gapsPrior: chatsIn(gapsPrior) }
+  const chats = { socials: chatsIn(socials), socialsPrior: socialsPrior ? chatsIn(socialsPrior) : null, gaps: chatsIn(gaps), gapsPrior: gapsPrior ? chatsIn(gapsPrior) : null }
   for (const [k, v] of Object.entries(chats)) if (v === 0) warnings.push(`no chats in window: ${k}`)
-  const windowsByName: [string, Window][] = [['socials', socials], ['socialsPrior', socialsPrior], ['gaps', gaps], ['gapsPrior', gapsPrior]]
+  const windowsByName = ([['socials', socials], ['socialsPrior', socialsPrior], ['gaps', gaps], ['gapsPrior', gapsPrior]] as [string, Window | null][])
+    .filter((e): e is [string, Window] => e[1] !== null)
   if (usedWin.start <= usedWin.end) windowsByName.push(['usedAsSource', usedWin])
   for (const [k, w] of windowsByName) {
     const missing = eachDay(w).filter((d) => !chatsByDay.has(d)).length
     if (missing > 0) warnings.push(`days with no chats data in window: ${k} (${missing})`)
   }
 
-  const socialsPriorAgg = aggregateByUrl(rowsIn(selRows, socialsPrior))
+  const socialsPriorAgg = socialsPrior ? aggregateByUrl(rowsIn(selRows, socialsPrior)) : []
   const socialsAll = buildSocialsRows({
     current: aggregateByUrl(rowsIn(selRows, socials)), prior: socialsPriorAgg,
-    chatsCurrent: chats.socials, chatsPrior: chats.socialsPrior, brands, domainType: selector.name,
+    chatsCurrent: chats.socials, chatsPrior: chats.socialsPrior ?? 0, brands, domainType: selector.name,
   })
   const split = splitSocials(socialsAll, ownBrand.id)
   // The previous window's own URLs, by the rule splitSocials uses (the URL's chosen channel title), including URLs with no row this window.
   const priorOwn = socialsPriorAgg.filter((u) => ownerOf({ url: u.url, channelTitle: u.channelTitle }, brands) === ownBrand.id)
-  const totals = buildTotals(split.own, chats.socialsPrior > 0 ? priorOwn : null)
+  const totals = buildTotals(split.own, chats.socialsPrior !== null && chats.socialsPrior > 0 ? priorOwn : null)
   const gapCurrent = gapCurrentRows.flatMap((r) => aggregateByUrl([r]))
   if (gapCurrent.length === 0) warnings.push('gap view is empty for the gaps window')
   const urlGaps = buildGapRows({ current: gapCurrent, prior: gapPriorRows.flatMap((r) => aggregateByUrl([r])), brands, domainType: selector.name })
@@ -252,6 +267,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
       graphs: input.views.graphs,
       minCompetitors,
       fourthGraph,
+      compare,
       windows: { socials, socialsPrior, gaps, gapsPrior },
       ownBrandId: ownBrand.id,
       ownBrandName: ownBrand.name,

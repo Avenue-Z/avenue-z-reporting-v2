@@ -187,9 +187,18 @@ describe('a locked window', () => {
 
 describe('aeoLockKey', () => {
   it('changes with every input that changes the answer', () => {
-    const k = { projectId: 'p', selector: 'Organic Social', window: SEP, asOf: '2026-09-30', min: 2, fourthGraph: 'instagram' as const }
-    const keys = [k, { ...k, projectId: 'q' }, { ...k, selector: 'Social' }, { ...k, window: { start: '2026-01-01', end: '2026-09-30' } }, { ...k, asOf: '2026-09-29' }, { ...k, min: 3 }, { ...k, fourthGraph: 'tiktok' as const }].map(aeoLockKey)
+    const k = { projectId: 'p', selector: 'Organic Social', window: SEP, asOf: '2026-09-30', min: 2, fourthGraph: 'instagram' as const, range: 'month' as const }
+    const keys = [k, { ...k, projectId: 'q' }, { ...k, selector: 'Social' }, { ...k, window: { start: '2026-01-01', end: '2026-09-30' } }, { ...k, asOf: '2026-09-29' }, { ...k, min: 3 }, { ...k, fourthGraph: 'tiktok' as const }, { ...k, range: 'ytd' as const }].map(aeoLockKey)
     expect(new Set(keys).size).toBe(keys.length)
     for (const key of keys) expect(key).toMatch(/^[0-9a-f]{64}$/)
+  })
+  it('in January MoM and YTD are the same window, and still two keys, because only MoM compares (issue 451)', () => {
+    const jan = { projectId: 'p', selector: 'Organic Social', window: { start: '2027-01-01', end: '2027-01-31' }, asOf: '2027-01-31', min: 2, fourthGraph: 'instagram' as const }
+    expect(aeoLockKey({ ...jan, range: 'month' })).not.toBe(aeoLockKey({ ...jan, range: 'ytd' }))
+    expect(aeoLockKey({ ...jan, range: 'ytd' })).toBe(aeoLockKey({ ...jan, range: 'all' }))
+  })
+  it('a lock capture for YTD asks the adapter not to compare, exactly as the live read does', async () => {
+    await getAeoTabData({ ...base, range: 'ytd', window: { start: '2026-01-01', end: '2026-09-30' } })
+    expect((capture.mock.calls[0][0] as { compare?: boolean }).compare).toBe(false)
   })
 })
