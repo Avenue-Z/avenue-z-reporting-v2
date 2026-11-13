@@ -1,0 +1,26 @@
+# SocialsRow (tables.ts): socialsAll, socialsOwn and socialsCompetitor. Percentages are fractions 0..1. A delta is null when the URL has no row in the previous window.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
+schema: aeo.socials_table
+version: 1.1.0
+kind: tabular
+fields:
+  - {name: rank, type: int, minimum: 1}
+  - {name: url, type: string, min_length: 1}
+  - {name: title, type: string, nullable: true}
+  - {name: channelTitle, type: string, nullable: true}
+  - {name: ownerBrandId, type: string, nullable: true}
+  - {name: isOwnChannel, type: bool}
+  - {name: urlType, type: string, nullable: true}
+  - {name: domainType, type: string, min_length: 1}
+  - {name: ownBrandMentioned, type: bool}
+  - {name: mentionedBrandCount, type: int, minimum: 0}
+  - {name: mentionedBrandNames, type: string, nullable: true}
+  - {name: mentionedBrandIds, type: string, nullable: true}
+  - {name: retrievals, type: int, minimum: 0}
+  - {name: retrievalsDelta, type: int, nullable: true}
+  - {name: retrievedPct, type: float, minimum: 0, maximum: 1}
+  - {name: retrievedPctDelta, type: float, nullable: true, minimum: -1, maximum: 1}
+  - {name: totalCitations, type: int, minimum: 0}
+  - {name: totalCitationsDelta, type: int, nullable: true}
+  - {name: citationRate, type: float, nullable: true, minimum: 0}
+  - {name: citationRateDelta, type: float, nullable: true}

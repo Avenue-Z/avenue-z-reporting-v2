@@ -10,8 +10,10 @@ import { organicSocialSubsections } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
 import { firstOf, hasReportingMonths, lastOf, monthOf, opensOn, parseReportingMonths } from './reporting-months'
 import { lockOn, parseLockDay, settledThrough } from './lock-day'
+import type { AeoRange } from './aeo-tab/params'
 
 const SWEEP_DAYS = 2
+const AEO_RANGES: readonly AeoRange[] = ['month', 'ytd', 'all']
 
 const prevKey = (key: string) => monthOf(new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, 0)).toISOString().slice(0, 10))
 const addDays = (day: string, n: number) => { const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
@@ -29,6 +31,10 @@ export function lockSweepUrls(baseUrl: string, client: Client, today: string): s
   const tabs = organicSocialSubsections(client)
   return months.flatMap((m) => {
     const range = encodeURIComponent(`custom:${firstOf(m)},${lastOf(m)}`)
-    return tabs.map((t) => `${baseUrl}/dashboard/${client.slug}/reports?section=organic-social${t.id ? `&subsection=${t.id}` : ''}&dateRange=${range}`)
+    // The AEO Informed Social tab locks per range (spec 2026-11-12 section 4): Month, YTD and All time each end on the month's last day, so
+    // each is its own capture. The default min only; another min locks on its first view.
+    return tabs.flatMap((t) => t.view === 'aeo-informed'
+      ? AEO_RANGES.map((r) => `${baseUrl}/dashboard/${client.slug}/reports?section=organic-social&subsection=${t.id}&aeo=${r}&dateRange=${range}`)
+      : [`${baseUrl}/dashboard/${client.slug}/reports?section=organic-social${t.id ? `&subsection=${t.id}` : ''}&dateRange=${range}`])
   })
 }

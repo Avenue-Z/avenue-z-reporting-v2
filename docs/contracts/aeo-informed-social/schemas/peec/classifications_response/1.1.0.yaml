@@ -1,0 +1,29 @@
+# Raw response of GET /classifications/domains and /classifications/urls, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). A custom classification is referenced by name in the domain_classification and url_classification filters.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
+schema: peec.classifications_response
+version: 1.1.0
+kind: payload
+json_schema:
+  {
+    "type": "object",
+    "required": [
+      "data"
+    ],
+    "properties": {
+      "data": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }

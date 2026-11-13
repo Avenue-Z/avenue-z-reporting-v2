@@ -62,3 +62,17 @@ test('nothing to sweep: no reportingMonths, Organic Social not enabled, or a mal
   expect(lockSweepUrls('https://app', client({ enabledReports: ['ga4'] }), '2026-10-05')).toEqual([])
   expect(lockSweepUrls('https://app', client({ dashSocialConfig: { brandId: 7, channels: ['instagram'], reportingMonths: { firstMonth: 'nope' } } }), '2026-10-05')).toEqual([])
 })
+
+// The AEO Informed Social tab (spec 2026-11-12 section 4): its numbers lock with the month, so the sweep renders its three ranges on the
+// lock day, Month, YTD and All time, each a window that ends on the month's last day. Default min only; other mins lock on first view.
+test('a client with the AEO tab gets its three ranges swept; every other URL is unchanged', () => {
+  const withTab = client({
+    peecCustomerProjectId: 'or_p',
+    dashSocialConfig: { brandId: 7, channels: ['instagram', 'facebook'], reportingMonths: { firstMonth: '2026-08' }, aeoInformedSocial: { enabled: true, allTimeFrom: '2026-01-22' } },
+  })
+  const without = lockSweepUrls('https://app', client(), '2026-10-05')
+  const urls = lockSweepUrls('https://app', withTab, '2026-10-05')
+  const aeo = (r: string) => `https://app/dashboard/client-a/reports?section=organic-social&subsection=organic-aeo-informed&aeo=${r}&dateRange=${SEP}`
+  expect(urls).toEqual([...without, aeo('month'), aeo('ytd'), aeo('all')])
+  expect(without.some((u) => u.includes('organic-aeo-informed'))).toBe(false)
+})

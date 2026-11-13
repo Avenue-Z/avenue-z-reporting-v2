@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { bulkFilename, bulkRequest, runBulkExport, type BulkRanges, type PageResult } from '@/lib/export/bulk'
 import type { ExportPage } from '@/lib/export/pages'
 import type { ServerExportSection } from '@/lib/export/sections'
+import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
 
 /** The view a server export renders (app/api/export/pdf). Never a role or a client identity: the route takes
  *  those from the session. */
@@ -18,6 +19,9 @@ export interface ServerExport {
   compareRange: string | null
   /** AEO's `?models=` filter, or null. */
   models: string | null
+  /** The AEO Informed Social tab's range and min competitors, on that tab only. */
+  aeo?: AeoRange
+  aeoMin?: number
 }
 
 interface ExportPdfButtonProps {

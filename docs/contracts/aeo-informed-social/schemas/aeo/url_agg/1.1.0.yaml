@@ -1,0 +1,66 @@
+# One URL after summing every row Peec returned for it (urls.ts aggregateByUrl). The key is the exact Peec URL string: never lib/url.ts urlJoinKey, which drops the query string.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
+schema: aeo.url_agg
+version: 1.1.0
+kind: payload
+json_schema:
+  {
+    "type": "object",
+    "required": [
+      "url",
+      "title",
+      "channelTitle",
+      "classification",
+      "retrievals",
+      "citations",
+      "positionSum",
+      "positionCount",
+      "brandIds"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "channelTitle": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "classification": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "retrievals": {
+        "type": "number",
+        "minimum": 0
+      },
+      "citations": {
+        "type": "number",
+        "minimum": 0
+      },
+      "positionSum": {
+        "type": "number",
+        "minimum": 0
+      },
+      "positionCount": {
+        "type": "number",
+        "minimum": 0
+      },
+      "brandIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }

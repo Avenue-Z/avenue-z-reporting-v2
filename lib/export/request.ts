@@ -1,4 +1,5 @@
 import { isServerExportSection, type ServerExportSection } from './sections'
+import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
 
 /** What the Export PDF button asks for. Role and client identity are never here: the route takes them
  *  from the session (app/api/export/pdf/route.ts). Every field is validated strictly, because the
@@ -12,6 +13,10 @@ export interface ExportRequest {
   compareRange: string | null
   /** AEO's model filter as the page's `?models=` holds it (comma-separated names), or null. */
   models: string | null
+  /** The AEO Informed Social tab's range (aeo=) and min competitors (aeomin=). Present only on that tab's export, so every other request,
+   *  body and export path is exactly what it was. */
+  aeo?: AeoRange
+  aeoMin?: number
   /** The requester's IANA timezone, for the stamp and the filename date. */
   tz: string
 }
@@ -19,6 +24,7 @@ export interface ExportRequest {
 const SLUG = /^[a-z0-9-]{1,64}$/
 const RANGE = /^[A-Za-z0-9_:,-]{1,64}$/
 const MODELS = /^[A-Za-z,]{1,128}$/
+const AEO_RANGES: readonly AeoRange[] = ['month', 'ytd', 'all']
 
 /** `tz` if it is an IANA timezone this runtime knows, else UTC. */
 export function safeTimeZone(tz: unknown): string {
@@ -41,6 +47,8 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
   const section = b.section ?? 'organic-social'
   if (!isServerExportSection(section)) return null
   if (b.models != null && (typeof b.models !== 'string' || !MODELS.test(b.models))) return null
+  if (b.aeo != null && !AEO_RANGES.includes(b.aeo as AeoRange)) return null
+  if (b.aeoMin != null && !(typeof b.aeoMin === 'number' && Number.isInteger(b.aeoMin) && b.aeoMin >= 1 && b.aeoMin <= 5)) return null
   return {
     clientSlug: b.clientSlug,
     section,
@@ -48,6 +56,8 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     dateRange: b.dateRange,
     compareRange: (b.compareRange as string | null | undefined) ?? null,
     models: (b.models as string | null | undefined) ?? null,
+    ...(b.aeo != null ? { aeo: b.aeo as AeoRange } : {}),
+    ...(b.aeoMin != null ? { aeoMin: b.aeoMin as number } : {}),
     tz: safeTimeZone(b.tz),
   }
 }
@@ -59,6 +69,8 @@ export function exportPagePath(r: ExportRequest): string {
   if (r.compareRange) sp.set('compareRange', r.compareRange)
   if (r.subsection) sp.set('subsection', r.subsection)
   if (r.models) sp.set('models', r.models)
+  if (r.aeo) sp.set('aeo', r.aeo)
+  if (r.aeoMin) sp.set('aeomin', String(r.aeoMin))
   sp.set('tz', r.tz)
   return `/export/${r.clientSlug}/${r.section}?${sp.toString()}`
 }

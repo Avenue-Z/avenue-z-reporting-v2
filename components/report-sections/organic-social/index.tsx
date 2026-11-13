@@ -16,24 +16,40 @@ import { OverviewSkeleton } from './skeletons'
 import { lockedRangeFor, logHiddenMonthAttempt, logMalformedConfig, requestClock } from '@/lib/organic-social/locked-range'
 import { noMonthsText, viewerForRole } from '@/lib/organic-social/reporting-months'
 import { NoMonths } from './no-months'
+import { AeoInformedSection } from './aeo-informed/section'
+import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
+
+/** The AEO Informed Social tab's own settings, read from the URL by the route (parseAeoRange, parseAeoMin) and its time limit (page 120 s,
+ *  export 30 s). Handed to the body on that tab only, so every other tab's body and parts get exactly what they got before. */
+export type AeoViewSettings = { range: AeoRange; min: number; deadlineMs: number }
+const AEO_DEFAULTS: AeoViewSettings = { range: 'month', min: 2, deadlineMs: 120_000 }
 
 export function OrganicSocialReport({
-  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null,
+  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null, aeo, aeoMin, aeoDeadlineMs,
 }: {
   clientSlug: string
   dateRange?: string
   compareRange?: string | null
   channel?: DashChannel | null
-  /** 'influencer' on the Influencer tab (channel stays null there); null for Overview and the platform tabs. */
+  /** 'influencer' on the Influencer tab, 'aeo-informed' on the AEO Informed Social tab (channel stays null on both); null for Overview
+   *  and the platform tabs. */
   view?: OrganicView
+  /** The AEO Informed Social tab only: its range (aeo=), min competitors (aeomin=) and time limit. Ignored on every other tab. */
+  aeo?: AeoRange
+  aeoMin?: number
+  aeoDeadlineMs?: number
 }) {
   const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, view })
+  const aeoSettings: AeoViewSettings | undefined = view === 'aeo-informed'
+    ? { range: aeo ?? AEO_DEFAULTS.range, min: aeoMin ?? AEO_DEFAULTS.min, deadlineMs: aeoDeadlineMs ?? AEO_DEFAULTS.deadlineMs }
+    : undefined
   // Both boxes (Insights on top, Recommendations at the bottom) are per platform subpage: each channel
   // carries its own content key, while opt-in stays gated on the base 'organic-social' config (configKey)
   // so a per-channel key never needs its own opt-in entry. Overview (channel === null) keeps the bare
   // 'organic-social' key; the Influencer tab has its own. The bottom box derives its own key from this one
   // (recommendationsViewKeyFor).
   const commentaryViewKey: CommentaryViewKey = view === 'influencer' ? 'organic-social:influencer'
+    : view === 'aeo-informed' ? 'organic-social:aeo-informed'
     : channel ? orgSocialChannelViewKey(channel) : 'organic-social'
   // The outer component is SYNCHRONOUS so the section's own skeletons paint on first render.
   // Both async dependencies — the viewer-role read (`await auth()`) and the template/config lookup
@@ -44,7 +60,7 @@ export function OrganicSocialReport({
     <div className="space-y-8">
       <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
       <Suspense fallback={<OverviewSkeleton />}>
-        <OrganicSocialBody ctx={ctx} />
+        <OrganicSocialBody ctx={ctx} {...(aeoSettings ? { aeo: aeoSettings } : {})} />
       </Suspense>
       {/* Recommendations: the same opt-in, rendered after every part (10/6 calls: "put them at the bottom"). */}
       <SharedPartsHeader placement="bottom" viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
@@ -54,7 +70,7 @@ export function OrganicSocialReport({
 
 /** Resolves the viewer role, the composition (DB template + per-client override), and renders the
  *  parts. Async and isolated behind the Suspense above so its awaits don't gate first paint. */
-export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
+export async function OrganicSocialBody({ ctx, aeo }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings }) {
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
   // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a
@@ -67,6 +83,24 @@ export async function OrganicSocialBody({ ctx }: { ctx: OrganicSocialCtx }) {
     email = user?.email ?? undefined
   } catch { role = undefined; email = undefined }
   const rctx: OrganicSocialCtx = { ...ctx, ...(role ? { role } : {}), ...(email ? { email } : {}) }
+  // The AEO Informed Social tab (spec 2026-11-12 section 1): its own section, no template parts. It is served the same month as every
+  // other tab: the same three locked-months calls as the parts path below, written out here so that path, Renaissance's, is not touched.
+  if (rctx.view === 'aeo-informed') {
+    const settings = aeo ?? AEO_DEFAULTS
+    let aeoClient: unknown
+    let aeoReadFailed = false
+    try { aeoClient = await getClientBySlug(rctx.clientSlug) } catch { aeoReadFailed = true }
+    const aeoLocked = aeoReadFailed ? null : lockedRangeFor(aeoClient, role, rctx.dateRange, requestClock())
+    if (aeoLocked?.reason === 'malformed-config') logMalformedConfig(rctx.clientSlug, aeoLocked.malformedKey)
+    if (aeoLocked && !aeoLocked.month) return <NoMonths text={noMonthsText(aeoLocked, viewerForRole(role))} />
+    if (aeoLocked?.month && aeoLocked.outcome === 'replaced' && aeoLocked.hiddenMonthAttempt) {
+      logHiddenMonthAttempt(rctx.clientSlug, rctx.dateRange, aeoLocked.month.dateRange)
+    }
+    return (
+      <AeoInformedSection clientSlug={rctx.clientSlug} servedRange={aeoLocked?.month?.dateRange ?? rctx.dateRange}
+        aeo={settings.range} aeoMin={settings.min} role={role} deadlineMs={settings.deadlineMs} />
+    )
+  }
   const key = rctx.view === 'influencer' ? 'organic-social:influencer' : rctx.channel ? 'organic-social:platform' : 'organic-social'
   // Resolve the composition defensively. A DB hiccup here must NOT blank the whole section: on
   // failure, fall back to the in-code template with no per-client override so each part still
