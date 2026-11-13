@@ -1,0 +1,38 @@
+# Raw response of GET /brands, from the live Peec OpenAPI (read 2026-11-09). Open on extra keys (raw boundary). A color is returned but no logo or image. color is read leniently for the Mentions dots (shape.ts hexColor): a hex string is kept, anything else is null, never an error, because a cosmetic field must not fail the view. So it is not a checked field here.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
+schema: peec.brands_response
+version: 1.1.0
+kind: payload
+json_schema:
+  {
+    "type": "object",
+    "required": [
+      "data"
+    ],
+    "properties": {
+      "data": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "name",
+            "is_own"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "is_own": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }

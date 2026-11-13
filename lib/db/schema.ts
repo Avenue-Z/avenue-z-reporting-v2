@@ -153,6 +153,9 @@ export interface DashSocialConfig {
    *  (the ytdSheets shape); { "<year>": { sheetId, byMonth: true } } reads the tab named for the month on screen
    *  ("October 2026") and carries into the next year until that year has its own entry. */
   kpiSheets?: unknown
+  /** The AEO Informed Social tab (spec 2026-11-12): { enabled: true, allTimeFrom, selector?, fourthGraph? }. Validated at runtime
+   *  (parseAeoInformedSetting in lib/organic-social/aeo-tab/setting.ts), so typed unknown. Off when absent. */
+  aeoInformedSocial?: unknown
   /** Written notes on the v2 graphs for a client without reportingMonths (PR #306). Only exactly
    *  `true` turns them on (notesOn), so typed unknown. */
   chartNotes?: unknown
@@ -464,7 +467,8 @@ export const topContentSnapshots = pgTable('top_content_snapshots', {
   ),
 }))
 
-/** Lock every number (D27): the stored Dash answer for one exact request of a locked month, per
+/** Lock every number (D27): one row per exact request of a locked month, Dash or Peec (the AEO Informed Social tab, keyed by
+ *  aeoLockKey in lib/organic-social/aeo-tab/data.ts). For Dash: the stored Dash answer for one exact request of a locked month, per
  *  client. Written once (the first read after the lock day), then served forever. Only clients with
  *  reportingMonths ever read or write it. */
 export const dashResponseLocks = pgTable('dash_response_locks', {

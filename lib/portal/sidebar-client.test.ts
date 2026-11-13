@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { toPortalSidebarClient } from './sidebar-client'
 import { organicSocialSubsections } from '@/lib/constants'
 import type { Client } from '@/lib/db/schema'
@@ -16,10 +16,10 @@ const FULL = {
   reportSectionConfig: { note: 'SECRET-CONFIG' },
 } as unknown as Client
 
-test('only the seven fields the sidebar reads', () => {
+test('only the eight fields the sidebar reads', () => {
   expect(toPortalSidebarClient(FULL)).toEqual({
     slug: 'a-client', name: 'A Client', logoUrl: 'https://example.com/a.png',
-    enabledReports: ['organic-social'], hiddenReports: ['organic-x'], lockedMonths: false,
+    enabledReports: ['organic-social'], hiddenReports: ['organic-x'], lockedMonths: false, aeoInformedTab: false,
     dashSocialConfig: { channels: ['instagram', 'facebook'], influencerSection: { INSTAGRAM: { label: 'Partnership Posts' } } },
   })
 })
@@ -54,4 +54,35 @@ test('lockedMonths says whether the client is on locked months, and the setting 
   expect(JSON.stringify(out)).not.toContain('reportingMonths')
   expect(JSON.stringify(out)).not.toContain('SECRET-RM')
   expect(toPortalSidebarClient({ ...FULL, dashSocialConfig: null } as unknown as Client).lockedMonths).toBe(false)
+})
+
+// The AEO Informed Social tab (spec 2026-11-12 section 1): only the server-computed boolean leaves the server, never the Peec project id
+// or the setting itself.
+const AEO = { ...FULL, peecCustomerProjectId: 'SECRET-PEEC-PROJECT', dashSocialConfig: { ...(FULL as unknown as { dashSocialConfig: object }).dashSocialConfig, aeoInformedSocial: { enabled: true, allTimeFrom: '2026-01-22', selector: 'SECRET-SELECTOR' } } } as unknown as Client
+afterEach(() => vi.restoreAllMocks())
+
+test('the trimmed record carries the AEO tab boolean and never the Peec project id or the setting', () => {
+  const out = toPortalSidebarClient(AEO)
+  expect(out.aeoInformedTab).toBe(true)
+  expect(Object.keys(out)).not.toContain('peecCustomerProjectId')
+  expect(Object.keys(out.dashSocialConfig ?? {})).not.toContain('aeoInformedSocial')
+  expect(JSON.stringify(out)).not.toContain('SECRET')
+})
+
+test('a malformed AEO setting, or the setting without a Peec project, is no tab and one warning naming the client', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const bad = { ...AEO, dashSocialConfig: { brandId: 1, aeoInformedSocial: { enabled: true, allTimeFrom: 'soon' } } } as unknown as Client
+  expect(toPortalSidebarClient(bad).aeoInformedTab).toBe(false)
+  const noProject = { ...AEO, peecCustomerProjectId: null } as unknown as Client
+  expect(toPortalSidebarClient(noProject).aeoInformedTab).toBe(false)
+  expect(warn).toHaveBeenCalledTimes(2)
+  expect(warn.mock.calls[0][0]).toMatch(/^\[aeo-informed\] .*slug=a-client: allTimeFrom/)
+  expect(warn.mock.calls[1][0]).toMatch(/^\[aeo-informed\] .*slug=a-client: .*peec_customer_project_id/)
+  for (const [m] of warn.mock.calls) expect(String(m)).not.toContain('SECRET')
+})
+
+test('a client without the AEO setting logs nothing', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  toPortalSidebarClient(FULL)
+  expect(warn).not.toHaveBeenCalled()
 })

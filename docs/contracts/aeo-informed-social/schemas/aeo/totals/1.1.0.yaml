@@ -1,0 +1,10 @@
+# AeoTotals (tables.ts buildTotals): one object for the window (totals) and one for the previous window (totals_prior, absent when it has no chats). Over the own table only. citationRate is total citations over total retrievals, null at 0 retrievals, with no maximum.
+# Generated from lib/organic-social/aeo-informed/contract.ts by scripts/gen-aeo-contract.ts. Do not edit by hand; contract-yaml.test.ts fails if this file drifts.
+schema: aeo.totals
+version: 1.1.0
+kind: tabular
+fields:
+  - {name: urlsCited, type: int, minimum: 0}
+  - {name: retrievals, type: int, minimum: 0}
+  - {name: citations, type: int, minimum: 0}
+  - {name: citationRate, type: float, nullable: true, minimum: 0}
