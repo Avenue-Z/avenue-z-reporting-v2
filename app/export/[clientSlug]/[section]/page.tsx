@@ -57,7 +57,7 @@ export default async function ReportExportPage({
   const clock = requestClock()
   const locked = section === 'organic-social' ? lockedRangeFor(client, session.user?.role, dateRange, clock) : null
   const served = section === 'executive-overview' ? null : locked ? (locked.month?.dateRange ?? null) : dateRange
-  // The AEO Informed Social tab stamps the window it rendered ("YTD, Jan 1 – Oct 31, 2026"), worked out as the section does; every other
+  // The AEO Informed Social tab stamps the window it rendered ("YTD, " then the window in the date format of every other stamp), worked out as the section does; every other
   // view stamps its served range, as before.
   const period = !served ? null : view.view === 'aeo-informed' ? aeoExportPeriodLabel({ client, servedRange: served, range: aeo, clock }) : exportPeriodLabel(served)
 

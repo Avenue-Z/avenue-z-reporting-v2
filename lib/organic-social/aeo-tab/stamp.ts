@@ -8,7 +8,7 @@ import { parseAeoInformedSetting } from './setting'
 
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
 
-/** "YTD, Jan 1 – Oct 31, 2026": the range, then its window. */
+/** The range ("YTD"), a comma, then its window in exportPeriodLabel's date format. */
 export function aeoStampLabel(range: AeoRange, window: { start: string; end: string }): string | null {
   const dates = exportPeriodLabel(`custom:${window.start},${window.end}`)
   return dates === null ? null : `${AEO_RANGE_LABEL[range]}, ${dates}`

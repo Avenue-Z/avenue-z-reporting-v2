@@ -19,7 +19,7 @@ describe('the four tiles before the tables', () => {
     render(<AeoTiles totals={totals} previousDays={31} />)
     // 12 vs 10 is +20%; 1500 vs 1000 +50%; 300 vs 300 no change; 0.2 vs 0.3 -33%, all the outline tiles' rule (outlineDelta)
     const changes = screen.getAllByText(/vs previous 31 days/).map((e) => e.textContent?.replace(/\s+/g, ' ').trim())
-    expect(changes).toEqual(['↑ 20% vs previous 31 days', '↑ 50% vs previous 31 days', '— 0% vs previous 31 days', '↓ 33% vs previous 31 days'])
+    expect(changes).toEqual(['↑ 20% vs previous 31 days', '↑ 50% vs previous 31 days', '\u2014 0% vs previous 31 days', '↓ 33% vs previous 31 days'])
   })
   it('YTD and All time: no change on any tile', () => {
     render(<AeoTiles totals={totals} previousDays={null} />)
@@ -27,7 +27,7 @@ describe('the four tiles before the tables', () => {
   })
   it('Month with no previous totals (no chats then): the greyed placeholder, never a made-up 0%', () => {
     render(<AeoTiles totals={{ ...totals, prior: null }} previousDays={31} />)
-    expect(screen.getAllByText(/vs previous 31 days/).map((e) => e.textContent?.trim())).toEqual(Array(4).fill('— vs previous 31 days'))
+    expect(screen.getAllByText(/vs previous 31 days/).map((e) => e.textContent?.trim())).toEqual(Array(4).fill('\u2014 vs previous 31 days'))
   })
   it('a zero rate reads 0%', () => {
     render(<AeoTiles totals={{ urlsCited: 0, retrievals: 5, citations: 0, citationRate: 0, prior: null }} previousDays={null} />)

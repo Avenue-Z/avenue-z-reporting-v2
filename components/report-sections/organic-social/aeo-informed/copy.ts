@@ -54,7 +54,7 @@ export const NO_DATA_FOR_WINDOW = 'No data for this window.'
 export const TIMEOUT_TEXT = 'Peec is taking longer than usual. Try again in a minute.'
 
 /** The dashboard's empty-cell mark, the one the Organic Social post cards use (post-card.tsx). */
-export const EMPTY_MARK = '—'
+export const EMPTY_MARK = '\u2014'
 
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const day = (d: string) => `${MONTH[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(8, 10))}`
