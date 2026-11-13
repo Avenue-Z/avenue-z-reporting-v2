@@ -13,7 +13,10 @@ vi.mock('./load', async (orig) => ({ ...(await orig<object>()), loadAeoTab: live
 
 import { AeoGateError } from '@/lib/organic-social/aeo-informed'
 import { world, input } from '@/lib/organic-social/aeo-informed/test-world'
-import { toTabResult } from './load'
+import { toTabResult, AEO_TAB_SELECTOR_VIA } from './load'
+import { requestKey } from '@/lib/organic-social/lock-day'
+import { CONTRACT_VERSION } from '@/lib/organic-social/aeo-informed/contract'
+import { PeecSelectorError } from '@/lib/organic-social/aeo-informed'
 import { getAeoTabData, aeoLockKey } from './data'
 
 const PROJECT = 'or_TEST_PROJECT_never_logged'
@@ -191,6 +194,24 @@ describe('aeoLockKey', () => {
     const keys = [k, { ...k, projectId: 'q' }, { ...k, selector: 'Social' }, { ...k, window: { start: '2026-01-01', end: '2026-09-30' } }, { ...k, asOf: '2026-09-29' }, { ...k, min: 3 }, { ...k, fourthGraph: 'tiktok' as const }, { ...k, range: 'ytd' as const }].map(aeoLockKey)
     expect(new Set(keys).size).toBe(keys.length)
     for (const key of keys) expect(key).toMatch(/^[0-9a-f]{64}$/)
+  })
+  // Spec 2026-11-13 (C4): every stored month is one pulled through the tag, so the key names the selector's kind, from the same constant.
+  it('the key hashes the selector kind from AEO_TAB_SELECTOR_VIA, alongside every other input', () => {
+    const k = { projectId: 'p', selector: 'Organic Social', window: SEP, asOf: '2026-09-30', min: 2, fourthGraph: 'instagram' as const, range: 'month' as const }
+    expect(aeoLockKey(k)).toBe(requestKey('aeoInformedSocial', {
+      projectId: 'p', selector: 'Organic Social', via: AEO_TAB_SELECTOR_VIA, window: { start: SEP.start, end: SEP.end }, asOf: '2026-09-30', min: 2, fourthGraph: 'instagram', compare: true, contract: CONTRACT_VERSION,
+    }))
+  })
+  it('a lock capture asks the adapter for the same selector kind the key names', async () => {
+    await getAeoTabData(base)
+    expect((capture.mock.calls[0][0] as { selector?: unknown }).selector).toEqual({ name: 'Organic Social', via: AEO_TAB_SELECTOR_VIA })
+  })
+  it('a capture that hits a missing or duplicated tag is the error card, logs lock capture failed with PeecSelectorError, and stores nothing', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    capture.mockRejectedValue(new PeecSelectorError('no source tag named "Organic Social". Tags that exist: (none)'))
+    expect(await getAeoTabData(base)).toEqual({ kind: 'error', reason: 'error' })
+    expect(writeLock).not.toHaveBeenCalled()
+    expect(String(err.mock.calls[0][0])).toMatch(/^\[aeo-informed\] lock capture failed slug=a-client period_end=2026-09-30 key=[0-9a-f]{12} error=PeecSelectorError$/)
   })
   it('in January MoM and YTD are the same window, and still two keys, because only MoM compares (issue 451)', () => {
     const jan = { projectId: 'p', selector: 'Organic Social', window: { start: '2027-01-01', end: '2027-01-31' }, asOf: '2027-01-31', min: 2, fourthGraph: 'instagram' as const }

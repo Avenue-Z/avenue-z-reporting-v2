@@ -27,6 +27,11 @@ const WARN_BYTES = 1.5 * 1024 * 1024
  *  the window, so neither splits an entry in practice). Never the key. */
 export type PullArgs = { slug: string; range: AeoRange; projectId: string; selector: string; window: { start: string; end: string }; asOf: string; min: number; fourthGraph: FourthGraph }
 
+/** How the tab selects its sources in Peec: Jasmine's "Organic Social" SOURCE TAG, the one she applies (outline P010; spec
+ *  2026-11-13). One constant, used by the adapter call below and by the lock key (data.ts aeoLockKey), so the two cannot drift.
+ *  Measured 2026-11-13: the tag and the old domain classification selected identical results in every pull and view. */
+export const AEO_TAB_SELECTOR_VIA = 'tag' as const
+
 /** Whether a view compares with the previous window: MoM only, the one range that shows a change (params.ts aeoWindow, previousDays).
  *  YTD and All time would pull a previous window as long as themselves and never show it (issue 451). The lock key (data.ts) holds it too,
  *  because in January MoM and YTD are the same window. */
@@ -42,7 +47,7 @@ export function adapterInput(a: PullArgs): AeoInformedInput {
     projectId: a.projectId,
     asOf: a.asOf,
     views: { socials: a.window, gaps: a.window, graphs },
-    selector: { name: a.selector, via: 'classification' },
+    selector: { name: a.selector, via: AEO_TAB_SELECTOR_VIA },
     minCompetitors: a.min,
     fourthGraph: a.fourthGraph,
     deadlineMs: PULL_BUDGET_MS,
@@ -63,8 +68,9 @@ async function pull(a: PullArgs): Promise<AeoTabResult> {
 }
 
 // A finished month does not change much (Peec adds a few late citations); the month in progress gains a day every day.
-const pull6h = cached('peec', 'aeoInformedSocial:6h', pull, { ttlSeconds: 21_600, healthCritical: true })
-const pull1h = cached('peec', 'aeoInformedSocial:1h', pull, { ttlSeconds: 3_600, healthCritical: true })
+// v2 (spec 2026-11-13): answers cached before the tab filtered on the source tag are never served after it.
+const pull6h = cached('peec', 'aeoInformedSocial:6h', pull, { ttlSeconds: 21_600, healthCritical: true, version: 'v2' })
+const pull1h = cached('peec', 'aeoInformedSocial:1h', pull, { ttlSeconds: 3_600, healthCritical: true, version: 'v2' })
 
 /** 6h for a window that ended before the current UTC month, 1h otherwise. `today` is the UTC date. */
 export function cacheTtlFor(windowEnd: string, today: string): '6h' | '1h' {
