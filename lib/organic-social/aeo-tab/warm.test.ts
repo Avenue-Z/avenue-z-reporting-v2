@@ -10,23 +10,41 @@ const client = (o: Record<string, unknown> = {}, dsc: Record<string, unknown> = 
 const url = (range: string, aeo?: string) =>
   `https://app/portal/client-a/reports?section=organic-social&subsection=organic-aeo-informed${aeo ? `&aeo=${aeo}` : ''}&dateRange=${encodeURIComponent(range)}`
 
-describe('aeoWarmUrls: the three views a client viewer opens first', () => {
+const none = { served: [], extra: [] }
+const views = (range: string) => [url(range), url(range, 'ytd'), url(range, 'all')]
+const SEP = 'custom:2026-09-01,2026-09-30', AUG = 'custom:2026-08-01,2026-08-31'
+const locked = (rm: Record<string, unknown>) => client({}, { reportingMonths: { firstMonth: '2026-08', ...rm } })
+
+// Spec docs/superpowers/specs/2026-11-13-aeo-warm-client-months-design.md: `served` is exactly today's list; `extra` is the next month a
+// client can pick, at most one more (WARM_MONTHS = 2). On CLOCK (2026-10-20) a client can pick September (served) and August.
+describe('aeoWarmUrls: the three views a client viewer opens first, for each month they can pick (at most two)', () => {
   it('a client without the tab, or without Organic Social, gets none', () => {
-    expect(aeoWarmUrls('https://app', client({}, { aeoInformedSocial: undefined }), CLOCK)).toEqual([])
-    expect(aeoWarmUrls('https://app', client({ peecCustomerProjectId: null }), CLOCK)).toEqual([])
-    expect(aeoWarmUrls('https://app', client({ hiddenReports: ['organic-aeo-informed'] }), CLOCK)).toEqual([])
-    expect(aeoWarmUrls('https://app', client({ enabledReports: ['ga4'] }), CLOCK)).toEqual([])
-    expect(aeoWarmUrls('https://app', client({ hiddenReports: ['organic-social'] }), CLOCK)).toEqual([])
+    expect(aeoWarmUrls('https://app', client({}, { aeoInformedSocial: undefined }), CLOCK)).toEqual(none)
+    expect(aeoWarmUrls('https://app', client({ peecCustomerProjectId: null }), CLOCK)).toEqual(none)
+    expect(aeoWarmUrls('https://app', client({ hiddenReports: ['organic-aeo-informed'] }), CLOCK)).toEqual(none)
+    expect(aeoWarmUrls('https://app', client({ enabledReports: ['ga4'] }), CLOCK)).toEqual(none)
+    expect(aeoWarmUrls('https://app', client({ hiddenReports: ['organic-social'] }), CLOCK)).toEqual(none)
   })
-  it('a client not on locked months: Month, YTD and All time on the page\'s default range, the default min', () => {
-    expect(aeoWarmUrls('https://app', client(), CLOCK)).toEqual([url('last_30_days'), url('last_30_days', 'ytd'), url('last_30_days', 'all')])
+  it('a client not on locked months: the page\'s default range only, no extra month (edge 6)', () => {
+    expect(aeoWarmUrls('https://app', client(), CLOCK)).toEqual({ served: views('last_30_days'), extra: [] })
   })
-  it('a client on locked months: on the newest month a client viewer is served', () => {
-    const c = client({}, { reportingMonths: { firstMonth: '2026-08' } })
-    const sep = 'custom:2026-09-01,2026-09-30'
-    expect(aeoWarmUrls('https://app', c, CLOCK)).toEqual([url(sep), url(sep, 'ytd'), url(sep, 'all')])
+  it('clientMonths 1: the served month only, exactly today\'s list (edge 1)', () => {
+    expect(aeoWarmUrls('https://app', locked({ clientMonths: 1 }), CLOCK)).toEqual({ served: views(SEP), extra: [] })
   })
-  it('a client on locked months with no month open to clients yet gets none', () => {
-    expect(aeoWarmUrls('https://app', client({}, { reportingMonths: { firstMonth: '2026-11' } }), CLOCK)).toEqual([])
+  it('clientMonths 2: the served month, then the next month a client can pick (edge 2)', () => {
+    expect(aeoWarmUrls('https://app', locked({ clientMonths: 2 }), CLOCK)).toEqual({ served: views(SEP), extra: views(AUG) })
+  })
+  it('no clientMonths (every opened month offered) or clientMonths 3: still at most one extra month (edge 3)', () => {
+    expect(aeoWarmUrls('https://app', locked({}), CLOCK)).toEqual({ served: views(SEP), extra: views(AUG) })
+    const july = client({}, { reportingMonths: { firstMonth: '2026-07', clientMonths: 3 } })
+    expect(aeoWarmUrls('https://app', july, CLOCK)).toEqual({ served: views(SEP), extra: views(AUG) })
+  })
+  it('only one month open to clients yet: that month, no extra (edge 4)', () => {
+    expect(aeoWarmUrls('https://app', client({}, { reportingMonths: { firstMonth: '2026-09', clientMonths: 2 } }), CLOCK)).toEqual({ served: views(SEP), extra: [] })
+  })
+  it('no month open to clients yet, or a malformed reportingMonths: none (edge 5)', () => {
+    expect(aeoWarmUrls('https://app', client({}, { reportingMonths: { firstMonth: '2026-11' } }), CLOCK)).toEqual(none)
+    expect(aeoWarmUrls('https://app', client({}, { reportingMonths: { firstMonth: 'August' } }), CLOCK)).toEqual(none)
+    expect(aeoWarmUrls('https://app', locked({ clientMonths: 0 }), CLOCK)).toEqual(none)
   })
 })
