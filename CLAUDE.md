@@ -1079,12 +1079,14 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
 
 - [ ] **The health sweep does not probe the tab.** `app/api/health/sweep/route.ts` builds one Organic Social URL per
   client with no subsection, so a broken AEO tab is not flagged. Its own 60 s limit also covers many pages, and a cold
-  YTD pull takes about 45 s (`docs/findings/2026-11-12-aeo-tab-page-time-limit.md`). Add it with a warm cache in mind.
+  YTD pull takes about 32 s since issue 451 (was 39 to 55 s, `docs/findings/2026-11-12-aeo-tab-page-time-limit.md`). Add
+  it with a warm cache in mind.
 - [ ] **AEO locks live in `dash_response_locks`,** one row per exact request, keyed by `aeoLockKey`
   (`lib/organic-social/aeo-tab/data.ts`). The "no way to undo a bad lock" entry above covers them: deleting a month's
   rows by `period_end` removes its Month, YTD and All time AEO rows too (all three end on the month's last day).
 - [ ] **The AEO lock key is pinned** (`lib/organic-social/aeo-tab/aeo-lock-key-pin.test.ts`), as the Dash keys are. It
-  hashes the project, selector, window, as-of, min, fourth graph and the contract version, so a new adapter field
+  hashes the project, selector, window, as-of, min, fourth graph, whether the view compares (MoM only, issue 451) and
+  the contract version, so a new adapter field
   (a `CONTRACT_VERSION` bump) orphans every stored AEO lock and those months recapture from live Peec. Decide that
   deliberately, as for the Dash keys.
 - [ ] **Months already settled when a client's tab is switched on lock on their first view,** logged as late locks,
@@ -1099,4 +1101,18 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
   cap min 1.
 - [ ] **A cold export can time out.** The PDF export gives Peec 30 s (inside its 40 s ready budget); the warmer covers
   only the three views of the newest month a client is served, so a staff export of the month in progress, an older
-  month's YTD or another min may print the timeout card until the cache is warm.
+  month's YTD or another min may print the timeout card until the cache is warm. A pull that misses the deadline keeps
+  running under `after()` (issue 450, `withDeadline` in `lib/organic-social/aeo-tab/load.ts`) and fills the cache or
+  the lock for the next try.
+- [ ] **A locked-month miss is never cached, and an empty month is re-pulled** (Paul, issue 452). A miss captures
+  straight from Peec (`getAeoTabData`, `lib/organic-social/aeo-tab/data.ts`), and a capture with no tagged social
+  sources is shown but never stored, so every view and every hourly warm of that window pulls again. The lock sweep is
+  bounded (lock day to 2 days after, `lib/organic-social/lock-sweep.ts:15,29`). Two hits on the SAME view at once each
+  run a full capture; the warmer's three views are three different keys, so they are not duplicates. No wrong number
+  results, only Peec work. Fix (a short-lived empty marker, and one in-flight capture per key) when the first
+  `[aeo-informed] lock skipped (incomplete answer)` line shows up on staging or production, or before a second client.
+- [ ] **For a client not on locked months, MoM follows the page's default `last_30_days`** (Paul, PR #444).
+  `last_N_days` ends yesterday (`lib/date-range.ts:64-66`), and `aeoWindow` takes the month of that last day
+  (`lib/organic-social/aeo-tab/params.ts`), so on the 2nd MoM is the 1st alone, compared with the one day before. A
+  client on locked months always gets a full month, so Renaissance is not affected. Settle it from the outline before
+  the tab goes on for a client without locked months.
