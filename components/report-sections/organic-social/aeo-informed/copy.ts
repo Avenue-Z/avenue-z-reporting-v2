@@ -45,9 +45,13 @@ export const SEARCH_PLACEHOLDER = 'Search URLs'
 export const pagerLabel = (a: number, b: number, n: number) => `Showing ${a} to ${b} of ${n}`
 
 export const COLUMN = {
-  rank: '#', url: 'URL', urlType: 'URL type', mentions: 'Mentions', citationShare: 'Citation share', citationPosition: 'Citation position',
+  rank: '#', url: 'URL', urlType: 'URL type', domainType: 'Domain type', mentions: 'Mentions', citationShare: 'Citation share', citationPosition: 'Citation position',
   retrievals: 'Retrievals', totalCitations: 'Total citations', citationRate: 'Citation rate',
 } as const
+/** The socials tables' "<brand> mentioned" column, as the outline's screenshots name it ("Renaissance mentioned"), from the client's own brand
+ *  in Peec. The adapter always has exactly one own brand; "Your brand" only covers a list without one. */
+export const mentionedColumn = (ownBrandName: string | null) => `${ownBrandName ?? 'Your brand'} mentioned`
+export const MENTIONED = { yes: 'Yes', no: 'No' } as const
 
 export const notStartedText = (monthLabel: string) => `No data for ${monthLabel} yet.`
 export const NO_DATA_FOR_WINDOW = 'No data for this window.'

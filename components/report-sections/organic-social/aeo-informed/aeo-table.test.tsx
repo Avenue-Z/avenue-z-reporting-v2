@@ -24,15 +24,40 @@ const gap = (i: number, o: Partial<GapRow> = {}): GapRow => ({
 const headers = () => screen.getAllByRole('columnheader').map((h) => h.textContent?.replace(/[▲▼]/g, '').trim())
 const rows = () => screen.queryAllByTestId('aeo-row')
 
-describe('columns (the team feedback 2026-11-12: no Retrieved; Retrievals, Total citations, Citation rate last)', () => {
-  it('the socials tables end Retrievals, Total citations, Citation rate, with no Retrieved', () => {
+// The full column list, pinned whole: the outline's screenshots (Domain type and "<brand> mentioned" in the socials tables, Domain type in URL
+// gaps) plus the team feedback 2026-11-12 (no Retrieved; Retrievals, Total citations, Citation rate last).
+describe('columns (the outline screenshots and the team feedback 2026-11-12)', () => {
+  it('the socials tables: #, URL, URL type, Domain type, <own brand> mentioned, Mentions, Retrievals, Total citations, Citation rate; no Retrieved', () => {
     render(<AeoTable kind="socials" rows={[social(0)]} brands={BRANDS} showChange={false} />)
-    expect(headers()).toEqual(['#', 'URL', 'URL type', 'Mentions', 'Retrievals', 'Total citations', 'Citation rate'])
+    expect(headers()).toEqual(['#', 'URL', 'URL type', 'Domain type', 'Example mentioned', 'Mentions', 'Retrievals', 'Total citations', 'Citation rate'])
     expect(screen.queryByText(/Retrieved/)).toBeNull()
   })
-  it('URL Gaps ends Citation share, Citation position, Retrievals, Total citations, Citation rate', () => {
+  it('URL Gaps: #, URL, URL type, Domain type, Mentions, Citation share, Citation position, Retrievals, Total citations, Citation rate', () => {
     render(<AeoTable kind="gaps" rows={[gap(0)]} brands={BRANDS} showChange={false} />)
-    expect(headers()).toEqual(['#', 'URL', 'URL type', 'Mentions', 'Citation share', 'Citation position', 'Retrievals', 'Total citations', 'Citation rate'])
+    expect(headers()).toEqual(['#', 'URL', 'URL type', 'Domain type', 'Mentions', 'Citation share', 'Citation position', 'Retrievals', 'Total citations', 'Citation rate'])
+  })
+  it('the export prints the same columns', () => {
+    render(<ExportModeProvider><AeoTable kind="socials" rows={[social(0)]} brands={BRANDS} showChange={false} /></ExportModeProvider>)
+    expect(headers()).toEqual(['#', 'URL', 'URL type', 'Domain type', 'Example mentioned', 'Mentions', 'Retrievals', 'Total citations', 'Citation rate'])
+  })
+  it('with no own brand in the list, the column reads "Your brand mentioned"', () => {
+    render(<AeoTable kind="socials" rows={[social(0)]} brands={BRANDS.filter((b) => !b.isOwn)} showChange={false} />)
+    expect(headers()).toContain('Your brand mentioned')
+  })
+})
+
+describe('the two screenshot columns', () => {
+  it('Domain type shows the row\'s domain type', () => {
+    render(<AeoTable kind="gaps" rows={[gap(0, { domainType: 'Organic Social' })]} brands={BRANDS} showChange={false} />)
+    expect(within(rows()[0]).getByTestId('aeo-domain-type').textContent).toBe('Organic Social')
+  })
+  it('<own brand> mentioned reads Yes or No from the row, in the competitor table too', () => {
+    render(<AeoTable kind="socials" rows={[social(0, { ownBrandMentioned: true }), social(1, { ownBrandMentioned: false, isOwnChannel: false, ownerBrandId: 'b_globex' })]} brands={BRANDS} showChange={false} />)
+    expect(rows().map((r) => within(r).getByTestId('aeo-mentioned').textContent)).toEqual(['Yes', 'No'])
+  })
+  it('URL Gaps has no mentioned column (a gap never mentions our own brand)', () => {
+    render(<AeoTable kind="gaps" rows={[gap(0)]} brands={BRANDS} showChange={false} />)
+    expect(screen.queryByTestId('aeo-mentioned')).toBeNull()
   })
 })
 
@@ -155,5 +180,24 @@ describe('the PDF export (Review Focus 4)', () => {
     expect(screen.getByText('Showing 1 to 14 of 987')).toBeTruthy()
     expect(screen.queryByRole('searchbox')).toBeNull()
     expect(screen.queryByRole('button', { name: /page/ })).toBeNull()
+  })
+  // The PDF's content box is 979 px wide (lib/export/render-pdf.ts:8) and cannot scroll sideways. Measured on the export page, 2026-11-13: at
+  // the screen layout the tables needed 1,041 to 1,166 px, so their right columns were cut off (URL Gaps already was, at 1,089 px, before the
+  // two screenshot columns). With these three print-only limits the widest needs 901 px, and still 901 px with 20 brands mentioned.
+  it('in the PDF the URL column is capped at 220 px and may break a long word, cells are padded 8 px, and the Mentions dots wrap', () => {
+    const { container } = render(<ExportModeProvider><AeoTable kind="gaps" rows={[gap(0)]} brands={BRANDS} showChange={false} /></ExportModeProvider>)
+    const urlCell = within(rows()[0]).getAllByRole('cell')[1]
+    expect(urlCell.className).toContain('max-w-[220px]')
+    expect(urlCell.className).toContain('[overflow-wrap:anywhere]')
+    for (const c of container.querySelectorAll('th, td')) expect(c.className).toContain('px-2')
+    expect(screen.getAllByTestId('aeo-mention-dot')[0].parentElement!.className).toContain('flex-wrap')
+  })
+  it('on screen the layout is unchanged: a 360 px URL column, 12 px padding, dots on one line', () => {
+    const { container } = render(<AeoTable kind="gaps" rows={[gap(0)]} brands={BRANDS} showChange={false} />)
+    const urlCell = within(rows()[0]).getAllByRole('cell')[1]
+    expect(urlCell.className).toContain('max-w-[360px]')
+    expect(urlCell.className).not.toContain('overflow-wrap')
+    for (const c of container.querySelectorAll('th, td')) expect(c.className).toContain('px-3')
+    expect(screen.getAllByTestId('aeo-mention-dot')[0].parentElement!.className).not.toContain('flex-wrap')
   })
 })
