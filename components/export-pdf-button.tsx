@@ -338,9 +338,10 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger(running)}</PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="no-print w-72 border-white/[0.08] bg-bg-surface p-2 text-white shadow-xl">
+      {/* Never taller than the window, or the buttons under a long failure list can't be reached: the page list gives way. */}
+      <PopoverContent align="end" sideOffset={8} className="no-print flex max-h-(--radix-popover-content-available-height) w-72 flex-col border-white/[0.08] bg-bg-surface p-2 text-white shadow-xl">
         <p className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">Pages to export</p>
-        <div className="max-h-[60vh] space-y-px overflow-y-auto">
+        <div className="max-h-[60vh] min-h-0 space-y-px overflow-y-auto">
           <Check
             label="All pages"
             checked={all}
@@ -367,7 +368,7 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
             )
           })}
         </div>
-        <div className="mt-2 space-y-2 border-t border-white/[0.06] px-2 pt-2">
+        <div className="mt-2 shrink-0 space-y-2 border-t border-white/[0.06] px-2 pt-2">
           {/* Mounted while the popover is open, so a screen reader announces the first message too. */}
           <div className="flex items-center justify-between gap-2" aria-live="polite">
             {running && (
@@ -382,7 +383,7 @@ function BulkPicker({ clientName, bulk, trigger }: { clientName: string; bulk: B
           {!running && error && <p role="alert" className="text-xs text-red-400">{error}</p>}
           {running ? null : failed.length > 0 ? (
             <>
-              <ul role="alert" className="space-y-1 text-xs text-red-400">
+              <ul role="alert" className="max-h-32 space-y-1 overflow-y-auto text-xs text-red-400">
                 {failed.map((p) => <li key={p.key}>{pageName(p)}: {reason(p)}</li>)}
               </ul>
               <div className="flex flex-wrap gap-2">
