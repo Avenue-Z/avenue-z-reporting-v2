@@ -20,7 +20,8 @@ vi.mock('@/lib/organic-social/aeo-informed', async (orig) => ({ ...(await orig<o
 
 import { AeoGateError } from '@/lib/organic-social/aeo-informed'
 import { world, input } from '@/lib/organic-social/aeo-informed/test-world'
-import { loadAeoTab, toTabResult, cacheTtlFor } from './load'
+import { loadAeoTab, toTabResult, cacheTtlFor, AEO_TAB_SELECTOR_VIA } from './load'
+import { PeecSelectorError } from '@/lib/organic-social/aeo-informed'
 
 const KEY = 'skc-TEST-KEY-never-logged'
 const PROJECT = 'or_TEST_PROJECT_never_logged'
@@ -77,10 +78,19 @@ describe('what is cached', () => {
   it('the adapter gets the key from the environment, the window for both tables, the four graphs for the fourth graph, and its own 240 s budget', async () => {
     await loadAeoTab({ ...base, setting: { ...base.setting, fourthGraph: 'tiktok', selector: 'Social' } })
     const call = pull.mock.calls[0][0] as AeoInformedInput
-    expect(call).toMatchObject({ apiKey: KEY, projectId: PROJECT, asOf: '2026-10-31', minCompetitors: 2, fourthGraph: 'tiktok', deadlineMs: 240_000, selector: { name: 'Social', via: 'classification' } })
+    expect(call).toMatchObject({ apiKey: KEY, projectId: PROJECT, asOf: '2026-10-31', minCompetitors: 2, fourthGraph: 'tiktok', deadlineMs: 240_000, selector: { name: 'Social', via: 'tag' } })
     expect(call.views.socials).toEqual(base.window)
     expect(call.views.gaps).toEqual(base.window)
     expect(call.views.graphs).toEqual({ used_as_source_all: { from: '2026-10-01', weeks: 5 }, citations_all: { from: '2026-10-01', weeks: 5 }, citations_linkedin: { from: '2026-10-01', weeks: 5 }, citations_tiktok: { from: '2026-10-01', weeks: 5 } })
+  })
+  // Spec 2026-11-13 (C1, C4): the tab filters on Jasmine's source tag, through one constant, and the caches start over (v2).
+  it('the tab filters on the source tag, through the one constant the lock key also uses', async () => {
+    expect(AEO_TAB_SELECTOR_VIA).toBe('tag')
+    await loadAeoTab(base)
+    expect((pull.mock.calls[0][0] as AeoInformedInput).selector).toEqual({ name: 'Organic Social', via: AEO_TAB_SELECTOR_VIA })
+  })
+  it('both live caches are version v2, so an answer cached before the tag change is never served', () => {
+    for (const fn of ['aeoInformedSocial:6h', 'aeoInformedSocial:1h']) expect(cachedCalls.find((c) => c.fn === fn)?.opts.version).toBe('v2')
   })
   it('only MoM asks the adapter to compare: YTD and All time show no change, so nothing before their window is pulled (issue 451)', async () => {
     for (const [range, compare] of [['month', true], ['ytd', false], ['all', false]] as const) {
@@ -182,6 +192,20 @@ describe('what the section gets on a failure', () => {
     const line = String(err.mock.calls[0][0])
     expect(line).toBe('[aeo-informed] load failed slug=a-client range=all min=4 error=PeecHttpError')
     expect(err.mock.calls[0].length).toBe(1)
+  })
+  // issue 457: a missing tag and a second tag need different fixes in Peec, so the line says which, and never the tag names
+  it.each([
+    ['missing', 'no source tag named "Organic Social". Tags that exist: Editorial'],
+    ['duplicate', 'expected exactly one source tag named "Organic Social", found 2'],
+  ] as const)('a %s source tag is the error card and one log line naming PeecSelectorError and the reason, never a number', async (kind, message) => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    pull.mockRejectedValue(new PeecSelectorError(message, kind))
+    expect(await loadAeoTab(base)).toEqual({ kind: 'error', reason: 'error' })
+    expect(err).toHaveBeenCalledTimes(1)
+    expect(err.mock.calls[0].length).toBe(1)
+    const line = String(err.mock.calls[0][0])
+    expect(line).toBe(`[aeo-informed] load failed slug=a-client range=month min=2 error=PeecSelectorError reason=${kind}`)
+    expect(line).not.toMatch(/Organic Social|Editorial/)
   })
   it('a gate error without view.no-chats is an error, and the log names the rule codes', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})

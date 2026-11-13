@@ -67,7 +67,7 @@ Row types are `SocialsRow` and `GapRow` in `tables.ts`. Every delta is `number |
 
 | Number | Rule |
 |---|---|
-| Tag filter | `domain_classification in [name]` (or `domain_tag_id in [id]` with `via: 'tag'`). Both select the same sources on the project this was built against. |
+| Tag filter | `domain_tag_id in [id]` with `via: 'tag'`, the source tag the team applies in Peec; the tag must exist exactly once (no tag, or two, is a `PeecSelectorError`). The tab always uses it (`AEO_TAB_SELECTOR_VIA`, `aeo-tab/load.ts`). The adapter's own default, for other callers, is still `domain_classification in [name]`. On Renaissance's project both gave identical results in every pull and view (measured 2026-11-13). |
 | Retrievals, total citations | `retrieval_count` and `citation_count` summed over the window's days. Counts add across days because a chat belongs to one day. |
 | Change columns | Against the previous window of the same length, joined on the exact URL Peec returns. |
 | Retrieved % | A URL's retrievals divided by the window's chats. Chats come from `/reports/brands` (own brand, by day, `visibility_total`), which covers every day. |
@@ -113,7 +113,7 @@ Tables decide ownership from a URL's most-retrieved title and graphs decide per 
 | Situation | Result |
 |---|---|
 | Bad date, `start > end`, `weeks < 1`, or `socials.end` / `gaps.end` after `asOf` | `RangeError` before any call |
-| Selector name not found | `PeecSelectorError` listing the names that exist |
+| Selector name not found, or (tag) more than one tag with the name | `PeecSelectorError`, `kind` `missing` (the message lists the names that exist) or `duplicate`. The tab logs `error=PeecSelectorError reason=<kind>`, never the message |
 | No own brand, or more than one | `PeecBrandError` |
 | A list endpoint returns exactly its limit (1,000) | `AeoPullError` (it may be cut off) |
 | Any pull fails after retries | `AeoPullError` naming the pull and window, wrapping the original error as `cause`. No partial result. |
@@ -134,12 +134,12 @@ Each field has a kind, nullability, a range, allowed values or a prefix. From it
 - `contract-yaml.ts` renders the contract-core YAML in `docs/contracts/aeo-informed-social/`; `npx tsx scripts/gen-aeo-contract.ts` writes it and `contract-yaml.test.ts` fails if a committed file differs from the generated one or a stray file appears. The YAML is a design copy that is checked for drift: contract-core is Python and does not run in the app, and its boundaries are in `observe` mode. The runtime enforcement is `gate.ts` and `shape.ts`.
 
 **The gate (`gate.ts`)** runs on the finished result, and the only function a view should call, `getAeoInformedSocial`, returns nothing if the gate finds an error. It runs against the raw Peec rows the result was built from, so a total, a change or a bound is checked against a simple independent recount, not against a number the same code just produced.
-`GATE_RULES` is the catalog: each rule has a code, a severity and a plain-English sentence. There are 49 (45 stop the result, 4 warn):
+`GATE_RULES` is the catalog: each rule has a code, a severity and a plain-English sentence. There are 50 (46 stop the result, 4 warn):
 
 | Group | What it checks |
 |---|---|
 | Contract and numbers | every field is the right kind, range and value; no NaN or infinity anywhere |
-| Summary | each "change" window is the same length and ends the day before; no table window runs past the as-of date, and the as-of date is before today (so no unfinished day is counted); counts equal the rows; chat totals are whole numbers; the unverified list is complete; the own brand and the tag (and its id, for a tag) are named |
+| Summary | each "change" window is the same length and ends the day before; no table window runs past the as-of date, and the as-of date is before today (so no unfinished day is counted); counts equal the rows; chat totals are whole numbers; the unverified list is complete; the own brand and the tag (and its id, for a tag) are named; the result says when it was pulled, as a standard time on the day the gate checks it |
 | Independent recount | each window's chat total equals a recount of the daily chat counts; the tables hold exactly the sources Peec returned; the retrievals and citations add up; every row's numbers and its change against the previous window equal a recount, row by row |
 | First table and its splits | ranks 1..n and the sort order; the star equals "owned by our brand"; Retrieved % equals retrievals over chats; its change agrees with the retrievals change and the chats; citation rate and its change equal a recount from the row's own counts; a new URL has an empty change in both columns; the own and competitor tables are exact, ordered, ranked subsets with no overlap |
 | Totals | the four totals equal a recount of the own table; the previous window's equal an independent recount of the raw rows (each URL's channel picked as `urls.ts` does), and are empty exactly when that window has no chats |
@@ -169,6 +169,10 @@ A test keeps it in step with the output types. The status words are documentatio
 The rules above were reproduced against a real project's own export with a read-only run of the real adapter (about 14 requests, under 10 seconds). That run needs a Peec
 company key and the project's own figures, so it lives outside the repo. To repeat it: build `getAeoInformedSocial` inputs for the windows in the export, then compare table 1, the gaps rows and
 each graph point.
+
+**Required before switching the tab on for Renaissance in production, and on request:** run that check through the source tag (`via: 'tag'`)
+and see every figure match. It holds Renaissance's own figures, so it stays outside this public repo; the rule is recorded here, the numbers
+are not. A new client has no reference export, so it needs its own (ask the team for screenshots of the client's Peec views first).
 
 ## Tests
 

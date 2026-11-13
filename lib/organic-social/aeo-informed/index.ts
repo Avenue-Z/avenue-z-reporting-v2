@@ -28,8 +28,10 @@ export class AeoPullError extends Error {
     this.name = 'AeoPullError'
   }
 }
+/** `kind` says which selector failure it was, so a log line can tell a missing tag from a second one without the message, which lists
+ *  names from the Peec project (issue 457). */
 export class PeecSelectorError extends Error {
-  constructor(message: string) { super(message); this.name = 'PeecSelectorError' }
+  constructor(message: string, public readonly kind: 'missing' | 'duplicate') { super(message); this.name = 'PeecSelectorError' }
 }
 export class PeecBrandError extends Error {
   constructor(message: string) { super(message); this.name = 'PeecBrandError' }
@@ -72,6 +74,8 @@ export type Meta = {
   minCompetitors: number
   /** The fourth graph drawn. */
   fourthGraph: FourthGraph
+  /** When the pull finished (ISO time, from input.now): stored with the result, never shown (spec 2026-11-13). */
+  pulledAt: string
   /** Whether the previous windows were pulled and compared (input.compare). */
   compare: boolean
   /** The previous windows are null exactly when compare is false. */
@@ -171,14 +175,18 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   if (selector.via === 'tag') {
     const tags = await step('source-tags', null, async () => parseSourceTags(await reader.get('/source-tags', { limit: String(LIST_LIMIT) }, 'source-tags')))
     if (tags.length >= LIST_LIMIT) throw new AeoPullError('source-tags', null, new Error(`the source tag list returned ${LIST_LIMIT} rows, the limit, so it may be cut off`))
-    const t = tags.find((x) => x.name === selector.name)
-    if (!t) throw new PeecSelectorError(`no source tag named "${selector.name}". Tags that exist: ${tags.map((x) => x.name).join(', ') || '(none)'}`)
+    // Exactly one: the tag is what Jasmine applies in Peec (spec 2026-11-13), so a second tag with the name is refused, never silently
+    // picked. No tag keeps today's message, which lists the tags that exist.
+    const matches = tags.filter((x) => x.name === selector.name)
+    if (matches.length === 0) throw new PeecSelectorError(`no source tag named "${selector.name}". Tags that exist: ${tags.map((x) => x.name).join(', ') || '(none)'}`, 'missing')
+    if (matches.length > 1) throw new PeecSelectorError(`expected exactly one source tag named "${selector.name}", found ${matches.length}`, 'duplicate')
+    const t = matches[0]
     selId = t.id
     selFilter = { field: 'domain_tag_id', operator: 'in', values: [t.id] }
   } else {
     const cls = await step('domain-classifications', null, async () => parseClassifications(await reader.get('/classifications/domains', { limit: String(LIST_LIMIT) }, 'domain-classifications'), '/classifications/domains'))
     if (cls.length >= LIST_LIMIT) throw new AeoPullError('domain-classifications', null, new Error(`the classification list returned ${LIST_LIMIT} rows, the limit, so it may be cut off`))
-    if (!cls.some((x) => x.name === selector.name)) throw new PeecSelectorError(`no domain classification named "${selector.name}". Classifications that exist: ${cls.map((x) => x.name).join(', ') || '(none)'}`)
+    if (!cls.some((x) => x.name === selector.name)) throw new PeecSelectorError(`no domain classification named "${selector.name}". Classifications that exist: ${cls.map((x) => x.name).join(', ') || '(none)'}`, 'missing')
     selFilter = { field: 'domain_classification', operator: 'in', values: [selector.name] }
   }
 
@@ -224,7 +232,8 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   for (const r of dayRows) chatsByDay.set(r.date, (chatsByDay.get(r.date) ?? 0) + r.visibility_total)
   const chatsIn = (w: Window) => eachDay(w).reduce((s, d) => s + (chatsByDay.get(d) ?? 0), 0)
 
-  // 5) build
+  // 5) build. One clock for when the pull finished: meta.pulledAt and the gate's raw.today (spec 2026-11-13).
+  const pulledAt = new Date((input.now ?? Date.now)()).toISOString()
   const warnings: string[] = []
   const chats = { socials: chatsIn(socials), socialsPrior: socialsPrior ? chatsIn(socialsPrior) : null, gaps: chatsIn(gaps), gapsPrior: gapsPrior ? chatsIn(gapsPrior) : null }
   for (const [k, v] of Object.entries(chats)) if (v === 0) warnings.push(`no chats in window: ${k}`)
@@ -267,6 +276,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
       graphs: input.views.graphs,
       minCompetitors,
       fourthGraph,
+      pulledAt,
       compare,
       windows: { socials, socialsPrior, gaps, gapsPrior },
       ownBrandId: ownBrand.id,
@@ -280,7 +290,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     },
   }
 
-  const raw: GateRaw = { selRows, gapCurrentRows, gapPriorRows, chatRows, dayRows, brands, today: new Date((input.now ?? Date.now)()).toISOString().slice(0, 10) }
+  const raw: GateRaw = { selRows, gapCurrentRows, gapPriorRows, chatRows, dayRows, brands, today: pulledAt.slice(0, 10) }
   return { draft, raw }
 }
 

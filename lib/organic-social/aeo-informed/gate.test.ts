@@ -28,6 +28,13 @@ const MUTATIONS: Record<string, Mut[]> = {
   'meta.counts': [(c) => { c.r.meta.counts.socialsAll += 1 }, (c) => { c.r.meta.counts.requests = 1 }],
   'meta.chats': [(c) => { c.r.meta.chats.socials = -1 }, (c) => { c.r.meta.chats.gaps = 10.5 }, (c) => { c.r.meta.chats.socialsPrior = null }], // comparing needs the previous count
   'meta.unverified': [(c) => { c.r.meta.unverified = [] }],
+  // Spec 2026-11-13: pulledAt and raw.today come from one clock, so this guards the adapter's own wiring (round 2 minor 5).
+  'meta.pulled-at': [
+    (c) => { delete (c.r.meta as unknown as Record<string, unknown>).pulledAt },
+    (c) => { c.r.meta.pulledAt = 'not a time' },
+    (c) => { c.r.meta.pulledAt = `${c.raw.today}T00:00:00+00:00` }, // parses, but is not the ISO form toISOString() writes
+    (c) => { c.r.meta.pulledAt = '2020-01-01T00:00:00.000Z' }, // a valid time on another day than raw.today
+  ],
   'meta.identity': [(c) => { c.r.meta.ownBrandId = '' }, (c) => { c.r.meta.selector = { name: 'Organic Social', via: 'tag', id: null } }],
   'oracle.chats': [(c) => { c.r.meta.chats.socials += 1 }],
   'oracle.rows': [
