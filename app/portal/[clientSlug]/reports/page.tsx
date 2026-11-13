@@ -311,6 +311,8 @@ export default async function PortalReportPage({
                 dateRange: activeSection === 'executive-overview' ? 'last_30_days' : servedDateRange,
                 compareRange: activeSection === 'executive-overview' ? null : servedCompareRange,
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
+                // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
+                ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
               } }
             : {})}
           // Bulk export (spec 2026-10-14-bulk-pdf-export-design): the client's exportable pages, this one pre-selected,
@@ -324,6 +326,8 @@ export default async function PortalReportPage({
             models: models ? serializeModelsParam(models) : null,
             fromSection: activeSection,
             lockedMonths: hasReportingMonths(client),
+            // Started from the AEO tab: its page in the bulk export takes the same range and min (lib/export/bulk.ts).
+            ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
           }} />
       </StickyReportHeader>
 

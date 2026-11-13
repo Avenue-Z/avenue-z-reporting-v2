@@ -155,7 +155,25 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     expect(report.props).toMatchObject({ channel: null, view: 'aeo-informed' })
     const view = resolveExportView(AEO_CLIENT as ExportViewClient, 'organic-social', 'organic-aeo-informed')
     expect(view.pageTitle).toBe(button.props.pageTitle)
-    expect(exportReportElement(view, params).props).toEqual(report.props)
+    // Named drift: the export gives the tab its own 30 s limit, inside the export's 40 s ready budget; the page keeps its 120 s.
+    expect(exportReportElement(view, params).props).toEqual({ ...report.props, aeoDeadlineMs: 30_000 })
+  })
+  test(`${routeName}: on the AEO tab the button sends the tab's range and min, for the single export and the bulk one`, async () => {
+    getClientBySlug.mockResolvedValue(AEO_CLIENT)
+    const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
+      searchParams: Promise.resolve({ section: 'organic-social', subsection: 'organic-aeo-informed', ...Q, aeo: 'all', aeomin: '4' }) } as never))
+    if ('redirect' in r) throw new Error('unexpected redirect')
+    const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
+    expect(button.props.serverExport).toMatchObject({ subsection: 'organic-aeo-informed', aeo: 'all', aeoMin: 4 })
+    expect(button.props.bulk).toMatchObject({ aeo: 'all', aeoMin: 4 })
+  })
+  test(`${routeName}: on every other tab the button sends no aeo keys`, async () => {
+    getClientBySlug.mockResolvedValue(AEO_CLIENT)
+    const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
+      searchParams: Promise.resolve({ section: 'organic-social', subsection: 'organic-instagram', ...Q, aeo: 'all', aeomin: '4' }) } as never))
+    if ('redirect' in r) throw new Error('unexpected redirect')
+    const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
+    for (const o of [button.props.serverExport, button.props.bulk] as Record<string, unknown>[]) expect('aeo' in o || 'aeoMin' in o).toBe(false)
   })
 }
 

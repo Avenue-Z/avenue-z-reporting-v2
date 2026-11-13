@@ -5,6 +5,8 @@ import { resolveDateRange } from '@/lib/date-range'
 
 /** The range control: Month (default), YTD, All time. */
 export type AeoRange = 'month' | 'ytd' | 'all'
+/** Its labels, on the tab (aeo-informed/copy.ts) and in the export stamp (stamp.ts). */
+export const AEO_RANGE_LABEL: Record<AeoRange, string> = { month: 'Month', ytd: 'YTD', all: 'All time' }
 
 /** `aeo=month|ytd|all`; anything else (missing, another case, a repeated param) is month. */
 export function parseAeoRange(raw: unknown): AeoRange {

@@ -109,3 +109,15 @@ test('an error that is not a cancel still rejects the run', async () => {
   const run = runBulkExport([page('peec-ai')], async () => { throw new Error('a bug') }, { signal: new AbortController().signal })
   await expect(run).rejects.toThrow('a bug')
 })
+
+// The AEO Informed Social tab (plan Task 10): only its own page takes the range and min the export was started with.
+test('only the AEO Informed Social page takes aeo and aeoMin; every other body is unchanged', () => {
+  const withAeo = { ...RANGES, fromSection: 'organic-social', aeo: 'all' as const, aeoMin: 4 }
+  expect(bulkRequest(page('organic-social', 'organic-aeo-informed'), withAeo)).toMatchObject({ subsection: 'organic-aeo-informed', aeo: 'all', aeoMin: 4 })
+  for (const p of [page('organic-social'), page('organic-social', 'organic-instagram'), page('peec-ai'), page('paid-media', 'meta'), page('executive-overview')]) {
+    const body = bulkRequest(p, withAeo)
+    expect('aeo' in body || 'aeoMin' in body, p.key).toBe(false)
+  }
+  const fromElsewhere = bulkRequest(page('organic-social', 'organic-aeo-informed'), { ...RANGES, fromSection: 'organic-social' })
+  expect('aeo' in fromElsewhere || 'aeoMin' in fromElsewhere).toBe(false)
+})

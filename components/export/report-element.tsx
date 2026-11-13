@@ -16,6 +16,9 @@ import { MetaAdsReport } from '@/components/report-sections/meta-ads'
 import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
 import { ExecutiveOverviewReport } from '@/components/report-sections/executive-overview'
 
+/** The AEO Informed Social tab's Peec limit in the PDF export, inside the export's 40 s ready budget (spec 2026-11-12 section 4). */
+export const AEO_EXPORT_DEADLINE_MS = 30_000
+
 export interface ExportViewParams {
   clientSlug: string
   dateRange: string
@@ -30,9 +33,10 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
   switch (view.section) {
     case 'organic-social':
       // Locked months resolve inside OrganicSocialReport from the raw range, as on the page.
-      // aeo and aeoMin on the AEO Informed Social tab only, as the report pages pass them (getReportComponent).
+      // aeo and aeoMin on the AEO Informed Social tab only, as the report pages pass them (getReportComponent), with the export's own limit:
+      // a slow Peec read must print its card rather than leave the export "still loading" (the 40 s ready budget below, as the CRM's 25 s).
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} view={view.view}
-        {...(view.view === 'aeo-informed' ? { aeo: aeo ?? 'month', aeoMin: aeoMin ?? 2 } : {})} />
+        {...(view.view === 'aeo-informed' ? { aeo: aeo ?? 'month', aeoMin: aeoMin ?? 2, aeoDeadlineMs: AEO_EXPORT_DEADLINE_MS } : {})} />
     case 'peec-ai':
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (view.subsectionId === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />

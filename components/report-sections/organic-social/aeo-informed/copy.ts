@@ -1,10 +1,10 @@
 // components/report-sections/organic-social/aeo-informed/copy.ts
 // Every word the AEO Informed Social tab shows, in one place. Titles are the outline's, verbatim (spec 2026-11-12, R6 and section 3; the outline
 // doc's "Graphs to Add", "BEFORE THE TABLES" and table headings). No dash characters in any of it.
-import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
+import { AEO_RANGE_LABEL, type AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import type { FourthGraph, GraphId } from '@/lib/organic-social/aeo-informed'
 
-export const RANGE_LABEL: Record<AeoRange, string> = { month: 'Month', ytd: 'YTD', all: 'All time' }
+export const RANGE_LABEL: Record<AeoRange, string> = AEO_RANGE_LABEL
 export const MIN_COMPETITORS_LABEL = 'Min competitors'
 
 /** The graph titles, as the outline writes them. The fourth is "Citations on Instagram", or TikTok for a client whose fourthGraph says so

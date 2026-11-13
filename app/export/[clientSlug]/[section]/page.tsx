@@ -18,6 +18,8 @@ import { CONTENT_WIDTH, EXPORT_PAGE_CSS } from '@/lib/export/render-pdf'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ExportModeProvider, ExportReadyReporter } from '@/components/export/export-mode'
 import { exportReportElement } from '@/components/export/report-element'
+import { parseAeoMin, parseAeoRange } from '@/lib/organic-social/aeo-tab/params'
+import { aeoExportPeriodLabel } from '@/lib/organic-social/aeo-tab/stamp'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,13 +46,20 @@ export default async function ReportExportPage({
   const compareRange = str(sp.compareRange)
   const tz = safeTimeZone(sp.tz)
   const view = resolveExportView(client, section, str(sp.subsection))
-  const report = exportReportElement(view, { clientSlug, dateRange, compareRange, models: parseModelsParam(str(sp.models)) })
+  // The AEO Informed Social tab's range and min, as the report pages read them (unreadable: Month and 2); used on that tab only.
+  const aeo = parseAeoRange(str(sp.aeo))
+  const aeoMin = parseAeoMin(str(sp.aeomin))
+  const report = exportReportElement(view, { clientSlug, dateRange, compareRange, models: parseModelsParam(str(sp.models)), aeo, aeoMin })
   // The period stamped is the range the report serves: Organic Social's locked month for an opted-in client (the
   // same lookup OrganicSocialBody makes), else the requested range. No month to serve, no period. The Executive
   // Overview has no picker and mixes windows (30 days, year to date, as of today), so it stamps none, as its live
   // button (spec 2026-10-09 §9.1).
-  const locked = section === 'organic-social' ? lockedRangeFor(client, session.user?.role, dateRange, requestClock()) : null
+  const clock = requestClock()
+  const locked = section === 'organic-social' ? lockedRangeFor(client, session.user?.role, dateRange, clock) : null
   const served = section === 'executive-overview' ? null : locked ? (locked.month?.dateRange ?? null) : dateRange
+  // The AEO Informed Social tab stamps the window it rendered ("YTD, Jan 1 – Oct 31, 2026"), worked out as the section does; every other
+  // view stamps its served range, as before.
+  const period = !served ? null : view.view === 'aeo-informed' ? aeoExportPeriodLabel({ client, servedRange: served, range: aeo, clock }) : exportPeriodLabel(served)
 
   return (
     <div className="export-theme" style={{ width: CONTENT_WIDTH }}>
@@ -68,7 +77,7 @@ export default async function ReportExportPage({
           <p className="text-sm font-bold uppercase tracking-widest text-text-muted">{client.name}</p>
           <h1 className="text-3xl font-extrabold uppercase text-white">{view.pageTitle}</h1>
         </div>
-        <p className="shrink-0 text-xs text-text-muted">{exportStamp(new Date(), tz, served ? exportPeriodLabel(served) : null)}</p>
+        <p className="shrink-0 text-xs text-text-muted">{exportStamp(new Date(), tz, period)}</p>
       </header>
       <TooltipProvider delayDuration={150} skipDelayDuration={50}>
         <ExportModeProvider>
