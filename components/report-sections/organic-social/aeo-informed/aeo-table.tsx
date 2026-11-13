@@ -1,6 +1,7 @@
 'use client'
-// One of the tab's three tables (spec section 3 items 4 to 6, section 5). Columns end Retrievals, Total citations, Citation rate (the team's
-// feedback, 2026-11-12: "Retrieved" removed); URL Gaps keeps Citation share and Citation position before them. 14 rows a page, as the
+// One of the tab's three tables (spec section 3 items 4 to 6, section 5). The columns are the outline screenshots': #, URL, URL type, Domain
+// type, then "<brand> mentioned" in the socials tables only (a gap never mentions our own brand), then Mentions; they end Retrievals, Total
+// citations, Citation rate (the team's feedback, 2026-11-12: "Retrieved" removed); URL Gaps keeps Citation share and Citation position before them. 14 rows a page, as the
 // outline's screenshots, with search (URL, title, channel) and sortable number columns. Mentions is one dot per brand in Peec's color for it
 // (grey for a brand with none), own brand first. In the PDF export: the page the table opens on, with its count, and no search or buttons.
 import { useMemo, useState } from 'react'
@@ -8,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { CHART_COLORS } from '@/lib/constants'
 import { useExportMode } from '@/components/export/export-mode'
 import type { GapRow, SocialsRow } from '@/lib/organic-social/aeo-informed/tables'
-import { COLUMN, EMPTY_MARK, SEARCH_PLACEHOLDER, TABLE_EMPTY, aeoPct, pagerLabel } from './copy'
+import { COLUMN, EMPTY_MARK, MENTIONED, SEARCH_PLACEHOLDER, TABLE_EMPTY, aeoPct, mentionedColumn, pagerLabel } from './copy'
 
 export const PAGE_SIZE = 14
 type Brand = { id: string; name: string; color: string | null; isOwn: boolean }
@@ -30,12 +31,21 @@ function Change({ value, points }: { value: number | null; points?: boolean }) {
   )
 }
 
-function Mentions({ row, brands }: { row: Row; brands: Brand[] }) {
+/** Yes or No with a colored mark, as the outline's screenshots show it: green for Yes, the tab's red for No. */
+function Mentioned({ yes }: { yes: boolean }) {
+  return (
+    <span data-testid="aeo-mentioned" className="inline-flex items-center gap-1.5 text-white">
+      <span aria-hidden className={cn('inline-block h-3 w-0.5 rounded-full', yes ? 'bg-brand-green' : 'bg-[#FF4444]')} />{yes ? MENTIONED.yes : MENTIONED.no}
+    </span>
+  )
+}
+
+function Mentions({ row, brands, wrap }: { row: Row; brands: Brand[]; wrap: boolean }) {
   const byId = new Map(brands.map((b) => [b.id, b]))
   const ids = row.mentionedBrandIds ? row.mentionedBrandIds.split('|') : []
   return (
     <span className="flex items-center gap-1.5">
-      <span className="flex -space-x-1">
+      <span className={cn('flex -space-x-1', wrap && 'max-w-[84px] flex-wrap gap-y-0.5')}>
         {ids.map((id) => {
           const b = byId.get(id)
           return <span key={id} data-testid="aeo-mention-dot" title={b?.name ?? id} className="inline-block h-3 w-3 rounded-full ring-1 ring-black" style={{ backgroundColor: b?.color ?? CHART_COLORS.neutral }} />
@@ -65,6 +75,11 @@ export function AeoTable({ kind, rows, brands, showChange }: { kind: 'socials' |
     })
   }, [rows, query, sort])
 
+  const ownBrandName = brands.find((b) => b.isOwn)?.name ?? null
+  // The PDF's content box is 979 px and cannot scroll sideways (lib/export/render-pdf.ts:8), so the print layout caps the two columns
+  // whose width grows with the data (the URL's title, the Mentions dots) and tightens the padding. Measured 2026-11-13: the widest table
+  // needs 901 px, and still 901 px with 20 brands mentioned. The screen layout is unchanged and scrolls.
+  const cell = exportMode ? 'px-2 py-2' : 'px-3 py-2'
   const pages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
   const current = exportMode ? 0 : Math.min(page, pages - 1)
   const slice = shown.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE)
@@ -75,7 +90,7 @@ export function AeoTable({ kind, rows, brands, showChange }: { kind: 'socials' |
     { key: 'retrievals', label: COLUMN.retrievals }, { key: 'totalCitations', label: COLUMN.totalCitations }, { key: 'citationRate', label: COLUMN.citationRate },
   ]
   const head = (c: { key: SortKey; label: string }) => (
-    <th key={c.key} scope="col" className="px-3 py-2 text-right" aria-sort={sort?.key === c.key ? (sort.dir === 'desc' ? 'descending' : 'ascending') : 'none'}>
+    <th key={c.key} scope="col" className={`${cell} text-right`} aria-sort={sort?.key === c.key ? (sort.dir === 'desc' ? 'descending' : 'ascending') : 'none'}>
       {exportMode ? c.label : (
         <button type="button" onClick={() => toggle(c.key)} className="font-extrabold uppercase tracking-widest hover:text-white">
           {c.label}{sort?.key === c.key ? (sort.dir === 'desc' ? ' ▼' : ' ▲') : ''}
@@ -96,10 +111,12 @@ export function AeoTable({ kind, rows, brands, showChange }: { kind: 'socials' |
           <table className="w-full min-w-[720px] text-sm">
             <thead className="text-[11px] font-extrabold uppercase tracking-widest text-text-muted">
               <tr className="border-b border-white/[0.08]">
-                <th scope="col" className="px-3 py-2 text-left">{COLUMN.rank}</th>
-                <th scope="col" className="px-3 py-2 text-left">{COLUMN.url}</th>
-                <th scope="col" className="px-3 py-2 text-left">{COLUMN.urlType}</th>
-                <th scope="col" className="px-3 py-2 text-left">{COLUMN.mentions}</th>
+                <th scope="col" className={`${cell} text-left`}>{COLUMN.rank}</th>
+                <th scope="col" className={`${cell} text-left`}>{COLUMN.url}</th>
+                <th scope="col" className={`${cell} text-left`}>{COLUMN.urlType}</th>
+                <th scope="col" className={`${cell} text-left`}>{COLUMN.domainType}</th>
+                {kind === 'socials' && <th scope="col" className={`${cell} text-left`}>{mentionedColumn(ownBrandName)}</th>}
+                <th scope="col" className={`${cell} text-left`}>{COLUMN.mentions}</th>
                 {numberCols.map(head)}
               </tr>
             </thead>
@@ -109,8 +126,8 @@ export function AeoTable({ kind, rows, brands, showChange }: { kind: 'socials' |
                 const label = r.title ?? r.url
                 return (
                   <tr key={`${r.rank}:${r.url}`} data-testid="aeo-row" className="border-b border-white/[0.04] align-top last:border-0">
-                    <td className="px-3 py-2 text-text-muted">{r.rank}</td>
-                    <td className="max-w-[360px] px-3 py-2">
+                    <td className={`${cell} text-text-muted`}>{r.rank}</td>
+                    <td className={cn(exportMode ? 'max-w-[220px] [overflow-wrap:anywhere]' : 'max-w-[360px]', cell)}>
                       {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-white hover:underline">{label}</a> : <span className="font-semibold text-white">{label}</span>}
                       <span className="block truncate text-xs text-text-muted">{r.url}</span>
                       {r.channelTitle && (
@@ -119,17 +136,19 @@ export function AeoTable({ kind, rows, brands, showChange }: { kind: 'socials' |
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-text-muted">{r.urlType ?? EMPTY_MARK}</td>
-                    <td className="px-3 py-2"><Mentions row={r} brands={brands} /></td>
+                    <td className={`${cell} text-text-muted`}>{r.urlType ?? EMPTY_MARK}</td>
+                    <td data-testid="aeo-domain-type" className={`${cell} text-text-muted`}>{r.domainType}</td>
+                    {!isGap(r) && <td className={cell}><Mentioned yes={r.ownBrandMentioned} /></td>}
+                    <td className={cell}><Mentions row={r} brands={brands} wrap={exportMode} /></td>
                     {isGap(r) && (
                       <>
-                        <td data-testid="aeo-share" className="px-3 py-2 text-right tabular-nums">{aeoPct(r.citationShare)}</td>
-                        <td data-testid="aeo-position" className="px-3 py-2 text-right tabular-nums">{r.citationPosition === null ? EMPTY_MARK : r.citationPosition.toLocaleString('en-US', { maximumFractionDigits: 1 })}</td>
+                        <td data-testid="aeo-share" className={`${cell} text-right tabular-nums`}>{aeoPct(r.citationShare)}</td>
+                        <td data-testid="aeo-position" className={`${cell} text-right tabular-nums`}>{r.citationPosition === null ? EMPTY_MARK : r.citationPosition.toLocaleString('en-US', { maximumFractionDigits: 1 })}</td>
                       </>
                     )}
-                    <td className="px-3 py-2 text-right tabular-nums"><span data-testid="aeo-retrievals">{r.retrievals.toLocaleString('en-US')}</span>{showChange && <Change value={r.retrievalsDelta} />}</td>
-                    <td className="px-3 py-2 text-right tabular-nums"><span data-testid="aeo-citations">{r.totalCitations.toLocaleString('en-US')}</span>{showChange && <Change value={r.totalCitationsDelta} />}</td>
-                    <td className="px-3 py-2 text-right tabular-nums"><span data-testid="aeo-rate">{r.citationRate === null ? EMPTY_MARK : aeoPct(r.citationRate)}</span>{showChange && <Change value={r.citationRateDelta} points />}</td>
+                    <td className={`${cell} text-right tabular-nums`}><span data-testid="aeo-retrievals">{r.retrievals.toLocaleString('en-US')}</span>{showChange && <Change value={r.retrievalsDelta} />}</td>
+                    <td className={`${cell} text-right tabular-nums`}><span data-testid="aeo-citations">{r.totalCitations.toLocaleString('en-US')}</span>{showChange && <Change value={r.totalCitationsDelta} />}</td>
+                    <td className={`${cell} text-right tabular-nums`}><span data-testid="aeo-rate">{r.citationRate === null ? EMPTY_MARK : aeoPct(r.citationRate)}</span>{showChange && <Change value={r.citationRateDelta} points />}</td>
                   </tr>
                 )
               })}

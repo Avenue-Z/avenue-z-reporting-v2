@@ -27,6 +27,7 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
 | R10 | P034, P035 | URL Gaps, "Filters: Min 2 competitors" | 3 |
 | R11 | P038, P039, comment C1, Slack | Remove "Retrieved", add citation rate; order Retrievals, total citations, citation rate | 5 |
 | R12 | P040, C1, Slack | Graphs in different colors | 3 |
+| R13 | The table screenshots (P045, P049, P057) | Columns as shown: #, URL, URL type, Domain type, "<brand> mentioned" (socials tables), Mentions, then the number columns. Added 2026-11-13: the first build left out Domain type and "<brand> mentioned" because this map listed only the outline's text | 3 |
 
 ## 1. Where it lives, and who gets it
 
