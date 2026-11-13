@@ -449,3 +449,42 @@ describe('compare false: no previous window is pulled or returned', () => {
     }
   })
 })
+
+// Spec 2026-11-13 (docs/superpowers/specs/2026-11-13-aeo-tag-selector-design.md): the tab filters on Jasmine's source tag, which must exist
+// exactly once, and every result records when it was pulled.
+describe('the source tag selector: exactly one tag, and nothing pulled without it', () => {
+  const reports = (w: ReturnType<typeof world>) => w.calls.filter((c) => c.path.startsWith('/reports/'))
+  const tagged = { selector: { name: 'Organic Social', via: 'tag' } }
+  it('filters on the tag and never asks for the domain classifications', async () => {
+    const w = world()
+    await getAeoInformedSocial(input(w.reader, tagged))
+    expect(w.calls.some((c) => c.path === '/classifications/domains')).toBe(false)
+    for (const c of reports(w).filter((x) => x.label?.match(/^(socials-by-day|gaps-current|gaps-prior|used-chat-level)/))) {
+      expect(c.body!.filters![0]).toEqual({ field: 'domain_tag_id', operator: 'in', values: ['stg_1'] })
+    }
+  })
+  it('no tag with the name: PeecSelectorError, naming the tags that exist, before any report is pulled', async () => {
+    const w = world({ tags: [{ id: 'stg_9', name: 'Editorial' }] })
+    await expect(getAeoInformedSocial(input(w.reader, tagged))).rejects.toThrow(PeecSelectorError)
+    await expect(getAeoInformedSocial(input(world({ tags: [{ id: 'stg_9', name: 'Editorial' }] }).reader, tagged))).rejects.toThrow(/no source tag named "Organic Social". Tags that exist: Editorial/)
+    expect(reports(w)).toEqual([])
+  })
+  it('two tags with the name: PeecSelectorError, never a silent pick of the first, before any report is pulled', async () => {
+    const w = world({ tags: [{ id: 'stg_1', name: 'Organic Social' }, { id: 'stg_2', name: 'Organic Social' }] })
+    await expect(getAeoInformedSocial(input(w.reader, tagged))).rejects.toThrow(/expected exactly one source tag named "Organic Social", found 2/)
+    expect(reports(w)).toEqual([])
+  })
+  it('a tag name differing only in case is not a match', async () => {
+    const w = world({ tags: [{ id: 'stg_1', name: 'organic social' }] })
+    await expect(getAeoInformedSocial(input(w.reader, tagged))).rejects.toThrow(PeecSelectorError)
+  })
+})
+
+describe('meta.pulledAt: when the result was pulled, from the one clock the gate also uses', () => {
+  it('is the injected clock as an ISO time, and raw.today is its date', async () => {
+    const i = await inspectAeoInformedSocial(input(world().reader, { now: () => Date.parse('2026-11-09T12:34:56.789Z') }))
+    expect(i.result.meta.pulledAt).toBe('2026-11-09T12:34:56.789Z')
+    expect(i.raw.today).toBe('2026-11-09')
+    expect(i.violations.filter((v) => v.severity === 'error')).toEqual([])
+  })
+})

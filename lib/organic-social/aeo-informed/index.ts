@@ -72,6 +72,8 @@ export type Meta = {
   minCompetitors: number
   /** The fourth graph drawn. */
   fourthGraph: FourthGraph
+  /** When the pull finished (ISO time, from input.now): stored with the result, never shown (spec 2026-11-13). */
+  pulledAt: string
   /** Whether the previous windows were pulled and compared (input.compare). */
   compare: boolean
   /** The previous windows are null exactly when compare is false. */
@@ -171,8 +173,12 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   if (selector.via === 'tag') {
     const tags = await step('source-tags', null, async () => parseSourceTags(await reader.get('/source-tags', { limit: String(LIST_LIMIT) }, 'source-tags')))
     if (tags.length >= LIST_LIMIT) throw new AeoPullError('source-tags', null, new Error(`the source tag list returned ${LIST_LIMIT} rows, the limit, so it may be cut off`))
-    const t = tags.find((x) => x.name === selector.name)
-    if (!t) throw new PeecSelectorError(`no source tag named "${selector.name}". Tags that exist: ${tags.map((x) => x.name).join(', ') || '(none)'}`)
+    // Exactly one: the tag is what Jasmine applies in Peec (spec 2026-11-13), so a second tag with the name is refused, never silently
+    // picked. No tag keeps today's message, which lists the tags that exist.
+    const matches = tags.filter((x) => x.name === selector.name)
+    if (matches.length === 0) throw new PeecSelectorError(`no source tag named "${selector.name}". Tags that exist: ${tags.map((x) => x.name).join(', ') || '(none)'}`)
+    if (matches.length > 1) throw new PeecSelectorError(`expected exactly one source tag named "${selector.name}", found ${matches.length}`)
+    const t = matches[0]
     selId = t.id
     selFilter = { field: 'domain_tag_id', operator: 'in', values: [t.id] }
   } else {
@@ -224,7 +230,8 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
   for (const r of dayRows) chatsByDay.set(r.date, (chatsByDay.get(r.date) ?? 0) + r.visibility_total)
   const chatsIn = (w: Window) => eachDay(w).reduce((s, d) => s + (chatsByDay.get(d) ?? 0), 0)
 
-  // 5) build
+  // 5) build. One clock for when the pull finished: meta.pulledAt and the gate's raw.today (spec 2026-11-13).
+  const pulledAt = new Date((input.now ?? Date.now)()).toISOString()
   const warnings: string[] = []
   const chats = { socials: chatsIn(socials), socialsPrior: socialsPrior ? chatsIn(socialsPrior) : null, gaps: chatsIn(gaps), gapsPrior: gapsPrior ? chatsIn(gapsPrior) : null }
   for (const [k, v] of Object.entries(chats)) if (v === 0) warnings.push(`no chats in window: ${k}`)
@@ -267,6 +274,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
       graphs: input.views.graphs,
       minCompetitors,
       fourthGraph,
+      pulledAt,
       compare,
       windows: { socials, socialsPrior, gaps, gapsPrior },
       ownBrandId: ownBrand.id,
@@ -280,7 +288,7 @@ export async function buildAeoInformed(input: AeoInformedInput): Promise<{ draft
     },
   }
 
-  const raw: GateRaw = { selRows, gapCurrentRows, gapPriorRows, chatRows, dayRows, brands, today: new Date((input.now ?? Date.now)()).toISOString().slice(0, 10) }
+  const raw: GateRaw = { selRows, gapCurrentRows, gapPriorRows, chatRows, dayRows, brands, today: pulledAt.slice(0, 10) }
   return { draft, raw }
 }
 
