@@ -9,6 +9,12 @@ import { beforeEach, expect, test, vi } from 'vitest'
 //
 // 2026-11-13, issue 451: the key gained `compare` (only MoM compares; in January MoM and YTD are the same window). Re-pinned deliberately: a
 // read-only check that day found no AEO lock row in production, staging or dev (no client has the tab on), so no stored lock was orphaned.
+//
+// 2026-11-13, later (spec 2026-11-13-aeo-tag-selector-design.md, C4): the key gained `via` (AEO_TAB_SELECTOR_VIA, the source tag), so every
+// stored month is one pulled through Jasmine's tag. Re-pinned deliberately after a read-only check at 20:03 UTC: production and dev had no
+// AEO lock row; staging had 5 (Renaissance, from that day's review: September MoM; October MoM, YTD, All time and MoM at min 3). Those
+// become unreachable and recapture through the tag on their next view. The tag and the old classification gave identical results in every
+// pull and view that day, so only Peec's late citations can move a recaptured number, and each recapture logs a `late lock` line.
 
 const { readLock } = vi.hoisted(() => ({ readLock: vi.fn(async (): Promise<{ response: unknown } | null> => ({ response: { stored: true } })) }))
 vi.mock('@/lib/organic-social/response-lock-store', () => ({ readLock, writeLock: vi.fn() }))
@@ -31,9 +37,9 @@ test('the lock keys a September view hands the store, per range and min, are pin
     keys.push(String((readLock.mock.calls[0] as unknown[])[1]))
   }
   expect(keys).toEqual([
-    '5354edc46713671812db4cdcde55978ff1fdf6e47554941476b8ef30efa096a6', // Month, min 2
-    'bdbb6a4201788834c9ba860548e08fe0487c13864eb7c18b18be35b7c3181bf4', // YTD, min 2
-    '1b2a5f69a59c38b0495028e63c67f3f67a89faa8b41797e029ee530a8c02bb14', // All time, min 2
-    'fb4cdfa2f2233747bd21052e4007b4c0a75781f847da44a8e6b6313cb6ad90d0', // Month, min 1
+    'd1ee275c168267377198a698632a7d3aa4cf1963c23b4d42c7356e70729afadb', // Month, min 2
+    '4403bb37349bf97364875df8a358d9051fc0b3573d4b4a48303009711d301203', // YTD, min 2
+    'e8a2ea8ef4b44692fa29275f7e0e33befabddf1f613b3eedc5be7ac4b2b74ce6', // All time, min 2
+    '45fd830215f0ee45e8c56eb0ce0aadf7e2814bb357605bdbe9aebbeb20b9b2e4', // Month, min 1
   ])
 })

@@ -891,7 +891,7 @@ The adapter (`lib/organic-social/aeo-informed/`, guide in its `ENGINEERS.md`) is
 - [ ] **The page build reuses what exists.** The real tab should use the existing Insights component (Add insights, History) and the Organic Social month and range controls; the mock-up only shows a placeholder. URL gaps defaults to Min 2 (the outline's text) and Renaissance Only to your channels only; both are page defaults, not adapter behavior.
 - [ ] **Ownership is proven for the own brand on LinkedIn only** (`ownership.ts`). Matching is by channel title on a platform the brand registered; a channel titled "<Brand> Something" is credited to the brand. Check YouTube and Instagram and each competitor against Peec's own channel view.
 - [ ] **The outline crops its tables on the right**, so any column after "Total" is unmapped (`column-map.ts`).
-- [x] **The data contract is enforced, not a design copy.** `contract.ts` is the source of truth; the YAML in `docs/contracts/aeo-informed-social/` is generated from it and a test fails on drift; `gate.ts` (44 rules, recounted from the raw Peec rows) enforces it on every result and `contract.test.ts` proves the Peec parsers match it. Remaining: contract-core (Python) cannot run in the app, so its own `reconcile` check is not used.
+- [x] **The data contract is enforced, not a design copy.** `contract.ts` is the source of truth; the YAML in `docs/contracts/aeo-informed-social/` is generated from it and a test fails on drift; `gate.ts` (50 rules as of 2026-11-13, recounted from the raw Peec rows) enforces it on every result and `contract.test.ts` proves the Peec parsers match it. Remaining: contract-core (Python) cannot run in the app, so its own `reconcile` check is not used.
 - [ ] **No URL carries the Organic Social source tag**, so a `url_tag_id` filter returns nothing; only the domain level works. Revisit if URLs get tagged.
 
 ## Roadmap / Future Considerations
@@ -1077,6 +1077,12 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
 `docs/superpowers/plans/2026-11-12-aeo-informed-social-tab.md`, code `lib/organic-social/aeo-tab/` and
 `components/report-sections/organic-social/aeo-informed/`. Opt in per client; no client has it when this ships.
 
+- [ ] **Before switching the tab on for Renaissance in production, run the golden check through the tag** (spec
+  `docs/superpowers/specs/2026-11-13-aeo-tag-selector-design.md`, C5). The private read-only run of the real adapter against the 27
+  figures in Jasmine's outline screenshots must pass every check through the "Organic Social" source tag (it did on 2026-11-13, through the
+  tag and through the classification). It holds client figures, so it lives outside this public repo
+  (`lib/organic-social/aeo-informed/ENGINEERS.md`, "Checking it against a live project"). Another client needs its own reference
+  screenshots first.
 - [ ] **The health sweep does not probe the tab.** `app/api/health/sweep/route.ts` builds one Organic Social URL per
   client with no subsection, so a broken AEO tab is not flagged. Its own 60 s limit also covers many pages, and a cold
   YTD pull takes about 32 s since issue 451 (was 39 to 55 s, `docs/findings/2026-11-12-aeo-tab-page-time-limit.md`). Add

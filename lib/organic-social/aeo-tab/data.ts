@@ -8,20 +8,21 @@ import { CONTRACT_VERSION } from '@/lib/organic-social/aeo-informed/contract'
 import { readLock, writeLock } from '@/lib/organic-social/response-lock-store'
 import { isLateLock, lockedFrom, requestKey, settledThrough } from '@/lib/organic-social/lock-day'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
-import { adapterInput, comparesPrevious, failureOf, loadAeoTab, toTabResult, warnIfLarge, withDeadline, type AeoTabResult, type PullArgs } from './load'
+import { AEO_TAB_SELECTOR_VIA, adapterInput, comparesPrevious, failureOf, loadAeoTab, toTabResult, warnIfLarge, withDeadline, type AeoTabResult, type PullArgs } from './load'
 import type { AeoRange } from './params'
 import type { AeoInformedSetting } from './setting'
 
 export type AeoTabData = { kind: 'ok'; result: AeoTabResult; locked: boolean } | { kind: 'no-chats' } | { kind: 'error'; reason: 'timeout' | 'error' }
 
 /**
- * The lock key: a hash of every input that changes the answer, and the contract version, so a result of a different shape is never served
+ * The lock key: a hash of every input that changes the answer (including the selector kind, AEO_TAB_SELECTOR_VIA, so every stored month is
+ * one pulled through the source tag; spec 2026-11-13), and the contract version, so a result of a different shape is never served
  * from an old row. Changing any of these orphans every lock stored under the old key, and those months recapture live: aeo-lock-key-pin.test.ts
  * pins it so that is always a decision (the rule for the Dash keys, CLAUDE.md "Changing any getter's request shape").
  */
 export function aeoLockKey(a: { projectId: string; selector: string; window: { start: string; end: string }; asOf: string; min: number; fourthGraph: FourthGraph; range: AeoRange }): string {
   return requestKey('aeoInformedSocial', {
-    projectId: a.projectId, selector: a.selector, window: { start: a.window.start, end: a.window.end }, asOf: a.asOf, min: a.min, fourthGraph: a.fourthGraph,
+    projectId: a.projectId, selector: a.selector, via: AEO_TAB_SELECTOR_VIA, window: { start: a.window.start, end: a.window.end }, asOf: a.asOf, min: a.min, fourthGraph: a.fourthGraph,
     compare: comparesPrevious(a.range), contract: CONTRACT_VERSION,
   })
 }

@@ -45,6 +45,7 @@ export const GATE_RULES: GateRule[] = [
   { code: 'meta.counts', severity: 'error', plain: 'The row counts in the result summary equal the real number of rows.' },
   { code: 'meta.chats', severity: 'error', plain: 'Chat totals are whole numbers and never negative.' },
   { code: 'meta.unverified', severity: 'error', plain: 'The list of things not yet proven against the outline is always present and complete, so nothing unproven is passed off as proven.' },
+  { code: 'meta.pulled-at', severity: 'error', plain: 'The result says when it was pulled, as a standard time on the same day the gate checks it.' },
   { code: 'meta.identity', severity: 'error', plain: 'The result names the own brand and the tag it was filtered on.' },
   { code: 'oracle.chats', severity: 'error', plain: 'Each window\'s chat total equals a fresh recount of the daily chat counts Peec returned.' },
   { code: 'oracle.rows', severity: 'error', plain: 'The tables hold exactly the sources Peec returned for the window: none dropped, none invented.' },
@@ -186,6 +187,11 @@ export function runGate(r: GateInput, raw: GateRaw): GateViolation[] {
     if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) err('meta.chats', `meta.chats.${k}`, 'chats must be a whole number, 0 or more')
   }
   if (JSON.stringify(m.unverified) !== JSON.stringify([...UNVERIFIED])) err('meta.unverified', 'meta.unverified', 'the unverified list is not the complete list')
+  // Spec 2026-11-13: pulledAt and raw.today come from one clock (index.ts), so this guards the adapter's wiring, not freshness.
+  const pulled = (m as { pulledAt?: unknown }).pulledAt
+  if (typeof pulled !== 'string' || Number.isNaN(Date.parse(pulled)) || new Date(Date.parse(pulled)).toISOString() !== pulled || pulled.slice(0, 10) !== raw.today) {
+    err('meta.pulled-at', 'meta.pulledAt', 'the pull time is missing, not a standard ISO time, or on another day than the gate checks')
+  }
   if (!m.ownBrandId || !m.ownBrandName || !m.selector.name || (m.selector.via === 'tag' && !m.selector.id)) err('meta.identity', 'meta', 'the own brand or the selector is not named')
 
   // ---- 4. an independent recount from the raw rows ----

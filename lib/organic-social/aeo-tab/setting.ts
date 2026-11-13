@@ -10,7 +10,8 @@ export const AEO_TAB_ID = 'organic-aeo-informed'
 export type AeoInformedSetting = {
   /** The first day of the client's Peec data: All time starts here. */
   allTimeFrom: string
-  /** The Peec domain classification that selects the client's social sources. Default "Organic Social". */
+  /** The Peec source tag that selects the client's social sources (the tag the team applies in Peec; spec 2026-11-13). It must exist
+   *  exactly once in the client's Peec project. Default "Organic Social". */
   selector: string
   /** The fourth graph. Default instagram. */
   fourthGraph: FourthGraph

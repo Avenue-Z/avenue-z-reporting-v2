@@ -29,3 +29,20 @@ test('every URL warmed before is still warmed, in order, and the AEO client\'s t
   expect(aeoBase.length).toBe(5) // its two existing base URLs, then its three AEO views
   vi.useRealTimers()
 })
+
+// Spec 2026-11-13 (warm every month a client can pick): every client's served views come first, then every client's extra month, so no
+// URL warmed today moves behind a new one, across clients as well as within one.
+test('with two AEO clients on two client months, every served URL comes before any extra-month URL, and today\'s URLs keep their order', async () => {
+  const lockedAeo = (slug: string) => ({ ...aeo, slug, dashSocialConfig: { ...aeo.dashSocialConfig, reportingMonths: { firstMonth: '2026-08', clientMonths: 2 } } })
+  getAllClients.mockResolvedValue([plain, lockedAeo('aeo-a'), lockedAeo('aeo-b')])
+  await GET(new Request('https://app/api/cache-warm'))
+  const all = runWarm.mock.calls[0][0] as string[]
+  const aeoUrls = all.filter((u) => u.includes('organic-aeo-informed'))
+  const oct = encodeURIComponent('custom:2026-10-01,2026-10-31'), sep = encodeURIComponent('custom:2026-09-01,2026-09-30')
+  expect(aeoUrls.map((u) => `${u.split('/portal/')[1].split('/')[0]}:${u.includes(oct) ? 'oct' : u.includes(sep) ? 'sep' : '?'}`)).toEqual([
+    'aeo-a:oct', 'aeo-a:oct', 'aeo-a:oct', 'aeo-b:oct', 'aeo-b:oct', 'aeo-b:oct', 'aeo-a:sep', 'aeo-a:sep', 'aeo-a:sep', 'aeo-b:sep', 'aeo-b:sep', 'aeo-b:sep',
+  ])
+  expect(all.slice(-12)).toEqual(aeoUrls) // still after every other URL
+  vi.useRealTimers()
+})
+
