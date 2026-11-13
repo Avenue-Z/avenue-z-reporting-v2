@@ -67,7 +67,7 @@ Row types are `SocialsRow` and `GapRow` in `tables.ts`. Every delta is `number |
 
 | Number | Rule |
 |---|---|
-| Tag filter | `domain_classification in [name]` (or `domain_tag_id in [id]` with `via: 'tag'`). Both select the same sources on the project this was built against. |
+| Tag filter | `domain_tag_id in [id]` with `via: 'tag'`, the source tag the team applies in Peec; the tag must exist exactly once (no tag, or two, is a `PeecSelectorError`). The tab always uses it (`AEO_TAB_SELECTOR_VIA`, `aeo-tab/load.ts`). The adapter's own default, for other callers, is still `domain_classification in [name]`. On Renaissance's project both gave identical results in every pull and view (measured 2026-11-13). |
 | Retrievals, total citations | `retrieval_count` and `citation_count` summed over the window's days. Counts add across days because a chat belongs to one day. |
 | Change columns | Against the previous window of the same length, joined on the exact URL Peec returns. |
 | Retrieved % | A URL's retrievals divided by the window's chats. Chats come from `/reports/brands` (own brand, by day, `visibility_total`), which covers every day. |
@@ -169,6 +169,10 @@ A test keeps it in step with the output types. The status words are documentatio
 The rules above were reproduced against a real project's own export with a read-only run of the real adapter (about 14 requests, under 10 seconds). That run needs a Peec
 company key and the project's own figures, so it lives outside the repo. To repeat it: build `getAeoInformedSocial` inputs for the windows in the export, then compare table 1, the gaps rows and
 each graph point.
+
+**Required before switching the tab on for Renaissance in production, and on request:** run that check through the source tag (`via: 'tag'`)
+and see every figure match. It holds Renaissance's own figures, so it stays outside this public repo; the rule is recorded here, the numbers
+are not. A new client has no reference export, so it needs its own (ask the team for screenshots of the client's Peec views first).
 
 ## Tests
 

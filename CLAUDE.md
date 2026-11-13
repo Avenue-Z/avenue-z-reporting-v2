@@ -1077,6 +1077,12 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
 `docs/superpowers/plans/2026-11-12-aeo-informed-social-tab.md`, code `lib/organic-social/aeo-tab/` and
 `components/report-sections/organic-social/aeo-informed/`. Opt in per client; no client has it when this ships.
 
+- [ ] **Before switching the tab on for Renaissance in production, run the golden check through the tag** (spec
+  `docs/superpowers/specs/2026-11-13-aeo-tag-selector-design.md`, C5). The private read-only run of the real adapter against the 27
+  figures in Jasmine's outline screenshots must pass every check through the "Organic Social" source tag (it did on 2026-11-13, through the
+  tag and through the classification). It holds client figures, so it lives outside this public repo
+  (`lib/organic-social/aeo-informed/ENGINEERS.md`, "Checking it against a live project"). Another client needs its own reference
+  screenshots first.
 - [ ] **The health sweep does not probe the tab.** `app/api/health/sweep/route.ts` builds one Organic Social URL per
   client with no subsection, so a broken AEO tab is not flagged. Its own 60 s limit also covers many pages, and a cold
   YTD pull takes about 32 s since issue 451 (was 39 to 55 s, `docs/findings/2026-11-12-aeo-tab-page-time-limit.md`). Add

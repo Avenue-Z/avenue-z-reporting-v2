@@ -17,7 +17,7 @@ the tab shows, and to make that provable.
 | Source tags in Renaissance's Peec project | exactly one, "Organic Social" | `aeo-tab-2026-11-13-tag-parity.mts` |
 | Tag versus classification, 2026-01-22 to 2026-11-12, per URL per day | 28,993 rows, 7,395 URLs, 43,260 retrievals, 19,062 citations on both; 0 cells differ | same |
 | The URL tag (outline P011) | 0 rows: no URL carries a URL tag | same |
-| Every pull, not only by-day (URL gaps current and prior, chat-level used-as-source, chats), whole result compared | identical through tag and classification in all 6 tab views: October MoM at min 1, 2 and 3, September MoM, YTD and All time to October | `aeo-tab-2026-11-13-tag-vs-classification-all-pulls.mts` |
+| Every pull, not only by-day (URL gaps current and prior, chat-level used-as-source, chats), whole result compared, leaving out only `meta.selector`, `meta.gate` and `meta.counts` (which name the filter and count requests) | identical through tag and classification in all 6 tab views: October MoM at min 1, 2 and 3, September MoM, YTD and All time to October | `aeo-tab-2026-11-13-tag-vs-classification-all-pulls.mts` |
 | The adapter against the numbers in her PDF screenshots | 27 of 27 checks pass through the classification AND through the tag | `golden-run-live-readonly.mts`, `golden-run-live-readonly-tag.mts` |
 | The adapter's tag path | already exists: `GET /source-tags`, then `domain_tag_id in [id]` (`lib/organic-social/aeo-informed/index.ts:171-177`) | code |
 | Which tag a result used | already recorded: `meta.selector` = name, via, Peec tag id (`index.ts:275`), kept when a month is stored (`aeo-tab/load.ts` `toTabResult`) | code |
@@ -28,30 +28,33 @@ the tab shows, and to make that provable.
 `adapterInput` (`selector: { name: setting.selector, via: AEO_TAB_SELECTOR_VIA }`) and `aeoLockKey` (C4), so the call and the key cannot drift.
 The setting's selector name is unchanged (default "Organic Social", `aeo-tab/setting.ts:45`); its doc comment (`setting.ts:13`, "The
 Peec domain classification") changes to "The Peec source tag". Measured 2026-11-13, read only, all three databases
-(`prod-2026-11-13-aeo-selector-settings-readonly.mts`): production has no client with the setting; staging and dev have Renaissance only,
+(`prod-2026-11-13-aeo-selector-settings-readonly.mts`): production has no client with the setting; staging and dev have the `aeoInformedSocial` key (enabled) on Renaissance only,
 with no selector (so the default "Organic Social", which exists as exactly one tag). No client's selector changes meaning. The adapter's own default
 (`index.ts:144`, classification) is not changed: the tab is its only app caller and passes the selector explicitly.
 
 **C2. The tag must exist exactly once.** On the tag path the adapter throws `PeecSelectorError` when no source tag has the name (as
-today, `index.ts:175`) **and** when more than one does (new; today `tags.find` silently takes the first). Message: `expected exactly
+today, `index.ts:175`, with today's message, which lists the tags that exist) **and** when more than one does (new; today `tags.find` silently takes the first). Message: `expected exactly
 one source tag named "<name>", found <n>`. The tab already turns a thrown error into its error card and one log line (`failureOf`,
 `aeo-tab/load.ts`); no number is shown.
 
 **C3. Each result records when it was pulled.** In `buildAeoInformed`, one `now()` call (`input.now`, default `Date.now`) after the
 pulls gives both `meta.pulledAt` (its full ISO time) and `raw.today` (its first 10 characters, replacing today's separate call at
 `index.ts:283`). It is stored with a locked month and with a cached live answer, so a read-only check can say for any served result
-which tag it used (`meta.selector`) and when it was pulled. New gate rule `meta.pulled-at` (error): `pulledAt` is a string that
-`Date.parse` accepts, round-trips through `toISOString()` unchanged, and whose first 10 characters equal `raw.today`. Not shown anywhere.
+which tag it used (`meta.selector`) and when it was pulled. For a stored month, `dash_response_locks.captured_at` (`lib/db/schema.ts:479`)
+already says when it was stored; `pulledAt` also covers cached live answers and travels inside the stored answer itself. New gate rule `meta.pulled-at` (error): `pulledAt` is a string that
+`Date.parse` accepts, round-trips through `toISOString()` unchanged, and whose first 10 characters equal `raw.today`. Both come from one clock, so the rule guards the adapter's own wiring; it is not a freshness
+check (the gate never runs on a stored or cached answer). Not shown anywhere.
 
 **C4. Stored and cached answers pulled the old way are never served.**
-- The lock key (`aeoLockKey`, `aeo-tab/data.ts:22`) gains `via: 'tag'`. Every stored AEO month is then one pulled through the tag.
-  Production has no AEO lock rows; staging has 5 (Renaissance: October MoM, YTD, All time, MoM at min 3; September MoM), all from
-  today's review. They become unreachable and recapture through the tag on their next view (identical data, measured). The key pin
+- The lock key (`aeoLockKey`, `aeo-tab/data.ts:22`) gains `via: AEO_TAB_SELECTOR_VIA`. Every stored AEO month is then one pulled through the tag.
+  Read only at 20:03 UTC (`prod-2026-11-13-aeo-locks-readonly.mts`): production and dev have no AEO lock rows; staging has 5 (Renaissance: October MoM, YTD, All time, MoM at min 3; September MoM), all from
+  today's review. They become unreachable and recapture through the tag on their next view. The tag gives identical results (measured), so only Peec's
+late citations since today can move a recaptured number, and each recapture logs a `late lock` line (`aeo-tab/data.ts`). The key pin
   (`aeo-lock-key-pin.test.ts`) is updated deliberately.
 - The two live caches (`aeo-tab/load.ts:66-67`) get `version: 'v2'` (`lib/cache.ts:33,114`), so an answer cached before the deploy
   (classification, no `pulledAt`) is never served after it.
 
-**C5. The golden run is a required step.** Before the tab is switched on for any client in production, and on request, the private
+**C5. The golden run is a required step.** Before the tab is switched on for Renaissance in production, and on request, the private
 golden run (`~/.claude/organic-social-work/os-x-aeo/golden-run-live-readonly.mts`) runs with `via: 'tag'` and must print `27 passed,
 0 failed`. It stays private because it holds client figures; the repo records the rule, not the numbers
 (`lib/organic-social/aeo-informed/ENGINEERS.md`, CLAUDE.md AEO follow-ups).
@@ -59,7 +62,8 @@ golden run (`~/.claude/organic-social-work/os-x-aeo/golden-run-live-readonly.mts
 ## Out of scope
 
 Anything visible (Thomas, 2026-11-13: no dashboard additions). The URL tag (P011): it selects nothing today; noted, not built.
-The data contract YAML: `meta` is not in it (`docs/contracts/aeo-informed-social/README.md`), so `CONTRACT_VERSION` stays 1.1.0.
+The data contract YAML: `meta` is not in it (its outputs are `graph_points`, `socials_table`, `totals`, `url_gaps_table`;
+`docs/contracts/aeo-informed-social/schemas/aeo/`), so `CONTRACT_VERSION` stays 1.1.0.
 
 ## Inputs and outputs
 
