@@ -42,7 +42,7 @@ Every URL warmed today keeps its position: `served` is exactly today's list, and
 
 | | In | Out |
 |---|---|---|
-| `aeoWarmUrls(baseUrl, client, clock)` | unchanged | the same URL shape (`/portal/<slug>/reports?section=organic-social&subsection=organic-aeo-informed[&aeo=ytd|all]&dateRange=<month>`), 3 per warmed month, at most 6 |
+| `aeoWarmUrls(baseUrl, client, clock)` | unchanged | `{ served: string[]; extra: string[] }`, each 0 or 3 URLs of today's shape (`/portal/<slug>/reports?section=organic-social&subsection=organic-aeo-informed[&aeo=ytd|all]&dateRange=<month>`); `served` byte-identical to today's list. Its readers change shape: `route.ts:77` and every `warm.test.ts` assertion |
 | `/api/cache-warm` | unchanged | the same URLs as today, plus up to 3 more per AEO client, still after every other URL |
 
 ## Failure behavior
@@ -73,6 +73,6 @@ pull.
 
 ## Tests (written first)
 
-- `warm.test.ts`: edge cases 1 to 7, each exact URL list in order.
+- `warm.test.ts`: edge cases 1 to 7, each exact `served` and `extra` list in order.
 - `cache-warm-route.test.ts`: every URL warmed before is still warmed in the same order; with two AEO clients on two client months, every
   `served` URL comes before any `extra` URL.
