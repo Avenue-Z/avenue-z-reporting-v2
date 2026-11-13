@@ -14,16 +14,16 @@ import { AeoRangeControl, AeoMinControl } from './controls'
 beforeEach(() => push.mockReset())
 
 describe('the range control (aeo=)', () => {
-  it('shows Month, YTD and All time with the current one pressed, and choosing one sets aeo and keeps every other param', () => {
+  it('shows MoM, YTD and All time (the outline\'s words) with the current one pressed, and choosing one sets aeo and keeps every other param', () => {
     render(<AeoRangeControl value="month" />)
-    expect(screen.getAllByRole('button').map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([['Month', 'true'], ['YTD', 'false'], ['All time', 'false']])
+    expect(screen.getAllByRole('button').map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([['MoM', 'true'], ['YTD', 'false'], ['All time', 'false']])
     fireEvent.click(screen.getByRole('button', { name: 'YTD' }))
     expect(push).toHaveBeenCalledWith('/dashboard/a-client/reports?section=organic-social&subsection=organic-aeo-informed&dateRange=last_30_days&aeo=ytd')
   })
-  it('choosing Month removes aeo, so the default URL stays clean', () => {
+  it('choosing MoM removes aeo, so the default URL stays clean', () => {
     params.value = 'section=organic-social&aeo=all'
     render(<AeoRangeControl value="all" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Month' }))
+    fireEvent.click(screen.getByRole('button', { name: 'MoM' }))
     expect(push).toHaveBeenCalledWith('/dashboard/a-client/reports?section=organic-social')
   })
   it('in the PDF export it is the chosen range as text, not buttons', () => {

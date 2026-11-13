@@ -21,12 +21,12 @@ export const fourthGraphTitle = (g: FourthGraph) => GRAPH_TITLE[g === 'tiktok' ?
 export const NO_SOURCE_DATA = 'No source data'
 export const PARTIAL_WEEK = '(partial week)'
 
-/** The four tiles before the tables (the outline's "BEFORE THE TABLES"), over the client's own channels. */
+/** The four tiles before the tables (the outline's "BEFORE THE TABLES"), over the client's own channels. Titles are the outline's words exactly. */
 export const TILES_LABEL = 'Your channels'
 export const TILE = {
   urlsCited: { title: 'Total URLs cited', tooltip: "Your channels' URLs that AI answer engines cited at least once in this window." },
-  retrievals: { title: 'Total retrievals', tooltip: "How many times AI answer engines retrieved your channels' URLs as sources in this window." },
-  citations: { title: 'Total citations', tooltip: "How many times AI answer engines cited your channels' URLs in their answers in this window." },
+  retrievals: { title: 'Total # of retrievals', tooltip: "How many times AI answer engines retrieved your channels' URLs as sources in this window." },
+  citations: { title: 'Total # of citations', tooltip: "How many times AI answer engines cited your channels' URLs in their answers in this window." },
   citationRate: {
     title: 'Average citation rate',
     tooltip: "Total citations divided by total retrievals across your channels, so a URL retrieved once can't swing it. Can be above 100% when a source is cited more than once per retrieval.",

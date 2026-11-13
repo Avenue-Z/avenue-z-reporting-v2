@@ -41,7 +41,7 @@ test('missing or unreadable values are Month and 2', async () => {
 })
 test('the stamp names the range and the window it rendered', async () => {
   expect((await open({ subsection: 'organic-aeo-informed', aeo: 'ytd' })).stamp).toContain(`YTD, ${exportPeriodLabel('custom:2026-01-01,2026-10-31')}`)
-  expect((await open({ subsection: 'organic-aeo-informed' })).stamp).toContain(`Month, ${exportPeriodLabel(OCT)}`)
+  expect((await open({ subsection: 'organic-aeo-informed' })).stamp).toContain(`MoM, ${exportPeriodLabel(OCT)}`)
 })
 test('every other tab: no aeo props and the same stamp as before', async () => {
   const { report, stamp } = await open({ subsection: 'organic-instagram', aeo: 'ytd', aeomin: '3' })

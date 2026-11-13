@@ -80,7 +80,7 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
 
 ## 2. Date range
 
-- A three-way control on the tab: **Month** (default), **YTD**, **All time**, held in the URL as `aeo=month|ytd|all`
+- A three-way control on the tab, labelled with the outline's words: **MoM** (default), **YTD**, **All time**, held in the URL as `aeo=month|ytd|all`
   (any other value is `month`). The dashboard, portal and export routes pass it through like `subsection`.
 - **Month** is the month the page already serves: the locked month for a client on reporting months, otherwise the
   calendar month of the range's last day. Changes compare with the window of the same length just before it, which is
@@ -118,7 +118,7 @@ Date: 2026-11-12. Status: spec, before code. Organic Social only. Builds on the 
    the "1/4" counter, the bookmark column, "All filters") are Peec UI and not reproduced; the item count is.
 3. **Totals**, before the tables (R7): four tiles built with the Organic Social tiles' `KpiCard`
    (`components/report-sections/organic-social/outline-tiles.tsx:1,18-28`), each with a definition tooltip like theirs:
-   Total URLs cited, Total retrievals, Total citations, Average citation rate (definitions in section 5). Labeled
+   Total URLs cited, Total # of retrievals, Total # of citations, Average citation rate (the outline's words; definitions in section 5). Labeled
    "Your channels", the same rows as the table below them. In Month view each shows its change like the other tiles;
    not in YTD or All time.
 4. **Renaissance Only Socials**: your channels only (P029). No switch to all tagged URLs (my call, 2026-11-12): the full

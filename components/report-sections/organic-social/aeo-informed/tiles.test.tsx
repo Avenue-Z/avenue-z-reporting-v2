@@ -15,6 +15,10 @@ describe('the four tiles before the tables', () => {
     expect(titles()).toEqual([TILE.urlsCited.title, TILE.retrievals.title, TILE.citations.title, TILE.citationRate.title])
     for (const v of ['12', '1,500', '300', '20%']) expect(screen.getByText(v)).toBeTruthy()
   })
+  it('the titles are the outline\'s words exactly ("BEFORE THE TABLES")', () => {
+    render(<AeoTiles totals={totals} previousDays={null} />)
+    expect(titles()).toEqual(['Total URLs cited', 'Total # of retrievals', 'Total # of citations', 'Average citation rate'])
+  })
   it('Month: each tile shows its change against the previous same-length window, labelled with that window', () => {
     render(<AeoTiles totals={totals} previousDays={31} />)
     // 12 vs 10 is +20%; 1500 vs 1000 +50%; 300 vs 300 no change; 0.2 vs 0.3 -33%, all the outline tiles' rule (outlineDelta)

@@ -9,7 +9,7 @@ const OCT = 'custom:2026-10-01,2026-10-31'
 describe('the export stamp for the AEO tab (spec section 4: the window actually rendered)', () => {
   it('names the range, then the window in the same date format as every other stamp', () => {
     expect(aeoStampLabel('ytd', { start: '2026-01-01', end: '2026-10-31' })).toBe(`YTD, ${exportPeriodLabel('custom:2026-01-01,2026-10-31')}`)
-    expect(aeoStampLabel('month', { start: '2026-10-01', end: '2026-10-31' })).toBe(`Month, ${exportPeriodLabel(OCT)}`)
+    expect(aeoStampLabel('month', { start: '2026-10-01', end: '2026-10-31' })).toBe(`MoM, ${exportPeriodLabel(OCT)}`)
     expect(aeoStampLabel('all', { start: '2026-01-22', end: '2026-10-31' })).toBe(`All time, ${exportPeriodLabel('custom:2026-01-22,2026-10-31')}`)
   })
   it('works the window out the way the section does', () => {
