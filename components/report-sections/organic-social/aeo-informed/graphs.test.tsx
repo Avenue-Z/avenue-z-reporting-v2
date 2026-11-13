@@ -34,6 +34,8 @@ describe('values', () => {
   it('a percent graph shows whole percents; a citations graph whole numbers with separators', () => {
     expect(formatGraphValue('percent', 0.1234)).toBe('12%')
     expect(formatGraphValue('percent', 0.004)).toBe('0.4%')
+    // zero reads as the other whole-percent ticks do, never "0.0%" (seen on the local look, 2026-11-13)
+    expect(formatGraphValue('percent', 0)).toBe('0%')
     expect(formatGraphValue('citations', 1234)).toBe('1,234')
   })
   it('chart rows are one per week, labelled by the week\'s first day, with the partial week flagged', () => {

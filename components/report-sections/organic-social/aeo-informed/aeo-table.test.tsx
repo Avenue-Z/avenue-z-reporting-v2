@@ -43,6 +43,11 @@ describe('values', () => {
     expect(within(a).getByTestId('aeo-rate').textContent).toBe('152%')
     expect(within(b).getByTestId('aeo-rate').textContent).toBe(EMPTY_MARK)
   })
+  it('a zero rate or share reads 0%, never 0.0%', () => {
+    render(<AeoTable kind="gaps" rows={[gap(0, { citationRate: 0, totalCitations: 0, citationShare: 0 })]} brands={BRANDS} showChange={false} />)
+    expect(screen.getByTestId('aeo-rate').textContent).toBe('0%')
+    expect(screen.getByTestId('aeo-share').textContent).toBe('0%')
+  })
   it('citation share is a percent and a missing citation position is the empty mark', () => {
     render(<AeoTable kind="gaps" rows={[gap(0, { citationShare: 0.25 }), gap(1, { citationPosition: null })]} brands={BRANDS} showChange={false} />)
     expect(rows().map((r) => within(r).getByTestId('aeo-share').textContent)).toEqual(['25%', '50%'])

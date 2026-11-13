@@ -4,10 +4,9 @@
 // window of the same length, and is shown in Month only (previousDays); YTD and All time have none.
 import { KpiCard } from '@/components/charts/kpi-card'
 import { outlineDelta } from '@/lib/organic-social/outline-delta'
-import { pctCompact } from '@/lib/organic-social/format'
 import type { AeoTotals } from '@/lib/organic-social/aeo-informed'
 import type { TotalMetric } from '@/lib/dash-social/types'
-import { deltaLabel, EMPTY_MARK, TILE, TILES_LABEL } from './copy'
+import { aeoPct, deltaLabel, EMPTY_MARK, TILE, TILES_LABEL } from './copy'
 
 const change = (cur: number | null, prev: number | null | undefined) => outlineDelta({ value: cur, context: prev ?? null } as unknown as TotalMetric)
 
@@ -20,7 +19,7 @@ export function AeoTiles({ totals, previousDays }: { totals: AeoTotals; previous
     { ...TILE.citations, value: totals.citations.toLocaleString('en-US'), delta: change(totals.citations, p?.citations) },
     {
       ...TILE.citationRate,
-      value: totals.citationRate === null ? EMPTY_MARK : pctCompact(totals.citationRate * 100),
+      value: totals.citationRate === null ? EMPTY_MARK : aeoPct(totals.citationRate),
       delta: totals.citationRate === null ? undefined : change(totals.citationRate, p?.citationRate),
     },
   ]

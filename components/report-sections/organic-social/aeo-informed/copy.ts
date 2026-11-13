@@ -3,6 +3,7 @@
 // doc's "Graphs to Add", "BEFORE THE TABLES" and table headings). No dash characters in any of it.
 import { AEO_RANGE_LABEL, type AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import type { FourthGraph, GraphId } from '@/lib/organic-social/aeo-informed'
+import { pctCompact } from '@/lib/organic-social/format'
 
 export const RANGE_LABEL: Record<AeoRange, string> = AEO_RANGE_LABEL
 export const MIN_COMPETITORS_LABEL = 'Min competitors'
@@ -64,3 +65,7 @@ export function periodLine(window: { start: string; end: string }, previousDays:
   const range = `${day(window.start)}${sameYear ? '' : `, ${window.start.slice(0, 4)}`} to ${day(window.end)}, ${window.end.slice(0, 4)}`
   return previousDays === null ? range : `${range}, compared with the ${previousDays} days before`
 }
+
+/** Every percent on the tab, from a fraction (0.12 is 12%): the Organic Social rates' format (pctCompact: whole from 1%, one decimal below),
+ *  except that zero reads "0%" like the whole-percent values beside it, never "0.0%". */
+export const aeoPct = (fraction: number): string => (fraction === 0 ? '0%' : pctCompact(fraction * 100))

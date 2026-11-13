@@ -6,10 +6,9 @@
 import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { CHART_COLORS } from '@/lib/constants'
-import { pctCompact } from '@/lib/organic-social/format'
 import { useExportMode } from '@/components/export/export-mode'
 import type { GapRow, SocialsRow } from '@/lib/organic-social/aeo-informed/tables'
-import { COLUMN, EMPTY_MARK, SEARCH_PLACEHOLDER, TABLE_EMPTY, pagerLabel } from './copy'
+import { COLUMN, EMPTY_MARK, SEARCH_PLACEHOLDER, TABLE_EMPTY, aeoPct, pagerLabel } from './copy'
 
 export const PAGE_SIZE = 14
 type Brand = { id: string; name: string; color: string | null; isOwn: boolean }
@@ -124,13 +123,13 @@ export function AeoTable({ kind, rows, brands, showChange }: { kind: 'socials' |
                     <td className="px-3 py-2"><Mentions row={r} brands={brands} /></td>
                     {isGap(r) && (
                       <>
-                        <td data-testid="aeo-share" className="px-3 py-2 text-right tabular-nums">{pctCompact(r.citationShare * 100)}</td>
+                        <td data-testid="aeo-share" className="px-3 py-2 text-right tabular-nums">{aeoPct(r.citationShare)}</td>
                         <td data-testid="aeo-position" className="px-3 py-2 text-right tabular-nums">{r.citationPosition === null ? EMPTY_MARK : r.citationPosition.toLocaleString('en-US', { maximumFractionDigits: 1 })}</td>
                       </>
                     )}
                     <td className="px-3 py-2 text-right tabular-nums"><span data-testid="aeo-retrievals">{r.retrievals.toLocaleString('en-US')}</span>{showChange && <Change value={r.retrievalsDelta} />}</td>
                     <td className="px-3 py-2 text-right tabular-nums"><span data-testid="aeo-citations">{r.totalCitations.toLocaleString('en-US')}</span>{showChange && <Change value={r.totalCitationsDelta} />}</td>
-                    <td className="px-3 py-2 text-right tabular-nums"><span data-testid="aeo-rate">{r.citationRate === null ? EMPTY_MARK : pctCompact(r.citationRate * 100)}</span>{showChange && <Change value={r.citationRateDelta} points />}</td>
+                    <td className="px-3 py-2 text-right tabular-nums"><span data-testid="aeo-rate">{r.citationRate === null ? EMPTY_MARK : aeoPct(r.citationRate)}</span>{showChange && <Change value={r.citationRateDelta} points />}</td>
                   </tr>
                 )
               })}

@@ -29,6 +29,10 @@ describe('the four tiles before the tables', () => {
     render(<AeoTiles totals={{ ...totals, prior: null }} previousDays={31} />)
     expect(screen.getAllByText(/vs previous 31 days/).map((e) => e.textContent?.trim())).toEqual(Array(4).fill('— vs previous 31 days'))
   })
+  it('a zero rate reads 0%', () => {
+    render(<AeoTiles totals={{ urlsCited: 0, retrievals: 5, citations: 0, citationRate: 0, prior: null }} previousDays={null} />)
+    expect(screen.getByText('0%')).toBeTruthy()
+  })
   it('a null rate (no retrievals) is the empty mark', () => {
     render(<AeoTiles totals={{ urlsCited: 0, retrievals: 0, citations: 0, citationRate: null, prior: null }} previousDays={null} />)
     expect(screen.getByText(EMPTY_MARK)).toBeTruthy()

@@ -7,7 +7,6 @@
 // channels (CHART_COLORS.blended); LinkedIn and the fourth graph: that platform's line color on the other Organic Social tabs (CHANNEL_COLOR).
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
-import { pctCompact } from '@/lib/organic-social/format'
 // The pure graph module only: the adapter's entry point (index.ts) reaches the Peec reader and must never be bundled for the browser.
 import { graphOrder, type GraphId, type GraphPoint } from '@/lib/organic-social/aeo-informed/graphs'
 import type { FourthGraph } from '@/lib/organic-social/aeo-informed/fourth-graph'
@@ -15,7 +14,7 @@ import { useExportMode } from '@/components/export/export-mode'
 import { formatMonthDay } from '@/components/charts/line-chart'
 import { CHANNEL_COLOR } from '../trends'
 import { NoData } from '../no-data'
-import { GRAPH_TITLE, NO_SOURCE_DATA, PARTIAL_WEEK } from './copy'
+import { GRAPH_TITLE, NO_SOURCE_DATA, PARTIAL_WEEK, aeoPct } from './copy'
 
 export type GraphSpec = { id: GraphId; title: string; color: string; unit: 'percent' | 'citations' }
 
@@ -32,9 +31,9 @@ export function graphSpecs(fourth: FourthGraph): GraphSpec[] {
   return graphOrder(fourth).map((id) => ({ id, title: GRAPH_TITLE[id], color: COLOR[id], unit: id === 'used_as_source_all' ? 'percent' : 'citations' }))
 }
 
-/** A percent graph's value is a fraction (0.12 is 12%), shown as the Organic Social rates are (pctCompact); citations as whole numbers. */
+/** A percent graph's value is a fraction (0.12 is 12%), shown as every percent on the tab is (aeoPct); citations as whole numbers. */
 export function formatGraphValue(unit: 'percent' | 'citations', v: number): string {
-  return unit === 'percent' ? pctCompact(v * 100) : v.toLocaleString('en-US')
+  return unit === 'percent' ? aeoPct(v) : v.toLocaleString('en-US')
 }
 
 /** One row per weekly bucket, keyed by its first day. A null value is a gap in the line (the adapter's "no source" state). */
