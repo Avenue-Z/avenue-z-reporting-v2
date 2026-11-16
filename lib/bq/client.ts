@@ -14,7 +14,13 @@ export function getBq(): BigQuery {
   if (!_bq) {
     const raw = process.env.BQ_READER_KEY
     if (!raw) throw new Error('Missing BQ_READER_KEY (base64 service-account JSON for dashboard-reader@)')
-    const credentials = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
+    let credentials: Record<string, unknown>
+    try {
+      credentials = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
+    } catch {
+      // Never rethrow the parse error: it quotes the text around the fault, i.e. part of the key, into the log.
+      throw new Error('BQ_READER_KEY is not base64 service-account JSON')
+    }
     _bq = new BigQuery({ projectId: BQ_PROJECT, credentials })
   }
   return _bq

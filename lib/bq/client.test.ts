@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { martRef } from './client'
+import { getBq, martRef } from './client'
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -16,4 +16,12 @@ test('martRef refuses a dataset or table name that could inject SQL', () => {
   expect(() => martRef('mart_x')).toThrow(/invalid/)
   vi.stubEnv('BQ_MARTS_DATASET', '')
   expect(() => martRef('mart x')).toThrow(/invalid/)
+})
+test('getBq refuses a malformed BQ_READER_KEY without quoting any of it', () => {
+  // JSON.parse quotes the text around a syntax error, and logBqFallback logs the message.
+  vi.stubEnv('BQ_READER_KEY', Buffer.from('{"private_key": SECRETVALUE123}').toString('base64'))
+  let message = ''
+  try { getBq() } catch (err) { message = (err as Error).message }
+  expect(message).toMatch(/BQ_READER_KEY/)
+  expect(message).not.toMatch(/SECRET|VALUE|private_key/)
 })

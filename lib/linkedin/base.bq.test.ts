@@ -48,6 +48,14 @@ describe('linkedinQuery backend', () => {
     await linkedinQuery('renaissance', ['memberRegion', 'spend'], RANGE, { maxRows: 500 })
     expect(readLinkedInMarts).not.toHaveBeenCalled()
   })
+  test('with only Google Ads switched to bq (the C1 production config), LinkedIn stays live and never reads BigQuery', async () => {
+    vi.stubEnv('DATA_BACKEND_LINKEDIN', '')
+    vi.stubEnv('DATA_BACKEND_GOOGLEADS', 'bq')
+    vi.mocked(parseSmRows).mockReturnValue([{ spend: 'LIVE' }])
+    expect(await linkedinQuery('renaissance', ['spend'], RANGE)).toEqual([{ spend: 'LIVE' }])
+    expect(readLinkedInMarts).not.toHaveBeenCalled()
+    expect(vi.mocked(smQuery).mock.calls[0][0].fields).toEqual(['spend'])
+  })
   test('falls back to live when BigQuery throws', async () => {
     vi.mocked(readLinkedInMarts).mockRejectedValue(new Error('timeout'))
     vi.mocked(parseSmRows).mockReturnValue([{ spend: 'LIVE' }])
