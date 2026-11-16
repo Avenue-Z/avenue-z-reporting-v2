@@ -1,27 +1,27 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { useBq, logBqFallback } from './backend'
+import { bqEnabled, logBqFallback } from './backend'
 import { BqUnavailable } from './errors'
 
 afterEach(() => vi.unstubAllEnvs())
 
-describe('useBq', () => {
+describe('bqEnabled', () => {
   test('off by default', () => {
     vi.stubEnv('DATA_BACKEND_GOOGLEADS', '')
     vi.stubEnv('BQ_CLIENTS', 'renaissance')
-    expect(useBq('googleads', 'renaissance')).toBe(false)
+    expect(bqEnabled('googleads', 'renaissance')).toBe(false)
   })
   test('on only for a source set to bq and a slug on the allowlist', () => {
     vi.stubEnv('DATA_BACKEND_GOOGLEADS', 'bq')
     vi.stubEnv('BQ_CLIENTS', ' renaissance , avenue-z ')
-    expect(useBq('googleads', 'renaissance')).toBe(true)
-    expect(useBq('googleads', 'avenue-z')).toBe(true)
-    expect(useBq('googleads', 'kind-patches')).toBe(false)
-    expect(useBq('linkedin', 'renaissance')).toBe(false)
+    expect(bqEnabled('googleads', 'renaissance')).toBe(true)
+    expect(bqEnabled('googleads', 'avenue-z')).toBe(true)
+    expect(bqEnabled('googleads', 'kind-patches')).toBe(false)
+    expect(bqEnabled('linkedin', 'renaissance')).toBe(false)
   })
   test('an empty allowlist serves nobody', () => {
     vi.stubEnv('DATA_BACKEND_LINKEDIN', 'bq')
     vi.stubEnv('BQ_CLIENTS', '')
-    expect(useBq('linkedin', 'renaissance')).toBe(false)
+    expect(bqEnabled('linkedin', 'renaissance')).toBe(false)
   })
 })
 

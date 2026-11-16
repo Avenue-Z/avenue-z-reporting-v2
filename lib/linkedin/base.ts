@@ -1,7 +1,7 @@
 import { smQuery, parseSmRows, DS_IDS } from '@/lib/supermetrics/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { useBq, logBqFallback } from '@/lib/bq/backend'
+import { bqEnabled, logBqFallback } from '@/lib/bq/backend'
 import { LI_LIVE_ONLY, isLinkedInDim, readLinkedInMarts } from '@/lib/bq/linkedin'
 import { BqUnavailable } from '@/lib/bq/errors'
 
@@ -34,7 +34,7 @@ export async function linkedinQuery(
   const accountId = client?.linkedinConfig?.linkedinAdAccountId
   const envVar = client?.smApiKeyEnvVar
   if (!accountId || !envVar) throw new Error(`linkedin_config / sm_api_key_env_var missing for ${slug}`)
-  if (useBq('linkedin', slug) && !opts.filters && !opts.settings && !fields.includes('memberRegion')) {
+  if (bqEnabled('linkedin', slug) && !opts.filters && !opts.settings && !fields.includes('memberRegion')) {
     const liveOnly = fields.filter((f) => LI_LIVE_ONLY.has(f))
     const martFields = fields.filter((f) => !LI_LIVE_ONLY.has(f))
     try {

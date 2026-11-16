@@ -2,7 +2,7 @@ import { smQuery, parseSmRows, DS_IDS } from '@/lib/supermetrics/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { PaidSearchConfig, LeadCategory } from '@/lib/db/schema'
-import { useBq, logBqFallback } from '@/lib/bq/backend'
+import { bqEnabled, logBqFallback } from '@/lib/bq/backend'
 import { readAwMart } from '@/lib/bq/googleads'
 
 export async function awQuery(
@@ -16,7 +16,7 @@ export async function awQuery(
   const envVar = client?.smApiKeyEnvVar
   if (!cfg || !envVar) throw new Error(`paid_search_config / sm_api_key_env_var missing for ${slug}`)
   const { startDate, endDate } = parseDateRange(dateRange)
-  if (useBq('googleads', slug) && !opts.filters && !opts.settings) {
+  if (bqEnabled('googleads', slug) && !opts.filters && !opts.settings) {
     try {
       return await readAwMart(cfg.googleAdsAccountId, fields, startDate, endDate)
     } catch (err) {

@@ -8,7 +8,7 @@ const FLAG: Record<BqSource, string> = {
 }
 
 /** BigQuery serves a section only when its source is switched to `bq` AND the client is allowlisted. */
-export function useBq(source: BqSource, slug: string): boolean {
+export function bqEnabled(source: BqSource, slug: string): boolean {
   if (process.env[FLAG[source]] !== 'bq') return false
   const allow = (process.env.BQ_CLIENTS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
   return allow.includes(slug)
