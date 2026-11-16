@@ -70,3 +70,53 @@ test('an H1 target next to a July to December row is a layout error', () => {
   expect(() => parseKpiGrid(september, '2026')).toThrow(KpiSheetLayoutError)
   try { parseKpiGrid(september, '2026') } catch (e) { expect((e as KpiSheetLayoutError).missing).toBe('Instagram target half') }
 })
+
+// --- Month tabs (spec 2026-11-11-kpi-tab-by-month-design.md) ---
+import { kpiSheetFor, monthTabFor } from './kpi-sheet'
+
+const SID = 'TESTSHEETID_abcdefghij0123'
+
+test('kpiSheetFor: a { sheetId, tab } entry is a fixed tab, exactly as today (the tab trimmed)', () => {
+  expect(kpiSheetFor({ 2026: { sheetId: SID, tab: ' KPIs ' } }, '2026')).toEqual({ kind: 'fixed', sheetId: SID, tab: 'KPIs' })
+})
+
+test('kpiSheetFor: { sheetId, byMonth: true } is month tabs', () => {
+  expect(kpiSheetFor({ 2026: { sheetId: SID, byMonth: true } }, '2026')).toEqual({ kind: 'byMonth', sheetId: SID })
+})
+
+test.each([
+  ['both tab and byMonth', { 2026: { sheetId: SID, tab: 'KPIs', byMonth: true } }],
+  ['byMonth not exactly true', { 2026: { sheetId: SID, byMonth: 'yes' } }],
+  ['byMonth false', { 2026: { sheetId: SID, byMonth: false } }],
+  ['a bad sheet id', { 2026: { sheetId: 'short', byMonth: true } }],
+  ['neither tab nor byMonth', { 2026: { sheetId: SID } }],
+  ['not an object', 'x'],
+])('kpiSheetFor: %s is invalid', (_n, value) => {
+  expect(kpiSheetFor(value, '2026')).toEqual({ kind: 'invalid' })
+})
+
+test('kpiSheetFor: nothing set is none', () => {
+  expect(kpiSheetFor(undefined, '2026')).toEqual({ kind: 'none' })
+  expect(kpiSheetFor({}, '2026')).toEqual({ kind: 'none' })
+})
+
+test('kpiSheetFor: a year with no entry carries the newest earlier entry forward only when it is byMonth', () => {
+  expect(kpiSheetFor({ 2026: { sheetId: SID, byMonth: true } }, '2027')).toEqual({ kind: 'byMonth', sheetId: SID, carriedFrom: '2026' })
+  expect(kpiSheetFor({ 2026: { sheetId: SID, tab: 'KPIs' } }, '2027')).toEqual({ kind: 'none' })
+  // the NEWEST earlier entry decides: a fixed 2026 after a byMonth 2025 carries nothing
+  expect(kpiSheetFor({ 2025: { sheetId: SID, byMonth: true }, 2026: { sheetId: SID, tab: 'KPIs' } }, '2027')).toEqual({ kind: 'none' })
+  // a later year never carries backwards
+  expect(kpiSheetFor({ 2027: { sheetId: SID, byMonth: true } }, '2026')).toEqual({ kind: 'none' })
+})
+
+test('monthTabFor: the full month name and year, trimmed and any case, returning the raw title', () => {
+  expect(monthTabFor(['September 2026', 'October 2026'], '2026', 9)).toEqual({ kind: 'one', title: 'October 2026' })
+  expect(monthTabFor(['Sheet1', ' october 2026 '], '2026', 9)).toEqual({ kind: 'one', title: ' october 2026 ' })
+})
+
+test('monthTabFor: missing, another year and abbreviations are none; two matches are ambiguous', () => {
+  expect(monthTabFor(['September 2026'], '2026', 9)).toEqual({ kind: 'none' })
+  expect(monthTabFor(['October 2025'], '2026', 9)).toEqual({ kind: 'none' })
+  expect(monthTabFor(['Oct 2026', '10/2026', 'October2026'], '2026', 9)).toEqual({ kind: 'none' })
+  expect(monthTabFor(['October 2026', 'october 2026'], '2026', 9)).toEqual({ kind: 'ambiguous' })
+})

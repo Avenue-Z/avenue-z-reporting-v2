@@ -29,6 +29,8 @@ import { auth } from '@/auth'
 import { parseModelsParam } from '@/lib/peec/models'
 import { resolveExportView, type ExportViewClient } from '@/lib/export/report-view'
 import { exportReportElement } from './report-element'
+import { exportablePages } from '@/lib/export/pages'
+import type { BulkExport } from '@/components/export-pdf-button'
 import { SERVER_EXPORT_SECTIONS, type ServerExportSection } from '@/lib/export/sections'
 
 const REPORTS = new Set(['OrganicSocialReport', 'PeecAIReport', 'PRInfluenceReport', 'ContentImpactReport', 'TechnicalAuditReport',
@@ -138,6 +140,43 @@ test('the Influencer tab resolves to its id, no channel, the influencer view and
     .toEqual({ section: 'organic-social', subsectionId: 'organic-influencer', channel: null, view: 'influencer', pageTitle: 'Influencer' })
 })
 
+// The AEO Informed Social tab (spec 2026-11-12 section 1): no channel but its own view, titled by its label on both routes and in the export.
+const AEO_CLIENT = { ...CLIENT, dashSocialConfig: { brandId: 1, aeoInformedSocial: { enabled: true, allTimeFrom: '2026-01-22' } }, peecCustomerProjectId: 'or_p' }
+test('the AEO Informed Social tab resolves to its id, no channel, the aeo-informed view and the title AEO Informed Social', () => {
+  expect(resolveExportView(AEO_CLIENT as ExportViewClient, 'organic-social', 'organic-aeo-informed'))
+    .toEqual({ section: 'organic-social', subsectionId: 'organic-aeo-informed', channel: null, view: 'aeo-informed', pageTitle: 'AEO Informed Social' })
+  // a client without the tab: the same subsection is the Overview, as on the page
+  expect(resolveExportView(CLIENT as ExportViewClient, 'organic-social', 'organic-aeo-informed').pageTitle).toBe('Organic Social')
+})
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  test(`${routeName}: the AEO Informed Social tab is titled AEO Informed Social, renders the aeo-informed view, and exports the same`, async () => {
+    const { report, button } = await onPage(Route, AEO_CLIENT as unknown as typeof CLIENT, 'organic-social', 'organic-aeo-informed')
+    expect(button.props.pageTitle).toBe('AEO Informed Social')
+    expect(report.props).toMatchObject({ channel: null, view: 'aeo-informed' })
+    const view = resolveExportView(AEO_CLIENT as ExportViewClient, 'organic-social', 'organic-aeo-informed')
+    expect(view.pageTitle).toBe(button.props.pageTitle)
+    // Named drift: the export gives the tab its own 30 s limit, inside the export's 40 s ready budget; the page keeps its 120 s.
+    expect(exportReportElement(view, params).props).toEqual({ ...report.props, aeoDeadlineMs: 30_000 })
+  })
+  test(`${routeName}: on the AEO tab the button sends the tab's range and min, for the single export and the bulk one`, async () => {
+    getClientBySlug.mockResolvedValue(AEO_CLIENT)
+    const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
+      searchParams: Promise.resolve({ section: 'organic-social', subsection: 'organic-aeo-informed', ...Q, aeo: 'all', aeomin: '4' }) } as never))
+    if ('redirect' in r) throw new Error('unexpected redirect')
+    const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
+    expect(button.props.serverExport).toMatchObject({ subsection: 'organic-aeo-informed', aeo: 'all', aeoMin: 4 })
+    expect(button.props.bulk).toMatchObject({ aeo: 'all', aeoMin: 4 })
+  })
+  test(`${routeName}: on every other tab the button sends no aeo keys`, async () => {
+    getClientBySlug.mockResolvedValue(AEO_CLIENT)
+    const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
+      searchParams: Promise.resolve({ section: 'organic-social', subsection: 'organic-instagram', ...Q, aeo: 'all', aeomin: '4' }) } as never))
+    if ('redirect' in r) throw new Error('unexpected redirect')
+    const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
+    for (const o of [button.props.serverExport, button.props.bulk] as Record<string, unknown>[]) expect('aeo' in o || 'aeoMin' in o).toBe(false)
+  })
+}
+
 // The button exports on the server only for sections switched on (lib/export/sections.ts); every other section
 // keeps the browser print until its own PR switches it on.
 for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
@@ -157,5 +196,47 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     const { button } = await onPage(Route, CLIENT, 'peec-ai', 'pr-influence')
     expect(button.props.serverExport).toEqual({ clientSlug: 'c', section: 'peec-ai', subsection: 'pr-influence',
       dateRange: Q.dateRange, compareRange: Q.compareRange, models: 'ChatGPT,Claude' })
+  })
+}
+
+// Spec 2026-10-14-bulk-pdf-export-design B1, B2, B5: every report page offers the client's exportable pages, the
+// current one pre-selected, with the page's raw ranges.
+const bulkOf = (button: { props: Record<string, unknown> }) => button.props.bulk as BulkExport
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  test(`${routeName}: the button offers the client's exportable pages, this one pre-selected, with the page's ranges`, async () => {
+    const { button } = await onPage(Route, CLIENT, 'peec-ai', 'pr-influence')
+    expect(button.props.bulk).toEqual({
+      pages: exportablePages(CLIENT as ExportViewClient & typeof CLIENT), currentKey: 'peec-ai:pr-influence',
+      clientSlug: 'c', dateRange: Q.dateRange, compareRange: Q.compareRange, models: 'ChatGPT,Claude',
+      fromSection: 'peec-ai', lockedMonths: false,
+    })
+  })
+
+  test(`${routeName}: on a hidden or unknown tab, the pre-selected page is the Overview the page shows`, async () => {
+    const { button } = await onPage(Route, { ...CLIENT, hiddenReports: ['meta'] }, 'paid-media', 'meta')
+    expect(bulkOf(button).currentKey).toBe('paid-media:')
+    expect(bulkOf((await onPage(Route, CLIENT, 'organic-social', 'not-a-tab')).button).currentKey).toBe('organic-social:')
+  })
+
+  // Final review, Important 2: the pre-selected page is always one the list offers, else the picker opens with nothing
+  // checked and no way to export the page in view.
+  test(`${routeName}: the pre-selected page is always in the list`, async () => {
+    for (const [section, subs] of [...CASES, ['executive-overview', [undefined]]] as const) {
+      for (const sub of subs) {
+        const b = bulkOf((await onPage(Route, CLIENT, section, sub)).button)
+        expect(b.pages.map((p) => p.key)).toContain(b.currentKey)
+      }
+    }
+  })
+
+  test(`${routeName}: the Executive Overview pre-selects itself`, async () => {
+    expect(bulkOf((await onPage(Route, CLIENT, 'executive-overview')).button).currentKey).toBe('executive-overview:')
+  })
+
+  test(`${routeName}: on a page the server doesn't export, the pages are offered with none pre-selected`, async () => {
+    const { button } = await onPage(Route, { ...CLIENT, enabledReports: [...CLIENT.enabledReports, 'ga4'] }, 'ga4')
+    expect(button.props.serverExport).toBeUndefined()
+    expect(bulkOf(button).currentKey).toBeNull()
+    expect(bulkOf(button).pages).toEqual(exportablePages(CLIENT as ExportViewClient & typeof CLIENT))
   })
 }

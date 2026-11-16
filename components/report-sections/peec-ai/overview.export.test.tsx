@@ -42,7 +42,8 @@ test("each table card's header is kept with its first rows; the KPI grid and the
   expect(inExport(<>{part('kpi-cards')}</>).container.querySelector('.grid[data-export-block]')).not.toBeNull()
   expect(inExport(<>{part('winners-losers')}</>).container.querySelectorAll('[data-export-block]')).toHaveLength(2)
   const domains = inExport(<>{part('domains-row')}</>).container
-  expect(domains.querySelector('[data-export-block][data-export-chart]')?.textContent).toContain('What kinds of sources do AI models cite?')
+  expect([...domains.querySelectorAll('[data-export-block]')].some((b) => b.textContent?.includes('What kinds of sources do AI models cite?'))).toBe(true)
+  expect(domains.querySelector('[data-export-chart]')).toBeNull() // spec 2026-10-13: dark like the live page
 })
 
 // Thomas, #350 brand-rankings-table.tsx:89: the Profound twins of these tables had no keep-with-next, so on a Profound-first

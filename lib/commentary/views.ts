@@ -24,6 +24,7 @@ export type CommentaryViewKey =
   | OrgSocialChannelViewKey
   | OrgSocialRecommendationsViewKey
   | 'organic-social:influencer'
+  | 'organic-social:aeo-informed'
 
 /** The commentary key for a single Organic Social platform subpage. */
 export function orgSocialChannelViewKey(channel: DashChannel): OrgSocialChannelViewKey {
@@ -111,6 +112,8 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   // The Influencer tab (10/6 calls): its own Insights stream. No Recommendations (Jasmine, 10/9: we don't manage their
   // influencer marketing).
   'organic-social:influencer': { label: 'Organic Social — Influencer', owner: 'Jasmine / Kyleah' },
+  // The AEO Informed Social tab (spec 2026-11-12): its own Insights. The outline lists Insights only, so no Recommendations key.
+  'organic-social:aeo-informed': { label: 'Organic Social, AEO Informed Social', owner: 'Jasmine / Kyleah' },
 }
 
 /** Runtime guard: is this string one of the canonical view keys? Used to reject

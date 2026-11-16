@@ -155,8 +155,7 @@ export function ContactPacing({ data }: { data: WeeklyContacts }) {
             tracks carry the same flex-1 cells and the same gap, so the labels
             stay aligned under their bars. */}
         <div className="space-y-1">
-          {/* data-export-bars: the brand-green bars print darkened on white paper (export-theme.css). */}
-          <div className="flex h-32 items-end gap-1" data-export-bars="">
+          <div className="flex h-32 items-end gap-1">
             {weeks.map((b, i) => {
               const isPartial = i === weeks.length - 1
               return (

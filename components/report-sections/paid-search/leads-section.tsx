@@ -16,7 +16,7 @@ export function LeadsSection({ data }: { data: LeadBreakdown }) {
   return (
     <div className="space-y-6">
       {/* Weekly leads chart */}
-      <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5" data-export-block="" data-export-chart="">
+      <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-5" data-export-block="">
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-widest text-text-muted">
           Leads Over Time
         </h3>

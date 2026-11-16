@@ -13,7 +13,7 @@ test('the Data rows follow the outlines, in order, with their labels', () => {
   expect(labels(OUTLINE_DATA_ROWS.standard.INSTAGRAM)).toEqual([...DATA, 'Profile Views', 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.FACEBOOK)).toEqual([...DATA, 'Video Views'])
   expect(labels(OUTLINE_DATA_ROWS.standard.LINKEDIN)).toEqual([...DATA, 'Profile Views', 'Video Views'])
-  expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
+  expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views'])
 })
 
 test("Kenect's outline puts Profile Clicks where Video Views would be, on Instagram only", () => {
@@ -35,11 +35,14 @@ test('no outline covers X, so it has no rows', () => {
   expect(OUTLINE_BREAKDOWN_ROWS.TWITTER).toBeUndefined()
 })
 
-test("question 6 is closed: Instagram Video Views is Views on Reels, TikTok's is its Views tile", () => {
+// Paul, 2026-10-15: TikTok's Video Views row was its Views tile under a second label (every TikTok
+// post is a video), so it is removed rather than shown twice.
+test("question 6 is closed: Instagram Video Views is Views on Reels, TikTok has no Video Views row", () => {
   expect(labels(OUTLINE_DATA_ROWS.standard.INSTAGRAM)).toEqual([...DATA, 'Profile Views', 'Video Views'])
-  expect(labels(OUTLINE_DATA_ROWS.standard.TIKTOK)).toEqual([...DATA, 'Profile Views', 'Video Views'])
   expect(OUTLINE_MEDIA_KPIS.INSTAGRAM).toEqual([{ key: 'videoViews', label: 'Video Views', mediaType: 'reel', metric: 'VIEWS' }])
-  expect(OUTLINE_DATA_ROWS.standard.TIKTOK!.find((r) => r.key === 'videoViews')).toEqual({ key: 'videoViews', label: 'Video Views', from: 'exposure' })
+  for (const v of ['standard', 'profileClicks'] as const) {
+    expect(OUTLINE_DATA_ROWS[v].TIKTOK!.find((r) => r.key === 'videoViews')).toBeUndefined()
+  }
   expect(mediaRowsFor('INSTAGRAM', OUTLINE_DATA_ROWS.standard.INSTAGRAM!).map((m) => m.key)).toEqual(['videoViews'])
   expect(mediaRowsFor('INSTAGRAM', OUTLINE_DATA_ROWS.profileClicks.INSTAGRAM!)).toEqual([])
 })

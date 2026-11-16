@@ -16,7 +16,7 @@ export class YtdSheetReadError extends Error {
   constructor(readonly status: string) { super(`ytd sheet read failed: ${status}`); this.name = 'YtdSheetReadError' }
 }
 
-const SHEET_ID = /^[A-Za-z0-9_-]{20,100}$/
+export const SHEET_ID = /^[A-Za-z0-9_-]{20,100}$/
 const NUMBER = /^(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
 const HEADERS: Record<string, DashChannel> = { instagram: 'INSTAGRAM', facebook: 'FACEBOOK', linkedin: 'LINKEDIN', tiktok: 'TIKTOK', x: 'TWITTER', twitter: 'TWITTER' }
@@ -90,13 +90,17 @@ const TIMEOUT_MS = 10_000
 /** One read under one 10 second deadline that covers the token, the request and the body: a stall anywhere ends as
  *  a 'timeout' rather than holding the block's Suspense boundary open (lib/cache.ts, NEGATIVE CACHING). */
 export async function readYtdTabImpl(sheetId: string, tab: string): Promise<unknown[][]> {
+  return underDeadline((signal) => read(sheetId, tab, signal))
+}
+
+async function underDeadline<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const ctrl = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => { ctrl.abort(); reject(new YtdSheetReadError('timeout')) }, TIMEOUT_MS)
   })
   try {
-    return await Promise.race([read(sheetId, tab, ctrl.signal), deadline])
+    return await Promise.race([run(ctrl.signal), deadline])
   } finally {
     clearTimeout(timer)
   }
@@ -138,4 +142,55 @@ function readYtdTabShared(sheetId: string, tab: string): Promise<unknown[][]> {
 /** At most one read per tab an hour; a failure is replayed for 30 seconds rather than re-asked on every render. */
 export const readYtdTab = cached('google-sheets', 'ytdTab', readYtdTabShared, {
   version: '1', ttlSeconds: 3600, negativeTtlSeconds: 30, healthCritical: true,
+})
+
+/** The sheet's tab titles, raw (KPI month tabs, spec 2026-11-11-kpi-tab-by-month-design.md): one read-only request for the
+ *  titles only, under the same 10 second deadline, the same statuses and the same 'malformed' rule as the tab read. */
+export async function readSheetTabTitlesImpl(sheetId: string): Promise<string[]> {
+  return underDeadline((signal) => titles(sheetId, signal))
+}
+
+async function titles(sheetId: string, signal: AbortSignal): Promise<string[]> {
+  let token: string | null | undefined
+  try { token = await getAuth().getAccessToken() } catch (e) { throw e instanceof YtdSheetReadError ? e : new YtdSheetReadError('auth') }
+  let res: Response
+  try {
+    res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties(title)`, {
+      headers: { Authorization: `Bearer ${token}` }, signal, cache: 'no-store',
+    })
+  } catch {
+    throw new YtdSheetReadError(signal.aborted ? 'timeout' : 'network')
+  }
+  if (!res.ok) throw new YtdSheetReadError(String(res.status))
+  const body = (await res.json().catch(() => null)) as { sheets?: unknown } | null
+  if (!isObj(body) || !Array.isArray(body.sheets)) throw new YtdSheetReadError('malformed')
+  return body.sheets.map((sheet) => {
+    const title = isObj(sheet) && isObj(sheet.properties) ? sheet.properties.title : undefined
+    if (typeof title !== 'string') throw new YtdSheetReadError('malformed')
+    return title
+  })
+}
+
+/** At most one titles read per sheet every 5 minutes, so a new or renamed tab shows soon; a failure replays for 30 s. */
+export const readSheetTabTitles = cached('google-sheets', 'sheetTabTitles', readSheetTabTitlesImpl, {
+  version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true,
+})
+
+/** A KPI month tab's cells, or 'gone' when Google answers 400 for it: the tab was renamed or deleted after the titles were
+ *  listed (the titles are cached for minutes). Here that is an answer, not a failure, so cached() records a healthy fetch
+ *  and the health beacon never reads a renamed tab as an outage (Paul, #445 review, #447). Any other failure still throws
+ *  and still counts. */
+export async function readMonthTabImpl(sheetId: string, tab: string): Promise<unknown[][] | 'gone'> {
+  try {
+    return await readYtdTabImpl(sheetId, tab)
+  } catch (e) {
+    if (e instanceof YtdSheetReadError && e.status === '400') return 'gone'
+    throw e
+  }
+}
+
+/** Month tabs are cached 5 minutes, not the YTD reader's hour, so a tab the team copies and then relabels shows within
+ *  about 5 minutes (Paul's #445 staging note); the YTD graphs keep readYtdTab and its hour. */
+export const readMonthTab = cached('google-sheets', 'kpiMonthTab', readMonthTabImpl, {
+  version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true,
 })

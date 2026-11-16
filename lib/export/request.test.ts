@@ -73,3 +73,23 @@ test('the export page path is the section, then only the view parameters, encode
   expect(exportPagePath({ ...ok, section: 'peec-ai', subsection: 'pr-influence', models: 'ChatGPT,Claude' }))
     .toBe('/export/renaissance/peec-ai?dateRange=custom%3A2026-09-01%2C2026-09-30&subsection=pr-influence&models=ChatGPT%2CClaude&tz=America%2FNew_York')
 })
+
+// The AEO Informed Social tab (spec 2026-11-12, plan Task 10): its range and min competitors, validated as strictly as models. Absent on
+// every other request, so those bodies and paths are exactly what they were.
+test('the AEO tab\'s range and min pass through, and the export path carries them', () => {
+  const r = parseExportRequest({ ...ok, subsection: 'organic-aeo-informed', aeo: 'ytd', aeoMin: 3 })
+  expect(r).toEqual({ ...ok, subsection: 'organic-aeo-informed', aeo: 'ytd', aeoMin: 3 })
+  expect(exportPagePath(r!)).toBe('/export/renaissance/organic-social?dateRange=custom%3A2026-09-01%2C2026-09-30&subsection=organic-aeo-informed&aeo=ytd&aeomin=3&tz=America%2FNew_York')
+})
+test('without them a request has no aeo keys and its path is unchanged', () => {
+  const r = parseExportRequest(ok)!
+  expect('aeo' in r || 'aeoMin' in r).toBe(false)
+  expect(exportPagePath(r)).toBe('/export/renaissance/organic-social?dateRange=custom%3A2026-09-01%2C2026-09-30&tz=America%2FNew_York')
+  expect(parseExportRequest({ ...ok, aeo: null, aeoMin: null })).toEqual(ok)
+})
+test.each([['YTD'], ['year'], [3], [['ytd']], ['']])('an aeo of %j is refused', (aeo) => {
+  expect(parseExportRequest({ ...ok, aeo })).toBeNull()
+})
+test.each([[0], [6], [2.5], ['3'], [Number.NaN]])('an aeoMin of %j is refused', (aeoMin) => {
+  expect(parseExportRequest({ ...ok, aeoMin })).toBeNull()
+})

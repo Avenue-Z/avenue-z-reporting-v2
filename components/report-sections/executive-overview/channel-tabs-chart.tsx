@@ -145,7 +145,7 @@ export function ChannelTabsChart({
   const activeTabEmpty = tab === 'conversion' && convEmpty
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5" data-export-block="" data-export-chart="" data-export-wrap="">
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5" data-export-block="" data-export-wrap="">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">

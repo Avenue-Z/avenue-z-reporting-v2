@@ -62,7 +62,9 @@ const STANDARD: Partial<Record<string, OutlineRow[]>> = {
   // Facebook has no Profile Views row: Dash does not offer it and Jasmine removed it (2026-09-22).
   FACEBOOK: [...DATA_HEAD, VIDEO_VIEWS],
   LINKEDIN: [...DATA_HEAD, PROFILE_VIEWS, VIDEO_VIEWS],
-  TIKTOK: [...DATA_HEAD, PROFILE_VIEWS, { key: 'videoViews', label: 'Video Views', from: 'exposure' }],
+  // TikTok has no Video Views row: it was the Views tile under a second label, since every TikTok
+  // post is a video (Paul, 2026-10-15).
+  TIKTOK: [...DATA_HEAD, PROFILE_VIEWS],
 }
 
 export const OUTLINE_DATA_ROWS: Record<OutlineVariant, Partial<Record<string, OutlineRow[]>>> = {

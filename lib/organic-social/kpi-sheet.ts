@@ -7,7 +7,7 @@
 //   (H1 only with a January to June row),
 //   each platform once; nothing but empty rows after the last block.
 import type { DashChannel } from './metrics'
-import { classifyCell } from './ytd-sheet'
+import { classifyCell, SHEET_ID, ytdSheetFor } from './ytd-sheet'
 
 export type KpiFigures = { followers: number; impressions: number; engagements: number }
 export type KpiPlatform = { channel: DashChannel; monthLabel: string; actual: KpiFigures; target: KpiFigures }
@@ -19,6 +19,8 @@ export class KpiSheetLayoutError extends Error {
 
 const PLATFORMS: Record<string, DashChannel> = { instagram: 'INSTAGRAM', facebook: 'FACEBOOK', linkedin: 'LINKEDIN', tiktok: 'TIKTOK', x: 'TWITTER', twitter: 'TWITTER' }
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+/** The full English month names, 0 to 11: a month tab is named "<Month> <Year>". */
+export const MONTH_NAMES: readonly string[] = MONTHS
 const HEADER = ['total followers', 'impressions', 'engagements']
 const ACTUAL = /^end of ([a-z]+)$/i
 const TARGET = /^h([12]) (\d{4}) target$/i
@@ -76,4 +78,49 @@ export function kpiPeriodLabel(monthLabel: string, year: string): string {
   const last = new Date(Date.UTC(Number(year), m + 1, 0)).getUTCDate()
   const yy = year.slice(2)
   return `1/1/${yy} to ${m + 1}/${last}/${yy}`
+}
+
+// ---- Month tabs (spec docs/superpowers/specs/2026-11-11-kpi-tab-by-month-design.md) ----
+
+/** A year's KPI tracker setting: a fixed tab (today's shape, unchanged), month tabs, nothing, or something unusable. */
+export type KpiSheetChoice =
+  | { kind: 'fixed'; sheetId: string; tab: string }
+  | { kind: 'byMonth'; sheetId: string; carriedFrom?: string }
+  | { kind: 'none' }
+  | { kind: 'invalid' }
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k)
+
+/** `{ sheetId, byMonth: true }` and nothing else that would make it ambiguous: no `tab`, `byMonth` exactly true. */
+function byMonthEntry(e: Record<string, unknown>): KpiSheetChoice {
+  if (e.byMonth !== true || has(e, 'tab') || typeof e.sheetId !== 'string' || !SHEET_ID.test(e.sheetId)) return { kind: 'invalid' }
+  return { kind: 'byMonth', sheetId: e.sheetId }
+}
+
+/** The setting for `year` (`dash_social_config.kpiSheets`). An entry with `byMonth` is month tabs; any other entry is read
+ *  exactly as today by ytdSheetFor (a fixed tab). A year with no entry carries the newest earlier year's entry forward
+ *  only when that entry is month tabs, so January works from the same tracker; a fixed entry never carries over. */
+export function kpiSheetFor(value: unknown, year: string): KpiSheetChoice {
+  if (isObj(value) && has(value, year)) {
+    const e = value[year]
+    if (isObj(e) && has(e, 'byMonth')) return byMonthEntry(e)
+  }
+  const fixed = ytdSheetFor(value, year)
+  if (fixed.kind === 'ok') return { kind: 'fixed', sheetId: fixed.entry.sheetId, tab: fixed.entry.tab }
+  if (fixed.kind === 'invalid' || !isObj(value)) return fixed
+  const last = Object.keys(value).filter((k) => /^\d{4}$/.test(k) && k < year).sort().pop()
+  const e = last === undefined ? undefined : value[last]
+  if (last === undefined || !isObj(e) || !has(e, 'byMonth')) return { kind: 'none' }
+  const carried = byMonthEntry(e)
+  return carried.kind === 'byMonth' ? { ...carried, carriedFrom: last } : { kind: 'none' }
+}
+
+/** The tab named "<Month> <Year>" for `month` (0 to 11), matched trimmed and in any case; the raw title is returned because
+ *  it is what the read must ask for. Two matches are ambiguous: never a guess. */
+export function monthTabFor(titles: string[], year: string, month: number): { kind: 'one'; title: string } | { kind: 'none' } | { kind: 'ambiguous' } {
+  const want = `${MONTHS[month]} ${year}`.toLowerCase()
+  const hits = titles.filter((t) => t.trim().toLowerCase() === want)
+  if (hits.length === 0) return { kind: 'none' }
+  return hits.length > 1 ? { kind: 'ambiguous' } : { kind: 'one', title: hits[0] }
 }

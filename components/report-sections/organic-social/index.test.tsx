@@ -8,6 +8,8 @@ import type { OrganicSocialCtx } from './ctx'
 vi.mock('@/lib/organic-social/headlines', () => import('./parts/__mocks__/headlines'))
 vi.mock('@/lib/organic-social/trends', () => import('./parts/__mocks__/trends'))
 vi.mock('@/lib/organic-social/top-content', () => import('./parts/__mocks__/top-content'))
+// The AEO tab's own section is tested on its own (aeo-informed/section.test.tsx); here only what the body hands it.
+vi.mock('./aeo-informed/section', () => ({ AeoInformedSection: function AeoInformedSection() { return null } }))
 
 // The two DB lookups the thin view awaits. Spread the real module so any transitive
 // importer keeps its other exports; override only these two so we can make them throw.
@@ -23,6 +25,8 @@ vi.mock('@/lib/db/queries', async (importOriginal) => ({
 }))
 
 import { OrganicSocialReport, OrganicSocialBody } from './index'
+import { AeoInformedSection } from './aeo-informed/section'
+import type { ReactElement } from 'react'
 import { buildOrganicSocialCtx } from './ctx'
 import { elementTree } from '@/lib/test-utils/element-tree'
 
@@ -81,6 +85,48 @@ test('a platform subpage keys commentary per channel while opting in via the bas
   expect(header?.props.configKey).toBe('organic-social')
 })
 
+test('the AEO Informed Social tab keys its Insights to its own view, opting in via the base config', () => {
+  const el = OrganicSocialReport({ clientSlug: 'renaissance', channel: null, view: 'aeo-informed' })
+  const headers: { props: { viewKey: string; configKey: string } }[] = []
+  const walk = (n: unknown) => {
+    if (!n || typeof n !== 'object') return
+    const e = n as { type?: unknown; props?: { children?: unknown } }
+    if (typeof e.type === 'function' && (e.type as { name: string }).name === 'SharedPartsHeader') headers.push(e as never)
+    const kids = e.props?.children
+    for (const k of Array.isArray(kids) ? kids : [kids]) walk(k)
+  }
+  walk(el)
+  expect(headers.map((h) => [h.props.viewKey, h.props.configKey])).toEqual([['organic-social:aeo-informed', 'organic-social'], ['organic-social:aeo-informed', 'organic-social']])
+})
+
+describe('the AEO Informed Social view (plan Task 9)', () => {
+  const OCT = 'custom:2026-10-01,2026-10-31'
+  afterEach(() => vi.mocked(auth).mockReset())
+  test('the body hands its own section the served range, the range, the min, the role and the deadline, and reads no template', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ADMIN' } } as never)
+    getSectionTemplate.mockReset()
+    getClientBySlug.mockResolvedValue({ slug: 'renaissance', dashSocialConfig: { brandId: 1 } })
+    const ctx = buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: null, view: 'aeo-informed', dateRange: OCT })
+    const out = await OrganicSocialBody({ ctx, aeo: { range: 'ytd', min: 3, deadlineMs: 120_000 } }) as ReactElement
+    expect(out.type).toBe(AeoInformedSection)
+    expect(out.props).toEqual({ clientSlug: 'renaissance', servedRange: OCT, aeo: 'ytd', aeoMin: 3, role: 'INTERNAL_ADMIN', deadlineMs: 120_000 })
+    expect(getSectionTemplate).not.toHaveBeenCalled()
+  })
+  test('with no AEO settings handed in, the body uses Month, min 2 and the page\'s 120 s', async () => {
+    getClientBySlug.mockResolvedValue({ slug: 'renaissance', dashSocialConfig: { brandId: 1 } })
+    const out = await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: null, view: 'aeo-informed', dateRange: OCT }) }) as ReactElement
+    expect(out.props).toMatchObject({ aeo: 'month', aeoMin: 2, deadlineMs: 120_000 })
+  })
+  test('the report hands the body the AEO settings only on the AEO tab; every other tab\'s body gets exactly its ctx', () => {
+    const aeo = findByName(OrganicSocialReport({ clientSlug: 'renaissance', channel: null, view: 'aeo-informed', aeo: 'all', aeoMin: 4, aeoDeadlineMs: 30_000 }), 'OrganicSocialBody')
+    expect(aeo?.props.aeo).toEqual({ range: 'all', min: 4, deadlineMs: 30_000 })
+    for (const other of [{ channel: null }, { channel: 'INSTAGRAM' as const }, { channel: null, view: 'influencer' as const }]) {
+      const body = findByName(OrganicSocialReport({ clientSlug: 'renaissance', aeo: 'ytd', aeoMin: 3, ...other }), 'OrganicSocialBody')
+      expect(Object.keys(body?.props ?? {})).toEqual(['ctx'])
+    }
+  })
+})
+
 // Pre-change record for locked months (spec section 8): for a client without reportingMonths the
 // section's OUTPUT (every part and the ctx it receives) is unchanged, on the happy path and when
 // BOTH lookups fail. Extends the truthy-only test above.
@@ -116,6 +162,14 @@ describe('locked months in the section', () => {
   afterEach(() => { restoreLookup(); vi.useRealTimers(); vi.mocked(auth).mockReset(); vi.restoreAllMocks() })
   const as = (role: string) => vi.mocked(auth).mockResolvedValue({ user: { role } } as never)
   const ctxFor = (dateRange: string) => buildOrganicSocialCtx({ clientSlug: 'c', channel: 'INSTAGRAM', dateRange, compareRange: 'previous_year' })
+  test('on the AEO tab a client asking for the live month is served September, the locked month, like every other tab', async () => {
+    as('CLIENT_VIEWER')
+    getClientBySlug.mockResolvedValue(OPTED)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'c', channel: null, view: 'aeo-informed', dateRange: LIVE }), aeo: { range: 'month', min: 2, deadlineMs: 120_000 } }) as ReactElement
+    expect(out.type).toBe(AeoInformedSection)
+    expect(out.props).toMatchObject({ servedRange: SEP, role: 'CLIENT_VIEWER' })
+  })
 
   test('a client asking for the live month gets September and its comparison, logged once (edge 22)', async () => {
     as('CLIENT_VIEWER'); getClientBySlug.mockResolvedValue(OPTED)

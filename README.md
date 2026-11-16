@@ -25,6 +25,7 @@ This repo hosts **two products** over one shared spine. The docs below are
 | `CLAUDE.md` | Platform architecture / shared spine + Supermetrics reference | ✅ current |
 | `lib/dashboard/ENGINEERS.md` | **Configurable dashboard** product: blocks → bindings → resolvers → adapters, caching, sharing | ✅ current |
 | `lib/commentary/ENGINEERS.md` | **Report commentary**: the per-client opt-in render path, draft→approved flow, soft delete, and the client-safety boundary | ✅ current |
+| `lib/organic-social/aeo-informed/ENGINEERS.md` | **AEO Informed Social adapter**: rebuilds the Organic Social x AEO tables and graphs from Peec's reports API (read only, not wired to a page yet), with the rules, the data gate and contract that every result passes, failure behavior and what is not exact yet. Generated contract: `docs/contracts/aeo-informed-social/`. Findings: `docs/findings/2026-11-09-os-x-aeo-peec-rebuild.md` | ✅ current |
 | `lib/dashboard/CLAUDE.md` · `components/dashboard/CLAUDE.md` | Terse working rules for the dashboard engine + its UI | ✅ current |
 | `TODO.md` | Standing task list | ✅ current |
 | `Guides/brand.md` · `Guides/prplacements.md` | Topic guides (brand tokens, PR placements) | ✅ current |

@@ -879,6 +879,21 @@ deliberately left out of its scope so it stayed reviewable.
   fixing it changes Renaissance's numbers: its own PR, off `dev`, with a Renaissance proof. Locked
   months' "(in progress)" label follows the window as sent (#256), so it moves with the fix.
 
+## Known Follow-ups: AEO Informed Social adapter (from PR #444)
+
+The adapter (`lib/organic-social/aeo-informed/`, guide in its `ENGINEERS.md`) is built and tested but nothing uses it. None of these blocks that PR.
+
+- [ ] **A page that shows it.** No route, tab or sidebar entry exists. Brand logos are not available from Peec (the brands endpoint returns a color and no image), so Mentions shows names and colors.
+- [ ] **URL gaps count and order are close, not exact.** The outline's table lists Peec's own rows, and Peec returns a URL as several rows when different competitors cite it, so the adapter now pulls each window whole and keeps those rows (merging by URL had given fewer items). That lands within 1% of the outline's count, and ordering by competitor brands times retrievals is the only sort tried that reproduces the outline's five visible rows. Both are listed in `meta.unverified` (`url_gaps_item_count`, `url_gaps_sort_order`) until settled against a view Peec itself shows.
+- [ ] **The competitor table has no reference.** The outline's screenshot for it is a copy of its first table and the filter sentence is cut off, so `socialsCompetitor` (a brand with a registered channel, matched by channel title) is our rule. Settle it from a real competitor view before it is shown to a client.
+- [ ] **Competitor Socials is thin by construction.** It only holds tagged channels Peec has registered to a competitor brand, so competitor pages that are in the tagged list but not registered in Peec (some Facebook, YouTube and LinkedIn pages) never appear. If the team wants those, widen the rule to a channel title that matches a tracked competitor name, with tests, and update the own and competitor subset rules in `gate.ts`.
+- [ ] **The outline allows "other relevant social channels" for the fourth graph** (page 2). It is Instagram only, which is empty for Renaissance. Facebook has data. Adding a channel graph means a new graph id in `graphs.ts` and `contract.ts`, the graph rules in `gate.ts`, tests, and regenerating the contract YAML.
+- [ ] **The page build reuses what exists.** The real tab should use the existing Insights component (Add insights, History) and the Organic Social month and range controls; the mock-up only shows a placeholder. URL gaps defaults to Min 2 (the outline's text) and Renaissance Only to your channels only; both are page defaults, not adapter behavior.
+- [ ] **Ownership is proven for the own brand on LinkedIn only** (`ownership.ts`). Matching is by channel title on a platform the brand registered; a channel titled "<Brand> Something" is credited to the brand. Check YouTube and Instagram and each competitor against Peec's own channel view.
+- [ ] **The outline crops its tables on the right**, so any column after "Total" is unmapped (`column-map.ts`).
+- [x] **The data contract is enforced, not a design copy.** `contract.ts` is the source of truth; the YAML in `docs/contracts/aeo-informed-social/` is generated from it and a test fails on drift; `gate.ts` (50 rules as of 2026-11-13, recounted from the raw Peec rows) enforces it on every result and `contract.test.ts` proves the Peec parsers match it. Remaining: contract-core (Python) cannot run in the app, so its own `reconcile` check is not used.
+- [ ] **No URL carries the Organic Social source tag**, so a `url_tag_id` filter returns nothing; only the domain level works. Revisit if URLs get tagged.
+
 ## Roadmap / Future Considerations
 
 - [ ] Scheduled PDF email delivery of reports
@@ -934,13 +949,16 @@ From the review of the lock every number build. None blocks the October set.
      deliverable branch.
 
   **The manual way out, as far as reading the code gets us.** Delete that client's rows for the
-  month from `dash_response_locks` (`lib/db/schema.ts:421`: keyed by `client_id` + `request_key`,
-  with `period_end` the column to filter the month on), then let the next render or the next lock
-  sweep capture it again. Two things make that plausible rather than hopeful: `readLock`
-  (`lib/organic-social/response-lock-store.ts`) is a plain database select with no persistent cache
-  wrapper, so a deleted row is gone on the very next render; and the re-capture goes through the
-  uncached capture client (`lib/organic-social/base.ts`), so the replacement numbers come from Dash
-  now rather than from whatever Next's data cache still holds.
+  month from `dash_response_locks` (`lib/db/schema.ts:468`: keyed by `client_id` + `request_key`,
+  with `period_end` the column to filter the month on), then let the next render capture it again.
+  The lock sweep only runs from a month's lock day through two days after
+  (`lib/organic-social/lock-sweep.ts`), so outside that window the re-capture is the next view,
+  logged as a late lock. Two things make that plausible rather than hopeful: `readLock`
+  (`lib/organic-social/response-lock-store.ts`) looks the row up in the database on every read and
+  caches only the answer, keyed by the row's id, so a deleted row is gone on the very next render
+  and its recapture (a new row, a new id) is never served from the old cache entry; and the
+  re-capture goes through the uncached capture client (`lib/organic-social/base.ts`), so the
+  replacement numbers come from Dash now rather than from whatever Next's data cache still holds.
 
   **Unverified, and it is Paul's open question:** none of that has been executed end to end against
   a real deployment, so it is not known whether anything else in front of the page keeps serving
@@ -978,10 +996,11 @@ From the review of the lock every number build. None blocks the October set.
   to `null` in the same pass (a lock day is at most the 28th, so the month before last has always
   locked). The plan's own test asserts today's behaviour, so changing it is a deliberate decision,
   not a silent fix.
-- [ ] **The lock sweep runs on every hourly warmer run, not only on lock days**
-  (`app/api/cache-warm/route.ts:133`). It adds two months times the client's tabs of full report
-  renders per opted-in client to every run. Cheap once a month is captured (every read is a lock
-  hit), but worth a ceiling before the opted-in client count grows.
+- [x] **RESOLVED in #407: the lock sweep runs only from a month's lock day through two days after**
+  (`lib/organic-social/lock-sweep.ts`, `SWEEP_DAYS`). It had run on every hourly run, re-rendering two
+  months of tabs per opted-in client, and "cheap once captured" was not true: every lock hit pulled
+  the stored answer from Neon, about 9.5 MB a run, which used up the project's 5 GB monthly network
+  transfer on 2026-10-21. Lock reads are now also cached by row id (`response-lock-store.ts`).
 - [ ] **The cache-warm `ok` count cannot show whether a month was captured.** A report page
   returns 200 even when one part of it errored, so the count the cron reports says nothing about
   whether the lock sweep actually stored anything (`app/api/lock-sweep/route.ts`, which reports
@@ -1051,3 +1070,55 @@ findings that were not fixed in the PR are filed as issues and linked from it.
   range on screen (`parts/chart-notes.ts:92-103`), so a note always shows on the range it was made on.
 - The tiles' prior-year sheet read counts toward health, so an unreadable prior-year entry flags the page.
   Deliberate: it signals a broken sheet. No client has a prior-year entry until 2027.
+
+## Known Follow-ups: AEO Informed Social tab (from PR #444)
+
+The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.md`, plan
+`docs/superpowers/plans/2026-11-12-aeo-informed-social-tab.md`, code `lib/organic-social/aeo-tab/` and
+`components/report-sections/organic-social/aeo-informed/`. Opt in per client; no client has it when this ships.
+
+- [ ] **Before switching the tab on for Renaissance in production, run the golden check through the tag** (spec
+  `docs/superpowers/specs/2026-11-13-aeo-tag-selector-design.md`, C5). The private read-only run of the real adapter against the 27
+  figures in Jasmine's outline screenshots must pass every check through the "Organic Social" source tag (it did on 2026-11-13, through the
+  tag and through the classification). It holds client figures, so it lives outside this public repo
+  (`lib/organic-social/aeo-informed/ENGINEERS.md`, "Checking it against a live project"). Another client needs its own reference
+  screenshots first.
+- [ ] **The health sweep does not probe the tab.** `app/api/health/sweep/route.ts` builds one Organic Social URL per
+  client with no subsection, so a broken AEO tab is not flagged. Its own 60 s limit also covers many pages, and a cold
+  YTD pull takes about 32 s since issue 451 (was 39 to 55 s, `docs/findings/2026-11-12-aeo-tab-page-time-limit.md`). Add
+  it with a warm cache in mind.
+- [ ] **AEO locks live in `dash_response_locks`,** one row per exact request, keyed by `aeoLockKey`
+  (`lib/organic-social/aeo-tab/data.ts`). The "no way to undo a bad lock" entry above covers them: deleting a month's
+  rows by `period_end` removes its Month, YTD and All time AEO rows too (all three end on the month's last day).
+- [ ] **The AEO lock key is pinned** (`lib/organic-social/aeo-tab/aeo-lock-key-pin.test.ts`), as the Dash keys are. It
+  hashes the project, selector, window, as-of, min, fourth graph, whether the view compares (MoM only, issue 451) and
+  the contract version, so a new adapter field
+  (a `CONTRACT_VERSION` bump) orphans every stored AEO lock and those months recapture from live Peec. Decide that
+  deliberately, as for the Dash keys.
+- [ ] **Months already settled when a client's tab is switched on lock on their first view,** logged as late locks,
+  with Peec's numbers as of that day. The lock sweep only captures on a month's lock day, and only the default min;
+  any other min locks on its first view.
+- [ ] **The staff sidebar receives whole client rows, now including `peecCustomerProjectId`.** The portal's trimmed
+  record carries only the `aeoInformedTab` boolean (`lib/portal/sidebar-client.ts`). The staff side is the open
+  "staff sidebar receives whole client rows" item above (PR #250); fixing that fixes this.
+- [ ] **All time grows every month.** A stored result is everything the tab shows without the list of every tagged
+  URL: 676 KB for YTD at min 2 and 1,386 KB at min 1 (measured 2026-11-12), against Next's 2 MB cache item. Over
+  1.5 MB logs `[aeo-informed] result near the 2 MB cache limit`; that line is the signal to trim the URL gap rows or
+  cap min 1.
+- [ ] **A cold export can time out.** The PDF export gives Peec 30 s (inside its 40 s ready budget); the warmer covers
+  only the three views of the newest month a client is served, so a staff export of the month in progress, an older
+  month's YTD or another min may print the timeout card until the cache is warm. A pull that misses the deadline keeps
+  running under `after()` (issue 450, `withDeadline` in `lib/organic-social/aeo-tab/load.ts`) and fills the cache or
+  the lock for the next try.
+- [ ] **A locked-month miss is never cached, and an empty month is re-pulled** (Paul, issue 452). A miss captures
+  straight from Peec (`getAeoTabData`, `lib/organic-social/aeo-tab/data.ts`), and a capture with no tagged social
+  sources is shown but never stored, so every view and every hourly warm of that window pulls again. The lock sweep is
+  bounded (lock day to 2 days after, `lib/organic-social/lock-sweep.ts:15,29`). Two hits on the SAME view at once each
+  run a full capture; the warmer's three views are three different keys, so they are not duplicates. No wrong number
+  results, only Peec work. Fix (a short-lived empty marker, and one in-flight capture per key) when the first
+  `[aeo-informed] lock skipped (incomplete answer)` line shows up on staging or production, or before a second client.
+- [ ] **For a client not on locked months, MoM follows the page's default `last_30_days`** (Paul, PR #444).
+  `last_N_days` ends yesterday (`lib/date-range.ts:64-66`), and `aeoWindow` takes the month of that last day
+  (`lib/organic-social/aeo-tab/params.ts`), so on the 2nd MoM is the 1st alone, compared with the one day before. A
+  client on locked months always gets a full month, so Renaissance is not affected. Settle it from the outline before
+  the tab goes on for a client without locked months.

@@ -526,12 +526,12 @@ describe('in the PDF export', () => {
   const DATA = DAYS.map((date, i) => ({ date, v: [3, 9, 4, 7][i] }))
   const exportRender = (ui: ReactElement) => render(<ExportModeProvider>{ui}</ExportModeProvider>)
 
-  test('lines draw complete on first paint, and the panel keeps its dark theme', () => {
+  test('lines draw complete on first paint, with no dark-panel mark (spec 2026-10-13)', () => {
     lineProps.length = 0
     const { container } = exportRender(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} />)
     expect(lineProps.length).toBeGreaterThan(0)
     expect(lineProps.every((p) => p.isAnimationActive === false)).toBe(true)
-    expect(container.querySelector('[data-export-chart]')).not.toBeNull()
+    expect(container.querySelector('[data-export-chart]')).toBeNull()
   })
 
   test("a mark's label is drawn at its point", () => {

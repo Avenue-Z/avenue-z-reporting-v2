@@ -19,6 +19,15 @@ function routesUnderApp(): string[] {
 }
 
 const ROUTES = [
+  // AEO Outbound (Tools > New Business): each checks the session itself, outside the proxy matcher; snapshot/[token] is
+  // the public, no-login link a prospect opens.
+  'api/aeo-outbound/generate',
+  'api/aeo-outbound/progress',
+  'api/aeo-outbound/projects',
+  'api/aeo-outbound/reports',
+  'api/aeo-outbound/reports/[id]/slots',
+  'api/aeo-outbound/reports/[id]/view',
+  'snapshot/[token]',
   'api/auth/[...nextauth]',
   'api/auth/supermetrics-callback',
   'api/cache-warm',

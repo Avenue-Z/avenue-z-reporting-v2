@@ -15,7 +15,7 @@ export interface ExportView {
   pageTitle: string
   /** Organic Social's platform tab channel; null otherwise. */
   channel: DashChannel | null
-  /** Organic Social's Influencer tab ('influencer'), which has no channel; null otherwise. */
+  /** Organic Social's Influencer ('influencer') or AEO Informed Social ('aeo-informed') tab, which have no channel; null otherwise. */
   view: OrganicView
 }
 
@@ -33,7 +33,7 @@ export function resolveExportView(client: ExportViewClient, section: ServerExpor
       subsectionId: entry.id,
       channel: entry.channel,
       view: entry.view ?? null,
-      pageTitle: entry.view === 'influencer' ? entry.label : entry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : entry.label,
+      pageTitle: entry.view != null ? entry.label : entry.channel == null ? (REPORT_NAMES['organic-social'] ?? 'Organic Social') : entry.label,
     }
   }
   if (section === 'peec-ai') {

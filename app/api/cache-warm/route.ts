@@ -25,6 +25,8 @@
 import { NextResponse } from 'next/server'
 import { getAllClients } from '@/lib/db/queries'
 import { warmContext, runWarm } from '@/lib/cache-warm/run'
+import { aeoWarmUrls } from '@/lib/organic-social/aeo-tab/warm'
+import { clockFor } from '@/lib/organic-social/reporting-months'
 
 export const dynamic = 'force-dynamic'
 // Raised from 60s. The Executive Overview render waits out the Salesforce
@@ -67,6 +69,16 @@ export async function GET(req: Request) {
       }
     }
   }
+
+  // The AEO Informed Social tab (spec 2026-11-12 section 4): each opted-in client's three views (Month, YTD, All time, default min) on
+  // the newest month a client viewer is served, after every URL above, so nothing warmed before moves. One clock for the run, as the lock
+  // sweep route uses.
+  // Then each client's next month a client can pick (spec 2026-11-13, at most two months), after EVERY client's served month, so no URL
+  // warmed before this change moves behind a new one.
+  const clock = clockFor(new Date())
+  const aeo = clients.map((client) => aeoWarmUrls(baseUrl, client, clock))
+  for (const w of aeo) urls.push(...w.served)
+  for (const w of aeo) urls.push(...w.extra)
 
   // The lock sweep used to be appended here, which made it what got cut when a run overran
   // (Paul, PR 256). It now has its own route and schedule, /api/lock-sweep at :00, so neither it

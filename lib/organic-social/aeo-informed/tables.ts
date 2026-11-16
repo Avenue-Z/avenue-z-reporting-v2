@@ -1,0 +1,209 @@
+// lib/organic-social/aeo-informed/tables.ts
+// The three tables in the outline, built from per-URL sums. Percentages are fractions 0..1. A delta is null when the URL has no row in the prior window.
+import type { UrlAgg } from './types'
+import { citationPosition } from './urls'
+import { ownerOf, type BrandChannels } from './ownership'
+
+export type SocialsRow = {
+  rank: number
+  url: string
+  title: string | null
+  channelTitle: string | null
+  ownerBrandId: string | null
+  isOwnChannel: boolean
+  urlType: string | null
+  domainType: string
+  ownBrandMentioned: boolean
+  mentionedBrandCount: number
+  mentionedBrandNames: string | null
+  /** The ids behind mentionedBrandNames, joined with "|" in the same order (own brand first, then by name), or null when no name is listed.
+   *  Ids that are not a brand in the project are left out of both. Text, not a list, so the table stays tabular for the data contract;
+   *  Peec brand ids are a prefix and a UUID, so they never hold the separator. */
+  mentionedBrandIds: string | null
+  retrievals: number
+  retrievalsDelta: number | null
+  retrievedPct: number
+  retrievedPctDelta: number | null
+  totalCitations: number
+  totalCitationsDelta: number | null
+  /** Citations over retrievals for the window (team feedback 2026-11-12); null at 0 retrievals. Can exceed 1: a source can be cited
+   *  more than once per retrieval. Peec's per-row citation_rate is the same ratio. */
+  citationRate: number | null
+  /** This window's rate minus the previous window's, as a fraction (0.12 is 12 points); null for a new URL or when either rate is null. */
+  citationRateDelta: number | null
+}
+
+export type GapRow = {
+  rank: number
+  url: string
+  title: string | null
+  channelTitle: string | null
+  urlType: string | null
+  domainType: string
+  mentionedBrandCount: number
+  mentionedBrandNames: string | null
+  mentionedBrandIds: string | null
+  citationShare: number
+  citationPosition: number | null
+  retrievals: number
+  retrievalsDelta: number | null
+  totalCitations: number
+  totalCitationsDelta: number | null
+  citationRate: number | null
+  citationRateDelta: number | null
+}
+
+const URL_TYPES: Record<string, string> = {
+  HOMEPAGE: 'Homepage', CATEGORY_PAGE: 'Category page', PRODUCT_PAGE: 'Product page', LISTICLE: 'Listicle', COMPARISON: 'Comparison',
+  PROFILE: 'Profile', ALTERNATIVE: 'Alternative', DISCUSSION: 'Discussion', HOW_TO_GUIDE: 'How-To Guide', ARTICLE: 'Article', OTHER: 'Other',
+}
+
+/** Display name for a Peec URL classification. A custom classification name passes through. */
+export function urlTypeLabel(c: string | null): string | null {
+  return c === null ? null : URL_TYPES[c] ?? c
+}
+
+/** The mentioned brands that exist in the project, own brand first, then by name: their names and their ids, each joined with "|" in the same order. */
+function mentioned(ids: string[], brands: BrandChannels[]): { names: string | null; ids: string | null } {
+  const byId = new Map(brands.map((b) => [b.id, b]))
+  const named = ids.map((id) => byId.get(id)).filter((b): b is BrandChannels => b !== undefined)
+  named.sort((a, b) => Number(b.isOwn) - Number(a.isOwn) || a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+  return named.length ? { names: named.map((b) => b.name).join('|'), ids: named.map((b) => b.id).join('|') } : { names: null, ids: null }
+}
+
+/** Citations over retrievals, or null when there were no retrievals. */
+export const citationRateOf = (citations: number, retrievals: number): number | null => (retrievals > 0 ? citations / retrievals : null)
+/** Current rate minus the previous window's; null when there is no previous row or either rate is null. */
+const rateDelta = (rate: number | null, prior: UrlAgg | undefined): number | null => {
+  const before = prior ? citationRateOf(prior.citations, prior.retrievals) : null
+  return rate === null || before === null ? null : rate - before
+}
+
+const byRetrievals = <T extends { retrievals: number; url: string }>(a: T, b: T) => b.retrievals - a.retrievals || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0)
+/** Competitor brands mentioned times retrievals. */
+export const gapScore = (u: { brandIds: readonly string[]; retrievals: number }) => u.brandIds.length * u.retrievals
+const byGapScore = <T extends { brandIds: readonly string[]; retrievals: number; url: string; citations: number }>(a: T, b: T) => gapScore(b) - gapScore(a) || byRetrievals(a, b) || b.citations - a.citations
+const delta = (cur: number, prior: UrlAgg | undefined, pick: (u: UrlAgg) => number): number | null => (prior ? cur - pick(prior) : null)
+
+export type SocialsInput = { current: UrlAgg[]; prior: UrlAgg[]; chatsCurrent: number; chatsPrior: number; brands: BrandChannels[]; domainType: string }
+
+/**
+ * Every tagged URL, ranked by retrievals. Split into the own and competitor tables with splitSocials.
+ * Ownership here uses the URL's chosen channel title (the row with the most retrievals). The graphs decide per row, so a URL whose rows carry
+ * different titles (for example null on some days) can be starred here while part of its citations are missing from a graph. Both match Peec's own views.
+ */
+export function buildSocialsRows(i: SocialsInput): SocialsRow[] {
+  const prior = new Map(i.prior.map((u) => [u.url, u]))
+  const ownId = i.brands.find((b) => b.isOwn)?.id ?? null
+  return [...i.current].sort(byRetrievals).map((u, idx) => {
+    const p = prior.get(u.url)
+    const pct = i.chatsCurrent > 0 ? u.retrievals / i.chatsCurrent : 0
+    const priorPct = p && i.chatsPrior > 0 ? p.retrievals / i.chatsPrior : null
+    const owner = ownerOf({ url: u.url, channelTitle: u.channelTitle }, i.brands)
+    const m = mentioned(u.brandIds, i.brands)
+    const rate = citationRateOf(u.citations, u.retrievals)
+    return {
+      rank: idx + 1,
+      url: u.url,
+      title: u.title,
+      channelTitle: u.channelTitle,
+      ownerBrandId: owner,
+      isOwnChannel: owner !== null && owner === ownId,
+      urlType: urlTypeLabel(u.classification),
+      domainType: i.domainType,
+      ownBrandMentioned: ownId !== null && u.brandIds.includes(ownId),
+      mentionedBrandCount: u.brandIds.length,
+      mentionedBrandNames: m.names,
+      mentionedBrandIds: m.ids,
+      retrievals: u.retrievals,
+      retrievalsDelta: delta(u.retrievals, p, (x) => x.retrievals),
+      retrievedPct: pct,
+      retrievedPctDelta: priorPct === null || i.chatsCurrent <= 0 ? null : pct - priorPct,
+      totalCitations: u.citations,
+      totalCitationsDelta: delta(u.citations, p, (x) => x.citations),
+      citationRate: rate,
+      citationRateDelta: rateDelta(rate, p),
+    }
+  })
+}
+
+/** Own table: rows owned by our brand. Competitor table: rows owned by any other brand with a match. Unowned rows are in neither. Each table is ranked from 1. */
+export function splitSocials(rows: SocialsRow[], ownBrandId: string): { own: SocialsRow[]; competitor: SocialsRow[] } {
+  const rerank = (list: SocialsRow[]) => list.map((r, i) => ({ ...r, rank: i + 1 }))
+  return {
+    own: rerank(rows.filter((r) => r.ownerBrandId === ownBrandId)),
+    competitor: rerank(rows.filter((r) => r.ownerBrandId !== null && r.ownerBrandId !== ownBrandId)),
+  }
+}
+
+export type GapInput = { current: UrlAgg[]; prior: UrlAgg[]; brands: BrandChannels[]; domainType: string }
+
+/**
+ * URL Gaps. The caller pulls the whole window with the gap filter, so every row is a source where our brand is not mentioned. Citation share is over every row of the pull.
+ * Rows are ordered by competitor brands mentioned times retrievals, highest first (ties: retrievals, then URL). That is the order the outline's screenshot is in: on a live
+ * September pull its five visible rows come out as ranks 1 to 5 under this score and no other sort tried (retrievals, citations, share, position, mentions) gives it.
+ * It is a fit to those five rows, not something Peec documents, so it is listed in UNVERIFIED.
+ */
+export function buildGapRows(i: GapInput): GapRow[] {
+  // Peec returns a URL as more than one row when different competitors cite it, and the outline's table lists each row, so a row here is a Peec row, never a merged URL.
+  // A row is compared with the previous-window row for the same URL and the same competitors; a URL that is one row on both sides is compared whatever its competitors were;
+  // anything else (several rows and no exact partner) has no honest partner and its change is empty.
+  const keyOf = (u: UrlAgg) => u.url + '|' + [...u.brandIds].sort().join(',')
+  const group = <K,>(rows: UrlAgg[], k: (u: UrlAgg) => K) => rows.reduce((m, u) => m.set(k(u), [...(m.get(k(u)) ?? []), u]), new Map<K, UrlAgg[]>())
+  const priorByKey = group(i.prior, keyOf), priorByUrl = group(i.prior, (u) => u.url), currentByUrl = group(i.current, (u) => u.url)
+  const partner = (u: UrlAgg): UrlAgg | undefined => {
+    const same = priorByKey.get(keyOf(u))
+    if (same && same.length === 1) return same[0]
+    const urlRows = priorByUrl.get(u.url)
+    return currentByUrl.get(u.url)!.length === 1 && urlRows && urlRows.length === 1 ? urlRows[0] : undefined
+  }
+  const total = i.current.reduce((s, u) => s + u.citations, 0)
+  return [...i.current].sort(byGapScore).map((u, idx) => {
+    const p = partner(u)
+    const m = mentioned(u.brandIds, i.brands)
+    const rate = citationRateOf(u.citations, u.retrievals)
+    return {
+      rank: idx + 1,
+      url: u.url,
+      title: u.title,
+      channelTitle: u.channelTitle,
+      urlType: urlTypeLabel(u.classification),
+      domainType: i.domainType,
+      mentionedBrandCount: u.brandIds.length,
+      mentionedBrandNames: m.names,
+      mentionedBrandIds: m.ids,
+      citationShare: total > 0 ? u.citations / total : 0,
+      citationPosition: citationPosition(u),
+      retrievals: u.retrievals,
+      retrievalsDelta: delta(u.retrievals, p, (x) => x.retrievals),
+      totalCitations: u.citations,
+      totalCitationsDelta: delta(u.citations, p, (x) => x.citations),
+      citationRate: rate,
+      citationRateDelta: rateDelta(rate, p),
+    }
+  })
+}
+
+/** One window's totals for the tiles before the tables (team feedback 2026-11-12: "similar to the OS data"). */
+export type TotalsWindow = { urlsCited: number; retrievals: number; citations: number; citationRate: number | null }
+/** The totals over the client's own channels (the own table), and the same over the previous window, or null when that window has no chats. */
+export type AeoTotals = TotalsWindow & { prior: TotalsWindow | null }
+
+function sumWindow(rows: readonly { retrievals: number; citations: number }[]): TotalsWindow {
+  const retrievals = rows.reduce((s, x) => s + x.retrievals, 0)
+  const citations = rows.reduce((s, x) => s + x.citations, 0)
+  return { urlsCited: rows.filter((x) => x.citations > 0).length, retrievals, citations, citationRate: citationRateOf(citations, retrievals) }
+}
+
+/**
+ * Total URLs cited (rows with at least one citation), total retrievals, total citations, and the average citation rate, which is total citations over
+ * total retrievals: weighted, so a URL retrieved once cannot swing it. `current` is the own table for the window. `prior` is the previous window's
+ * per-URL sums, already narrowed to the own channels by the same ownership rule, including a URL that has no row this window; null means there is
+ * nothing to compare with.
+ */
+export function buildTotals(current: readonly SocialsRow[], prior: readonly UrlAgg[] | null): AeoTotals {
+  return {
+    ...sumWindow(current.map((x) => ({ retrievals: x.retrievals, citations: x.totalCitations }))),
+    prior: prior === null ? null : sumWindow(prior),
+  }
+}

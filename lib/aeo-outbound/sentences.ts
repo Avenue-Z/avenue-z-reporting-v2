@@ -1,0 +1,502 @@
+// The data sentences in Ryan's example format (spec v1.1 §19.1): the competitive context, both findings boxes and the
+// methodology, and since round 3 the pillar data lines, written by code from a row's data so every number is Peec's.
+// Glean writes only the opinion (§19.2).
+import { sliceLabel } from './charts'
+import { PILLARS } from './config'
+import { pyRound, settingsUsedOf, tenths, type Citations, type SnapshotData } from './metrics'
+import type { Bullet, Opportunity } from './slots'
+
+export interface DataSentences { context: string; competitive_bullets: Bullet[]; sources_bullets: Bullet[]; methodology: string; opportunities: Opportunity[] }
+
+/** The slot paths these sentences fill (spec v1.1 §19.1), shared by generation and grounding. */
+export const isCodeSentencePath = (path: string): boolean => /^(?:context|methodology|(?:competitive|sources)_bullets\.\d\.(?:lead|text))$/.test(path)
+
+/** A displayed 1-decimal percent in a sentence: whole from 10 up (Ryan's "26%"), one decimal below 10 so a 1.3 and a
+ *  1.1 never both read "1%", and never rounded up to 100. Half up, from the value the page shows. */
+export function pctText(x: number): string {
+  if (x < 10) return `${x.toFixed(1)}%`
+  const whole = Math.round(x)
+  return whole === 100 && x < 100 ? `${x.toFixed(1)}%` : `${whole}%`
+}
+
+/** A count: digits under 1,000, then thousands or millions to one decimal, rounded half up in integer steps. */
+export function countText(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 999_950) return `${(Math.round(n / 100) / 10).toFixed(1)}K`
+  return `${(Math.round(n / 100_000) / 10).toFixed(1)}M`
+}
+
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth']
+export function ordinal(n: number): string {
+  if (n >= 1 && n <= 20) return ORDINALS[n - 1]
+  const teen = n % 100 >= 11 && n % 100 <= 13
+  const suffix = teen ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+  return `${n}${suffix}`
+}
+
+const WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+/** A brand count: a word up to ten, digits above. */
+const countWord = (n: number): string => (n >= 1 && n <= 10 ? WORDS[n - 1] : String(n))
+
+/** "A", "A and B", "A, B, and C" (Ryan's serial comma). */
+export function listText(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  if (items.length === 2) return `${items[0]} and ${items[1]}`
+  return `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`
+}
+
+/** A domain that starts a sentence: no leading "www.", a capital first letter, as Ryan wrote "Ualett.com". */
+const capital = (s: string): string => { const d = s.replace(/^www\./i, ''); return d.charAt(0).toUpperCase() + d.slice(1) }
+const points = (x: number): string => Math.abs(x).toFixed(1)
+const MAX_NAMED = 5
+/** Editorial and UGC each under this share (percent, as displayed) read as "limited" (Ryan's example: 6% and 3%). */
+const LIMITED_SHARE_PCT = 10
+/** A peer cluster wider than this many visibility points is not a cluster, so the bullet is left out (round 3 QA, spec
+ *  2026-10-22 F2: staging read "a 96.4-point visibility range"). Ryan's PocketGuard example is 7.8. */
+const PEER_CLUSTER_MAX_POINTS = 10
+
+/** At most five names, then "and k more" (k as a count word). */
+const someNames = (names: string[]): string => listText(names.length > MAX_NAMED ? [...names.slice(0, MAX_NAMED), `${countWord(names.length - MAX_NAMED)} more`] : names)
+
+/** The percents one sentence names: a value keeps one decimal when another value in the sentence differs from it but
+ *  would read the same as a whole number, so values ranked apart never read as equal (spec v1.1 §19.11). */
+function pctAll(values: number[]): string[] {
+  const text = values.map(pctText)
+  return values.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && values[j] !== v) ? `${v.toFixed(1)}%` : text[i]))
+}
+
+/** A source share, as pctAll prints it, except that a whole number rounds the exact share (weight over total), as Peec's
+ *  dashboard and the donut (charts.ts sliceLabel) do, not the stored one-decimal pct (spec amendment 2026-10-20). The
+ *  choice of decimal or whole, and every decimal printed, stay on the stored pct, so Ryan's format is unchanged. */
+function sharePctAll(items: { pct: number; exact: number }[]): string[] {
+  const one = ({ pct, exact }: { pct: number; exact: number }) => {
+    if (pct < 10) return `${pct.toFixed(1)}%`
+    const whole = Math.round(exact)
+    return whole === 100 && pct < 100 ? `${pct.toFixed(1)}%` : `${whole}%`
+  }
+  const text = items.map(one)
+  return items.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && items[j].pct !== v.pct) ? `${v.pct.toFixed(1)}%` : text[i]))
+}
+
+/** Spec 2026-10-22 D5: source shares in the source-type mix sentence. The stored one-decimal pct decides: below 1.0 one
+ *  decimal, else whole, rounding the exact share as the donut does; a whole 100 under 100 keeps one decimal; two values
+ *  that differ never read the same. */
+function mixPctAll(items: { pct: number; exact: number }[]): string[] {
+  const one = ({ pct, exact }: { pct: number; exact: number }) => {
+    if (pct < 1) return `${pct.toFixed(1)}%`
+    const whole = Math.round(exact)
+    return whole === 100 && pct < 100 ? `${pct.toFixed(1)}%` : `${whole}%`
+  }
+  const text = items.map(one)
+  return items.map((v, i) => (text.some((t, j) => j !== i && t === text[i] && items[j].pct !== v.pct) ? `${v.pct.toFixed(1)}%` : text[i]))
+}
+
+/** Spec 2026-10-22 D6: an own domain in a sentence. Without www.; when the brand is one word starting with a capital and the
+ *  domain's first label is that word, the label takes the brand's casing ("PocketGuard.com"); otherwise today's capital. */
+export function ownDomainText(domain: string, brand: string): string {
+  const d = domain.replace(/^www\./i, '')
+  const first = d.split('.')[0]
+  if (/^[A-Z]\S*$/.test(brand) && first.toLowerCase() === brand.toLowerCase()) return brand + d.slice(first.length)
+  return capital(d)
+}
+
+const upper = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
+/** An exact count with thousands separators, as Ryan's citation count reads (spec 2026-10-22 S2). */
+const count = (n: number): string => n.toLocaleString('en-US')
+/** A share as the donut labels its slice (charts.ts sliceLabel), with "<1%" and ">99%" in words. */
+const sliceWords = (pct: number): string => { const l = sliceLabel(pct); return l === '<1%' ? 'under 1%' : l === '>99%' ? 'over 99%' : l }
+/** "an" before a number said with a vowel sound (8, 11, 18, 80 to 89, 8.7), else "a" (any-client sweep, 2026-10-22). */
+const article = (num: string): string => (/^(?:8|1[18](?:\.|$))/.test(num) ? 'an' : 'a')
+/** A sentence that ends on a name ending in a period gets no second one ("Lost Hat Co.", any-client sweep, 2026-10-22). */
+const tidy = (s: string): string => s.replace(/([^.])\.\.(?=\s|$)/g, '$1.')
+const tidyBullets = (bs: Bullet[]): Bullet[] => bs.map((b) => ({ ...b, text: tidy(b.text) }))
+
+function write(d: SnapshotData) {
+  const brand = d.brand
+  const own = d.own
+  const N = d.rankN
+  const noun = settingsUsedOf(d).rankAmong !== null ? 'compared' : 'tracked'
+  const solo = d.competitorsTracked === 0
+  const others = d.brands.filter((b) => !b.isOwn)
+  const noData = d.noDataBrands ?? []
+  const allZero = d.brands.every((b) => b.visibilityPct === 0)
+  const ownZero = own.visibilityPct === 0
+  const top = d.brands[0]
+  const topGroup = top ? d.brands.filter((b) => b.visibilityPct === top.visibilityPct) : []
+  const level = others.filter((b) => b.visibilityPct === own.visibilityPct)
+  // The runner-up group: every brand at the highest visibility below the top. At zero the brand itself is never named.
+  const runnerPct = Math.max(-1, ...d.brands.filter((b) => top && b.visibilityPct < top.visibilityPct && !(ownZero && b.isOwn)).map((b) => b.visibilityPct))
+  const runners = runnerPct < 0 ? [] : d.brands.filter((b) => b.visibilityPct === runnerPct && !(ownZero && b.isOwn))
+  // No-data brands rank at zero visibility, so they sit below the brand only when it is above zero.
+  const below = [...others.filter((b) => b.visibilityPct < own.visibilityPct).map((b) => b.name), ...(ownZero ? [] : noData)]
+
+  function leaders(): string {
+    if (topGroup.length >= 3) return `${someNames(topGroup.map((b) => b.name))} lead at ${pctText(top.visibilityPct)} visibility.`
+    if (topGroup.length === 2) {
+      const [a, b] = topGroup
+      const [sa, sb] = a.sovPct !== null && b.sovPct !== null ? pctAll([a.sovPct, b.sovPct]) : ['', '']
+      return `${a.name} and ${b.name} lead at ${pctText(top.visibilityPct)} visibility${sa ? `, with ${sa} and ${sb} share of voice` : ''}.`
+    }
+    if (runners.length >= 2) {
+      const [vt, vr] = pctAll([top.visibilityPct, runnerPct])
+      return `${top.name} leads at ${vt} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}, followed by ${someNames(runners.map((b) => b.name))} at ${vr}.`
+    }
+    const next = runners[0]
+    if (!next) return `${top.name} leads at ${pctText(top.visibilityPct)} visibility${top.sovPct === null ? '' : ` / ${pctText(top.sovPct)} share of voice`}.`
+    const [vt, vn] = pctAll([top.visibilityPct, next.visibilityPct])
+    const [st, sn] = top.sovPct !== null && next.sovPct !== null ? pctAll([top.sovPct, next.sovPct]) : [top.sovPct === null ? '' : pctText(top.sovPct), next.sovPct === null ? '' : pctText(next.sovPct)]
+    // With no share of voice for the leader, the runner-up's is labelled, so its second number says what it is.
+    const nextSov = next.sovPct === null ? '' : top.sovPct === null ? ` / ${sn} share of voice` : ` / ${sn}`
+    return `${top.name} leads at ${vt} visibility${st ? ` / ${st} share of voice` : ''}, followed by ${next.name} at ${vn}${nextSov}.`
+  }
+
+  function context(): string {
+    if (solo) return 'No competitors are tracked in this project.'
+    if (allZero) return 'Competitive context: No brand tracked shows visibility in this window.'
+    if (ownZero) return `Competitive context: ${leaders()} ${brand} has ${pctText(0)} visibility in this window.`
+    if (others.length === 0) {
+      const k = noData.length
+      return `Competitive context: ${brand} leads at ${pctText(own.visibilityPct)} visibility; ${k === 1 ? `the other brand ${noun} has` : `the other ${countWord(k)} brands ${noun} have`} no data in this window.`
+    }
+    const ownLeads = topGroup.some((b) => b.isOwn)
+    // When the brand leads alone, its runner-up is already named: the rest follow with "also".
+    const named = ownLeads && topGroup.length === 1 ? new Set(runners.map((b) => b.name)) : new Set<string>()
+    const rest = below.filter((n) => !named.has(n))
+    let tail: string
+    if (!ownLeads && level.length) tail = `${brand} is level with ${someNames(level.map((b) => b.name))}${below.length ? ` and ranks ahead of ${someNames(below)}` : ''}.`
+    else if (rest.length) tail = `${brand} ${named.size ? 'also ' : ''}ranks ahead of ${someNames(rest)}.`
+    else tail = ownLeads ? '' : `${brand} ranks last of the ${countWord(N)} brands ${noun}.`
+    return `Competitive context: ${leaders()}${tail ? ` ${tail}` : ''}`
+  }
+
+  function firstBox(): Bullet[] {
+    const out: Bullet[] = []
+    if (solo) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers.` })
+    else if (ownZero) out.push({ lead: 'Category position:', text: `${brand} shows ${pctText(0)} visibility among the ${countWord(N)} brands ${noun}.` })
+    else {
+      const strong = own.rank <= 3 && own.rank <= Math.ceil(N / 2) && own.visibilityPct * 2 >= top.visibilityPct
+      const sov = own.sovPct === null ? '' : ` and ${pctText(own.sovPct)} share of voice`
+      out.push({ lead: strong ? 'Strong category position:' : 'Category position:', text: `${brand} ranks ${ordinal(own.rank)} among the ${countWord(N)} brands ${noun}, with ${pctText(own.visibilityPct)} visibility${sov}.` })
+    }
+    const site = d.ownSites?.[0]
+    if (!site || site.retrievedChats <= 0) {
+      out.push({ lead: 'Own-site retrievals:', text: `${brand}'s own site was not retrieved in this window.` })
+      return out
+    }
+    const count = `${site.retrievedChats >= 1000 ? 'approximately ' : ''}${countText(site.retrievedChats)}`
+    const inTop = d.ownSiteRank !== null && d.ownSiteRank !== undefined && d.ownSiteRank <= 10
+    out.push(inTop
+      ? { lead: 'Present in the source ecosystem:', text: `${capital(site.domain)} appears among the top domains at ${count} retrievals.` }
+      : { lead: 'Own-site retrievals:', text: `${capital(site.domain)} appears in ${count} retrievals.` })
+    if (site.retrievedPct !== null) {
+      // One site's figure is never given to the whole brand (v1.1 §9): the brand only when it has exactly one own site.
+      const subject = d.ownSites!.length === 1 ? brand : capital(site.domain)
+      out.push({ lead: 'Source-use signal:', text: `${subject} is used as a source in ${pctText(site.retrievedPct)} of tracked answers.` })
+    }
+    return out
+  }
+
+  /** The share-of-voice part of a gap clause. `gap` points the same way as the visibility gap when positive (the rival
+   *  minus the brand when the brand trails, the brand minus #2 when it leads); zero matches; negative is the other way. */
+  const sovClause = (gap: number | null, behind: boolean): string => {
+    if (gap === null) return ''
+    if (gap === 0) return ' and matches it in share of voice'
+    if (gap > 0) return ` and ${points(gap)} points in share of voice`
+    return ` and ${behind ? 'leads' : 'trails'} it by ${points(gap)} points in share of voice`
+  }
+
+  function leadership(): Bullet | null {
+    if (solo) return null
+    if (allZero) return { lead: 'Leadership gap:', text: 'No brand tracked shows visibility in this window.' }
+    const gaps = d.leaderGaps
+    if (gaps.length) {
+      const [g1, g2] = gaps
+      let text = `${brand} trails ${g1.name} by ${points(g1.visibilityPoints)} percentage points in visibility${sovClause(g1.sovPoints, true)}`
+      if (g2) {
+        const respectively = g1.sovPoints !== null && g1.sovPoints > 0 && g2.sovPoints !== null && g2.sovPoints > 0
+        text += respectively
+          ? `; it trails ${g2.name} by ${points(g2.visibilityPoints)} and ${points(g2.sovPoints!)} points, respectively`
+          : `; it trails ${g2.name} by ${points(g2.visibilityPoints)} points in visibility${sovClause(g2.sovPoints, true)}`
+      }
+      return { lead: 'Leadership gap:', text: `${text}.` }
+    }
+    if (level.length) return { lead: 'Leadership position:', text: `${brand} is level with ${someNames(level.map((b) => b.name))} at the top of the ${countWord(N)} brands ${noun}.` }
+    const second = d.brands.find((b) => !b.isOwn)
+    if (!second) return { lead: 'Leadership position:', text: `${brand} ranks first of the ${countWord(N)} brands ${noun}.` }
+    const sov = own.sovPct !== null && second.sovPct !== null ? tenths(own.sovPct, second.sovPct) : null
+    return { lead: 'Leadership position:', text: `${brand} leads ${second.name} by ${points(tenths(own.visibilityPct, second.visibilityPct))} percentage points in visibility${sovClause(sov, false)}.` }
+  }
+
+  function gapsBullet(): Bullet | null {
+    if (!d.gapDomains.length) return null
+    const items = d.gapDomains.map((g, i) => `${g.domain} at ${countText(g.retrievedChats)}${i === 0 ? (g.retrievedChats === 1 ? ' retrieval' : ' retrievals') : ''}`)
+    return { lead: 'Competitor domain gaps:', text: `The largest gaps include ${listText(items)}.` }
+  }
+
+  function secondBox(): Bullet[] {
+    const out: Bullet[] = []
+    const lead = leadership()
+    if (lead) out.push(lead)
+    const gaps = gapsBullet()
+    if (gaps) out.push(gaps)
+    const mix = d.sourceMix
+    if (!mix.length) out.push({ lead: 'Source mix:', text: 'No source types were reported for this window.' })
+    else if (mix.length === 1) out.push({ lead: 'Source mix:', text: `The domain mix is all ${label(mix[0].label)} sources.` })
+    // Every other type rounds to 0.0%, so none of them is a leading type (final review M6).
+    else if (mix[1].pct === 0) out.push({ lead: 'Source mix:', text: `The domain mix is almost entirely ${label(mix[0].label)} sources.` })
+    else {
+      const [t1, t2] = mix
+      const named = new Set([t1.label, t2.label])
+      const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l)).map((l) => [l, mix.find((m) => m.label === l)?.pct ?? 0] as const)
+      // Every percent in this one sentence is read together, so no two values ranked apart read the same. Whole numbers
+      // round the exact share, as the donut does (spec amendment 2026-10-20).
+      const total = mix.reduce((s, m) => s + m.weight, 0)
+      const share = (l: string) => { const m = mix.find((x) => x.label === l); return { pct: m?.pct ?? 0, exact: m && total ? (m.weight / total) * 100 : 0 } }
+      const [p1, p2, ...pe] = sharePctAll([share(t1.label), share(t2.label), ...extras.map(([l]) => share(l))])
+      const tail = extras.length === 2
+        ? `; ${extras[0][0]} represents ${pe[0]} and ${extras[1][0]} ${pe[1]}`
+        : extras.length === 1 ? `; ${extras[0][0]} represents ${pe[0]}` : ''
+      // "Limited" only when Editorial and UGC are both outside the top two and each under 10%, as in Ryan's example (6% and
+      // 3%); otherwise the heading would state something the numbers don't (Paul, #388 review).
+      const limited = extras.length === 2 && extras.every(([, v]) => v < LIMITED_SHARE_PCT)
+      out.push({
+        lead: limited ? 'Limited editorial and UGC presence:' : 'Source mix:',
+        text: `The domain mix is led by ${label(t1.label)} sources at ${p1} and ${label(t2.label)} sources at ${p2}${tail}.`,
+      })
+    }
+    return out
+  }
+
+  // Spec 2026-11-02 S1, S2: the Cited Sources box on a row with citations: the brand's citations against every citation
+  // with the top own site's rank, then the answers that cite the brand against every answer, then the mix. A row stored
+  // without citations (version 3 or older) keeps the version 3 box (S5).
+  function citedSourcesBox(): Bullet[] {
+    const c = d.citations
+    if (!c) return citedSourcesBoxV3()
+    const out: Bullet[] = [{ lead: 'Citation volume:', text: citationVolume(c) }]
+    // Left out when the report by answer failed; the notes say why.
+    if (c.citedAnswers !== null && c.answers > 0) {
+      const tracked = `${count(c.answers)} tracked ${c.answers === 1 ? 'answer' : 'answers'}`
+      const exact = (c.citedAnswers / c.answers) * 100
+      // pctText would print "0.0%" for a count above zero (1 of 2,295 on one measured project, spec review r1-4).
+      out.push({ lead: 'Citation rate:', text: c.citedAnswers === 0 ? `${brand} isn't cited in any of the ${tracked}.` : `${brand} is cited in ${count(c.citedAnswers)} of ${tracked} (${exact < 0.05 ? 'under 0.1%' : pctText(exact)}).` })
+    }
+    out.push(sourceTypeMix())
+    return out
+  }
+  function citationVolume(c: Citations): string {
+    if (c.total === 0) return 'No citations in AI answers were recorded this window.'
+    const all = `${count(c.total)} ${c.total === 1 ? 'citation' : 'citations'} in AI answers`
+    if (!c.topSite) {
+      const sites = d.ownSites ?? []
+      const subject = sites.length === 1 ? ownDomainText(sites[0].domain, brand) : `${brand}'s own ${sites.length > 1 ? 'sites' : 'site'}`
+      return `${subject} earned none of the ${all} this window.`
+    }
+    // The share reads exactly as the donut's "You" slice (charts.ts sliceLabel), in words at the edges.
+    const share = sliceWords((c.own / c.total) * 100)
+    const { rank, tied } = c.topSite
+    const N = count(c.citedSites)
+    const place = c.citedSites === 1 ? 'the only cited site' : rank === 1 ? (tied ? `tied for most cited of ${N} sites` : `the most-cited site of ${N}`) : `the ${ordinal(rank)} most-cited site of ${N}`
+    const top = ownDomainText(c.topSite.domain, brand)
+    // Several cited own sites: the citations are summed, but the rank stays the top site's own, as Peec ranks domains
+    // (spec review r1-5: a pooled rank overstated it).
+    // "alone" says the top site on its own, not pooled. It is dropped when another site is level with it at rank 1 (tied)
+    // or another own site is level with it at any rank (ownLevel), where it would be false (Paul, #431 review).
+    return c.ownSitesCited > 1
+      ? `${brand}'s own sites together earned ${count(c.own)} of the ${all} (${share}); ${top} ${tied || c.topSite.ownLevel ? 'is' : 'alone is'} ${place}.`
+      : `${top} earned ${count(c.own)} of the ${all} (${share}), ${place}.`
+  }
+
+  // Spec 2026-10-22 B1: the Cited Sources box, in Ryan's order. Frozen as version 3 printed it (spec 2026-11-02 S5): rows
+  // stored without citations print it, and OLDER_BOXES[3] allows its numbers.
+  function citedSourcesBoxV3(): Bullet[] {
+    const out: Bullet[] = []
+    const site = d.ownSites?.[0]
+    if (!site || site.retrievedChats <= 0) {
+      out.push({ lead: 'Citation volume:', text: `${brand}'s own site does not appear in any retrieved citations in this window.` })
+    } else {
+      const domain = ownDomainText(site.domain, brand)
+      const n = site.retrievedChats
+      // Ryan's "[Brand domain] appears in [X] retrieved citations.": the exact count (blind scorecard, spec 2026-10-22 S2).
+      out.push({ lead: 'Citation volume:', text: `${domain} appears in ${n.toLocaleString('en-US')} retrieved ${n === 1 ? 'citation' : 'citations'}.` })
+      // A rate that rounds to 0.0 after a count above zero reads "under 0.1%" (Paul, #417 review).
+      const rate = site.retrievedPct === 0 ? 'under 0.1%' : site.retrievedPct === null ? null : pctText(site.retrievedPct)
+      if (rate !== null) out.push({ lead: 'Citation rate:', text: `${d.ownSites!.length === 1 ? brand : domain} is cited in ${rate} of tracked answers.` })
+    }
+    out.push(sourceTypeMix())
+    return out
+  }
+
+  function sourceTypeMix(): Bullet {
+    const lead = 'Source-type mix:'
+    const mix = d.sourceMix
+    if (!mix.length) return { lead, text: 'No source types were reported for this window.' }
+    if (mix.length === 1) return { lead, text: `All citations come from ${label(mix[0].label)} sources.` }
+    if (mix[1].pct === 0) return { lead, text: `Almost all citations come from ${label(mix[0].label)} sources.` }
+    const [t1, t2] = mix
+    const named = new Set([t1.label, t2.label])
+    // An Editorial or UGC type Peec does not report gets no clause, so the sentence never says "accounts for 0.0%"
+    // (adversarial review of #420, M3); one stored as 0.0 reads "under 0.1%", as the citation rate does.
+    const extras = ['Editorial', 'UGC'].filter((l) => !named.has(l) && mix.some((m) => m.label === l))
+    const total = mix.reduce((s, m) => s + m.weight, 0)
+    const share = (l: string) => { const m = mix.find((x) => x.label === l); return { pct: m?.pct ?? 0, exact: m && total ? (m.weight / total) * 100 : 0 } }
+    const [p1, p2, ...pe0] = mixPctAll([share(t1.label), share(t2.label), ...extras.map(share)])
+    const pe = pe0.map((t, i) => (share(extras[i]).pct === 0 ? 'under 0.1%' : t))
+    const tail = extras.length === 2 ? `; ${extras[0]} accounts for ${pe[0]} and ${extras[1]} for ${pe[1]}` : extras.length === 1 ? `; ${extras[0]} accounts for ${pe[0]}` : ''
+    return { lead, text: `${upper(label(t1.label))} sources account for ${p1} of citations, followed by ${label(t2.label)} sources at ${p2}${tail}.` }
+  }
+
+  // Spec 2026-10-22 B2: the Competitive Visibility box, in Ryan's order, then the gaps (D1).
+  function competitiveBox(): Bullet[] {
+    const out: Bullet[] = []
+    if (solo) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers.` })
+    else if (!others.length) out.push({ lead: 'AI visibility:', text: `${brand} appears in ${pctText(own.visibilityPct)} of tracked answers; no other brand tracked has data in this window.` })
+    else {
+      out.push(nextTier())
+      if (!allZero) {
+        const t = topTier()
+        if (t) out.push(t)
+        const p = peerCluster()
+        if (p) out.push(p)
+      }
+    }
+    const gaps = gapsBullet()
+    if (gaps) out.push(gaps)
+    return out
+  }
+
+  function nextTier(): Bullet {
+    const lead = 'Next-tier gap:'
+    if (allZero) return { lead, text: 'No brand tracked shows visibility in this window.' }
+    const above = others.filter((b) => b.visibilityPct > own.visibilityPct)
+    if (above.length) {
+      const next = Math.min(...above.map((b) => b.visibilityPct))
+      return { lead, text: `${brand} is ${points(tenths(next, own.visibilityPct))} percentage points behind ${someNames(above.filter((b) => b.visibilityPct === next).map((b) => b.name))} in visibility.` }
+    }
+    if (level.length) return { lead, text: `${brand} is level with ${someNames(level.map((b) => b.name))} at the top in visibility.` }
+    const next = Math.max(...others.map((b) => b.visibilityPct))
+    return { lead, text: `${brand} is ${points(tenths(own.visibilityPct, next))} percentage points ahead of ${someNames(others.filter((b) => b.visibilityPct === next).map((b) => b.name))} in visibility.` }
+  }
+
+  function topTier(): Bullet | null {
+    // Ryan's "the average visibility of the top [N] brands": the first three of the ranking, the prospect included when it
+    // ranks there (blind scorecard, spec 2026-10-22 S4; this reverses bullets spec D3, competitors only).
+    // At least three brands with data, so the average is never just the prospect and one rival.
+    if (d.brands.length < 3) return null
+    const top3 = d.brands.slice(0, 3)
+    // In whole tenths, half up, so the average and the distance are exact on the printed one-decimal values (spec D3).
+    const avg = Math.round(top3.reduce((s, b) => s + Math.round(b.visibilityPct * 10), 0) / top3.length) / 10
+    const x = tenths(avg, own.visibilityPct)
+    const set = `top-${countWord(top3.length)} average visibility of ${avg.toFixed(1)}%`
+    if (x === 0) return { lead: 'Top-tier distance:', text: `${brand} matches the ${set}.` }
+    return { lead: 'Top-tier distance:', text: `${brand} is ${points(x)} percentage points ${x > 0 ? 'below' : 'above'} the ${set}.` }
+  }
+
+  function peerCluster(): Bullet | null {
+    if (others.length < 2) return null
+    const i = d.brands.findIndex((b) => b.isOwn)
+    // The two of the (up to) two brands above and two below that are closest in visibility; ties go to the higher-ranked,
+    // and they are named in rank order (blind scorecard, spec 2026-10-22 S3: A Place for Mom's nearest peers are both below).
+    const candidates = [...d.brands.slice(Math.max(0, i - 2), i), ...d.brands.slice(i + 1, i + 3)]
+    // Distances in whole tenths, the precision the page prints, so equal distances tie whatever floating point says.
+    const gap = (b: { visibilityPct: number }) => Math.abs(Math.round(b.visibilityPct * 10) - Math.round(own.visibilityPct * 10))
+    const near = [...candidates].sort((a, b) => gap(a) - gap(b) || d.brands.indexOf(a) - d.brands.indexOf(b)).slice(0, 2)
+    const peers = near.sort((a, b) => d.brands.indexOf(a) - d.brands.indexOf(b))
+    const values = [own.visibilityPct, ...peers.map((b) => b.visibilityPct)]
+    const x = tenths(Math.max(...values), Math.min(...values))
+    if (x > PEER_CLUSTER_MAX_POINTS) return null
+    const [p1, p2] = peers
+    if (x === 0) return { lead: 'Peer cluster:', text: `${brand} sits at the same visibility as ${p1.name} and ${p2.name}.` }
+    return { lead: 'Peer cluster:', text: `${brand} sits within ${article(points(x))} ${points(x)}-point visibility range alongside ${p1.name} and ${p2.name}.` }
+  }
+
+  function methodology(): string {
+    const used = settingsUsedOf(d).methodologyStatesPromptsAndModels
+    const parts = [
+      used && d.promptCount !== null ? `${d.promptCount.toLocaleString('en-US')} ${d.promptCount === 1 ? 'prompt' : 'prompts'} tracked` : null,
+      used && d.models.length ? `answers from ${listText(d.models)}` : null,
+    ].filter((p): p is string => p !== null)
+    const end = 'Results are directional and intended to identify areas for deeper analysis.'
+    const set = solo ? 'the brand alone' : `${countWord(N)} brands compared`
+    if (parts.length) return `Snapshot based on AI visibility data for ${d.windowLabel}: ${listText([set, ...parts])}. ${end}`
+    return `Snapshot based on AI visibility data for ${d.windowLabel}, ${solo ? 'for the brand alone' : `comparing ${countWord(N)} brands`}. ${end}`
+  }
+
+  /** Round 3 (Ryan, 2026-10-21; pillars spec P3): one data line per pillar from the source shares. */
+  function pillars(): Opportunity[] {
+    const none = 'No source types were reported for this window.'
+    const lines = d.sourceMix.length ? pillarLines() : [none, none, none]
+    return PILLARS.map((p, i) => ({ workstream: p.name, opportunity: p.description, signal: lines[i] }))
+  }
+  function pillarLines(): string[] {
+    const mix = d.sourceMix
+    const total = mix.reduce((s, m) => s + m.weight, 0)
+    // The brand's own site counts once, in the Content line: an own row Peec files as Editorial or Competitor comes out
+    // of that line (Paul, #415 review). A slice left with nothing reads as absent.
+    const outside = (label: string) => {
+      const m = mix.find((x) => x.label === label)
+      const weight = (m?.weight ?? 0) - (d.ownMixByType?.[label] ?? 0)
+      return m && weight > 0 ? { weight, pct: total ? pyRound((weight / total) * 100, 1) : 0 } : undefined
+    }
+    const editorial = outside('Editorial')
+    const competitor = outside('Competitor')
+    const ownWeight = d.ownMixWeight ?? 0
+    const own = ownWeight > 0 ? { weight: ownWeight, pct: total ? pyRound((ownWeight / total) * 100, 1) : 0 } : undefined
+    // Round 3 QA (spec 2026-10-22 F3): each share reads exactly as the donut labels a slice (charts.ts sliceLabel), in
+    // words at the edges ("<1%" is "under 1%"), so a pillar never reads differently from its slice. The three are
+    // separate facts, not a ranking, so two may read alike; this replaced the single rounding pass of pillars spec §9 m1.
+    const share = (x: { weight: number; pct: number }) => {
+      const l = sliceLabel(total ? (x.weight / total) * 100 : 0)
+      return l === '<1%' ? 'under 1%' : l === '>99%' ? 'over 99%' : l
+    }
+    // "Citations", Ryan's word for the same shares (bullets spec 2026-10-22 D2).
+    const tail = 'of citations in this window.'
+    const missing = 'among citations in this window.'
+    const plural = new Set(d.ownDomains.filter(Boolean)).size > 1
+    const ownSubject = `${brand}'s own ${plural ? 'sites' : 'site'}`
+    return [
+      editorial ? `Editorial sites make up ${share(editorial)} ${tail}` : `Editorial sites don't appear ${missing}`,
+      own ? `${ownSubject} ${plural ? 'make' : 'makes'} up ${share(own)} ${tail}` : `${ownSubject} ${plural ? "don't" : "doesn't"} appear ${missing}`,
+      competitor ? `Competitors' own websites make up ${share(competitor)} ${tail}` : solo ? 'No competitors are tracked in this project.' : `Competitors' own websites don't appear ${missing}`,
+    ]
+  }
+
+  return {
+    context: tidy(context()),
+    methodology: tidy(methodology()),
+    current: { competitive_bullets: tidyBullets(citedSourcesBox()), sources_bullets: tidyBullets(competitiveBox()) },
+    v2: { competitive_bullets: tidyBullets(firstBox()), sources_bullets: tidyBullets(secondBox()) },
+    v3: { competitive_bullets: tidyBullets(citedSourcesBoxV3()), sources_bullets: tidyBullets(competitiveBox()) },
+    opportunities: pillars().map((o) => ({ ...o, signal: tidy(o.signal) })),
+  }
+}
+
+export function dataSentences(d: SnapshotData): DataSentences {
+  const w = write(d)
+  return { context: w.context, competitive_bullets: w.current.competitive_bullets, sources_bullets: w.current.sources_bullets, methodology: w.methodology, opportunities: w.opportunities }
+}
+
+/** Spec 2026-10-22 B3: the version 2 boxes, kept unchanged so grounding can still allow the numbers that a row written with
+ *  them prints. Rows of today's version never use them. */
+export function boxesV2(d: SnapshotData): Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'> {
+  return write(d).v2
+}
+
+/** Spec 2026-11-02 S5: the version 3 boxes, the Cited Sources box as it was before citations. */
+export function boxesV3(d: SnapshotData): Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'> {
+  return write(d).v3
+}
+
+/** The boxes each earlier sentences version printed, by version (Paul, #417 review). A row written under version n also
+ *  allows the numbers OLDER_BOXES[n] prints. Bumping SENTENCES_VERSION means adding the outgoing version here, or its
+ *  rows gain flags on bullets they stored; grounding.test.ts fails until it is added. Version 1 keeps version 2's boxes,
+ *  as it did before this lookup. */
+export const OLDER_BOXES: Readonly<Record<number, (d: SnapshotData) => Pick<DataSentences, 'competitive_bullets' | 'sources_bullets'>>> = { 1: boxesV2, 2: boxesV2, 3: boxesV3 }
+
+/** From this version on, OLDER_BOXES[v] prints byte for byte what version v printed, so grounding keeps the word-for-word
+ *  check on an older row's bullets against its own version's boxes (Paul, #431 review). Versions 1 and 2 keep the number
+ *  check only (Paul, #417 review): both print through boxesV2, which is version 2's wording, not version 1's. */
+export const EXACT_OLDER_BOXES_SINCE = 3
+
+/** The own-site slice reads "own-site" in a sentence; every other type as the donut shows it. */
+const label = (l: string): string => (l === 'You' ? 'own-site' : l)

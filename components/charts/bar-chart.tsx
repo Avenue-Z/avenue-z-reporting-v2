@@ -31,11 +31,10 @@ export function BarChart({ data, xKey, yKeys, height = 300, valueFormat }: BarCh
       : valueFormat === 'currency-cents'
         ? (n: number) => money(n)
         : undefined
-  // In the PDF export the bars must be complete on first paint (no grow-in animation to catch half way), and the
-  // panel keeps the dark theme its colours were chosen for (app/export/export-theme.css).
+  // In the PDF export the bars must be complete on first paint (no grow-in animation to catch half way).
   const exportMode = useExportMode()
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6" {...(exportMode ? { 'data-export-chart': '' } : {})}>
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
       <ResponsiveContainer width="100%" height={height}>
         <RechartsBarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />

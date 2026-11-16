@@ -1,11 +1,11 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 
-const { getAccessToken } = vi.hoisted(() => ({ getAccessToken: vi.fn(async () => 'tok') }))
+const { getAccessToken, cachedCalls } = vi.hoisted(() => ({ getAccessToken: vi.fn(async () => 'tok'), cachedCalls: [] as unknown[][] }))
 vi.mock('google-auth-library', () => ({ GoogleAuth: vi.fn(function () { return { getAccessToken } }) }))
-vi.mock('@/lib/cache', () => ({ cached: (_v: string, _f: string, impl: unknown) => impl }))
+vi.mock('@/lib/cache', () => ({ cached: (...a: unknown[]) => { cachedCalls.push(a); return a[2] } }))
 
 import { GoogleAuth } from 'google-auth-library'
-import { classifyCell, parseYtdGrid, rangeFor, readYtdTab, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
+import { classifyCell, parseYtdGrid, rangeFor, readMonthTabImpl, readSheetTabTitlesImpl, readYtdTab, readYtdTabImpl, ytdSheetFor, YtdSheetLayoutError, YtdSheetReadError } from './ytd-sheet'
 
 // Made-up sheet id and numbers only.
 const ID = 'TESTSHEETID_abcdefghij0123'
@@ -161,4 +161,69 @@ test('a shared failure reaches both callers, is not kept, and leaves no unhandle
   } finally {
     process.off('unhandledRejection', onUnhandled)
   }
+})
+
+// KPI month tabs (spec 2026-11-11-kpi-tab-by-month-design.md): the tab titles, read like a tab.
+test('the tab titles: one readonly GET of the titles only; titles come back raw; non-200 throws the status without the id', async () => {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ sheets: [{ properties: { title: 'September 2026' } }, { properties: { title: ' October 2026 ' } }] }), { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+  expect(await readSheetTabTitlesImpl(ID)).toEqual(['September 2026', ' October 2026 '])
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+  expect(url).toBe(`https://sheets.googleapis.com/v4/spreadsheets/${ID}?fields=sheets.properties(title)`)
+  expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok')
+  expect(init.signal).toBeInstanceOf(AbortSignal)
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status: 403 })))
+  const e = await readSheetTabTitlesImpl(ID).catch((x) => x)
+  expect(e).toBeInstanceOf(YtdSheetReadError)
+  expect(e.status).toBe('403')
+  expect(String(e.message)).not.toContain(ID)
+})
+
+test.each([
+  ['no sheets array', {}],
+  ['sheets not an array', { sheets: 'x' }],
+  ['a sheet without properties', { sheets: [{}] }],
+  ['a title that is not a string', { sheets: [{ properties: { title: 7 } }] }],
+])('the tab titles: %s is malformed', async (_n, body) => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })))
+  expect((await readSheetTabTitlesImpl(ID).catch((x) => x)).status).toBe('malformed')
+})
+
+test('the tab titles: the 10 second limit covers the token and the body', async () => {
+  vi.useFakeTimers()
+  try {
+    const never = () => new Promise<never>(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: never }) as unknown as Response))
+    const body = readSheetTabTitlesImpl(ID).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(((await Promise.race([body, Promise.resolve('pending')])) as YtdSheetReadError).status).toBe('timeout')
+    getAccessToken.mockImplementationOnce(never as never)
+    const tok = readSheetTabTitlesImpl(ID).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(((await Promise.race([tok, Promise.resolve('pending')])) as YtdSheetReadError).status).toBe('timeout')
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+// Paul, #445 review (#447 and the staging note): a month tab is read through its own wrapper. A 400 there means the tab
+// was renamed or deleted after the titles were listed, so it is an ANSWER ('gone'), never a rejection the cache wrapper
+// would record as an outage; any other failure still rejects. Cached 5 minutes, so a relabelled tab shows soon.
+test('the month tab read: the grid comes back; a 400 is the answer "gone"; any other failure still throws its status', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ values: [['a']] }), { status: 200 })))
+  expect(await readMonthTabImpl(ID, 'October 2026')).toEqual([['a']])
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('Unable to parse range', { status: 400 })))
+  expect(await readMonthTabImpl(ID, 'October 2026')).toBe('gone')
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status: 403 })))
+  const e = await readMonthTabImpl(ID, 'October 2026').catch((x) => x)
+  expect(e).toBeInstanceOf(YtdSheetReadError)
+  expect(e.status).toBe('403')
+})
+
+test('cache settings: month tabs and tab titles 5 minutes, the YTD tab reader keeps its hour; all health-critical', () => {
+  const opts = (fn: string) => cachedCalls.find((c) => c[1] === fn)?.[3]
+  expect(opts('kpiMonthTab')).toEqual({ version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true })
+  expect(opts('sheetTabTitles')).toEqual({ version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true })
+  expect(opts('ytdTab')).toEqual({ version: '1', ttlSeconds: 3600, negativeTtlSeconds: 30, healthCritical: true })
+  expect(cachedCalls.find((c) => c[1] === 'kpiMonthTab')?.[0]).toBe('google-sheets')
 })

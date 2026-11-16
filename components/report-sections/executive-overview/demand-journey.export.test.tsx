@@ -31,10 +31,12 @@ test('a card that is not connected prints only its needs-connection copy, never 
   expect(screen.queryByText('open pipeline as of today')).toBeNull()
 })
 
-test('a one-row Journey is one dark-panel block, each card a block, with no hover styling', () => {
+test('a one-row Journey is one block, each card a block, with no hover styling', () => {
   const container = inExport([live, unconnected])
   const root = container.firstElementChild as HTMLElement
-  expect(root.hasAttribute('data-export-block') && root.hasAttribute('data-export-chart')).toBe(true)
+  // Spec 2026-10-13: the PDF prints dark like the live page, so no chart is marked for a separate dark panel.
+  expect(root.hasAttribute('data-export-block')).toBe(true)
+  expect(root.hasAttribute('data-export-chart')).toBe(false)
   expect(container.querySelectorAll('[data-export-block]')).toHaveLength(1 + 2)
   expect(container.querySelector('.cursor-default')).toBeNull()
 })
@@ -47,7 +49,7 @@ test('a two-row Journey is not one block: it breaks between rows, each card whol
   const container = inExport(four)
   const root = container.firstElementChild as HTMLElement
   expect(root.hasAttribute('data-export-block')).toBe(false)
-  expect(root.hasAttribute('data-export-chart')).toBe(true)
+  expect(root.hasAttribute('data-export-chart')).toBe(false)
   expect(container.querySelectorAll('[data-export-block]')).toHaveLength(4)
 })
 
