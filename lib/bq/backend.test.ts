@@ -35,4 +35,12 @@ describe('logBqFallback', () => {
     expect(JSON.parse(warn.mock.calls[1][0] as string).reason).toBe('error')
     warn.mockRestore()
   })
+  test('says what was served instead: live for LinkedIn, nothing for Google Ads (C3)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    logBqFallback('linkedin', 'renaissance', new Error('boom'))
+    logBqFallback('googleads', 'renaissance', new Error('boom'), 'none')
+    expect(JSON.parse(warn.mock.calls[0][0] as string).served).toBe('live')
+    expect(JSON.parse(warn.mock.calls[1][0] as string)).toMatchObject({ event: 'bq_fallback', reason: 'error', served: 'none' })
+    warn.mockRestore()
+  })
 })

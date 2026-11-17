@@ -14,9 +14,13 @@ export function bqEnabled(source: BqSource, slug: string): boolean {
   return allow.includes(slug)
 }
 
-/** One greppable line per fallback, so a reviewer can see which client fell back, and why, at 3am. */
-export function logBqFallback(source: BqSource, slug: string, err: unknown): void {
+/**
+ * One greppable line per BigQuery miss, so a reviewer can see which client missed, and why, at 3am.
+ * `served` says what the viewer got instead: live Supermetrics (LinkedIn), or nothing (Google Ads since C3).
+ * The event keeps its C1 name so the `reason=error` acceptance count still finds it.
+ */
+export function logBqFallback(source: BqSource, slug: string, err: unknown, served: 'live' | 'none' = 'live'): void {
   const reason = err instanceof BqUnavailable ? err.reason : 'error'
   const detail = err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300)
-  console.warn(JSON.stringify({ event: 'bq_fallback', source, slug, reason, detail }))
+  console.warn(JSON.stringify({ event: 'bq_fallback', source, slug, reason, served, detail }))
 }

@@ -108,6 +108,8 @@ export async function getPaidMediaOverview(
   clientSlug: string,
   dateRange: string,
   compareRange: string | null = null,
+  /** Paid Search's own range: the part the warehouse holds on BigQuery (C3); null fetches nothing. */
+  paidSearchRange: string | null = dateRange,
 ): Promise<PaidMediaOverview> {
   const client = await getClientBySlug(clientSlug)
   const configured: Record<ChannelKey, boolean> = {
@@ -120,7 +122,7 @@ export async function getPaidMediaOverview(
 
   // Fetch only the channels the client runs.
   const settled = await Promise.allSettled([
-    configured['paid-search'] ? getPaidSearchKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
+    configured['paid-search'] && paidSearchRange ? getPaidSearchKpis(clientSlug, paidSearchRange, effectiveCompare) : Promise.resolve(null),
     configured.meta ? getMetaKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
     configured.linkedin ? getLinkedInKpis(clientSlug, dateRange, effectiveCompare) : Promise.resolve(null),
   ])

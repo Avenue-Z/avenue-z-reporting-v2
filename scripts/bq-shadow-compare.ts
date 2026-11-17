@@ -10,13 +10,15 @@ import { getKeywordsData } from '@/lib/paid-search/keywords'
 import { getLinkedInKpis } from '@/lib/linkedin/kpis'
 import { getCreativeTree } from '@/lib/linkedin/creative'
 import { getPaidMediaTrend } from '@/lib/paid-media/trend'
+import { AW_HISTORY_FROM } from '@/lib/bq/googleads'
 
 const slug = process.argv[2]
 if (!slug) throw new Error('usage: bq-shadow-compare.ts <client-slug>')
 process.env.BQ_CLIENTS = slug
 
 // Ranges > 31 days exercise the ISO-week (Yearweekiso) path. None may start before AW_HISTORY_FROM
-// (2026-04-01), or the Google Ads checks fall back to live and read NOT RUN.
+// (2026-04-01). Since C3 a Google Ads read before it throws instead of falling back to live, so a
+// range starting on the floor is compared without its prior period (Q1), which BigQuery cannot serve.
 const RANGES = ['last_7_days', 'last_30_days', 'last_90_days', 'last_month', '2026-04-01,2026-06-30']
 
 type Diff = { path: string; live: unknown; bq: unknown; kind: 'MISMATCH' | 'TIE' | 'ORDER' }
@@ -73,14 +75,18 @@ async function both<T>(flags: string[], fn: () => Promise<T>): Promise<{ live: T
   const live = await fn()
   const fellBack: string[] = []
   const warn = console.warn
-  // A fallback for a range before AW_HISTORY_FROM is the designed behaviour (e.g. a compare period
+  // A refusal for a range before AW_HISTORY_FROM is the designed behaviour (e.g. a compare period
   // reaching into Q1), not a failed BigQuery read, so it does not make the check NOT RUN.
   console.warn = (msg?: unknown) => {
     if (typeof msg !== 'string' || !msg.includes('"bq_fallback"')) return warn(msg)
     if (!msg.includes('history floor')) fellBack.push(msg)
   }
   for (const f of flags) process.env[f] = 'bq'
-  try { return { live, bq: await fn(), fellBack } } finally { console.warn = warn; for (const f of flags) process.env[f] = 'live' }
+  // Since C3 a BigQuery miss on the range itself throws rather than serving live; that check did not run.
+  try { return { live, bq: await fn(), fellBack } } catch (e) {
+    fellBack.push(e instanceof Error ? e.message : String(e))
+    return { live, bq: live, fellBack }
+  } finally { console.warn = warn; for (const f of flags) process.env[f] = 'live' }
 }
 
 async function main() {
@@ -89,7 +95,7 @@ async function main() {
   let compared = 0, mismatches = 0, ties = 0, orders = 0, notRun = 0
   for (const r of RANGES) {
     const checks: Array<[string, string[], () => Promise<unknown>]> = [
-      ['paid-search.kpis', AW, () => getPaidSearchKpis(slug, r, 'previous_period')],
+      ['paid-search.kpis', AW, () => getPaidSearchKpis(slug, r, r.startsWith(AW_HISTORY_FROM) ? null : 'previous_period')],
       ['paid-search.hero', AW, () => getHeroSeries(slug, r)],
       ['paid-search.campaigns', AW, () => getCampaignRows(slug, r)],
       ['paid-search.leads', AW, () => getLeadBreakdown(slug, r)],

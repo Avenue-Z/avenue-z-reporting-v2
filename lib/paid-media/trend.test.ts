@@ -102,3 +102,20 @@ describe('getPaidMediaTrend', () => {
     expect(t.points[0].channels['paid-search']).toEqual({ spend: 100, clicks: 10 })
   })
 })
+
+describe('getPaidMediaTrend with a Paid Search window (C3)', () => {
+  test('Paid Search reads its own range; the others read the page range', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: null })
+    aw.mockResolvedValue([]); meta.mockResolvedValue([])
+    await getPaidMediaTrend('acme', 'this_month', 'custom:2026-11-01,2026-11-16')
+    expect(aw).toHaveBeenCalledWith('acme', ['Date', 'Cost', 'Clicks'], 'custom:2026-11-01,2026-11-16')
+    expect(meta.mock.calls[0][2]).toBe('this_month')
+  })
+  test('no Paid Search range: Paid Search is left out of the chart, not fetched', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: null })
+    meta.mockResolvedValue([{ Date: '2026-11-16', cost: '5', inline_link_clicks: '1' }])
+    const t = await getPaidMediaTrend('acme', 'this_week', null)
+    expect(aw).not.toHaveBeenCalled()
+    expect(t.channels).toEqual(['meta'])
+  })
+})

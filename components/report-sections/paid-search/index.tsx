@@ -13,6 +13,9 @@ import { KeywordsTable } from './keywords'
 import { SmTimeoutError } from '@/lib/supermetrics/client'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 import { PaidMediaFallback } from '@/components/report-sections/paid-media/fallback'
+import { DataDelayedNotice } from '@/components/report-sections/paid-media/data-delayed-notice'
+import { googleAdsWindow } from '@/lib/bq/googleads-window'
+import { bqEnabled } from '@/lib/bq/backend'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
   try {
@@ -35,19 +38,34 @@ export async function PaidSearchReport({
   // PRD: automatic prior-period comparison — default to previous_period when
   // the URL doesn't specify a compare mode (an explicit value still wins).
   const effectiveCompare = compareRange ?? 'previous_period'
+  // On BigQuery the page shows only what the marts hold, never live (C3); `range` is that part of the range.
+  const ads = await googleAdsWindow(clientSlug, dateRange)
+  const range = ads.dateRange
+  if (!range) {
+    return (
+      <div className="space-y-8">
+        <SharedPartsHeader viewKey="paid-search" clientSlug={clientSlug} />
+        <DataDelayedNotice notice={ads.notice} />
+      </div>
+    )
+  }
   const [kpis, hero, campaigns, leads, geo, keywords] = await Promise.all([
-    safe(getPaidSearchKpis(clientSlug, dateRange, effectiveCompare)),
+    safe(getPaidSearchKpis(clientSlug, range, effectiveCompare)),
     // Hero follows the page date range (daily buckets for short ranges, weekly for long).
-    safe(getHeroSeries(clientSlug, dateRange)),
-    safe(getCampaignRows(clientSlug, dateRange)),
-    safe(getLeadBreakdown(clientSlug, dateRange)),
-    safe(getGeoRows(clientSlug, dateRange)),
-    safe(getKeywordsData(clientSlug, dateRange)),
+    safe(getHeroSeries(clientSlug, range)),
+    safe(getCampaignRows(clientSlug, range)),
+    safe(getLeadBreakdown(clientSlug, range)),
+    safe(getGeoRows(clientSlug, range)),
+    safe(getKeywordsData(clientSlug, range)),
   ])
+  // On BigQuery a failed part is a warehouse miss with no live fallback, so the reader is told why.
+  const failedOnBq = [kpis, hero, campaigns, leads, geo, keywords].some((p) => p.error) && bqEnabled('googleads', clientSlug)
 
   return (
     <div className="space-y-8">
       <SharedPartsHeader viewKey="paid-search" clientSlug={clientSlug} />
+      <DataDelayedNotice notice={ads.notice} />
+      <DataDelayedNotice notice={failedOnBq ? { kind: 'unavailable' } : null} />
       {hero.data ? <Hero points={hero.data} /> : <PaidMediaFallback kind={hero.error!} />}
       {kpis.data ? <KpiGrid kpis={kpis.data} /> : <PaidMediaFallback kind={kpis.error!} />}
       {campaigns.data ? <CampaignTable rows={campaigns.data} /> : <PaidMediaFallback kind={campaigns.error!} />}
