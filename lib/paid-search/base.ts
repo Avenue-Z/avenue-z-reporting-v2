@@ -4,6 +4,7 @@ import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { PaidSearchConfig, LeadCategory } from '@/lib/db/schema'
 import { bqEnabled, logBqFallback } from '@/lib/bq/backend'
 import { readAwMart } from '@/lib/bq/googleads'
+import { BqUnavailable } from '@/lib/bq/errors'
 
 export async function awQuery(
   slug: string,
@@ -16,11 +17,16 @@ export async function awQuery(
   const envVar = client?.smApiKeyEnvVar
   if (!cfg || !envVar) throw new Error(`paid_search_config / sm_api_key_env_var missing for ${slug}`)
   const { startDate, endDate } = parseDateRange(dateRange)
-  if (bqEnabled('googleads', slug) && !opts.filters && !opts.settings) {
+  // On BigQuery there is no live fallback (C3): a miss throws and the part shows its error card. The page
+  // clips its range to what the marts hold first (googleAdsWindow), so a miss here is a real failure or a
+  // prior period before the history floor, which the KPIs drop rather than compare against.
+  if (bqEnabled('googleads', slug)) {
     try {
+      if (opts.filters || opts.settings) throw new BqUnavailable('unsupported', 'Supermetrics filters or settings have no mart equivalent')
       return await readAwMart(cfg.googleAdsAccountId, fields, startDate, endDate)
     } catch (err) {
-      logBqFallback('googleads', slug, err)
+      logBqFallback('googleads', slug, err, 'none')
+      throw err
     }
   }
   const apiKey = process.env[envVar]

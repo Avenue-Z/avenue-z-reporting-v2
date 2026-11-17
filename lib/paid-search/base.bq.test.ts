@@ -54,17 +54,19 @@ describe('awQuery backend', () => {
     ['stale', new BqUnavailable('stale', 'through 2026-09-29')],
     ['unsupported', new BqUnavailable('unsupported', 'x')],
     ['error', new Error('403 Access Denied')],
-  ])('falls back to live when BigQuery is %s, and logs it', async (reason, err) => {
+  ])('when BigQuery is %s it throws, logs it, and never calls Supermetrics (C3)', async (reason, err) => {
     vi.stubEnv('DATA_BACKEND_GOOGLEADS', 'bq')
     vi.stubEnv('BQ_CLIENTS', 'renaissance')
     vi.mocked(readAwMart).mockRejectedValue(err)
-    expect(await awQuery('renaissance', ['Cost'], RANGE)).toEqual([{ Cost: 'LIVE' }])
-    expect(JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string).reason).toBe(reason)
+    await expect(awQuery('renaissance', ['Cost'], RANGE)).rejects.toBe(err)
+    expect(smQuery).not.toHaveBeenCalled()
+    expect(JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string)).toMatchObject({ reason, served: 'none' })
   })
-  test('a query with Supermetrics filters or settings stays live', async () => {
+  test('a query with Supermetrics filters or settings is refused, never served live (C3)', async () => {
     vi.stubEnv('DATA_BACKEND_GOOGLEADS', 'bq')
     vi.stubEnv('BQ_CLIENTS', 'renaissance')
-    await awQuery('renaissance', ['Cost'], RANGE, { filters: 'Campaignname == X' })
+    await expect(awQuery('renaissance', ['Cost'], RANGE, { filters: 'Campaignname == X' })).rejects.toMatchObject({ reason: 'unsupported' })
     expect(readAwMart).not.toHaveBeenCalled()
+    expect(smQuery).not.toHaveBeenCalled()
   })
 })

@@ -13,6 +13,8 @@ export const AW_FRESHNESS_TABLE = 'mart_googleads_campaign_performance'
  */
 export const AW_HISTORY_FROM = '2026-04-01'
 
+export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
 /** Supermetrics AW field id → mart expression. Keys are the exact ids the dashboard requests. */
 const DIM_EXPR: Record<string, string> = {
   Date: 'cast(event_date as string)',
@@ -86,6 +88,10 @@ const readAwMartCached = cached('bigquery', 'readAwMart', readAwMartImpl, {
 /** Rows keyed exactly as awQuery's Supermetrics rows. Throws BqUnavailable when the mart cannot answer exactly. */
 export async function readAwMart(accountId: string, fields: string[], startDate: string, endDate: string): Promise<Record<string, string>[]> {
   pickAwMart(fields) // unsupported fields fail before any BigQuery call
+  // The floor and freshness checks compare dates as text, which only orders YYYY-MM-DD correctly.
+  if (!ISO_DATE.test(startDate) || !ISO_DATE.test(endDate)) {
+    throw new BqUnavailable('unsupported', `range ${startDate},${endDate} is not YYYY-MM-DD`)
+  }
   if (startDate < AW_HISTORY_FROM) {
     throw new BqUnavailable('unsupported', `range starts ${startDate}, before the marts' Google Ads history floor ${AW_HISTORY_FROM}`)
   }

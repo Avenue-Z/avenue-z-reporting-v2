@@ -11,6 +11,9 @@ import { getPaidMediaTrend } from '@/lib/paid-media/trend'
 import { money } from '@/lib/paid-media/format'
 import { num } from '@/lib/supermetrics/format'
 import { PaidMediaTrendChart } from './trend'
+import { DataDelayedNotice } from '../data-delayed-notice'
+import { googleAdsWindow } from '@/lib/bq/googleads-window'
+import { bqEnabled } from '@/lib/bq/backend'
 
 const dash = '—'
 const asMoney = (n: number | null) => (n == null ? dash : money(n))
@@ -25,13 +28,23 @@ export async function PaidMediaOverviewReport({
   dateRange?: string
   compareRange?: string | null
 }) {
+  // On BigQuery, Paid Search shows only what the warehouse holds, never live (C3). Meta and LinkedIn keep the page range.
+  const ads = await googleAdsWindow(clientSlug, dateRange)
   const [o, trend] = await Promise.all([
-    getPaidMediaOverview(clientSlug, dateRange, compareRange),
-    getPaidMediaTrend(clientSlug, dateRange),
+    getPaidMediaOverview(clientSlug, dateRange, compareRange, ads.dateRange),
+    getPaidMediaTrend(clientSlug, dateRange, ads.dateRange),
   ])
+  const ps = o.channels.find((c) => c.key === 'paid-search')
+  const psFailedOnBq = !!ads.dateRange && ps?.configured && !ps.ok && bqEnabled('googleads', clientSlug)
 
   return (
     <div className="space-y-8">
+      {ps?.configured && (
+        <>
+          <DataDelayedNotice notice={ads.notice} channel="Paid Search" />
+          <DataDelayedNotice notice={psFailedOnBq ? { kind: 'unavailable' } : null} />
+        </>
+      )}
       {/* Combined top line — Spend + Clicks (item 11a). Blended Leads / Cost per Lead were
           scrapped: Meta has no lead data and LinkedIn reports 0 leads today, so a blended lead
           figure would mislead. Per-channel Leads stay in the breakdown below. */}

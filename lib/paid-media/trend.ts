@@ -58,7 +58,8 @@ async function getLinkedInSeries(slug: string, dateRange: string): Promise<Chann
   return toPoints(await linkedinQuery(slug, ['Date', 'spend', 'clicks'], dateRange), 'spend', 'clicks')
 }
 
-export async function getPaidMediaTrend(clientSlug: string, dateRange: string): Promise<PaidMediaTrend> {
+/** `paidSearchRange` is Paid Search's own range: the part the warehouse holds on BigQuery (C3); null leaves it out. */
+export async function getPaidMediaTrend(clientSlug: string, dateRange: string, paidSearchRange: string | null = dateRange): Promise<PaidMediaTrend> {
   const client = await getClientBySlug(clientSlug)
   const order: ChannelKey[] = ['paid-search', 'meta', 'linkedin']
   const configured: Record<ChannelKey, boolean> = {
@@ -67,7 +68,7 @@ export async function getPaidMediaTrend(clientSlug: string, dateRange: string): 
     linkedin: !!client?.linkedinConfig,
   }
   const settled = await Promise.allSettled([
-    configured['paid-search'] ? getPaidSearchSeries(clientSlug, dateRange) : Promise.resolve(null),
+    configured['paid-search'] && paidSearchRange ? getPaidSearchSeries(clientSlug, paidSearchRange) : Promise.resolve(null),
     configured.meta ? getMetaSeries(clientSlug, dateRange) : Promise.resolve(null),
     configured.linkedin ? getLinkedInSeries(clientSlug, dateRange) : Promise.resolve(null),
   ])
