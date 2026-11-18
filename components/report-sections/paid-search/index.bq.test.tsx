@@ -92,6 +92,13 @@ describe('Paid Search on BigQuery (C3): stale → notice, failure → notice, ne
     expect(smQuery).not.toHaveBeenCalled()
   })
 
+  test("a prior period on or after Renaissance's floor is read from the marts, not dropped", async () => {
+    marts('2026-11-16')
+    await page('custom:2026-04-01,2026-04-30') // previous_period: 2026-03-02..2026-03-31
+    expect(readRanges()).toContain('2026-03-02,2026-03-31')
+    expect(smQuery).not.toHaveBeenCalled()
+  })
+
   test('an account with no verified earlier history (no rows in the marts) clips Year to Date at Apr 1', async () => {
     marts('2026-11-16')
     vi.mocked(getClientBySlug).mockResolvedValue({
