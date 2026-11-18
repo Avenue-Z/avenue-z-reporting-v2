@@ -5,7 +5,7 @@ import { assertCovers } from './freshness'
 import { ISO_DATE, toSmRows } from './googleads'
 
 const CREATIVE = 'mart_fbads_creative_performance'
-/** Built by the same nightly as the geo mart; the account totals and the daily trend read it too. */
+/** Serves the totals, creative rows and daily trend. metaWindow also checks the geo mart: another connector job. */
 export const META_FRESHNESS_TABLE = CREATIVE
 export const META_GEO_TABLE = 'mart_fbads_geo_performance'
 const REACH = 'mart_fbads_reach_by_range'

@@ -5,7 +5,7 @@ import { BqUnavailable } from './errors'
 import { martFreshThrough } from './freshness'
 import { ISO_DATE } from './googleads'
 import type { AdsNotice, AdsWindow } from './googleads-window'
-import { META_FRESHNESS_TABLE, metaAccount, metaHistoryFrom } from './meta'
+import { META_FRESHNESS_TABLE, META_GEO_TABLE, metaAccount, metaHistoryFrom } from './meta'
 
 function daysBefore(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`)
@@ -15,12 +15,14 @@ function daysBefore(iso: string, n: number): string {
 
 /**
  * The part of `dateRange` the Meta marts can answer exactly (C2), as googleAdsWindow does for Google Ads.
- * The history floor is per account; a client with no Meta account, or one whose history nobody verified,
- * is unavailable rather than served as zeros. Switched off, the range is untouched and nothing is read.
+ * The history floor is per account; an account whose history nobody verified is unavailable rather than
+ * served as zeros. The newest day is the older of the creative and geo marts' (two connector jobs), so
+ * every part of the page ends on the same day. Switched off, or for a client that does not run Meta (the
+ * Overview asks for every client), the range is untouched and nothing is logged.
  */
 export async function metaWindow(slug: string, dateRange: string): Promise<AdsWindow> {
   if (!bqEnabled('meta', slug)) return { dateRange, notice: null }
-  let through: string, from: string, startDate: string, endDate: string
+  let through: string, from: string, startDate: string, endDate: string, behind: string
   try {
     // A malformed `custom:` range from the URL is a refusal (`unsupported`), never a crash or an `error`.
     try {
@@ -32,16 +34,21 @@ export async function metaWindow(slug: string, dateRange: string): Promise<AdsWi
       throw new BqUnavailable('unsupported', `range ${JSON.stringify(dateRange)} is not YYYY-MM-DD`)
     }
     const accountId = (await getClientBySlug(slug))?.metaConfig?.metaAdAccountId
-    if (!accountId) throw new BqUnavailable('unsupported', `no Meta ad account configured for ${slug}`)
+    if (!accountId) return { dateRange, notice: null }
     const account = metaAccount(accountId)
     const floor = metaHistoryFrom(account)
     if (!floor) throw new BqUnavailable('unsupported', `Meta account ${account} has no verified mart history`)
     from = floor
-    const newest: unknown = await martFreshThrough(META_FRESHNESS_TABLE)
-    if (typeof newest !== 'string' || !ISO_DATE.test(newest)) {
-      throw new BqUnavailable('stale', `${META_FRESHNESS_TABLE} has no readable newest day (${JSON.stringify(newest)})`)
-    }
-    through = newest
+    const tables = [META_FRESHNESS_TABLE, META_GEO_TABLE]
+    const newest: unknown[] = await Promise.all(tables.map((t) => martFreshThrough(t)))
+    newest.forEach((d, i) => {
+      if (typeof d !== 'string' || !ISO_DATE.test(d)) {
+        throw new BqUnavailable('stale', `${tables[i]} has no readable newest day (${JSON.stringify(d)})`)
+      }
+    })
+    const i = (newest as string[])[1] < (newest as string[])[0] ? 1 : 0
+    through = newest[i] as string
+    behind = tables[i]
   } catch (err) {
     logBqFallback('meta', slug, err, 'none')
     return { dateRange: null, notice: { kind: 'unavailable' } }
@@ -50,7 +57,7 @@ export async function metaWindow(slug: string, dateRange: string): Promise<AdsWi
   // 10:00 UTC a mart through the day before yesterday is normal; after it, or anything older, is a missed run.
   const yesterday = resolveDateRange('last_1_days').endDate
   if (through < daysBefore(yesterday, 1) || (through < yesterday && new Date().getUTCHours() >= 10)) {
-    logBqFallback('meta', slug, new BqUnavailable('stale', `${META_FRESHNESS_TABLE} holds data through ${through}`), 'none')
+    logBqFallback('meta', slug, new BqUnavailable('stale', `${behind} holds data through ${through}`), 'none')
   }
 
   const start = startDate < from ? from : startDate

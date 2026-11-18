@@ -58,6 +58,7 @@ describe('metaWindow', () => {
       notice: { kind: 'clipped', from: null, through: '2026-11-13', empty: false },
     })
     expect(martFreshThrough).toHaveBeenCalledWith('mart_fbads_creative_performance')
+    expect(martFreshThrough).toHaveBeenCalledWith('mart_fbads_geo_performance')
     expect(warn()).toMatchObject({ event: 'bq_fallback', source: 'meta', slug: 'renaissance', reason: 'stale', served: 'none' })
   })
 
@@ -102,8 +103,23 @@ describe('metaWindow', () => {
     })
   })
 
+  test('a client that does not run Meta is untouched and logs nothing: the Overview asks for every client', async () => {
+    vi.mocked(getClientBySlug).mockResolvedValue({ metaConfig: null } as never)
+    expect(await metaWindow('renaissance', 'last_30_days')).toEqual({ dateRange: 'last_30_days', notice: null })
+    expect(console.warn).not.toHaveBeenCalled()
+    expect(martFreshThrough).not.toHaveBeenCalled()
+  })
+
+  test('the geo mart behind the creative mart clips the whole page to the older day', async () => {
+    vi.mocked(martFreshThrough).mockImplementation(async (t: string) => (t === 'mart_fbads_geo_performance' ? '2026-11-10' : '2026-11-16'))
+    expect(await metaWindow('renaissance', 'this_month')).toEqual({
+      dateRange: 'custom:2026-11-01,2026-11-10',
+      notice: { kind: 'clipped', from: null, through: '2026-11-10', empty: false },
+    })
+    expect(warn()).toMatchObject({ source: 'meta', reason: 'stale', detail: expect.stringContaining('mart_fbads_geo_performance') })
+  })
+
   test.each([
-    ['no Meta config', { metaConfig: null }],
     ['an account with no verified history', { metaConfig: { metaAdAccountId: 'act_999' } }],
   ])('%s is unavailable, logged as unsupported, and BigQuery is never asked', async (_, client) => {
     vi.mocked(getClientBySlug).mockResolvedValue(client as never)
