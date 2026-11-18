@@ -3,7 +3,7 @@ import { describe, expect, test, vi, type Mock } from 'vitest'
 vi.mock('@/lib/meta/base', () => ({ metaQuery: vi.fn(), resolveCompareIso: vi.fn() }))
 import { getMetaKpis, transformMetaKpis } from './kpis'
 import { metaQuery, resolveCompareIso } from './base'
-import { money } from '@/lib/paid-media/format'
+import { DASH, money } from '@/lib/paid-media/format'
 
 const totals = {
   cost: '5000',
@@ -29,6 +29,29 @@ describe('transformMetaKpis', () => {
     expect(k.find((c) => c.key === 'engRate')!.value).toBe(4)
     // CTR comes as a 0-1 fraction (0.017) and must render as percent (1.7)
     expect(k.find((c) => c.key === 'ctr')!.value).toBe(1.7)
+  })
+
+  test('live rows carry reach: Reach and Frequency render as today, with no tooltip', () => {
+    const k = transformMetaKpis(totals, { ...totals, reach: '100000', Frequency: '2' })
+    expect(k.find((c) => c.key === 'reach')).toEqual({ key: 'reach', label: 'Reach', value: 120000, delta: 20 })
+    const f = k.find((c) => c.key === 'frequency')!
+    expect(f).toMatchObject({ value: 1.7, suffix: 'x', invertDelta: true })
+    expect(f.tooltip).toBeUndefined()
+  })
+
+  test('a BigQuery row without reach (a non-preset range) shows — for Reach and Frequency, never a 0', () => {
+    const { reach: _r, Frequency: _f, ...bq } = totals
+    const k = transformMetaKpis(bq, totals)
+    const tooltip = 'Reach and frequency are shown for the preset date ranges only.'
+    expect(k.find((c) => c.key === 'reach')).toEqual({ key: 'reach', label: 'Reach', value: DASH, delta: undefined, tooltip })
+    expect(k.find((c) => c.key === 'frequency')).toEqual({ key: 'frequency', label: 'Frequency', value: DASH, suffix: undefined, delta: undefined, invertDelta: true, tooltip })
+    expect(k.find((c) => c.key === 'spend')!.value).toBe(5000) // the sums still render
+  })
+
+  test('an empty live result keeps 0 for Reach and Frequency, as today', () => {
+    const k = transformMetaKpis({}, null)
+    expect(k.find((c) => c.key === 'reach')!.value).toBe(0)
+    expect(k.find((c) => c.key === 'frequency')!.value).toBe(0)
   })
 
   test('Cost / LPV keeps cents (regression for the whole-dollar rounding defect)', () => {
