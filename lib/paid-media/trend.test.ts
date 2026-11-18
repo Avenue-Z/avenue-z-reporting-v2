@@ -119,3 +119,21 @@ describe('getPaidMediaTrend with a Paid Search window (C3)', () => {
     expect(t.channels).toEqual(['meta'])
   })
 })
+
+describe('getPaidMediaTrend with a Meta window (C2)', () => {
+  test('Meta reads its own range; the others keep theirs', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: {} })
+    aw.mockResolvedValue([]); meta.mockResolvedValue([]); li.mockResolvedValue([])
+    await getPaidMediaTrend('acme', 'this_month', 'this_month', 'custom:2026-11-01,2026-11-16')
+    expect(meta).toHaveBeenCalledWith('acme', ['Date', 'cost', 'inline_link_clicks'], 'custom:2026-11-01,2026-11-16')
+    expect(aw.mock.calls[0][2]).toBe('this_month')
+    expect(li.mock.calls[0][2]).toBe('this_month')
+  })
+  test('no Meta range: Meta is left out of the chart, not fetched', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: null })
+    aw.mockResolvedValue([{ Date: '2026-11-16', Cost: '5', Clicks: '1' }])
+    const t = await getPaidMediaTrend('acme', 'this_week', 'this_week', null)
+    expect(meta).not.toHaveBeenCalled()
+    expect(t.channels).toEqual(['paid-search'])
+  })
+})

@@ -32,6 +32,20 @@ describe('adsNoticeText (C3)', () => {
   })
 })
 
+describe('adsNoticeText for Meta (C2)', () => {
+  test('the failure sentence names the source', () => {
+    expect(adsNoticeText({ kind: 'unavailable' }, undefined, 'Meta')).toBe("Data delayed — Meta data can't be loaded right now. Try again shortly.")
+  })
+  test('the history sentence names the source', () => {
+    expect(adsNoticeText({ kind: 'clipped', from: '2024-01-01', through: null, empty: false }, undefined, 'Meta'))
+      .toBe('Meta history starts Jan 1, 2024, so this range is shown from then.')
+  })
+  test('on the Overview the channel and the source are both Meta', () => {
+    expect(adsNoticeText({ kind: 'clipped', from: '2024-01-01', through: '2026-11-16', empty: false }, 'Meta', 'Meta'))
+      .toBe('Meta data delayed — showing through Nov 16, 2026. Meta history starts Jan 1, 2024, so this range is shown from then.')
+  })
+})
+
 describe('DataDelayedNotice', () => {
   test('renders nothing without a notice', () => {
     expect(render(<DataDelayedNotice notice={null} />).container.innerHTML).toBe('')
@@ -42,5 +56,9 @@ describe('DataDelayedNotice', () => {
     expect(note.textContent).toBe('Data delayed — showing through Nov 16, 2026.')
     expect(note.hasAttribute('data-export-block')).toBe(true)
     expect(note.hasAttribute('data-export-hide')).toBe(false)
+  })
+  test('passes the source through to the text', () => {
+    const { getByRole } = render(<DataDelayedNotice notice={{ kind: 'unavailable' }} source="Meta" />)
+    expect(getByRole('note').textContent).toBe("Data delayed — Meta data can't be loaded right now. Try again shortly.")
   })
 })
