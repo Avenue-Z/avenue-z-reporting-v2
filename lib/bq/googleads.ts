@@ -7,11 +7,25 @@ import { assertCovers } from './freshness'
 export const AW_FRESHNESS_TABLE = 'mart_googleads_campaign_performance'
 
 /**
- * First day prod's Google Ads marts match raw. Before it, prod keeps the pre-2026-09-17-backfill
+ * Default first day prod's Google Ads marts match raw. Before it, prod keeps the pre-2026-09-17-backfill
  * history (with 5 accounts the backfill dropped, and without rows it added), so a range reaching
- * earlier is served live. Warehouse: docs/notes/2026-10-13-dashboard-cutover-log.md.
+ * earlier is refused (C3: no live fallback). Warehouse: docs/notes/2026-10-13-dashboard-cutover-log.md.
  */
 export const AW_HISTORY_FROM = '2026-04-01'
+
+/**
+ * Accounts verified exact against Supermetrics from an earlier day than AW_HISTORY_FROM, keyed by Google
+ * Ads account id. Renaissance: its first day of data, 2026-02-27..03-03 loaded into prod and matched on
+ * 2026-11-17 (Avenue-Z/data-warehouse#213, docs/notes/2026-11-17-googleads-renaissance-five-day-load.md).
+ * An account is added only once its pre-April history is verified: the earliest mart day cannot tell
+ * reconciled history from the pre-backfill rows (19 other accounts hold rows back to 2025-02).
+ */
+const AW_HISTORY_FROM_BY_ACCOUNT: Record<string, string> = { '4136001852': '2026-02-27' }
+
+/** First day the marts answer exactly for this account. */
+export function awHistoryFrom(accountId: string): string {
+  return Object.hasOwn(AW_HISTORY_FROM_BY_ACCOUNT, accountId) ? AW_HISTORY_FROM_BY_ACCOUNT[accountId] : AW_HISTORY_FROM
+}
 
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -92,8 +106,9 @@ export async function readAwMart(accountId: string, fields: string[], startDate:
   if (!ISO_DATE.test(startDate) || !ISO_DATE.test(endDate)) {
     throw new BqUnavailable('unsupported', `range ${startDate},${endDate} is not YYYY-MM-DD`)
   }
-  if (startDate < AW_HISTORY_FROM) {
-    throw new BqUnavailable('unsupported', `range starts ${startDate}, before the marts' Google Ads history floor ${AW_HISTORY_FROM}`)
+  const floor = awHistoryFrom(accountId)
+  if (startDate < floor) {
+    throw new BqUnavailable('unsupported', `range starts ${startDate}, before the marts' Google Ads history floor ${floor}`)
   }
   await assertCovers(AW_FRESHNESS_TABLE, endDate)
   return readAwMartCached(accountId, fields, startDate, endDate)
