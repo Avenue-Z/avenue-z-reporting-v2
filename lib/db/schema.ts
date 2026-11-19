@@ -1,5 +1,6 @@
-import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint, uniqueIndex } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint, uniqueIndex, doublePrecision, customType, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import type { SnapshotPayload } from '@/lib/organic-social/content-types'
+import type { SlExport, SlTrend } from '@/lib/organic-social/social-listening/types'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
@@ -159,6 +160,10 @@ export interface DashSocialConfig {
   /** Written notes on the v2 graphs for a client without reportingMonths (PR #306). Only exactly
    *  `true` turns them on (notesOn), so typed unknown. */
   chartNotes?: unknown
+  /** The Social Listening tab (spec docs/superpowers/specs/2026-11-19-social-listening-tab-design.md, section 4):
+   *  { enabled: true, brandTopic, industryTopic?, industrySample? }. Validated at runtime
+   *  (parseSocialListeningSetting in lib/organic-social/social-listening/setting.ts), so typed unknown. Off when absent. */
+  socialListening?: unknown
 }
 
 /**
@@ -590,3 +595,158 @@ export const aeoOutboundSettingsLog = pgTable('aeo_outbound_settings_log', {
 }, (table) => ({
   changedIdx: index('aeo_outbound_settings_log_changed_idx').on(table.changedAt),
 }))
+
+// --- Social Listening tab (spec docs/superpowers/specs/2026-11-19-social-listening-tab-design.md, section 8) ---
+// Purely additive: five new tables, read and written only by lib/organic-social/social-listening/store.ts. Nothing a
+// client without dash_social_config.socialListening renders reads them.
+
+/** Postgres bytea. drizzle-orm 0.45 has no bytea column, so this is a custom type. Written as the hex text form
+ *  (`\x...`), which Postgres accepts for bytea whatever the driver does with a Buffer; read back from either a Buffer
+ *  (the pg type parser) or that same hex text, so a driver change cannot hand callers a string. */
+export function byteaFromDriver(value: unknown): Uint8Array {
+  // ArrayBuffer.isView, not instanceof: a Buffer from another realm (a test environment, say) is not an instance of
+  // this realm's Uint8Array.
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+  if (typeof value === 'string' && value.startsWith('\\x') && value.length % 2 === 0) {
+    const hex = value.slice(2)
+    if (!/^[0-9a-fA-F]*$/.test(hex)) throw new Error('bytea: not hex')
+    const out = new Uint8Array(hex.length / 2)
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+    return out
+  }
+  throw new Error('bytea: unexpected driver value')
+}
+
+export function byteaToDriver(value: Uint8Array): string {
+  return '\\x' + Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString('hex')
+}
+
+const bytea = customType<{ data: Uint8Array; driverData: string }>({
+  dataType: () => 'bytea',
+  toDriver: byteaToDriver,
+  fromDriver: (v) => byteaFromDriver(v),
+})
+
+/** One row per uploaded Talkwalker export. Append-only: a re-upload adds a row and the newest per (client, month,
+ *  topic) is current. `raw` is the file as uploaded, kept for audit; page reads never select it. `before_open` is set
+ *  once at upload (spec section 7, D5) and never changed. */
+export const socialListeningUploads = pgTable('social_listening_uploads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  month: date('month').notNull(),                 // the month's 1st, yyyy-mm-dd
+  topic: text('topic').notNull(),                 // 'brand' | 'industry'
+  data: jsonb('data').$type<SlExport>().notNull(),
+  raw: bytea('raw').notNull(),
+  sha256: text('sha256').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  beforeOpen: boolean('before_open').notNull(),
+  uploadedBy: text('uploaded_by').notNull(),      // email
+  uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientMonthTopicIdx: index('social_listening_uploads_client_month_topic_idx').on(table.clientId, table.month, table.topic),
+  topicKnown: check('social_listening_uploads_topic', sql`${table.topic} IN ('brand', 'industry')`),
+}))
+
+/** What a report already delivered showed, one row per (client, month, topic). Written only by the guarded backfill
+ *  script, never by the page. Tile values as presented; percents are whole numbers. */
+export const socialListeningHistory = pgTable('social_listening_history', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  month: date('month').notNull(),
+  topic: text('topic').notNull(),
+  results: integer('results'),
+  uniqueAuthors: integer('unique_authors'),
+  engagement: doublePrecision('engagement'),
+  potentialReach: doublePrecision('potential_reach'),
+  pos: integer('pos').notNull(),
+  neu: integer('neu').notNull(),
+  neg: integer('neg').notNull(),
+  redditPos: integer('reddit_pos'),
+  redditNeu: integer('reddit_neu'),
+  redditNeg: integer('reddit_neg'),
+  source: text('source').notNull(),               // 'history-sheet' or 'delivered-deck', plus the deck month
+}, (table) => ({
+  clientMonthTopicUnique: unique('social_listening_history_client_month_topic_key').on(table.clientId, table.month, table.topic),
+  topicKnown: check('social_listening_history_topic', sql`${table.topic} IN ('brand', 'industry')`),
+}))
+
+/** A featured post. Commentary's lifecycle: saved as a draft, approved before a client sees it, only a draft is soft
+ *  deleted. Editing an approved post forks a draft (`replaces_id`); approving that draft sets the old row's
+ *  `replaced_at`, which hides it. At most one open draft per approved post (partial unique index, R2-10). */
+export const socialListeningPosts = pgTable('social_listening_posts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  month: date('month').notNull(),
+  group: text('group').notNull(),                 // 'social' | 'forum' | 'web'
+  platform: text('platform').notNull(),
+  author: text('author').notNull(),
+  url: text('url'),                               // https only, checked by the action and here
+  engagements: integer('engagements'),
+  sentiment: text('sentiment').notNull(),         // 'Positive' | 'Neutral' | 'Negative'
+  note: text('note').notNull(),                   // plain text, at most 1,000 characters
+  position: integer('position').notNull(),
+  status: commentaryStatusEnum('status').notNull().default('draft'),
+  replacesId: uuid('replaces_id').references((): AnyPgColumn => socialListeningPosts.id),
+  replacedAt: timestamp('replaced_at', { withTimezone: true }),
+  createdBy: text('created_by').notNull(),
+  updatedBy: text('updated_by').notNull(),
+  approvedBy: text('approved_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  deletedBy: text('deleted_by'),
+}, (table) => ({
+  clientMonthIdx: index('social_listening_posts_client_month_idx').on(table.clientId, table.month),
+  oneOpenDraft: uniqueIndex('social_listening_posts_one_open_draft')
+    .on(table.replacesId)
+    .where(sql`status = 'draft' AND deleted_at IS NULL`),
+  noDeletedApproved: check('social_listening_posts_no_deleted_approved', sql`${table.deletedAt} IS NULL OR ${table.status} = 'draft'`),
+  groupKnown: check('social_listening_posts_group', sql`${table.group} IN ('social', 'forum', 'web')`),
+  sentimentKnown: check('social_listening_posts_sentiment', sql`${table.sentiment} IN ('Positive', 'Neutral', 'Negative')`),
+  httpsOnly: check('social_listening_posts_https', sql`${table.url} IS NULL OR ${table.url} LIKE 'https://%'`),
+  noteLength: check('social_listening_posts_note_length', sql`char_length(${table.note}) <= 1000`),
+}))
+
+/** A post's screenshots: a screen copy (JPEG, 1,200 px, at most 300 KB) and a print copy (JPEG, 600 px, at most
+ *  60 KB), both made in the browser. Limits are checked by the action. An image never changes: an edit adds a row
+ *  with a new id, so the image route can cache it forever. Page reads never select the bytes. */
+export const socialListeningPostImages = pgTable('social_listening_post_images', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  postId: uuid('post_id').notNull().references(() => socialListeningPosts.id, { onDelete: 'cascade' }),
+  bytes: bytea('bytes').notNull(),
+  printBytes: bytea('print_bytes').notNull(),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  postIdx: index('social_listening_post_images_post_idx').on(table.postId),
+}))
+
+/** Theme trends typed by staff, one row per (client, month). The draft lists are edited; approving copies them into
+ *  the approved columns, which are what clients see. Saving after approval sets the status back to draft and keeps
+ *  the approved lists until the next approval (R2-11). */
+export const socialListeningTrends = pgTable('social_listening_trends', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  month: date('month').notNull(),
+  emerging: jsonb('emerging').$type<SlTrend[]>().notNull(),
+  decreasing: jsonb('decreasing').$type<SlTrend[]>().notNull(),
+  newThemes: jsonb('new_themes').$type<SlTrend[]>().notNull(),
+  approvedEmerging: jsonb('approved_emerging').$type<SlTrend[]>(),
+  approvedDecreasing: jsonb('approved_decreasing').$type<SlTrend[]>(),
+  approvedNew: jsonb('approved_new').$type<SlTrend[]>(),
+  status: commentaryStatusEnum('status').notNull().default('draft'),
+  updatedBy: text('updated_by').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedBy: text('approved_by'),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+}, (table) => ({
+  clientMonthUnique: unique('social_listening_trends_client_month_key').on(table.clientId, table.month),
+}))
+
+export type SocialListeningUploadRow = typeof socialListeningUploads.$inferSelect
+export type SocialListeningHistoryRow = typeof socialListeningHistory.$inferSelect
+export type SocialListeningPostRow = typeof socialListeningPosts.$inferSelect
+export type SocialListeningPostImageRow = typeof socialListeningPostImages.$inferSelect
+export type SocialListeningTrendsRow = typeof socialListeningTrends.$inferSelect
