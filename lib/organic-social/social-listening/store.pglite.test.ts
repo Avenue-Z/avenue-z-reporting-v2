@@ -81,6 +81,25 @@ describe('uploads', () => {
 })
 
 describe('posts', () => {
+  test('a fork keeps the screenshots in the order staff added them (#474)', async () => {
+    const { id: a } = await store.insertPost({ ...POST, clientId: CLIENT, month: '2026-11', by: 's' })
+    for (const fill of [1, 2, 3]) {
+      expect(await store.insertImage({ postId: a, bytes: bytes(20, fill), printBytes: bytes(5, fill), width: 10, height: 10, maxImages: 4 })).not.toBeNull()
+    }
+    // Spread the three in time, so their order cannot come from the ids.
+    await pg.exec(`UPDATE "social_listening_post_images" SET "created_at" = CASE "bytes" WHEN '\\x${'01'.repeat(20)}' THEN '2026-11-02T00:00:01Z'::timestamptz
+      WHEN '\\x${'02'.repeat(20)}' THEN '2026-11-02T00:00:02Z'::timestamptz ELSE '2026-11-02T00:00:03Z'::timestamptz END WHERE "post_id" = '${a}'`)
+    expect(await store.approvePost(a, 'approver')).toBe(true)
+
+    const fork = await store.forkPostDraft(a, POST, 's')
+    if (!fork.ok) throw new Error('fork failed')
+    const copied = await pg.query<{ t: string }>(`SELECT "created_at"::text AS t FROM "social_listening_post_images" WHERE "post_id" = '${fork.id}' ORDER BY "created_at"`)
+    expect(copied.rows.map((r) => r.t)).toEqual(['2026-11-02 00:00:01+00', '2026-11-02 00:00:02+00', '2026-11-02 00:00:03+00'])
+    const draft = (await store.getSlMonth(CLIENT, ['2026-11'])).posts.find((p) => p.id === fork.id)!
+    const fills = await Promise.all(draft.imageIds.map(async (id) => (await store.findImage(id, false))!.bytes[0]))
+    expect(fills).toEqual([1, 2, 3])
+  })
+
   test('approve, fork a draft with copied images, one open draft only, approving the draft hides the old post', async () => {
     const { id: a } = await store.insertPost({ ...POST, clientId: CLIENT, month: '2026-11', by: 's' })
     expect(await store.insertImage({ postId: a, bytes: bytes(20, 1), printBytes: bytes(5, 2), width: 10, height: 10, maxImages: 4 })).not.toBeNull()

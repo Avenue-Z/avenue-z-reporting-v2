@@ -309,7 +309,9 @@ export async function forkPostDraft(approvedId: string, fields: PostFields, by: 
           printBytes: socialListeningPostImages.printBytes,
           width: socialListeningPostImages.width,
           height: socialListeningPostImages.height,
-          createdAt: sql<Date>`now()`.as('created_at'),
+          // The source's own time, never now(): now() is one value for every row of this insert, and the page orders
+          // screenshots by (created_at, id) with random ids, so the copies would come back shuffled (#474).
+          createdAt: socialListeningPostImages.createdAt,
         })
         .from(socialListeningPostImages)
         .where(eq(socialListeningPostImages.postId, approvedId))),
