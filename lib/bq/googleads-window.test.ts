@@ -1,9 +1,18 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 vi.mock('./freshness', () => ({ martFreshThrough: vi.fn() }))
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 
 import { martFreshThrough } from './freshness'
+import { getClientBySlug } from '@/lib/db/queries'
 import { googleAdsWindow } from './googleads-window'
+
+const row = (googleAdsAccountId: string) => ({ paidSearchConfig: { googleAdsAccountId, leadActions: [] } }) as never
+/** Another client's account: it holds pre-backfill rows, so it keeps the default 2026-04-01 floor. */
+const otherAccount = () => {
+  vi.stubEnv('BQ_CLIENTS', 'renaissance,other')
+  vi.mocked(getClientBySlug).mockResolvedValue(row('3449727460'))
+}
 
 // Noon UTC. resolveDateRange's toISO turns local midnight into a UTC date, which is a day early east of
 // UTC (the open toISO follow-up in CLAUDE.md), so these hold on UTC (CI, Vercel) and US zones only.
@@ -13,6 +22,7 @@ beforeEach(() => {
   vi.stubEnv('DATA_BACKEND_GOOGLEADS', 'bq')
   vi.stubEnv('BQ_CLIENTS', 'renaissance')
   vi.mocked(martFreshThrough).mockReset().mockResolvedValue('2026-11-16')
+  vi.mocked(getClientBySlug).mockReset().mockResolvedValue(row('4136001852'))
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 afterEach(() => {
@@ -26,6 +36,7 @@ describe('googleAdsWindow', () => {
     vi.stubEnv('DATA_BACKEND_GOOGLEADS', '')
     expect(await googleAdsWindow('renaissance', 'this_month')).toEqual({ dateRange: 'this_month', notice: null })
     expect(martFreshThrough).not.toHaveBeenCalled()
+    expect(getClientBySlug).not.toHaveBeenCalled()
   })
 
   test('a client off the allowlist is untouched', async () => {
@@ -71,22 +82,56 @@ describe('googleAdsWindow', () => {
     expect(JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string)).toMatchObject({ reason: 'unsupported', served: 'none' })
   })
 
-  test('a range starting before the warehouse history is clipped to start on the floor', async () => {
+  test("Renaissance's range starting before its history is clipped to start on its own floor, Feb 27", async () => {
     expect(await googleAdsWindow('renaissance', 'year_to_date')).toEqual({
-      dateRange: 'custom:2026-04-01,2026-11-16',
-      notice: { kind: 'clipped', from: '2026-04-01', through: '2026-11-16', empty: false },
+      dateRange: 'custom:2026-02-27,2026-11-16',
+      notice: { kind: 'clipped', from: '2026-02-27', through: '2026-11-16', empty: false },
     })
-    expect(await googleAdsWindow('renaissance', '2026-03-01,2026-05-31')).toEqual({
-      dateRange: 'custom:2026-04-01,2026-05-31',
-      notice: { kind: 'clipped', from: '2026-04-01', through: null, empty: false },
+    expect(await googleAdsWindow('renaissance', '2026-02-01,2026-05-31')).toEqual({
+      dateRange: 'custom:2026-02-27,2026-05-31',
+      notice: { kind: 'clipped', from: '2026-02-27', through: null, empty: false },
+    })
+    expect(getClientBySlug).toHaveBeenCalledWith('renaissance')
+  })
+
+  test("a Renaissance range starting after Feb 27 but before Apr 1 is not clipped at the start", async () => {
+    expect(await googleAdsWindow('renaissance', '2026-03-01,2026-05-31')).toEqual({ dateRange: '2026-03-01,2026-05-31', notice: null })
+  })
+
+  test("a Renaissance range entirely before its floor has nothing to fetch", async () => {
+    expect(await googleAdsWindow('renaissance', 'last_year')).toEqual({
+      dateRange: null,
+      notice: { kind: 'clipped', from: '2026-02-27', through: null, empty: true },
     })
   })
 
-  test('a range entirely before the floor has nothing to fetch', async () => {
-    expect(await googleAdsWindow('renaissance', 'last_year')).toEqual({
+  test('any other account keeps the default floor, Apr 1', async () => {
+    otherAccount()
+    expect(await googleAdsWindow('other', 'year_to_date')).toEqual({
+      dateRange: 'custom:2026-04-01,2026-11-16',
+      notice: { kind: 'clipped', from: '2026-04-01', through: '2026-11-16', empty: false },
+    })
+    expect(await googleAdsWindow('other', '2026-03-01,2026-05-31')).toEqual({
+      dateRange: 'custom:2026-04-01,2026-05-31',
+      notice: { kind: 'clipped', from: '2026-04-01', through: null, empty: false },
+    })
+    expect(await googleAdsWindow('other', 'last_year')).toEqual({
       dateRange: null,
       notice: { kind: 'clipped', from: '2026-04-01', through: null, empty: true },
     })
+  })
+
+  test("a failure looking up the client's floor is unavailable, logged, and never a live or unclipped range", async () => {
+    vi.mocked(getClientBySlug).mockRejectedValue(new Error('Neon connection refused'))
+    expect(await googleAdsWindow('renaissance', 'year_to_date')).toEqual({ dateRange: null, notice: { kind: 'unavailable' } })
+    const line = JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string)
+    expect(line).toMatchObject({ event: 'bq_fallback', source: 'googleads', slug: 'renaissance', reason: 'error', served: 'none' })
+  })
+
+  test('a client row with no Google Ads account is unavailable (unsupported), never unclipped', async () => {
+    vi.mocked(getClientBySlug).mockResolvedValue({ paidSearchConfig: null } as never)
+    expect(await googleAdsWindow('renaissance', 'year_to_date')).toEqual({ dateRange: null, notice: { kind: 'unavailable' } })
+    expect(JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string)).toMatchObject({ reason: 'unsupported', served: 'none' })
   })
 
   test('a range entirely after the newest day has nothing to fetch (This Week on a Monday)', async () => {

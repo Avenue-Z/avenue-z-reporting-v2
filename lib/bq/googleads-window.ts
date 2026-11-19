@@ -1,8 +1,9 @@
 import { resolveDateRange } from '@/lib/date-range'
+import { getClientBySlug } from '@/lib/db/queries'
 import { bqEnabled, logBqFallback } from './backend'
 import { BqUnavailable } from './errors'
 import { martFreshThrough } from './freshness'
-import { AW_FRESHNESS_TABLE, AW_HISTORY_FROM, ISO_DATE } from './googleads'
+import { AW_FRESHNESS_TABLE, ISO_DATE, awHistoryFrom } from './googleads'
 
 /**
  * Why the Google Ads numbers on screen are not the whole range asked for.
@@ -26,12 +27,13 @@ function daysBefore(iso: string, n: number): string {
 /**
  * The part of `dateRange` the Google Ads marts can answer exactly (C3). With the source on BigQuery
  * there is no live fallback: a range ending after the newest day ends on that day, a range starting
- * before AW_HISTORY_FROM starts on it, and the notice says so. Switched off, the range is untouched.
+ * before the client's account floor (awHistoryFrom) starts on it, and the notice says so. Switched off,
+ * the range is untouched, and the database is not asked.
  * The clipped range is a `custom:` string, so the page's prior period is derived from what is shown.
  */
 export async function googleAdsWindow(slug: string, dateRange: string): Promise<AdsWindow> {
   if (!bqEnabled('googleads', slug)) return { dateRange, notice: null }
-  let through: string, startDate: string, endDate: string
+  let through: string, startDate: string, endDate: string, floor: string
   try {
     // A malformed `custom:` range from the URL is a refusal (`unsupported`), never a crash or an `error`.
     try {
@@ -47,6 +49,10 @@ export async function googleAdsWindow(slug: string, dateRange: string): Promise<
       throw new BqUnavailable('stale', `${AW_FRESHNESS_TABLE} has no readable newest day (${JSON.stringify(newest)})`)
     }
     through = newest
+    // A lookup failure is unavailable like any other: never an unclipped range.
+    const accountId = (await getClientBySlug(slug))?.paidSearchConfig?.googleAdsAccountId
+    if (!accountId) throw new BqUnavailable('unsupported', `${slug} has no Google Ads account id`)
+    floor = awHistoryFrom(accountId)
   } catch (err) {
     logBqFallback('googleads', slug, err, 'none')
     return { dateRange: null, notice: { kind: 'unavailable' } }
@@ -58,7 +64,7 @@ export async function googleAdsWindow(slug: string, dateRange: string): Promise<
     logBqFallback('googleads', slug, new BqUnavailable('stale', `${AW_FRESHNESS_TABLE} holds data through ${through}`), 'none')
   }
 
-  const start = startDate < AW_HISTORY_FROM ? AW_HISTORY_FROM : startDate
+  const start = startDate < floor ? floor : startDate
   const end = endDate > through ? through : endDate
   if (start === startDate && end === endDate) return { dateRange, notice: null }
   const notice: AdsNotice = {

@@ -75,11 +75,50 @@ describe('Paid Search on BigQuery (C3): stale → notice, failure → notice, ne
     expect(smQuery).not.toHaveBeenCalled()
   })
 
-  test('Year to Date starts on the history floor; its prior period, wholly before it, is dropped rather than read', async () => {
+  test("Year to Date starts on Renaissance's own history floor, Feb 27; its prior period, wholly before it, is dropped rather than read", async () => {
     marts('2026-11-16')
     const { getByRole } = await page('year_to_date')
+    expect(getByRole('note').textContent).toContain('Paid Search history starts Feb 27, 2026')
+    expect(readRanges()).toContain('2026-02-27,2026-11-16')
+    expect(readRanges().every((r) => r >= '2026-02-27')).toBe(true)
+    expect(smQuery).not.toHaveBeenCalled()
+  })
+
+  test("a prior period starting before Renaissance's floor is still dropped, not read", async () => {
+    marts('2026-11-16')
+    await page('custom:2026-03-01,2026-03-31') // previous_period: 2026-01-29..2026-02-28
+    expect(readRanges()).toContain('2026-03-01,2026-03-31')
+    expect(readRanges().every((r) => r >= '2026-02-27')).toBe(true)
+    expect(smQuery).not.toHaveBeenCalled()
+  })
+
+  test("a prior period on or after Renaissance's floor is read from the marts, not dropped", async () => {
+    marts('2026-11-16')
+    await page('custom:2026-04-01,2026-04-30') // previous_period: 2026-03-02..2026-03-31
+    expect(readRanges()).toContain('2026-03-02,2026-03-31')
+    expect(smQuery).not.toHaveBeenCalled()
+  })
+
+  test('an account with no verified earlier history (no rows in the marts) clips Year to Date at Apr 1', async () => {
+    marts('2026-11-16')
+    vi.mocked(getClientBySlug).mockResolvedValue({
+      paidSearchConfig: { googleAdsAccountId: '1111111111', leadActions: [] },
+      smApiKeyEnvVar: 'SM_KEY',
+    } as never)
+    const { getByRole, getAllByTestId } = await page('year_to_date')
     expect(getByRole('note').textContent).toContain('Paid Search history starts Apr 1, 2026')
+    expect(getAllByTestId('part')).toHaveLength(6)
+    expect(readRanges()).toContain('2026-04-01,2026-11-16')
     expect(readRanges().every((r) => r >= '2026-04-01')).toBe(true)
+    expect(smQuery).not.toHaveBeenCalled()
+  })
+
+  test("a failure looking up the client's floor: the notice, no parts, never live", async () => {
+    marts('2026-11-16')
+    vi.mocked(getClientBySlug).mockRejectedValue(new Error('Neon connection refused'))
+    const { getByRole, queryAllByTestId } = await page('year_to_date')
+    expect(getByRole('note').textContent).toBe("Data delayed — Paid Search data can't be loaded right now. Try again shortly.")
+    expect(queryAllByTestId('part')).toHaveLength(0)
     expect(smQuery).not.toHaveBeenCalled()
   })
 
