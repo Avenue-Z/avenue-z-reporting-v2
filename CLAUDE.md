@@ -1125,7 +1125,8 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
 
 ## Known Follow-ups: Social Listening tab (from PR #468)
 
-The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; no client has it on.
+The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; on for the dev database's client only,
+none on staging or production.
 
 - [ ] **Rollout, each step on my go.** Migration `0030_social_listening` and the setting are on the dev client only
   (2026-11-19), with the history backfill. Next staging (Savannah uploads November and checks against her files),
@@ -1153,8 +1154,10 @@ The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; 
   charts (`artifact-charts.tsx`, the same SVG), its analysis box (`analysis.tsx`, a drop-in for CommentaryPanel through
   `monthlyCommentary`'s `Panel`), its post cards and its trends are ported from `docs/social-listening/mock.template.html`.
   Every other tab keeps the standard look.
-- [ ] **Checked in a browser on dev in its empty states only** (2026-11-19: migration and setting applied on dev; staff
-  October upload control, both pills, sl kept by the month picker, the live month's "Upload opens when November 2026
-  ends.", no console or server errors, Renaissance unchanged). The data page needs an upload, then a client-role look and
-  a PDF export.
+- [ ] **Still to check in a browser: a real client login and a PDF export.** Checked on dev, 2026-11-19, with the real
+  October brand and industry exports and the history rows: both pills, the year-to-date charts drawing earlier months from
+  the history rows, the changes against the September report, the staff note on a month with a report on record, Preview
+  as client both ways, an analysis editor, the live month's "Upload opens when November 2026 ends.", sl kept by the month
+  picker, no console or server errors, Renaissance unchanged. Open: a `CLIENT_VIEWER` login, and a PDF export (check that
+  the post screenshots print, #475).
 
