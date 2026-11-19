@@ -143,6 +143,20 @@ describe('the client view (a client role, or any export)', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
+  test('a client on the Industry pill in a month without a brand upload sees the not-ready text, not a blank tab (#476)', async () => {
+    h.getSlMonth.mockResolvedValue(monthData([up(parsed('industry'))]))
+    const { container } = await show({ role: 'CLIENT_VIEWER', email: null, topic: 'industry' })
+    expect(screen.getByText(NOT_READY_TEXT)).toBeTruthy()
+    expect(container.innerHTML).not.toBe('')
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  test('the industry half of an export prints nothing when there is no brand upload either', async () => {
+    h.getSlMonth.mockResolvedValue(monthData([up(parsed('industry'))]))
+    const { container } = await show({ exporting: true, topic: 'industry' })
+    expect(container.innerHTML).toBe('')
+  })
+
   test('a client without an industry upload gets no Industry pill', async () => {
     h.getSlMonth.mockResolvedValue(monthData([up(parsed('brand'))]))
     await show({ role: 'CLIENT_VIEWER', email: null })

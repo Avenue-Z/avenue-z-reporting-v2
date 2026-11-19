@@ -84,7 +84,9 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   const pills = topicPills({ month, data, setting, clientView })
   const toggle = staffViewer && !exporting ? <PreviewToggle on={previewing} /> : null
   if (clientView && !pills.brand) {
-    if (topic !== 'brand' && !previewing) return null
+    // Only the export's industry call prints nothing (the brand call already printed the not-ready text). A client who
+    // lands on ?sl=industry, which the month picker and the locked-month redirect keep, sees the text (#476).
+    if (exporting && topic !== 'brand') return null
     return (
       <div className={s.root}>
         {toggle && <div className={s.topics}><span className={s.spacer} />{toggle}</div>}
