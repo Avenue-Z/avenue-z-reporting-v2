@@ -81,9 +81,12 @@ sentiment second (Thomas, 2026-11-19, option A).
   and where the section renders, as the AEO setting is.
 - Optional `industrySample: <1-100>`: when set, the industry tiles and results charts carry "<n>% sample" (Talkwalker
   samples the industry topic; APFM's is 10%, social-listening findings doc, September industry notes).
-- Brand and Industry is a URL param `sl=brand|industry` (default brand, anything else is brand). It is part of the
-  report's Suspense key, carried by the PDF export request and bulk export (`lib/export/request.ts`, as `aeo` is), and
-  deep-linkable.
+- Brand and Industry is a URL param `sl=brand|industry` (default brand, anything else is brand), deep-linkable and
+  part of the report's Suspense key. It is threaded through the same places `aeo` is on screen: the route URL builders
+  and `getReportComponent` in both report pages (`app/dashboard/[clientSlug]/reports/page.tsx`,
+  `app/portal/[clientSlug]/reports/page.tsx`). **A PDF of the tab prints brand then industry on one page, whichever
+  pill is open** (Thomas, 2026-11-19, review R2-5), like the deck, so single and bulk exports always hold both and `sl`
+  is never needed by the export.
 
 ## 5. Months
 
@@ -319,9 +322,10 @@ setting reserves the key `paidSheet` for it; this build rejects it as unknown so
 1. Dev database: run the migration, then switch the setting on for APFM with a guarded one-key script (needs Thomas's
    go; dev and staging writes need written consent, memory `staging-only-client-onboarding`).
 2. Backfill history rows for January to October (brand) and May to October (industry) from the private history sheet,
-   October from the delivered October deck, through a guarded script with a dry run and a rollback. Then upload
-   October's brand and industry exports in the tab, so November's media type and influencer changes have a previous
-   upload to compare with (otherwise they all show "n/a").
+   October from the delivered October deck, through a guarded script with a dry run and a rollback. **October is not
+   uploaded** (Thomas, 2026-11-19, review R2-3): October stays the delivered deck, the tab starts with November, and
+   November's tile and sentiment changes compare with October's history row. Accepted consequence: November's media
+   type and author changes show "n/a" for that first month only.
 3. Staging: same steps after Paul's review and the dev to staging promotion, each with Thomas's go. Savannah uploads
    November's exports there and checks the page against her files.
 4. Production only after Savannah and Jasmine approve on staging and Thomas says go.
@@ -347,7 +351,7 @@ setting reserves the key `paidSheet` for it; this build rejects it as unknown so
   purpose and say so: `lib/organic-social/aeo-tab/tab-list.test.ts:16` (AEO no longer last) and
   `lib/organic-social/subsections.test.ts:9` (the full id list).
 - Export: a staff export of the tab prints no controls, drafts or staff notes, approved posts' first print images only,
-  and the `sl` param is carried by the export request and bulk export.
+  and brand then industry from either pill, in single and bulk exports.
 - Image route: 404 for no session, another client, a client viewing a draft, replaced or deleted post's image;
   `Cache-Control` header; `?print=1` serves the print bytes.
 - Trends action: staff only, client and setting re-checked, saving after approval returns it to draft, clients see

@@ -53,9 +53,9 @@ by targeted edit and reported; a MAJOR with a choice goes to Thomas; MINORs go t
 |---|---|---|
 | R2-1 | MAJOR | Fixed (one fix): a server-side export flag drives one `clientView` value for every section 5 case (§9) |
 | R2-2 | MAJOR | Fixed (one fix): a missing, null or 0 previous value gets the placeholder, never Infinity (§7) |
-| R2-3 | MAJOR | **Decision for Thomas:** what October's page shows when it has both a history row and a re-pulled upload |
+| R2-3 | MAJOR | Decided by Thomas 2026-11-19: October is not uploaded; the tab starts with November (§13) |
 | R2-4 | MAJOR | Fixed (one fix): `before_open` stored on the upload row at upload time (§7, §8) |
-| R2-5 | MAJOR | **Decision for Thomas:** whether a PDF of the tab prints both Brand and Industry, or only the pill on screen |
+| R2-5 | MAJOR | Decided by Thomas 2026-11-19: a PDF prints brand then industry, whichever pill is open (§4) |
 | R2-6 | MINOR | Plan: a trimmed record's `socialListeningTab` boolean decides; test on a trimmed record |
 | R2-7 | MINOR | Plan: `OrganicSocialReport` (not the body) skips both header boxes; test the `organic-social` stream is not read |
 | R2-8 | MINOR | Plan: add `industrySample` to the shape block (integer 1 to 100, only with `industryTopic`); parse tests incl. empty and equal topics |
