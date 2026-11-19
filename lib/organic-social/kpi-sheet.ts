@@ -82,20 +82,32 @@ export function kpiPeriodLabel(monthLabel: string, year: string): string {
 
 // ---- Month tabs (spec docs/superpowers/specs/2026-11-11-kpi-tab-by-month-design.md) ----
 
-/** A year's KPI tracker setting: a fixed tab (today's shape, unchanged), month tabs, nothing, or something unusable. */
+/** A year's KPI tracker setting: a fixed tab (today's shape, unchanged), month tabs, nothing, or something unusable.
+ *  Either usable shape may name a `startTab`, the tab holding where each platform ended last year (spec
+ *  docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md); an unusable one is `startTabInvalid` and the rest of
+ *  the entry is still used. Both keys are omitted when absent, so a choice without them is exactly today's. */
+type StartTab = { startTab?: string; startTabInvalid?: true }
 export type KpiSheetChoice =
-  | { kind: 'fixed'; sheetId: string; tab: string }
-  | { kind: 'byMonth'; sheetId: string; carriedFrom?: string }
+  | ({ kind: 'fixed'; sheetId: string; tab: string } & StartTab)
+  | ({ kind: 'byMonth'; sheetId: string; carriedFrom?: string } & StartTab)
   | { kind: 'none' }
   | { kind: 'invalid' }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k)
 
+/** The entry's `startTab`: trimmed like `tab` (ytd-sheet.ts:34); a non-string, or empty or over 100 characters once
+ *  trimmed, is marked invalid rather than dropping the whole entry. Pure: the part logs, once, with the slug. */
+function startTabOf(e: Record<string, unknown>): StartTab {
+  if (!has(e, 'startTab')) return {}
+  const v = typeof e.startTab === 'string' ? e.startTab.trim() : ''
+  return v.length > 0 && v.length <= 100 ? { startTab: v } : { startTabInvalid: true }
+}
+
 /** `{ sheetId, byMonth: true }` and nothing else that would make it ambiguous: no `tab`, `byMonth` exactly true. */
 function byMonthEntry(e: Record<string, unknown>): KpiSheetChoice {
   if (e.byMonth !== true || has(e, 'tab') || typeof e.sheetId !== 'string' || !SHEET_ID.test(e.sheetId)) return { kind: 'invalid' }
-  return { kind: 'byMonth', sheetId: e.sheetId }
+  return { kind: 'byMonth', sheetId: e.sheetId, ...startTabOf(e) }
 }
 
 /** The setting for `year` (`dash_social_config.kpiSheets`). An entry with `byMonth` is month tabs; any other entry is read
@@ -107,13 +119,15 @@ export function kpiSheetFor(value: unknown, year: string): KpiSheetChoice {
     if (isObj(e) && has(e, 'byMonth')) return byMonthEntry(e)
   }
   const fixed = ytdSheetFor(value, year)
-  if (fixed.kind === 'ok') return { kind: 'fixed', sheetId: fixed.entry.sheetId, tab: fixed.entry.tab }
+  if (fixed.kind === 'ok') return { kind: 'fixed', sheetId: fixed.entry.sheetId, tab: fixed.entry.tab, ...startTabOf((value as Record<string, unknown>)[year] as Record<string, unknown>) }
   if (fixed.kind === 'invalid' || !isObj(value)) return fixed
   const last = Object.keys(value).filter((k) => /^\d{4}$/.test(k) && k < year).sort().pop()
   const e = last === undefined ? undefined : value[last]
   if (last === undefined || !isObj(e) || !has(e, 'byMonth')) return { kind: 'none' }
   const carried = byMonthEntry(e)
-  return carried.kind === 'byMonth' ? { ...carried, carriedFrom: last } : { kind: 'none' }
+  if (carried.kind !== 'byMonth') return { kind: 'none' }
+  const { startTab, startTabInvalid, ...rest } = carried
+  return { ...rest, carriedFrom: last, ...(startTab !== undefined ? { startTab } : {}), ...(startTabInvalid ? { startTabInvalid } : {}) }
 }
 
 /** The tab named "<Month> <Year>" for `month` (0 to 11), matched trimmed and in any case; the raw title is returned because
@@ -123,4 +137,42 @@ export function monthTabFor(titles: string[], year: string, month: number): { ki
   const hits = titles.filter((t) => t.trim().toLowerCase() === want)
   if (hits.length === 0) return { kind: 'none' }
   return hits.length > 1 ? { kind: 'ambiguous' } : { kind: 'one', title: hits[0] }
+}
+
+// ---- The start tab (spec docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md) ----
+
+/** Where each platform ended `startYear`, from the start tab, read like every tab (A1:Z40, ytd-sheet.ts:72-74):
+ *    row 3, columns C to E: the month tabs' header
+ *    then, per platform, a row [name, "<year>", a, b, c] and more rows [ "", "<year>", ... ] for other years
+ *  Fully empty rows are skipped anywhere; a row with an empty column A belongs to the last named platform. Only the
+ *  `startYear` row is read; a platform whose row is missing or not three numbers has no start (the others still do).
+ *  A deviation is a KpiSheetLayoutError whose `missing` is a fixed token, never cell text. */
+export function parseKpiStartGrid(grid: unknown[][], startYear: string): Partial<Record<DashChannel, KpiFigures>> {
+  if (HEADER.some((h, i) => cell(grid[2], 2 + i).toLowerCase() !== h)) throw new KpiSheetLayoutError('header')
+  const out: Partial<Record<DashChannel, KpiFigures>> = {}
+  const seen = new Set<DashChannel>()
+  let current: DashChannel | null = null
+  let years = new Set<string>()
+  for (let i = 3; i < grid.length; i++) {
+    const row = grid[i]
+    if (!Array.isArray(row) || row.every((c) => String(c ?? '').trim() === '')) continue
+    const name = cell(row, 0)
+    if (name !== '') {
+      const channel = PLATFORMS[name.toLowerCase()]
+      if (!channel) throw new KpiSheetLayoutError('platform name')
+      if (seen.has(channel)) throw new KpiSheetLayoutError('duplicate platform')
+      seen.add(channel); current = channel; years = new Set()
+    } else if (current === null) throw new KpiSheetLayoutError('no platform')
+    const y = cell(row, 1)
+    if (!/^\d{4}$/.test(y)) throw new KpiSheetLayoutError('year')
+    if (years.has(y)) throw new KpiSheetLayoutError('duplicate year')
+    years.add(y)
+    if (y !== startYear) continue
+    const cells = [2, 3, 4].map((j) => classifyCell(cell(row, j)))
+    if (cells.every((c) => c.kind === 'number')) {
+      const [followers, impressions, engagements] = cells.map((c) => (c as { value: number }).value)
+      out[current!] = { followers, impressions, engagements }
+    }
+  }
+  return out
 }
