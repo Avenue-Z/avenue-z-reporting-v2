@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { render } from '@testing-library/react'
-const { getClientBySlug, readYtdTab, readSheetTabTitles, readMonthTab, requestClock } = vi.hoisted(() => ({ getClientBySlug: vi.fn(), readYtdTab: vi.fn(), readSheetTabTitles: vi.fn(), readMonthTab: vi.fn(), requestClock: vi.fn() }))
+const { getClientBySlug, readYtdTab, readSheetTabTitles, readMonthTab, readKpiStartTab, requestClock } = vi.hoisted(() => ({ getClientBySlug: vi.fn(), readYtdTab: vi.fn(), readSheetTabTitles: vi.fn(), readMonthTab: vi.fn(), readKpiStartTab: vi.fn(), requestClock: vi.fn() }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug }))
-vi.mock('@/lib/organic-social/ytd-sheet', async () => ({ ...(await vi.importActual<typeof import('@/lib/organic-social/ytd-sheet')>('@/lib/organic-social/ytd-sheet')), readYtdTab, readSheetTabTitles, readMonthTab }))
+vi.mock('@/lib/organic-social/ytd-sheet', async () => ({ ...(await vi.importActual<typeof import('@/lib/organic-social/ytd-sheet')>('@/lib/organic-social/ytd-sheet')), readYtdTab, readSheetTabTitles, readMonthTab, readKpiStartTab }))
 vi.mock('@/lib/organic-social/locked-range', async () => ({ ...(await vi.importActual<typeof import('@/lib/organic-social/locked-range')>('@/lib/organic-social/locked-range')), requestClock }))
 
 import { KpiCheckInSection, kpiCheckInV1 } from './kpi-check-in'
@@ -29,7 +29,7 @@ const GRID_OCT = [
 ]
 
 // 2026-11-03: October opens to clients on the 12th, so September is the newest month a client may see.
-beforeEach(() => { getClientBySlug.mockReset(); readYtdTab.mockReset(); readSheetTabTitles.mockReset(); readMonthTab.mockReset(); requestClock.mockReset(); requestClock.mockReturnValue(clockFor(new Date('2026-11-03T12:00:00Z'))) })
+beforeEach(() => { getClientBySlug.mockReset(); readYtdTab.mockReset(); readSheetTabTitles.mockReset(); readMonthTab.mockReset(); readKpiStartTab.mockReset(); requestClock.mockReset(); requestClock.mockReturnValue(clockFor(new Date('2026-11-03T12:00:00Z'))) })
 
 test('registered unpublished, renders only on Overview', () => {
   expect(ORGANIC_SOCIAL_PARTS['kpi-check-in'][1]).toBe(kpiCheckInV1)
@@ -461,5 +461,171 @@ describe('month tabs, a client without reporting months', () => {
     const c = render(await KpiCheckInSection({ ctx: { ...CTX, dateRange: 'last_month' } }))
     expect(readMonthTab).toHaveBeenCalledWith(ID, 'December 2026')
     expect(c.getAllByText('1/1/26 to 12/31/26')).toHaveLength(2)
+  })
+})
+
+
+// ===== Starting point (spec docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md) =====
+describe('starting point: where each platform ended last year', () => {
+  const START_TAB = 'Start Tab Title'
+  const startGrid = (year = '2025', rows: Record<string, unknown[]> = {}) => [
+    ['Test Co Annual Growth'], [], ['', '', 'Total Followers', 'Impressions', 'Engagements'],
+    rows.instagram ?? ['Instagram', year, '700', '150,000', '2,000'], ['', String(Number(year) + 1)],
+    rows.linkedin ?? ['LinkedIn', year, '8,500', '40,000', '5,000'], ['', String(Number(year) + 1)],
+  ]
+  const WITH_START = { 2026: { sheetId: ID, byMonth: true, startTab: START_TAB } }
+  const octOpen = () => requestClock.mockReturnValue(clockFor(new Date('2026-11-13T12:00:00Z')))
+  const spyAll = () => ({ warn: vi.spyOn(console, 'warn').mockImplementation(() => {}), error: vi.spyOn(console, 'error').mockImplementation(() => {}) })
+  /** Every log line, which must never carry the sheet id or the tab title. */
+  const clean = (s: ReturnType<typeof spyAll>) => {
+    const all = [...logs(s.warn), ...logs(s.error)]
+    for (const l of all) { expect(l).not.toContain(ID); expect(l).not.toContain(START_TAB) }
+    return all
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  test('no startTab: no start read, the rings exactly as today', async () => {
+    getClientBySlug.mockResolvedValue(onMonths(BY_MONTH)); octOpen()
+    tabs({ 'October 2026': monthGrid(9) })
+    const c = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    expect(readKpiStartTab).not.toHaveBeenCalled()
+    expect(c.queryByText(/End of 2025/)).toBeNull()
+  })
+
+  test('edge 1: each ring shows where that platform ended 2025, for clients and staff, after the month read', async () => {
+    getClientBySlug.mockResolvedValue(onMonths(WITH_START)); octOpen()
+    tabs({ 'October 2026': monthGrid(9) })
+    readKpiStartTab.mockResolvedValue(startGrid())
+    for (const ctx of [OCT, staffOf(OCT)]) {
+      const c = render(await KpiCheckInSection({ ctx }))
+      expect(c.getAllByText(/^End of 2025: /).map((e) => e.textContent)).toEqual([
+        'End of 2025: 700', 'End of 2025: 150,000', 'End of 2025: 2,000', 'End of 2025: 8,500', 'End of 2025: 40,000', 'End of 2025: 5,000',
+      ])
+      expect(c.getAllByRole('img')[0].getAttribute('aria-label')).toBe('Total Followers: 1,100 of 2,000, end of 2025: 700')
+      c.unmount()
+    }
+    expect(readKpiStartTab).toHaveBeenCalledWith(ID, START_TAB)
+    expect(readMonthTab.mock.invocationCallOrder[0]).toBeLessThan(readKpiStartTab.mock.invocationCallOrder[0])
+  })
+
+  test('edge 1, PDF: a staff export prints the start lines and no staff notes', async () => {
+    getClientBySlug.mockResolvedValue(onMonths(WITH_START)); octOpen()
+    tabs({ 'October 2026': monthGrid(9) })
+    readKpiStartTab.mockResolvedValue(startGrid('2025', { linkedin: ['LinkedIn', '2025', 'N/A', '1', '1'] }))
+    const s = spyAll()
+    const pdf = await inPdf(staffOf(OCT))
+    expect(pdf.getAllByText(/^End of 2025: /)).toHaveLength(3)
+    expect(pdf.queryByText(/No end of 2025 figures/)).toBeNull()
+    clean(s)
+  })
+
+  test.each([
+    ['read failed', () => readKpiStartTab.mockRejectedValue(new YtdSheetReadError('403')), "Couldn't read the start figures.", 'error', '[organic-social] kpi start read failed slug=c year=2026 status=403'],
+    ['gone', () => readKpiStartTab.mockResolvedValue('gone'), 'No start tab named in the setting was found.', 'warn', '[organic-social] kpi start tab missing slug=c year=2026'],
+    ['layout', () => readKpiStartTab.mockResolvedValue([['x'], [], ['', '', 'Followers', 'Impressions', 'Engagements']]), "The start tab's layout isn't recognised.", 'warn', '[organic-social] kpi start layout not found slug=c year=2026 missing=header'],
+  ] as const)('%s: rings without a start; staff get one note under the heading; clients get nothing extra; one log line', async (_n, arrange, note, level, line) => {
+    getClientBySlug.mockResolvedValue(onMonths(WITH_START)); octOpen()
+    tabs({ 'October 2026': monthGrid(9) })
+    arrange()
+    const s = spyAll()
+    const staff = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    expect(staff.getAllByRole('img')).toHaveLength(6)
+    expect(staff.queryByText(/^End of 2025: /)).toBeNull()
+    const n = staff.getByText(note)
+    expect(n.closest('[data-export-block]')?.querySelector('h2')?.textContent).toBe('KPI Check-In') // under the heading, in the first block
+    expect(n.closest('.rounded-lg')).toBeNull() // above the first card, not inside it
+    staff.unmount()
+    const client = render(await KpiCheckInSection({ ctx: OCT }))
+    expect(client.getAllByRole('img')).toHaveLength(6)
+    expect(client.queryByText(note)).toBeNull()
+    const all = clean(s)
+    expect(all.filter((l) => l === line)).toHaveLength(2) // once per render
+    expect(logs(level === 'error' ? s.error : s.warn)).toContain(line)
+  })
+
+  test('a shown platform with no start row: its card says so for staff only; the other card keeps its start', async () => {
+    getClientBySlug.mockResolvedValue(onMonths(WITH_START)); octOpen()
+    tabs({ 'October 2026': monthGrid(9) })
+    readKpiStartTab.mockResolvedValue(startGrid('2025', { linkedin: ['LinkedIn', '2025', '8,500', '', '5,000'] }))
+    const s = spyAll()
+    const staff = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    const note = staff.getByText('No end of 2025 figures for LinkedIn.')
+    expect(note.closest('.rounded-lg')?.querySelector('h3')?.textContent).toBe('LinkedIn')
+    expect(staff.getAllByText(/^End of 2025: /)).toHaveLength(3)
+    staff.unmount()
+    const client = render(await KpiCheckInSection({ ctx: OCT }))
+    expect(client.queryByText(/No end of 2025 figures/)).toBeNull()
+    expect(client.getAllByText(/^End of 2025: /)).toHaveLength(3)
+    expect(clean(s)).toContain('[organic-social] kpi start row missing slug=c year=2026 platform=LINKEDIN')
+  })
+
+  test('an invalid startTab: no read; staff get the note, clients the rings; logged with the slug and year', async () => {
+    getClientBySlug.mockResolvedValue(onMonths({ 2026: { sheetId: ID, byMonth: true, startTab: '   ' } })); octOpen()
+    tabs({ 'October 2026': monthGrid(9) })
+    const s = spyAll()
+    const staff = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    expect(staff.getByText("The start tab setting isn't valid.")).toBeTruthy()
+    expect(staff.getAllByRole('img')).toHaveLength(6)
+    staff.unmount()
+    expect(render(await KpiCheckInSection({ ctx: OCT })).queryByText("The start tab setting isn't valid.")).toBeNull()
+    expect(readKpiStartTab).not.toHaveBeenCalled()
+    expect(clean(s).filter((l) => l === '[organic-social] kpi start tab setting invalid slug=c year=2026')).toHaveLength(2)
+  })
+
+  test('edge 3 and every early return: no start read and no start log line', async () => {
+    getClientBySlug.mockResolvedValue(onMonths(WITH_START)); octOpen()
+    tabs({}) // no October tab: the month note
+    const s = spyAll()
+    const c = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    expect(c.getByText('No KPI tab for October 2026 yet.')).toBeTruthy()
+    readSheetTabTitles.mockRejectedValue(new YtdSheetReadError('500')) // the error card
+    render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    getClientBySlug.mockResolvedValue(onMonths({ 2026: { sheetId: 'short', byMonth: true, startTab: '  ' } })) // invalid entry
+    render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    expect(readKpiStartTab).not.toHaveBeenCalled()
+    expect(clean(s).some((l) => l.includes('kpi start'))).toBe(false)
+  })
+
+  test('a card a client sees only as the "updates with" note shows no start; staff see rings with the start', async () => {
+    getClientBySlug.mockResolvedValue(onMonths(WITH_START)) // 2026-11-03: October not open to clients
+    tabs({ 'October 2026': monthGrid(9) })
+    readKpiStartTab.mockResolvedValue(startGrid())
+    const client = render(await KpiCheckInSection({ ctx: OCT }))
+    expect(client.getAllByText('KPI Check-In updates with the October report.')).toHaveLength(2)
+    expect(client.queryByText(/^End of 2025: /)).toBeNull()
+    client.unmount()
+    expect(render(await KpiCheckInSection({ ctx: staffOf(OCT) })).getAllByText(/^End of 2025: /)).toHaveLength(6)
+  })
+
+  test('edge 4: a fixed { sheetId, tab, startTab } entry shows the start the same way', async () => {
+    getClientBySlug.mockResolvedValue(client({ 2026: { sheetId: ID, tab: 'KPIs', startTab: START_TAB } }))
+    readYtdTab.mockResolvedValue(GRID)
+    readKpiStartTab.mockResolvedValue(startGrid())
+    const c = render(await KpiCheckInSection({ ctx: CTX }))
+    expect(c.getAllByText(/^End of 2025: /)).toHaveLength(6)
+  })
+
+  test('edge 5: a platform on the start tab that the client does not show is ignored', async () => {
+    getClientBySlug.mockResolvedValue(onMonths(WITH_START)); octOpen()
+    tabs({ 'October 2026': monthGrid(9) })
+    readKpiStartTab.mockResolvedValue([...startGrid(), ['TikTok', '2025', '1', '2', '3']])
+    const s = spyAll()
+    const c = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
+    expect(c.getAllByText(/^End of 2025: /)).toHaveLength(6)
+    expect(c.queryByText(/TikTok/)).toBeNull()
+    expect(clean(s).some((l) => l.includes('kpi start'))).toBe(false)
+  })
+
+  test('edge 2: January 2027 on the carried 2026 entry reads the 2026 rows; blank, so staff get per-card notes', async () => {
+    getClientBySlug.mockResolvedValue(client(WITH_START))
+    requestClock.mockReturnValue(clockFor(new Date('2027-01-20T12:00:00Z')))
+    tabs({ 'January 2027': monthGrid(0).map((r) => r.map((c) => (typeof c === 'string' ? c.replace('H2 2026', 'H1 2027') : c))) })
+    readKpiStartTab.mockResolvedValue(startGrid('2025'))
+    const s = spyAll()
+    const c = render(await KpiCheckInSection({ ctx: staffOf({ ...CTX, dateRange: 'custom:2027-01-01,2027-01-31' }) }))
+    expect(c.getByText('No end of 2026 figures for Instagram.')).toBeTruthy()
+    expect(c.getByText('No end of 2026 figures for LinkedIn.')).toBeTruthy()
+    expect(c.queryByText(/^End of 2026: /)).toBeNull()
+    clean(s)
   })
 })
