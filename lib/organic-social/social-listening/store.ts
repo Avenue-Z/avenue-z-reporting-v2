@@ -15,7 +15,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { cached } from '@/lib/cache'
 import {
-  byteaToDriver,
+  byteaToDriver, clients,
   socialListeningHistory, socialListeningPostImages, socialListeningPosts, socialListeningTrends, socialListeningUploads,
 } from '@/lib/db/schema'
 import { monthDate, monthKey, toSlMonthData, trimUploads, type SlMonthRowsJson } from './select'
@@ -182,8 +182,11 @@ export async function countImages(postId: string): Promise<number> {
   return rows[0]?.n ?? 0
 }
 
-/** One image's bytes (the print copy with `print`) and the post state the image route checks. */
-export async function findImage(id: string, print: boolean): Promise<{ bytes: Uint8Array; post: Omit<PostState, 'replacesId'> } | undefined> {
+/** What the image route needs about the image's client: who may open its portal and whether the tab is on for it. */
+export type ImageClient = { id: string; slug: string; dashSocialConfig: unknown; hiddenReports: string[]; enabledReports: string[] }
+
+/** One image's bytes (the print copy with `print`), its post's state and its client, for the image route. */
+export async function findImage(id: string, print: boolean): Promise<{ bytes: Uint8Array; post: Omit<PostState, 'replacesId'>; client: ImageClient } | undefined> {
   const rows = await db
     .select({
       bytes: print ? socialListeningPostImages.printBytes : socialListeningPostImages.bytes,
@@ -193,9 +196,14 @@ export async function findImage(id: string, print: boolean): Promise<{ bytes: Ui
       status: socialListeningPosts.status,
       replacedAt: socialListeningPosts.replacedAt,
       deletedAt: socialListeningPosts.deletedAt,
+      slug: clients.slug,
+      dashSocialConfig: clients.dashSocialConfig,
+      hiddenReports: clients.hiddenReports,
+      enabledReports: clients.enabledReports,
     })
     .from(socialListeningPostImages)
     .innerJoin(socialListeningPosts, eq(socialListeningPostImages.postId, socialListeningPosts.id))
+    .innerJoin(clients, eq(socialListeningPosts.clientId, clients.id))
     .where(eq(socialListeningPostImages.id, id))
     .limit(1)
   const r = rows[0]
@@ -203,7 +211,19 @@ export async function findImage(id: string, print: boolean): Promise<{ bytes: Ui
   return {
     bytes: r.bytes,
     post: { id: r.postId, clientId: r.clientId, month: monthKey(r.month), status: r.status, replacedAt: r.replacedAt, deletedAt: r.deletedAt },
+    client: { id: r.clientId, slug: r.slug, dashSocialConfig: r.dashSocialConfig, hiddenReports: r.hiddenReports, enabledReports: r.enabledReports },
   }
+}
+
+/** The post and client an image belongs to, without its bytes: the remove action checks ownership with it. */
+export async function findImageOwner(id: string): Promise<{ postId: string; clientId: string } | undefined> {
+  const rows = await db
+    .select({ postId: socialListeningPosts.id, clientId: socialListeningPosts.clientId })
+    .from(socialListeningPostImages)
+    .innerJoin(socialListeningPosts, eq(socialListeningPostImages.postId, socialListeningPosts.id))
+    .where(eq(socialListeningPostImages.id, id))
+    .limit(1)
+  return rows[0]
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -35,7 +35,7 @@ beforeAll(async () => {
   // Neon's HTTP driver sends and returns bytea as `\x` hex text, which is what the schema's bytea type writes and
   // reads. PGlite's own bytea handling wants a Uint8Array, so oid 17 is set to Neon's text form here.
   pg = new PGlite({ serializers: { 17: (x: unknown) => String(x) }, parsers: { 17: (x: string) => x } })
-  await pg.exec(`CREATE TYPE "commentary_status" AS ENUM ('draft', 'approved'); CREATE TABLE "clients" ("id" uuid PRIMARY KEY);`)
+  await pg.exec(`CREATE TYPE "commentary_status" AS ENUM ('draft', 'approved'); CREATE TABLE "clients" ("id" uuid PRIMARY KEY, "slug" text NOT NULL DEFAULT 'a-client', "dash_social_config" jsonb, "hidden_reports" text[] NOT NULL DEFAULT '{}', "enabled_reports" text[] NOT NULL DEFAULT '{organic-social}');`)
   const dir = join(process.cwd(), 'drizzle')
   const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('0030_'))!), 'utf8')
   for (const s of sql.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)) await pg.exec(s)
@@ -46,7 +46,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await pg.exec(`TRUNCATE "social_listening_post_images", "social_listening_posts", "social_listening_uploads", "social_listening_history", "social_listening_trends", "clients" CASCADE;`)
-  await pg.exec(`INSERT INTO "clients" ("id") VALUES ('${CLIENT}'), ('${OTHER}');`)
+  await pg.exec(`INSERT INTO "clients" ("id", "slug", "dash_social_config") VALUES ('${CLIENT}', 'a-client', '{"brandId": 1}'), ('${OTHER}', 'other-client', null);`)
 })
 
 const upload = (month: string, results: number, beforeOpen: boolean, clientId = CLIENT) =>
@@ -100,6 +100,11 @@ describe('posts', () => {
     expect(draft.imageIds[0]).not.toBe(old.imageIds[0])
     expect((await store.findImage(draft.imageIds[0], false))!.bytes).toEqual(bytes(20, 1))
     expect((await store.findImage(draft.imageIds[0], true))!.bytes).toEqual(bytes(5, 2))
+    expect((await store.findImage(draft.imageIds[0], false))!.client).toEqual({
+      id: CLIENT, slug: 'a-client', dashSocialConfig: { brandId: 1 }, hiddenReports: [], enabledReports: ['organic-social'],
+    })
+    expect(await store.findImageOwner(draft.imageIds[0])).toEqual({ postId: fork.id, clientId: CLIENT })
+    expect(await store.findImageOwner('33333333-3333-4333-8333-333333333333')).toBeUndefined()
 
     expect(await store.approvePost(fork.id, 'approver')).toBe(true)
     d = await store.getSlMonth(CLIENT, ['2026-11'])
