@@ -113,10 +113,12 @@ month picker, the same served month, the same months a client may open. Social l
 One upload = one file, one topic (brand or industry), one month (section 5). Server action, staff only (section 10),
 2 MB limit checked by the action. Next's server-action body limit is set to `3mb` in `next.config.ts`
 (`experimental.serverActions.bodySizeLimit`) so a 2 MB file reaches V1 instead of failing in the framework. Measured
-sizes: brand 43,520 bytes, industry 18,432 bytes (October). Parser: SheetJS. **Unverified until the scratch trial:**
-that npm's last `xlsx` (0.18.5) carries published advisories and that 0.20.3 from the SheetJS CDN tarball reads these
-files; the trial records the advisory ids, the read result, and whether the tarball passes the repo's osv/SCA gate and
-the Vercel install. Read only; formulas and macros are never evaluated.
+sizes: brand 43,520 bytes, industry 18,432 bytes (October). Parser: SheetJS `xlsx` 0.20.3 from the SheetJS CDN
+tarball, pinned with its lockfile integrity. Measured in the scratch trial (`docs/findings/2026-11-19-social-listening-xls-parser.md`):
+it reads both real exports and every compared value equals the Python parse (16 of 16); npm's last `xlsx` (0.18.5)
+carries two HIGH advisories fixed only in CDN releases (0.19.3, 0.20.2); osv-scanner still reports them against 0.20.3
+with no fix listed, which the repo's SCA gate reports but never blocks. The Vercel install of a tarball URL is checked in
+the plan's first task. Read only; formulas and macros are never evaluated; dates are read as text.
 
 **Every rule must pass or nothing is stored.** The refusal names each failed rule in plain words.
 
