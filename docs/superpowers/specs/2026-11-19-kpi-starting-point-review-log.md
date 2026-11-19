@@ -32,3 +32,12 @@
 | 4 | MINOR | Try/catch should wrap the read only; parse errors go to the layout row | Plan |
 | 5 | MINOR | Serial read can delay the rings up to the reader's 10 s deadline; or start after `:59`, await after `:83` | Plan |
 | 6 | MINOR | `healthCritical: false` also gates the negative-memo replay, `lib/cache.ts:162` | Plan (cite it) |
+
+## Paul's code review of #469 (2026-11-19, approved at 0f5115f0)
+
+| # | Note | Disposition |
+|---|---|---|
+| 1 | "End of 2025" on impressions and engagements reads as a drop (issue 470) | Fixed: "2025 total" on those two, "End of 2025" on followers (`startLabel`) |
+| 2 | A non-year row anywhere drops every start figure (issue 471) | Fixed: skipped, not errors; hard errors only for ambiguity (header, duplicate platform, two start rows in a block, a start row above every block). Supersedes the plan's ruling R1-7 |
+| 3 | Nit: the January carry-forward can go back to `{ ...carried, carriedFrom: last }` | Fixed |
+| 4 | Nit: the 400 health test never checked the health record | Fixed: asserts no failed record |

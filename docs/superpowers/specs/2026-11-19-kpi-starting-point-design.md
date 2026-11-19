@@ -31,8 +31,9 @@ Progress and target are already on screen; the start is what is missing.
 
 The tracker's own convention decides it, no new question for the team: a monthly row "End of <Month>" is the figure at
 the end of that month, year to date. So the "<year>" row on the start tab is the figure at the end of that year:
-followers on December 31, impressions and engagements for the whole year. The label says it the same way:
-**"End of 2025: 12,345"**.
+followers on December 31, impressions and engagements for the whole year. The label says which (Paul, #469 review, issue
+470): **"End of 2025: 12,345"** on followers, a count; **"2025 total: 900,000"** on impressions and engagements, totals over
+the year, so a client never reads this year's 10 months against last year's 12 as a drop.
 
 The start is always last year's row: viewing 2026 reads the "2025" row; viewing 2027 will read the "2026" row (the row
 the team left blank, ready). A row for any other year is ignored.
@@ -51,11 +52,14 @@ the team left blank, ready). A row for any other year is ignored.
 2. **Parser.** `parseKpiStartGrid(grid, startYear): Partial<Record<DashChannel, KpiFigures>>` in `kpi-sheet.ts`:
    - row 3, columns C to E, must be the same header as the month tabs (`kpi-sheet.ts:24`, `:40`);
    - from row 4, a row with a platform name in column A starts that platform's block (same names as `kpi-sheet.ts:20`);
-     rows after it with an empty column A belong to it; a fully empty row is skipped;
-   - column B, trimmed, must be exactly four digits on every non-empty row (" 2025 " is 2025; "2025.0" is a layout error);
-   - the block's row for `startYear` must have three numbers in C to E (`classifyCell`); other years' rows are not read;
-   - a layout error (`KpiSheetLayoutError`, the same class) on: wrong header, unknown platform name, a row with no
-     platform above it, a non-year in column B, the same platform twice, or the same year twice in one block;
+     rows after it with an empty column A belong to it;
+   - only the block's row whose column B, trimmed, is `startYear` is read; it must have three numbers in C to E
+     (`classifyCell`);
+   - skipped, never errors (Paul, #469 review, issue 471): fully empty rows, rows whose column B is not `startYear` (another
+     year, "YoY %", "2025.0"), and a block under a name that is not a platform ("Total"), rows and all;
+   - a layout error (`KpiSheetLayoutError`, the same class) only on what would make a start figure ambiguous or
+     unplaceable: wrong header, the same platform twice, two `startYear` rows in one block, a `startYear` row above every
+     named block;
    - a platform whose `startYear` row is missing or not three numbers has no start (no error: the others still show).
 3. **Reader.** `readKpiStartTab = cached('google-sheets', 'kpiStartTab', readMonthTabImpl, { version: '1', ttlSeconds: 300,
    negativeTtlSeconds: 30, healthCritical: false })` in `ytd-sheet.ts`, beside `readMonthTab`: the same read, its own key.
@@ -99,7 +103,7 @@ the team left blank, ready). A row for any other year is ignored.
 | 3 | A month tab not ready (staff note today) | unchanged: the note, no start |
 | 4 | Fixed `{ sheetId, tab, startTab }` | same start behaviour as month tabs |
 | 5 | Start tab has a platform the client doesn't show (TikTok) | ignored |
-| 6 | Column B ` 2025 ` / `2025.0` | ` 2025 ` reads as 2025; `2025.0` is a layout error (failure table row 4) |
+| 6 | Column B ` 2025 ` / `2025.0` / `YoY %` | ` 2025 ` reads as 2025; the others are skipped, so a platform whose only row is `2025.0` has no start (failure table row 5) |
 | 7 | A figure "N/A" or blank on the 2025 row | that platform has no start (case table row 5) |
 | 8 | Renaissance and every client without `kpiSheets` | untouched |
 
@@ -116,6 +120,7 @@ the team left blank, ready). A row for any other year is ignored.
   layout error in item 2; blank 2026 rows ignored; a platform whose start row is missing or "N/A" has no entry;
   `kpiSheetFor` returns `startTab` on both shapes, carries it into January, drops an invalid one and keeps the entry.
 - `progress-ring` test: without `start` the markup is unchanged (snapshot); with it, the line reads "End of 2025: 12,345".
+- `kpi-check-in.test.tsx`: followers read "End of 2025: <n>", impressions and engagements "2025 total: <n>", in text and `aria-label`.
 - `kpi-check-in.test.tsx`: no `startTab` makes no extra read; with it, every row in the failure table and edge cases 1 to 5,
   including the client note-only card showing no start; no start read on any early return (`:57`, `:59`, `:75`, `:80`,
   `:81`), and the start read starts only after the rows resolve.
