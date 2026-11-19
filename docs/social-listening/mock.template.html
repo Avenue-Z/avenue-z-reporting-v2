@@ -195,7 +195,7 @@ svg text { font-family: var(--font); }
 .ov .who { margin: 8px 0 0; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
 .ov .net { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 .ov .val { margin: 8px 0 0; font-size: 14px; font-weight: 700; color: var(--cyan); font-variant-numeric: tabular-nums; }
-.table-wrap { overflow-x: auto; border-radius: var(--r-lg); border: 1px solid var(--border-soft); background: var(--surface); }
+.table-scroll { overflow-x: auto; margin: 0 -24px; padding: 0 24px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
 th { padding: 12px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); text-align: left; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
 td { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); font-variant-numeric: tabular-nums; }
@@ -252,7 +252,13 @@ body.preview .comm-head .lbl { color: var(--muted); }
 .pgroup-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .pgroup-head h3 { margin: 0; font-size: 16px; font-weight: 800; }
 .pgroup-head span { font-size: 12px; color: var(--muted); }
-.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.pgrid { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; scroll-behavior: smooth; padding-bottom: 10px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.18) transparent; }
+.pgrid > .post { flex: 0 0 320px; max-width: 85vw; scroll-snap-align: start; }
+.pgrid > .pform { flex: 0 0 460px; max-width: 90vw; scroll-snap-align: start; }
+.pnav { display: inline-flex; gap: 6px; align-items: center; }
+.navbtn { width: 30px; height: 30px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.16); background: var(--surface); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
+.navbtn:hover { border-color: var(--cyan); color: var(--cyan); }
+@media (prefers-reduced-motion: reduce) { .pgrid { scroll-behavior: auto; } }
 .post { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 .post-shots { background: #fff; display: flex; flex-direction: column; gap: 1px; max-height: 340px; overflow-y: auto; }
 .post-shots img { display: block; width: 100%; height: auto; }
@@ -388,7 +394,6 @@ body.preview .comm-head .lbl { color: var(--muted); }
             <div class="card-head"><h3>Results over time</h3><span class="meta" id="brand-daily-total"></span></div>
             <div class="card-body" id="brand-daily"></div>
           </div>
-          <div class="comm" data-key="b-overview"></div>
         </section>
 
         <section class="section">
@@ -409,7 +414,6 @@ body.preview .comm-head .lbl { color: var(--muted); }
             <div class="card-head"><h3>Sentiment by media type</h3><span class="meta">Results per media type</span></div>
             <div class="card-body" id="brand-cross"></div>
           </div>
-          <div class="comm" data-key="b-sentiment"></div>
         </section>
 
         <section class="section">
@@ -428,10 +432,6 @@ body.preview .comm-head .lbl { color: var(--muted); }
               <div class="card-body" id="ytd-reddit"></div>
             </div>
           </div>
-          <div class="grid g2">
-            <div class="comm" data-key="b-ytd"></div>
-            <div class="comm" data-key="b-reddit"></div>
-          </div>
         </section>
 
         <section class="section">
@@ -441,7 +441,6 @@ body.preview .comm-head .lbl { color: var(--muted); }
             <div class="card-body" id="brand-media"></div>
             <p class="note">September grouped Newspaper inside Other, so neither has a comparison.</p>
           </div>
-          <div class="comm" data-key="b-media"></div>
         </section>
 
         <section class="section">
@@ -451,12 +450,10 @@ body.preview .comm-head .lbl { color: var(--muted); }
             <div class="card-body cloud cloud-wide" id="brand-cloud"></div>
             <div class="key"><span><i style="background:var(--pos)"></i>Mostly positive</span><span><i style="background:var(--neu)"></i>Mostly neutral</span><span><i style="background:var(--neg)"></i>Mostly negative</span></div>
           </div>
-          <div class="comm" data-key="b-themes"></div>
           <div class="card">
             <div class="card-head"><h3>Trends in keyword themes</h3><span class="meta">vs September, from Talkwalker</span></div>
             <div class="card-body trend-cols" id="brand-trends"></div>
           </div>
-          <div class="comm" data-key="b-trends"></div>
         </section>
 
         <section class="section">
@@ -467,8 +464,10 @@ body.preview .comm-head .lbl { color: var(--muted); }
         <section class="section">
           <h2>Top influencers</h2>
           <div class="grid g4" id="brand-overview"></div>
-          <div class="table-wrap"><table id="brand-infl"></table></div>
-          <div class="comm" data-key="b-infl"></div>
+          <div class="card">
+            <div class="card-head"><h3>Top 5 authors</h3><span class="meta">Posts, sentiment, reach and engagement</span></div>
+            <div class="card-body table-scroll" id="brand-infl-body"><table id="brand-infl"></table></div>
+          </div>
         </section>
 
         <section class="section">
@@ -502,7 +501,6 @@ body.preview .comm-head .lbl { color: var(--muted); }
             <div class="card-head"><h3>Results over time</h3><span class="meta" id="ind-daily-total"></span></div>
             <div class="card-body" id="ind-daily"></div>
           </div>
-          <div class="comm" data-key="i-overview"></div>
         </section>
 
         <section class="section">
@@ -526,7 +524,6 @@ body.preview .comm-head .lbl { color: var(--muted); }
             <div class="card-head"><h3>Sentiment by media type</h3><span class="meta">Results per media type</span></div>
             <div class="card-body" id="ind-cross"></div>
           </div>
-          <div class="comm" data-key="i-sentiment"></div>
         </section>
 
         <section class="section">
@@ -536,7 +533,6 @@ body.preview .comm-head .lbl { color: var(--muted); }
             <div class="card-body cloud cloud-wide" id="ind-cloud"></div>
             <p class="note">Colour is decoration on the industry cloud. It does not mean sentiment.</p>
           </div>
-          <div class="comm" data-key="i-themes"></div>
         </section>
 
         <section class="section">
@@ -870,22 +866,20 @@ function renderComm(el) {
   }
   el.querySelector('[data-act="edit"]').onclick = openEditor;
 }
-/* An optional analysis box inside every chart card, and under the influencer table. Hidden until used. */
+/* An optional analysis box inside every chart card, hidden until used. Where the analyst already wrote about a
+   chart, her text goes in that chart's own card so it reads as part of it. */
+const CARD_ANALYSIS = {
+  "brand-daily": "b-overview", "brand-sent": "b-sentiment", "ytd-all": "b-ytd", "ytd-reddit": "b-reddit",
+  "brand-media": "b-media", "brand-cloud": "b-themes", "brand-trends": "b-trends", "brand-infl-body": "b-infl",
+  "ind-daily": "i-overview", "ind-sent": "i-sentiment", "ind-cloud": "i-themes"
+};
 document.querySelectorAll(".card").forEach(card => {
   const body = card.querySelector(".card-body[id]") || card.querySelector("[id]");
   if (!body) return;
   const box = document.createElement("div");
   box.className = "comm comm-in";
-  box.dataset.key = "a-" + body.id;
+  box.dataset.key = CARD_ANALYSIS[body.id] || ("a-" + body.id);
   card.appendChild(box);
-});
-document.querySelectorAll(".table-wrap").forEach(tw => {
-  const t = tw.querySelector("table[id]");
-  if (!t) return;
-  const box = document.createElement("div");
-  box.className = "comm comm-in";
-  box.dataset.key = "a-" + t.id;
-  tw.after(box);
 });
 document.querySelectorAll(".comm[data-key]").forEach(renderComm);
 
@@ -953,11 +947,16 @@ function renderGroup(el) {
   const list = posts.filter(p => p.group === g);
   const addingHere = editing && editing.group === g && editing.id === null;
   el.innerHTML = `<div class="pgroup-head"><div><h3>${meta.title} <span>(${list.length})</span></h3><span>${meta.sub}</span></div>`
-    + (addingHere ? "" : `<button class="tbtn" type="button" data-add="${g}">+ Add post</button>`) + `</div>`
+    + `<span class="pnav">` + (list.length > 1 ? `<button class="navbtn" type="button" data-scroll="-1" aria-label="Previous ${meta.title.toLowerCase()}">‹</button><button class="navbtn" type="button" data-scroll="1" aria-label="Next ${meta.title.toLowerCase()}">›</button>` : "")
+    + (addingHere ? "" : `<button class="tbtn" type="button" data-add="${g}">+ Add post</button>`) + `</span></div>`
     + (addingHere ? postForm(g, null) : "")
     + `<div class="pgrid">${list.map(p => (editing && editing.id === p.id) ? postForm(g, p) : postCard(p)).join("")}</div>`
     + (saveNote ? `<p class="status">${esc(saveNote)}</p>` : "");
 
+  el.querySelectorAll("[data-scroll]").forEach(b => b.onclick = () => {
+    const row = el.querySelector(".pgrid");
+    row.scrollBy({ left: Number(b.dataset.scroll) * 332, behavior: "smooth" });
+  });
   const add = el.querySelector("[data-add]");
   if (add) add.onclick = () => { editing = { group: g, id: null }; renderAllPosts(); el.querySelector("input[name=who]").focus(); };
   el.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { editing = { group: g, id: b.dataset.edit }; renderAllPosts(); });
