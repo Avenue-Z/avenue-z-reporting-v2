@@ -1143,11 +1143,10 @@ The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; 
   topic is for me and Savannah to align on (team call, 2026-11-19).
 - [ ] **Colours.** Media type colours by name are my choice (unknown types get a grey fallback). The brand cloud maps
   the five theme colours the October brand export uses to sentiment; any other colour shows unlabelled.
-- [ ] **Later design pass: the artifact's analysis box.** On 2026-11-19 I asked for the boxes to look like the approved
-  mockup's (`docs/social-listening/mock.template.html`, `.comm`, `.add-analysis`, `.edit-area`): a dashed "+ Add analysis"
-  button when empty, a yellow-tinted card with a small uppercase label once written, and a plain text box with a cyan Save.
-  Built, then held back so this ships with the standard Insights panel every other tab uses. Do it for this tab only, as
-  an opt-in look on `CommentaryPanel`, and match the mockup's exact values.
+- [x] **RESOLVED: the tab looks like the approved mockup.** Its stylesheet (`sl.module.css`, scoped to this tab), its
+  charts (`artifact-charts.tsx`, the same SVG), its analysis box (`analysis.tsx`, a drop-in for CommentaryPanel through
+  `monthlyCommentary`'s `Panel`), its post cards and its trends are ported from `docs/social-listening/mock.template.html`.
+  Every other tab keeps the standard look.
 - [ ] **Checked in a browser on dev in its empty states only** (2026-11-19: migration and setting applied on dev; staff
   October upload control, both pills, sl kept by the month picker, the live month's "Upload opens when November 2026
   ends.", no console or server errors, Renaissance unchanged). The data page needs an upload, then a client-role look and

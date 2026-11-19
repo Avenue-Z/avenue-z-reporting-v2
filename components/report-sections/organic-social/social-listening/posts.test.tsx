@@ -73,7 +73,7 @@ describe('the artifact\'s post groups', () => {
     expect(screen.getByText('(2)')).toBeTruthy()
     expect(screen.getByText('The most engaged posts, and a typical negative one')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Next social posts' }))
-    expect(scrollBy).toHaveBeenCalledWith({ left: 300, behavior: 'smooth' })
+    expect(scrollBy).toHaveBeenCalledWith({ left: 332, behavior: 'smooth' })
     expect(screen.queryByRole('button', { name: 'Next web posts' })).toBeNull()
     expect(screen.getAllByRole('link', { name: 'View post ↗' }).length).toBe(3)
   })
@@ -83,5 +83,17 @@ describe('the artifact\'s post groups', () => {
     const select = screen.getByRole('combobox', { name: 'Platform' }) as HTMLSelectElement
     expect(select.value).toBe('Reddit')
     expect([...select.options].map((o) => o.value)).toEqual(['Facebook', 'Instagram', 'LinkedIn', 'X', 'Reddit', 'YouTube', 'TikTok', 'Web article', 'Other'])
+  })
+})
+
+describe('networkLabel', () => {
+  test('Talkwalker source types read as the mockup names them', async () => {
+    const { networkLabel } = await import('./brand')
+    expect(networkLabel('SOCIALMEDIA_INSTAGRAM')).toBe('Instagram')
+    expect(networkLabel('SOCIALMEDIA_LINKEDIN')).toBe('LinkedIn')
+    expect(networkLabel('SOCIALMEDIA_YOUTUBE')).toBe('YouTube')
+    expect(networkLabel('SOCIALMEDIA_TWITTER')).toBe('X')
+    expect(networkLabel('X')).toBe('X')
+    expect(networkLabel('SOME_NEW_TYPE')).toBe('Some new type')
   })
 })

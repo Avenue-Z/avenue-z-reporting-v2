@@ -1,38 +1,43 @@
 'use client'
-// Trends in keyword themes: three columns (emerging, decreasing, new), and the staff editor. A client and the PDF see
-// the approved lists only (view-model.ts); staff see the draft, edit it as one theme per line, and an approver approves
-// exactly the lists on screen.
+// Trends in keyword themes, as the approved mockup draws them (docs/social-listening/mock.template.html, #brand-trends):
+// Emerging and Decreasing with their changes, New as chips. A client and the PDF see the approved lists only
+// (view-model.ts); staff see the draft, edit it as one theme per line, and an approver approves exactly the lists on screen.
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
 import { approveTrendsAction, saveTrendsAction } from '@/app/actions/social-listening'
-import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import { formatTrendLines } from '@/lib/organic-social/social-listening/trends'
 import type { SlTrendLists } from '@/lib/organic-social/social-listening/types'
+import s from './sl.module.css'
 
 const EMPTY: SlTrendLists = { emerging: [], decreasing: [], newThemes: [] }
+const signed = (change: string, sign: '+' | '-') => (/^[+-]/.test(change) ? change : `${sign}${change}`)
 
 export function TrendLists({ lists }: { lists: SlTrendLists }) {
-  const col = (title: string, color: string, items: SlTrendLists['emerging'], sign: '' | '+' | '-') => (
-    <div>
-      <h4 className="mb-2 text-xs font-extrabold uppercase tracking-wider" style={{ color }}>{title}</h4>
-      {items.length === 0 ? <p className="text-xs text-text-muted">None</p> : (
-        <ul className="space-y-1 text-sm">
-          {items.map((t) => (
-            <li key={t.theme} className="flex justify-between gap-3">
-              <span className="text-white">{t.theme}</span>
-              {t.change && <span className="tabular-nums" style={{ color }}>{sign && !/^[+-]/.test(t.change) ? `${sign}${t.change}` : t.change}</span>}
-            </li>
+  return (
+    <div className={s.trendCols}>
+      <div>
+        <h4 className={s.up}>Emerging</h4>
+        <ul className={s.tlist}>
+          {lists.emerging.length === 0 ? <li className={s.flat}>None</li> : lists.emerging.map((t) => (
+            <li key={t.theme}><span>{t.theme}</span>{t.change && <span className={s.up}>{signed(t.change, '+')}</span>}</li>
           ))}
         </ul>
-      )}
-    </div>
-  )
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {col('Emerging', SENTIMENT_COLORS.pos, lists.emerging, '+')}
-      {col('Decreasing', SENTIMENT_COLORS.neg, lists.decreasing, '-')}
-      {col('New', '#60FDFF', lists.newThemes, '')}
+      </div>
+      <div>
+        <h4 className={s.down}>Decreasing</h4>
+        <ul className={s.tlist}>
+          {lists.decreasing.length === 0 ? <li className={s.flat}>None</li> : lists.decreasing.map((t) => (
+            <li key={t.theme}><span>{t.theme}</span>{t.change && <span className={s.down}>{signed(t.change, '-')}</span>}</li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h4 style={{ color: '#60FDFF' }}>New</h4>
+        <div className={s.chips}>
+          {lists.newThemes.length === 0 ? <span className={s.flat}>None</span> : lists.newThemes.map((t) => <span key={t.theme}>{t.theme}</span>)}
+        </div>
+      </div>
     </div>
   )
 }
@@ -57,42 +62,40 @@ export function TrendsBlock({ lists, draft, clientSlug, range, caps }: {
     setEditing(true)
   }
   const done = (r: { ok: boolean; error?: string }) => { if (!r.ok) setError(r.error ?? 'Something went wrong.'); else { setEditing(false); router.refresh() } }
-  const field = 'w-full rounded-md border border-white/10 bg-bg-surface px-2 py-1 text-sm text-white'
   return (
-    <div className="space-y-3">
-      <p className="text-[11px] text-text-muted">
-        {draft === null ? 'Not entered yet. Type the trends from the Talkwalker dashboard.'
-          : draft.status === 'approved' ? 'Approved, shown to the client' : 'Draft, not shown to the client until approved'}
-      </p>
+    <div>
       {editing ? (
-        <div className="space-y-2 text-xs text-text-muted">
-          <p>One theme per line. End a line with its change, for example <code>theme name +12%</code> or <code>other theme -40%</code>.</p>
-          <div className="grid gap-3 md:grid-cols-3">
-            {(['emerging', 'decreasing', 'newThemes'] as const).map((k) => (
-              <label key={k} className="block">{{ emerging: 'Emerging', decreasing: 'Decreasing', newThemes: 'New themes' }[k]}
-                <textarea className={field} rows={8} value={text[k]} onChange={(e) => setText((t) => ({ ...t, [k]: e.target.value }))} />
-              </label>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button type="button" disabled={pending} onClick={() => start(async () => { setError(null); done(await saveTrendsAction({ clientSlug, range, ...text })) })}
-              className="rounded-md bg-white/[0.16] px-3 py-1 font-semibold text-white">{pending ? 'Saving...' : 'Save draft'}</button>
-            <button type="button" disabled={pending} onClick={() => setEditing(false)} className="rounded-md px-3 py-1 font-semibold text-text-muted">Cancel</button>
+        <div className={s.pform}>
+          {(['emerging', 'decreasing', 'newThemes'] as const).map((k) => (
+            <label key={k} className={k === 'newThemes' ? s.wide : undefined}>{{ emerging: 'Emerging', decreasing: 'Decreasing', newThemes: 'New themes' }[k]}
+              <textarea rows={7} value={text[k]} onChange={(e) => setText((t) => ({ ...t, [k]: e.target.value }))} />
+            </label>
+          ))}
+          <div className={`${s.wide} ${s.editRow}`}>
+            <button type="button" className={`${s.tbtn} ${s.primary}`} disabled={pending}
+              onClick={() => start(async () => { setError(null); done(await saveTrendsAction({ clientSlug, range, ...text })) })}>{pending ? 'Saving...' : 'Save'}</button>
+            <button type="button" className={s.tbtn} disabled={pending} onClick={() => setEditing(false)}>Cancel</button>
+            <span className={s.hint}>One theme per line. End a line with its change, for example <code>theme name +12%</code> or <code>other theme -40%</code>.</span>
           </div>
         </div>
       ) : (
         <>
           <TrendLists lists={shown} />
-          <div className="flex gap-2 text-xs">
-            <button type="button" onClick={open} className="rounded-md bg-white/[0.12] px-2.5 py-1 font-semibold text-white">Edit trends</button>
+          <div className={s.editRow}>
+            <span className={s.state}>
+              {draft === null ? 'Not entered yet. Type the trends from the Talkwalker dashboard.'
+                : draft.status === 'approved' ? 'Approved, shown to the client' : 'Draft, not shown to the client until approved'}
+            </span>
+            <span className={s.spacer} />
             {draft?.status === 'draft' && caps.canApprove && (
-              <button type="button" disabled={pending} onClick={() => start(async () => { setError(null); done(await approveTrendsAction({ clientSlug, range, seen: draft.lists })) })}
-                className="rounded-md bg-[#60FF80]/20 px-2.5 py-1 font-semibold text-[#60FF80]">Approve</button>
+              <button type="button" className={s.tbtn} disabled={pending}
+                onClick={() => start(async () => { setError(null); done(await approveTrendsAction({ clientSlug, range, seen: draft.lists })) })}>Approve</button>
             )}
+            <button type="button" className={s.tbtn} onClick={open}>Edit trends</button>
           </div>
         </>
       )}
-      {error && <p role="alert" className="text-xs text-[#FF4444]">{error}</p>}
+      {error && <p role="alert" className={s.statusError}>{error}</p>}
     </div>
   )
 }

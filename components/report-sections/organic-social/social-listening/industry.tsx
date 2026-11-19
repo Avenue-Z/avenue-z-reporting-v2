@@ -1,69 +1,63 @@
-// The industry topic, in the approved mockup's order (spec section 9): data tiles (results, then the three shares with
-// their points changes), results over time, share of sentiment, sentiment year to date, sentiment over time, sentiment by
-// media type, keyword themes, top conversation themes, key takeaways, keyword appendix. Server component.
-import { KpiCard } from '@/components/charts/kpi-card'
-import { num, pctText, short } from '@/lib/organic-social/social-listening/format'
-import { AnalysisOnly, SentimentLegend, fromFirst, tileValue, ytdSpan, type TopicPageProps } from './brand'
-import { PointsDelta, SlCard, SlSection } from './cards'
-import { DailyResults, DailySentiment, SentimentDonut, YtdStacked } from './charts'
-import { KeywordCloud } from './cloud'
-import { SentimentBars, SentimentKey } from './sentiment-bars'
-
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const monthName = (key: string) => MONTH_NAMES[Number(key.slice(5, 7)) - 1]
+// The industry topic, laid out as the approved mockup (docs/social-listening/mock.template.html, #view-industry): data tiles
+// (results, then the three shares with their points changes), results over time, share of sentiment beside sentiment year
+// to date, sentiment over time, sentiment by media type, keyword themes, top conversation themes, key takeaways, keyword
+// appendix. Server component.
+import { AnalysisOnly, SourceLine, fmt, fromFirst, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
+import { Cloud, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from './artifact-charts'
+import { SlCard, SlSection } from './cards'
+import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
+import s from './sl.module.css'
 
 export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps) {
   const r = view.ready
+  const label = vsLabel(view.month)
   return (
-    <div className="space-y-10">
+    <div className={s.view}>
       {upload}
       {r && (
         <>
           <SlSection title="Data" line={view.sampleLine}>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className={`${s.grid} ${s.g4}`}>
               {r.tiles.map((t) => {
                 if (t.unit !== '%') {
-                  // As the artifact: the short number, with the exact one under it.
-                  const v = t.value === null ? tileValue(t) : { value: short(t.value), sub: `${num(t.value)} exact` }
-                  return <KpiCard key={t.title} title={t.title} value={v.value} subValue={v.sub} wholeDelta comparisonExpected deltaLabel={r.changeLabel} {...(t.change !== undefined ? { delta: t.change } : {})} />
+                  return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : short(t.value)} sub={t.value === null ? undefined : `${fmt(t.value)} exact`} delta={t.change} label={label} />
                 }
-                const kind = t.title === 'Positive' ? 'pos' : t.title === 'Neutral' ? 'neu' : 'neg'
-                return (
-                  <div key={t.title} data-export-block="" className="rounded-lg border border-white/[0.06] bg-bg-surface p-5">
-                    <p className="text-sm text-text-muted">{t.title}</p>
-                    <p className="mt-1 text-2xl font-bold text-white">{t.value === null ? 'n/a' : pctText(t.value)}</p>
-                    <PointsDelta value={t.points ?? null} label={r.changeLabel} kind={kind} />
-                  </div>
-                )
+                return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : `${t.value}%`} delta={t.points} unit="pts" label={label}
+                  invert={t.title === 'Negative'} neutral={t.title === 'Neutral'} />
               })}
             </div>
             {boxes['i-kpis']}
           </SlSection>
 
-          <SlCard title="Results over time" meta={`${num(r.results)} results in ${monthName(view.month)}`} box={boxes['i-daily']}>
-            <DailyResults days={r.daily} />
-          </SlCard>
+          <SlSection>
+            <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['i-daily']}>
+              <LineChart days={r.daily} color="#A08BFF" id="sl-gi" />
+            </SlCard>
+          </SlSection>
 
           <SlSection title="Sentiment">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']}>
-                <div className="grid items-center gap-4 sm:grid-cols-2"><SentimentDonut counts={r.sentiment.counts} /><SentimentLegend view={view} /></div>
+            <div className={`${s.grid} ${s.g2}`}>
+              <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={s.donutWrap}>
+                <Donut counts={r.sentiment.counts} />
+                <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
               </SlCard>
               <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
-                <YtdStacked points={fromFirst(r.ytd)} /><SentimentKey />
+                <YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
               </SlCard>
             </div>
             <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']}>
-              <DailySentiment days={r.dailyBySentiment} /><SentimentKey />
+              <DailyStack rows={r.dailyBySentiment} />
+              <Key items={[{ name: 'Positive', color: SENTIMENT_COLORS.pos }, { name: 'Neutral', color: SENTIMENT_COLORS.neu }, { name: 'Negative', color: SENTIMENT_COLORS.neg }]} />
             </SlCard>
             <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['i-cross']}>
-              <SentimentBars rows={r.cross} />
+              <HBars rows={r.cross} />
             </SlCard>
           </SlSection>
 
           <SlSection title="Themes">
-            <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['i-themes']}>
-              <KeywordCloud themes={r.themes} kind="decoration" />
+            <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['i-themes']}
+              note="Colour is decoration on the industry cloud. It does not mean sentiment.">
+              <Cloud themes={r.themes} colorFor={decoColor} />
             </SlCard>
           </SlSection>
         </>
@@ -73,7 +67,8 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
       <AnalysisOnly title="Key takeaways" show={view.show.takeaways} box={boxes['i-takeaways']} />
       <AnalysisOnly title="Keyword appendix" show={view.show.keywords} box={boxes['i-keywords']} />
 
-      {r && <p className="text-xs text-text-muted">Source: Talkwalker export of the topic &quot;{topicName}&quot;, {monthName(view.month)} {view.month.slice(0, 4)}.</p>}
+      {r && <SourceLine topicName={topicName} month={view.month} />}
     </div>
   )
 }
+

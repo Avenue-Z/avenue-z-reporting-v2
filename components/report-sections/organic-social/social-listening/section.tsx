@@ -16,13 +16,14 @@ import { getSlMonth } from '@/lib/organic-social/social-listening/store'
 import type { SlMonthData, SlTopic } from '@/lib/organic-social/social-listening/types'
 import { buildTopicView, NOT_READY_TEXT, servedMonths, topicPills } from '@/lib/organic-social/social-listening/view-model'
 import { monthlyCommentary } from '@/components/report-sections/commentary/monthly'
-import { NoData } from '../no-data'
 import { Fallback } from '../parts/shared'
 import { BrandPage } from './brand'
 import { StaffNote } from './cards'
 import { IndustryPage } from './industry'
 import { PreviewToggle, TopicPills } from './pills'
 import { UploadControl } from './upload'
+import { SlAnalysis } from './analysis'
+import s from './sl.module.css'
 
 const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
 
@@ -84,7 +85,12 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   const toggle = staffViewer && !exporting ? <PreviewToggle on={previewing} /> : null
   if (clientView && !pills.brand) {
     if (topic !== 'brand' && !previewing) return null
-    return <div className="space-y-6">{toggle && <div className="flex justify-end">{toggle}</div>}<NoData message={NOT_READY_TEXT} /></div>
+    return (
+      <div className={s.root}>
+        {toggle && <div className={s.topics}><span className={s.spacer} />{toggle}</div>}
+        <div className={s.view}><Slot text={NOT_READY_TEXT} /></div>
+      </div>
+    )
   }
   const shown: SlTopic = topic === 'industry' && pills.industry ? 'industry' : 'brand'
   // In the export the industry call prints nothing when industry has nothing a client would see.
@@ -97,28 +103,37 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
     // A preview renders each box as the client would see it: approved text only, no controls.
     boxes[id] = await monthlyCommentary({
       client, role: previewing ? 'CLIENT_VIEWER' : role, email: previewing ? null : (email ?? null), viewKey: slBoxViewKey(id), requestedRange: servedRange, labels: slBoxLabels(id), entries,
+      Panel: SlAnalysis,
     })
   }
 
   const topicName = shown === 'brand' ? setting.brandTopic : (setting.industryTopic ?? '')
   const upload = clientView ? null
-    : view.state === 'live' ? <NoData message={view.liveText!} />
+    : view.state === 'live' ? <Slot text={view.liveText!} />
     : caps.canEdit ? <UploadControl clientSlug={clientSlug} topic={shown} range={servedRange}
         label={view.state === 'missing' ? `Upload the ${shown} export for ${view.monthTitle}` : `Upload a new ${shown} export for ${view.monthTitle}`} />
-    : view.state === 'missing' ? <NoData message={`No ${shown} export for ${view.monthTitle} yet.`} /> : null
+    : view.state === 'missing' ? <Slot text={`No ${shown} export for ${view.monthTitle} yet.`} /> : null
 
   const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName }
+  const topics = setting.industryTopic ? `Talkwalker topics: ${setting.brandTopic}, and ${setting.industryTopic}` : `Talkwalker topic: ${setting.brandTopic}`
   return (
-    <div className="space-y-6">
+    <div className={s.root}>
       {!exporting && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className={s.topics}>
           <TopicPills topic={shown} industry={pills.industry} brandLabel={`Brand: ${setting.brandTopic}`} industryLabel={`Industry: ${setting.industryTopic ?? ''}`} />
+          <span className={s.hint}>{topics}</span>
+          <span className={s.spacer} />
           {toggle}
         </div>
       )}
-      {exporting && <h2 className="text-xl font-extrabold text-white">{shown === 'brand' ? 'Brand' : 'Industry'}: {topicName}</h2>}
-      {view.staffNotes.map((n) => <StaffNote key={n}>{n}</StaffNote>)}
+      {exporting && <div className={s.section}><h2>{shown === 'brand' ? 'Brand' : 'Industry'}: {topicName}</h2></div>}
+      {view.staffNotes.length > 0 && <div className={s.view}>{view.staffNotes.map((n) => <StaffNote key={n}>{n}</StaffNote>)}</div>}
       {shown === 'brand' ? <BrandPage {...props} /> : <IndustryPage {...props} />}
     </div>
   )
+}
+
+/** A plain line in the mockup's slot style (the not-ready text, the live month, a missing upload). */
+function Slot({ text }: { text: string }) {
+  return <div className={s.slot}><p>{text}</p></div>
 }

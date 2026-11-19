@@ -77,14 +77,20 @@ describe('staff, brand', () => {
     expect(screen.getByRole('button', { name: /Industry: Made Up Industry/ })).toBeTruthy()
     expect(screen.getByText('Upload a new brand export for October 2026')).toBeTruthy()
     expect(screen.getByText('Without brand-owned channels')).toBeTruthy()
+    // Every box on this tab is the mockup's analysis box.
+    const { monthlyCommentary } = await import('@/components/report-sections/commentary/monthly')
+    const { SlAnalysis } = await import('./analysis')
+    expect(vi.mocked(monthlyCommentary).mock.calls.every(([a]) => (a as { Panel?: unknown }).Panel === SlAnalysis)).toBe(true)
     expect(h.getSlMonth).toHaveBeenCalledWith('client-uuid', ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'])
   })
 
-  test('unknown media type renders with the fallback colour', async () => {
+  test('a media type the app has no colour for still renders: its row, share and an n/a change', async () => {
     const { container } = await show()
-    // The test workbook's media types are Instagram, Reddit and News; News has no colour of its own.
-    const row = [...container.querySelectorAll('tr')].find((tr) => tr.textContent?.startsWith('News'))!
-    expect(row.querySelector('span[style]')!.getAttribute('style')).toContain('background: rgb(156, 163, 175)')
+    // The test workbook's media types are Instagram, Reddit and News; News is not in MEDIA_COLORS. The share bars are
+    // all cyan, as the approved mockup draws them.
+    const head = [...container.querySelectorAll('span')].find((e) => e.textContent === 'Media type')!.parentElement!
+    const row = [...head.parentElement!.children].find((r) => r.textContent?.startsWith('News'))!
+    expect(row.textContent).toMatch(/%n\/a$/)
   })
 
   test('the owned-channels card is absent without the optional widget', async () => {

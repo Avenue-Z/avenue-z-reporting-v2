@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
 import { uploadSocialListeningExport } from '@/app/actions/social-listening'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
+import s from './sl.module.css'
 
 export function UploadControl({ clientSlug, topic, range, label }: { clientSlug: string; topic: SlTopic; range: string; label: string }) {
   const exportMode = useExportMode()
@@ -34,24 +35,17 @@ export function UploadControl({ clientSlug, topic, range, label }: { clientSlug:
   }
 
   return (
-    <div className="rounded-lg border border-dashed border-white/15 bg-bg-surface px-5 py-4">
-      <label className="flex flex-wrap items-center gap-3 text-sm text-white">
-        <span className="font-semibold">{label}</span>
-        <input
-          ref={input}
-          type="file"
-          accept=".xls,application/vnd.ms-excel"
-          disabled={pending}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f) }}
-          className="text-xs text-text-muted file:mr-3 file:rounded-md file:border-0 file:bg-white/[0.12] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
-        />
-        {pending && <span className="text-xs text-text-muted">Checking the file...</span>}
+    <div className={s.slot}>
+      <span className={s.whoTag}>Staff only</span>
+      <h4>{label}</h4>
+      <p>The Talkwalker .xls export as downloaded, for this month and this topic.</p>
+      <label className={s.editRow}>
+        <input ref={input} type="file" accept=".xls,application/vnd.ms-excel" disabled={pending} aria-label={label}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f) }} />
+        {pending && <span className={s.status}>Checking the file...</span>}
       </label>
-      <p className="mt-2 text-xs text-text-muted">The Talkwalker .xls export as downloaded, for this month and this topic.</p>
-      {errors.length > 0 && (
-        <ul role="alert" className="mt-3 list-disc space-y-1 pl-5 text-xs text-[#FF4444]">{errors.map((e) => <li key={e}>{e}</li>)}</ul>
-      )}
-      {note && <p className="mt-3 text-xs text-[#FFFC60]">{note}</p>}
+      {errors.length > 0 && <ul role="alert" className={s.errors}>{errors.map((e) => <li key={e}>{e}</li>)}</ul>}
+      {note && <p className={s.status}>{note}</p>}
     </div>
   )
 }

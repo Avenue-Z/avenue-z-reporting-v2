@@ -101,3 +101,19 @@ describe('monthlyCommentary without entries (every existing caller)', () => {
     expect((panels.props[0].entries as CommentaryEntry[]).map((e) => e.id)).toEqual(['ig'])
   })
 })
+
+describe('the box component', () => {
+  test('defaults to CommentaryPanel; a caller may pass its own with the same props', async () => {
+    const { monthlyCommentary } = await import('./monthly')
+    const Custom = vi.fn(() => null)
+    const el = await monthlyCommentary({
+      client: CLIENT, role: STAFF.role, email: STAFF.email, viewKey: 'organic-social:instagram', requestedRange: undefined, labels: ANALYSIS_LABELS,
+      entries: [], Panel: Custom,
+    })
+    expect(el!.type).toBe(Custom)
+    const def = await monthlyCommentary({
+      client: CLIENT, role: STAFF.role, email: STAFF.email, viewKey: 'organic-social:instagram', requestedRange: undefined, labels: ANALYSIS_LABELS, entries: [],
+    })
+    expect(def!.type).not.toBe(Custom)
+  })
+})
