@@ -33,3 +33,27 @@ export function TopicPills({ topic, industry, brandLabel, industryLabel }: { top
     </div>
   )
 }
+
+/** Staff's "Preview as client" (the approved mockup's toggle). Sets `slview=client` and keeps every other param; "Back to
+ *  editing" removes it. Rendered for staff only, never in the PDF. */
+export function PreviewToggle({ on }: { on: boolean }) {
+  const exportMode = useExportMode()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  if (exportMode) return null
+  const flip = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (on) params.delete('slview')
+    else params.set('slview', 'client')
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+  return (
+    <button type="button" aria-pressed={on} onClick={flip}
+      className={cn('rounded-lg border px-3.5 py-1.5 text-sm font-semibold transition-colors',
+        on ? 'border-[#60FDFF] text-[#60FDFF]' : 'border-white/10 bg-bg-surface text-white hover:border-white/30')}>
+      {on ? 'Back to editing' : 'Preview as client'}
+    </button>
+  )
+}

@@ -166,7 +166,7 @@ describe('industry', () => {
     h.getSlMonth.mockResolvedValue(monthData([up(parsed('industry')), up(parsed('industry', '2026-09'))]))
     const { container } = await show({ topic: 'industry' })
     expect(h2s()).toEqual(['Data', 'Sentiment', 'Themes', 'Top conversation themes', 'Key takeaways', 'Keyword appendix'])
-    expect(screen.getByText('The industry topic is a 10% sample of the conversation.')).toBeTruthy()
+    expect(screen.getByText('The industry topic is a 10% sample of the conversation, by design.')).toBeTruthy()
     expect(boxes(container)).toEqual(['i-kpis', 'i-daily', 'i-sent', 'i-ytd', 'i-sentday', 'i-cross', 'i-themes', 'i-conv', 'i-takeaways', 'i-keywords'])
     expect(screen.getAllByText(/pts|0 pts/).length).toBeGreaterThan(0)
   })
@@ -192,5 +192,60 @@ describe('the setting', () => {
     const { container } = await show()
     expect(container.innerHTML).toBe('')
     expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('Preview as client (the artifact\'s toggle)', () => {
+  const twoUploads = () => monthData([up(parsed('brand'), true), { ...up(parsed('brand'), false), uploadedAt: new Date('2026-11-20T00:00:00Z') }])
+  test('staff get the toggle; turned on, the page is the client view, with Back to editing', async () => {
+    h.getSlMonth.mockResolvedValue(twoUploads())
+    h.getCommentaryForViewPrefix.mockResolvedValue([approvedBox('b-kpis')])
+    await show()
+    expect(screen.getByRole('button', { name: 'Preview as client' })).toBeTruthy()
+    document.body.innerHTML = ''
+    const { container } = await show({ preview: true })
+    expect(screen.getByRole('button', { name: 'Back to editing' }).getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('input, textarea, select')).toBeNull()
+    expect(screen.queryByText(/Upload/)).toBeNull()
+    expect(screen.queryByText(/uploaded after the month opened/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /Add post|Edit/ })).toBeNull()
+    expect(boxes(container)).toEqual(['b-kpis'])
+    // Each box is rendered as the client would see it.
+    const { monthlyCommentary } = await import('@/components/report-sections/commentary/monthly')
+    expect(vi.mocked(monthlyCommentary).mock.calls.at(-1)![0]).toMatchObject({ role: 'CLIENT_VIEWER', email: null })
+  })
+  test('a preview of a month with no brand upload shows the not-ready text and keeps Back to editing', async () => {
+    h.getSlMonth.mockResolvedValue(monthData([]))
+    await show({ preview: true })
+    expect(screen.getByText(NOT_READY_TEXT)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Back to editing' })).toBeTruthy()
+  })
+  test('a client never gets the toggle, and the PDF ignores it', async () => {
+    await show({ role: 'CLIENT_VIEWER', email: null, preview: true })
+    expect(screen.queryByRole('button', { name: /Preview as client|Back to editing/ })).toBeNull()
+    document.body.innerHTML = ''
+    await show({ exporting: true, preview: true })
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+describe('the artifact\'s details', () => {
+  test('authors table: the real count in the title, a vs column for last month and a sentiment bar per author', async () => {
+    await show()
+    expect(screen.getByText(/^Top \d authors$/)).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'vs Sep' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Sentiment' })).toBeTruthy()
+    expect(screen.getAllByRole('img', { name: /positive, .* neutral, .* negative/ }).length).toBeGreaterThan(0)
+  })
+  test('YTD titles start at the first month with data; the card is Positive + neutral combined', async () => {
+    h.getSlMonth.mockResolvedValue(monthData([up(parsed('brand')), up(parsed('brand', '2026-05'))]))
+    await show()
+    expect(screen.getByText('Sentiment, May to October')).toBeTruthy()
+    expect(screen.getByText('Positive + neutral combined')).toBeTruthy()
+  })
+  test('a year to date of one month is titled by that month alone', async () => {
+    h.getSlMonth.mockResolvedValue(monthData([up(parsed('brand'))]))
+    await show()
+    expect(screen.getByText('Sentiment, October')).toBeTruthy()
   })
 })

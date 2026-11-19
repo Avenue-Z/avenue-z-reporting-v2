@@ -184,7 +184,7 @@ export function buildTopicView(i: SlViewInput): SlTopicView {
     state,
     liveText: state === 'live' ? `Upload opens when ${monthTitle(month)} ends.` : null,
     staffNotes,
-    sampleLine: topic === 'industry' && i.setting.industrySample !== null ? `The industry topic is a ${i.setting.industrySample}% sample of the conversation.` : null,
+    sampleLine: topic === 'industry' && i.setting.industrySample !== null ? `The industry topic is a ${i.setting.industrySample}% sample of the conversation, by design.` : null,
     ready,
     show: {
       owned: ready?.owned != null,

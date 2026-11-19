@@ -201,6 +201,11 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     expect(button.props.serverExport).toMatchObject({ subsection: 'organic-social-listening', compareRange: report.props.compareRange })
     expect(exportReportElement(view, { ...params, compareRange: report.props.compareRange as string }).props).toEqual({ ...withoutSl, exporting: true })
   })
+  test(`${routeName}: slview=client turns on the preview on this tab only`, async () => {
+    expect((await onPageWith(Route, 'organic-social-listening', { slview: 'client' })).report.props).toMatchObject({ slPreview: true })
+    expect((await onPageWith(Route, 'organic-social-listening', {})).report.props).not.toHaveProperty('slPreview')
+    expect((await onPageWith(Route, 'organic-instagram', { slview: 'client' })).report.props).not.toHaveProperty('slPreview')
+  })
   test(`${routeName}: anything but sl=industry is brand, and no other tab gets sl`, async () => {
     expect((await onPageWith(Route, 'organic-social-listening', { sl: 'nope' })).report.props).toMatchObject({ sl: 'brand' })
     expect((await onPageWith(Route, 'organic-instagram', { sl: 'industry' })).report.props).not.toHaveProperty('sl')

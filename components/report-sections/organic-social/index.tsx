@@ -27,7 +27,7 @@ export type AeoViewSettings = { range: AeoRange; min: number; deadlineMs: number
 const AEO_DEFAULTS: AeoViewSettings = { range: 'month', min: 2, deadlineMs: 120_000 }
 
 export function OrganicSocialReport({
-  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null, aeo, aeoMin, aeoDeadlineMs, sl, exporting,
+  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null, aeo, aeoMin, aeoDeadlineMs, sl, exporting, slPreview,
 }: {
   clientSlug: string
   dateRange?: string
@@ -44,6 +44,8 @@ export function OrganicSocialReport({
    *  brand then industry (spec 2026-11-19 sections 4 and 9). Ignored on every other tab. */
   sl?: SlTopic
   exporting?: boolean
+  /** The Social Listening tab only: staff's "Preview as client" (slview=client). */
+  slPreview?: boolean
 }) {
   const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, view })
   // The Social Listening tab has an analysis box inside every card and no Insights or Recommendations of its own, so neither
@@ -52,7 +54,7 @@ export function OrganicSocialReport({
     return (
       <div className="space-y-8">
         <Suspense fallback={<OverviewSkeleton />}>
-          <OrganicSocialBody ctx={ctx} sl={{ topic: sl ?? 'brand', exporting: exporting ?? false }} />
+          <OrganicSocialBody ctx={ctx} sl={{ topic: sl ?? 'brand', exporting: exporting ?? false, ...(slPreview ? { preview: true } : {}) }} />
         </Suspense>
       </div>
     )
@@ -87,7 +89,7 @@ export function OrganicSocialReport({
 
 /** Resolves the viewer role, the composition (DB template + per-client override), and renders the
  *  parts. Async and isolated behind the Suspense above so its awaits don't gate first paint. */
-export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings; sl?: { topic: SlTopic; exporting: boolean } }) {
+export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings; sl?: { topic: SlTopic; exporting: boolean; preview?: boolean } }) {
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
   // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a
@@ -133,7 +135,8 @@ export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCt
     const servedRange = slLocked?.month?.dateRange ?? rctx.dateRange
     const exporting = sl?.exporting ?? false
     const section = (topic: SlTopic) => (
-      <SocialListeningSection clientSlug={rctx.clientSlug} servedRange={servedRange} role={role} email={email} topic={topic} exporting={exporting} />
+      <SocialListeningSection clientSlug={rctx.clientSlug} servedRange={servedRange} role={role} email={email} topic={topic} exporting={exporting}
+        {...(sl?.preview && !exporting ? { preview: true } : {})} />
     )
     return exporting ? <div className="space-y-12">{section('brand')}{section('industry')}</div> : section(sl?.topic ?? 'brand')
   }

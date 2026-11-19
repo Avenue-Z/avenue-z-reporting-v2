@@ -46,6 +46,10 @@ describe('the report', () => {
     expect(find(el, 'SharedPartsHeader')).toEqual([])
     expect(find(el, 'OrganicSocialBody')[0].props.sl).toEqual({ topic: 'brand', exporting: false })
   })
+  test('the client preview reaches the body only when on', () => {
+    expect(find(OrganicSocialReport({ clientSlug: 'c', channel: null, view: 'social-listening', slPreview: true }), 'OrganicSocialBody')[0].props.sl)
+      .toEqual({ topic: 'brand', exporting: false, preview: true })
+  })
   test('sl and the export flag reach the body on this tab only; every other tab is exactly as before', () => {
     const el = OrganicSocialReport({ clientSlug: 'c', channel: null, view: 'social-listening', sl: 'industry', exporting: true })
     expect(find(el, 'OrganicSocialBody')[0].props.sl).toEqual({ topic: 'industry', exporting: true })
@@ -64,6 +68,13 @@ describe('the body', () => {
     expect(out.type).toBe(SocialListeningSection)
     expect(out.props).toEqual({ clientSlug: 'c', servedRange: OCT, role: 'INTERNAL_ADMIN', email: 'writer@avenuez.com', topic: 'industry', exporting: false })
     expect(getSectionTemplate).not.toHaveBeenCalled()
+  })
+  test('the body hands the section the preview, and never in the export', async () => {
+    as('INTERNAL_ADMIN')
+    const ctx = buildOrganicSocialCtx({ clientSlug: 'c', channel: null, view: 'social-listening', dateRange: OCT })
+    expect(((await OrganicSocialBody({ ctx, sl: { topic: 'brand', exporting: false, preview: true } })) as ReactElement).props).toMatchObject({ preview: true })
+    const exp = await OrganicSocialBody({ ctx, sl: { topic: 'brand', exporting: true, preview: true } }) as ReactElement
+    expect(find(exp, SocialListeningSection).every((s) => !('preview' in s.props))).toBe(true)
   })
   test('the export prints brand then industry, whichever pill was open (R2-5)', async () => {
     as('INTERNAL_ADMIN')

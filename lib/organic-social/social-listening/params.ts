@@ -7,3 +7,9 @@ import type { SlTopic } from './types'
 export function parseSlTopic(raw: unknown): SlTopic {
   return raw === 'industry' ? 'industry' : 'brand'
 }
+
+/** `slview=client` turns on staff's "Preview as client" (the approved mockup's toggle): the page renders exactly what the
+ *  client sees. Anything else is off. A client role is always shown the client view, so this changes nothing for one. */
+export function parseSlPreview(raw: unknown): boolean {
+  return raw === 'client'
+}

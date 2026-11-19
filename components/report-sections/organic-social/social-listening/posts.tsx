@@ -2,7 +2,7 @@
 // Most relevant posts: a sideways-scrolling row per group (the mockup's .pgrid), screenshots from the image route, and the
 // staff editor. The note is plain text, never markup. In the client view and the PDF there are no controls and only
 // approved posts arrive here (view-model.ts); the PDF prints each post's first image at print size.
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
 import {
@@ -14,9 +14,17 @@ import { MAX_IMAGES } from '@/lib/organic-social/social-listening/posts'
 import type { SlPost, SlPostGroup, SlSentiment } from '@/lib/organic-social/social-listening/types'
 import { shrinkScreenshot } from './image-shrink'
 
-const GROUPS: { group: SlPostGroup; title: string }[] = [
-  { group: 'social', title: 'Social' }, { group: 'forum', title: 'Forums' }, { group: 'web', title: 'Web' },
+// The approved mockup's three groups, worded without the client's name (this repo is public).
+const GROUPS: { group: SlPostGroup; title: string; sub: string }[] = [
+  { group: 'social', title: 'Social posts', sub: 'The most engaged posts, and a typical negative one' },
+  { group: 'forum', title: 'Forum posts', sub: "Reddit can't be exported, so these are screenshots" },
+  { group: 'web', title: 'Web posts', sub: 'Articles and syndicated stories that mention the brand' },
 ]
+// The mockup's platform list; a post saved with another platform keeps it as an option.
+const PLATFORMS = ['Facebook', 'Instagram', 'LinkedIn', 'X', 'Reddit', 'YouTube', 'TikTok', 'Web article', 'Other']
+const DEFAULT_PLATFORM: Record<SlPostGroup, string> = { social: 'Facebook', forum: 'Reddit', web: 'Web article' }
+// One card's width plus the gap, so an arrow moves the row by one post.
+const CARD_STEP = 300
 const TONE: Record<SlSentiment, string> = { Positive: SENTIMENT_COLORS.pos, Neutral: SENTIMENT_COLORS.neu, Negative: SENTIMENT_COLORS.neg }
 const imageSrc = (id: string, print: boolean) => `/api/social-listening/image/${id}${print ? '?print=1' : ''}`
 
@@ -29,28 +37,53 @@ export function PostsSection({ posts, clientSlug, range, caps }: Props) {
   const [adding, setAdding] = useState<SlPostGroup | null>(null)
   return (
     <div className="space-y-5">
-      {GROUPS.map(({ group, title }) => {
+      {GROUPS.map(({ group, title, sub }) => {
         const list = posts.filter((p) => p.group === group)
         if (list.length === 0 && !staff) return null
         return (
-          <div key={group} data-export-block="">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted">{title}</h3>
-              {staff && adding !== group && (
-                <button type="button" onClick={() => setAdding(group)} className="rounded-md bg-white/[0.12] px-3 py-1 text-xs font-semibold text-white">Add post</button>
-              )}
-            </div>
-            {staff && adding === group && (
-              <PostEditor clientSlug={clientSlug} range={range} initial={{ group, position: list.length }} onDone={() => setAdding(null)} />
-            )}
-            {list.length > 0 && (
-              <ul className={exportMode ? 'grid grid-cols-2 gap-3' : 'flex snap-x gap-3 overflow-x-auto pb-2'}>
-                {list.map((p) => <PostCard key={p.id} post={p} clientSlug={clientSlug} range={range} caps={caps} staff={staff} print={exportMode} />)}
-              </ul>
-            )}
-          </div>
+          <PostGroup key={group} title={title} sub={sub} count={list.length} print={exportMode}
+            add={staff && adding !== group ? () => setAdding(group) : null}
+            editor={staff && adding === group
+              ? <PostEditor clientSlug={clientSlug} range={range} initial={{ group, position: list.length }} onDone={() => setAdding(null)} />
+              : null}
+            cards={list.map((p) => <PostCard key={p.id} post={p} clientSlug={clientSlug} range={range} caps={caps} staff={staff} print={exportMode} />)} />
         )
       })}
+    </div>
+  )
+}
+
+/** A group of posts: its title with the count, a line on what it holds, and a row that slides sideways with the ‹ › arrows
+ *  (the approved mockup's .pgroup-head and .pnav). */
+function PostGroup({ title, sub, count, print, add, editor, cards }: {
+  title: string; sub: string; count: number; print: boolean; add: (() => void) | null; editor: ReactNode; cards: ReactNode[]
+}) {
+  const row = useRef<HTMLUListElement>(null)
+  const slide = (dir: 1 | -1) => row.current?.scrollBy({ left: dir * CARD_STEP, behavior: 'smooth' })
+  const arrows = !print && cards.length > 1
+  return (
+    <div data-export-block="">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-extrabold text-white">{title} <span className="text-xs font-normal text-text-muted">({count})</span></h3>
+          <p className="text-xs text-text-muted">{sub}</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5">
+          {arrows && (
+            <>
+              <button type="button" onClick={() => slide(-1)} aria-label={`Previous ${title.toLowerCase()}`}
+                className="h-[30px] w-[30px] rounded-full border border-white/[0.16] bg-bg-surface text-base leading-none text-white hover:border-[#60FDFF] hover:text-[#60FDFF]">‹</button>
+              <button type="button" onClick={() => slide(1)} aria-label={`Next ${title.toLowerCase()}`}
+                className="h-[30px] w-[30px] rounded-full border border-white/[0.16] bg-bg-surface text-base leading-none text-white hover:border-[#60FDFF] hover:text-[#60FDFF]">›</button>
+            </>
+          )}
+          {add && <button type="button" onClick={add} className="rounded-md bg-white/[0.12] px-3 py-1 text-xs font-semibold text-white">+ Add post</button>}
+        </span>
+      </div>
+      {editor}
+      {cards.length > 0 && (print
+        ? <ul className="grid grid-cols-2 gap-3">{cards}</ul>
+        : <ul ref={row} className="flex snap-x gap-3 overflow-x-auto pb-2">{cards}</ul>)}
     </div>
   )
 }
@@ -90,7 +123,7 @@ function PostCard({ post, clientSlug, range, caps, staff, print }: { post: SlPos
       )}
       {post.note && <p className="mt-3 whitespace-pre-line text-sm text-white">{post.note}</p>}
       {post.url && !print && (
-        <a href={post.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-semibold text-[#60FDFF]">Open post</a>
+        <a href={post.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-semibold text-[#60FDFF]">View post ↗</a>
       )}
       {staff && (
         <div className="mt-3 space-y-2 border-t border-white/[0.06] pt-3">
@@ -162,7 +195,7 @@ function PostEditor({ clientSlug, range, id, initial, onDone }: {
 }) {
   const router = useRouter()
   const [d, setD] = useState<Draft>({
-    group: initial.group, platform: initial.platform ?? '', author: initial.author ?? '', url: initial.url ?? '',
+    group: initial.group, platform: initial.platform ?? DEFAULT_PLATFORM[initial.group], author: initial.author ?? '', url: initial.url ?? '',
     engagements: initial.engagements === null || initial.engagements === undefined ? '' : String(initial.engagements),
     sentiment: initial.sentiment ?? 'Neutral', note: initial.note ?? '', position: initial.position,
   })
@@ -183,8 +216,10 @@ function PostEditor({ clientSlug, range, id, initial, onDone }: {
   return (
     <div className="mb-3 space-y-2 rounded-md border border-white/10 p-3 text-xs text-text-muted">
       <div className="grid grid-cols-2 gap-2">
-        <label>Platform<input className={field} value={d.platform} onChange={(e) => set('platform', e.target.value)} /></label>
-        <label>Author<input className={field} value={d.author} onChange={(e) => set('author', e.target.value)} /></label>
+        <label>Platform<select className={field} value={d.platform} onChange={(e) => set('platform', e.target.value)}>
+          {(PLATFORMS.includes(d.platform) ? PLATFORMS : [d.platform, ...PLATFORMS]).map((x) => <option key={x}>{x}</option>)}
+        </select></label>
+        <label>Author, thread or site<input className={field} value={d.author} placeholder="@handle, r/subreddit thread, or site name" onChange={(e) => set('author', e.target.value)} /></label>
         <label>Group<select className={field} value={d.group} onChange={(e) => set('group', e.target.value as SlPostGroup)}>
           {GROUPS.map((g) => <option key={g.group} value={g.group}>{g.title}</option>)}
         </select></label>
@@ -194,8 +229,8 @@ function PostEditor({ clientSlug, range, id, initial, onDone }: {
         <label>Engagements<input className={field} inputMode="numeric" value={d.engagements} onChange={(e) => set('engagements', e.target.value)} /></label>
         <label>Order<input className={field} type="number" min={0} max={99} value={d.position} onChange={(e) => set('position', Number(e.target.value))} /></label>
       </div>
-      <label className="block">Link (https)<input className={field} value={d.url} onChange={(e) => set('url', e.target.value)} /></label>
-      <label className="block">Note<textarea className={field} rows={4} maxLength={1000} value={d.note} onChange={(e) => set('note', e.target.value)} /></label>
+      <label className="block">Link to post<input className={field} value={d.url} placeholder="https://" onChange={(e) => set('url', e.target.value)} /></label>
+      <label className="block">Commentary<textarea className={field} rows={4} maxLength={1000} value={d.note} placeholder="What this post shows and why it matters this month" onChange={(e) => set('note', e.target.value)} /></label>
       <div className="flex gap-2">
         <button type="button" disabled={pending} onClick={save} className="rounded-md bg-white/[0.16] px-3 py-1 font-semibold text-white">{pending ? 'Saving...' : 'Save draft'}</button>
         <button type="button" disabled={pending} onClick={onDone} className="rounded-md px-3 py-1 font-semibold text-text-muted">Cancel</button>

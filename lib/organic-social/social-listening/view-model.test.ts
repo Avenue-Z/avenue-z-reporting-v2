@@ -103,7 +103,7 @@ describe('tiles and sentiment changes against the previous month as presented (D
     expect(r.tiles.map((t) => [t.title, t.value, t.points ?? null])).toEqual([
       ['Results', 100, null], ['Positive', 20, -5], ['Neutral', 70, 5], ['Negative', 10, 0],
     ])
-    expect(v.sampleLine).toBe('The industry topic is a 10% sample of the conversation.')
+    expect(v.sampleLine).toBe('The industry topic is a 10% sample of the conversation, by design.')
   })
 })
 

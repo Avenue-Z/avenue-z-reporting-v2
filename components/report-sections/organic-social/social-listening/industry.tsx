@@ -2,8 +2,8 @@
 // their points changes), results over time, share of sentiment, sentiment year to date, sentiment over time, sentiment by
 // media type, keyword themes, top conversation themes, key takeaways, keyword appendix. Server component.
 import { KpiCard } from '@/components/charts/kpi-card'
-import { num, pctText } from '@/lib/organic-social/social-listening/format'
-import { AnalysisOnly, SentimentLegend, tileValue, type TopicPageProps } from './brand'
+import { num, pctText, short } from '@/lib/organic-social/social-listening/format'
+import { AnalysisOnly, SentimentLegend, fromFirst, tileValue, ytdSpan, type TopicPageProps } from './brand'
 import { PointsDelta, SlCard, SlSection } from './cards'
 import { DailyResults, DailySentiment, SentimentDonut, YtdStacked } from './charts'
 import { KeywordCloud } from './cloud'
@@ -23,8 +23,9 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {r.tiles.map((t) => {
                 if (t.unit !== '%') {
-                  const v = tileValue(t)
-                  return <KpiCard key={t.title} title={t.title} value={v.value} wholeDelta comparisonExpected deltaLabel={r.changeLabel} {...(t.change !== undefined ? { delta: t.change } : {})} />
+                  // As the artifact: the short number, with the exact one under it.
+                  const v = t.value === null ? tileValue(t) : { value: short(t.value), sub: `${num(t.value)} exact` }
+                  return <KpiCard key={t.title} title={t.title} value={v.value} subValue={v.sub} wholeDelta comparisonExpected deltaLabel={r.changeLabel} {...(t.change !== undefined ? { delta: t.change } : {})} />
                 }
                 const kind = t.title === 'Positive' ? 'pos' : t.title === 'Neutral' ? 'neu' : 'neg'
                 return (
@@ -48,8 +49,8 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
               <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']}>
                 <div className="grid items-center gap-4 sm:grid-cols-2"><SentimentDonut counts={r.sentiment.counts} /><SentimentLegend view={view} /></div>
               </SlCard>
-              <SlCard title={`Sentiment, January to ${monthName(view.month)}`} meta="% of results" box={boxes['i-ytd']}>
-                <YtdStacked points={r.ytd} /><SentimentKey />
+              <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
+                <YtdStacked points={fromFirst(r.ytd)} /><SentimentKey />
               </SlCard>
             </div>
             <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']}>

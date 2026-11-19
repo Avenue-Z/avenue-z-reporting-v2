@@ -21,7 +21,7 @@ import { Fallback } from '../parts/shared'
 import { BrandPage } from './brand'
 import { StaffNote } from './cards'
 import { IndustryPage } from './industry'
-import { TopicPills } from './pills'
+import { PreviewToggle, TopicPills } from './pills'
 import { UploadControl } from './upload'
 
 const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
@@ -32,8 +32,11 @@ const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
  * and prints brand then industry (the export calls this once per topic; an industry topic with nothing to show renders
  * nothing).
  */
-export async function SocialListeningSection({ clientSlug, servedRange, role, email, topic, exporting }: {
+export async function SocialListeningSection({ clientSlug, servedRange, role, email, topic, exporting, preview = false }: {
   clientSlug: string; servedRange: string; role: unknown; email: string | null | undefined; topic: SlTopic; exporting: boolean
+  /** Staff's "Preview as client" (slview=client): the page renders exactly what the client sees. Ignored for a client role
+   *  (always the client view) and in the PDF (always the client view, no toggle). */
+  preview?: boolean
 }) {
   const client = await getClientBySlug(clientSlug)
   if (!client || !hasSocialListeningTab(client)) {
@@ -54,7 +57,9 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   }
   const month = m[1]
   const clock = requestClock()
-  const clientView = viewerForRole(role) === 'client' || exporting
+  const staffViewer = viewerForRole(role) === 'team'
+  const previewing = preview && staffViewer && !exporting
+  const clientView = !staffViewer || exporting || previewing
   const caps = clientView ? { canEdit: false, canApprove: false } : slCapabilities(role, email)
   const live = lockedRangeFor(client, role, servedRange, clock)?.month?.live ?? monthOf(clock.today) === month
 
@@ -76,7 +81,11 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   )
 
   const pills = topicPills({ month, data, setting, clientView })
-  if (clientView && !pills.brand) return topic === 'brand' ? <NoData message={NOT_READY_TEXT} /> : null
+  const toggle = staffViewer && !exporting ? <PreviewToggle on={previewing} /> : null
+  if (clientView && !pills.brand) {
+    if (topic !== 'brand' && !previewing) return null
+    return <div className="space-y-6">{toggle && <div className="flex justify-end">{toggle}</div>}<NoData message={NOT_READY_TEXT} /></div>
+  }
   const shown: SlTopic = topic === 'industry' && pills.industry ? 'industry' : 'brand'
   // In the export the industry call prints nothing when industry has nothing a client would see.
   if (exporting && topic === 'industry' && shown !== 'industry') return null
@@ -85,8 +94,9 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   const boxes: Partial<Record<SlBoxId, ReactNode>> = {}
   for (const id of shown === 'brand' ? SL_BRAND_BOX_IDS : SL_INDUSTRY_BOX_IDS) {
     if (clientView && !approvedBoxes.has(id)) continue
+    // A preview renders each box as the client would see it: approved text only, no controls.
     boxes[id] = await monthlyCommentary({
-      client, role, email: email ?? null, viewKey: slBoxViewKey(id), requestedRange: servedRange, labels: slBoxLabels(id), entries,
+      client, role: previewing ? 'CLIENT_VIEWER' : role, email: previewing ? null : (email ?? null), viewKey: slBoxViewKey(id), requestedRange: servedRange, labels: slBoxLabels(id), entries,
     })
   }
 
@@ -101,7 +111,10 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   return (
     <div className="space-y-6">
       {!exporting && (
-        <TopicPills topic={shown} industry={pills.industry} brandLabel={`Brand: ${setting.brandTopic}`} industryLabel={`Industry: ${setting.industryTopic ?? ''}`} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TopicPills topic={shown} industry={pills.industry} brandLabel={`Brand: ${setting.brandTopic}`} industryLabel={`Industry: ${setting.industryTopic ?? ''}`} />
+          {toggle}
+        </div>
       )}
       {exporting && <h2 className="text-xl font-extrabold text-white">{shown === 'brand' ? 'Brand' : 'Industry'}: {topicName}</h2>}
       {view.staffNotes.map((n) => <StaffNote key={n}>{n}</StaffNote>)}
