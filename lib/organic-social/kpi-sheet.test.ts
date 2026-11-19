@@ -120,3 +120,93 @@ test('monthTabFor: missing, another year and abbreviations are none; two matches
   expect(monthTabFor(['Oct 2026', '10/2026', 'October2026'], '2026', 9)).toEqual({ kind: 'none' })
   expect(monthTabFor(['October 2026', 'october 2026'], '2026', 9)).toEqual({ kind: 'ambiguous' })
 })
+
+// ---- KPI starting point (spec docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md) ----
+import { parseKpiStartGrid } from './kpi-sheet'
+
+test('kpiSheetFor: startTab rides on both shapes, trimmed, and is omitted when absent (today\'s choices unchanged)', () => {
+  expect(kpiSheetFor({ 2026: { sheetId: SID, byMonth: true, startTab: ' Annual Growth ' } }, '2026')).toEqual({ kind: 'byMonth', sheetId: SID, startTab: 'Annual Growth' })
+  expect(kpiSheetFor({ 2026: { sheetId: SID, tab: 'KPIs', startTab: 'Annual Growth' } }, '2026')).toEqual({ kind: 'fixed', sheetId: SID, tab: 'KPIs', startTab: 'Annual Growth' })
+  expect(Object.keys(kpiSheetFor({ 2026: { sheetId: SID, byMonth: true } }, '2026'))).toEqual(['kind', 'sheetId'])
+})
+
+test('kpiSheetFor: a byMonth entry carried into January carries its startTab', () => {
+  expect(kpiSheetFor({ 2026: { sheetId: SID, byMonth: true, startTab: 'Annual Growth' } }, '2027')).toEqual({ kind: 'byMonth', sheetId: SID, carriedFrom: '2026', startTab: 'Annual Growth' })
+})
+
+test.each([
+  ['empty', ''], ['whitespace only', '   '], ['over 100 characters', 'x'.repeat(101)], ['not a string', 5], ['null', null],
+])('kpiSheetFor: an invalid startTab (%s) is marked, and the rest of the entry still works', (_n, startTab) => {
+  expect(kpiSheetFor({ 2026: { sheetId: SID, byMonth: true, startTab } }, '2026')).toEqual({ kind: 'byMonth', sheetId: SID, startTabInvalid: true })
+  expect(kpiSheetFor({ 2026: { sheetId: SID, tab: 'KPIs', startTab } }, '2026')).toEqual({ kind: 'fixed', sheetId: SID, tab: 'KPIs', startTabInvalid: true })
+})
+
+// The "Annual Growth" tab's layout as measured 2026-11-19 (kinds only; the numbers here are made up).
+const START: unknown[][] = [
+  ['Test Co Annual Growth'], [],
+  ['', '', 'Total Followers', 'Impressions', 'Engagements'],
+  ['Instagram', '2025', '1,000', '200,000', '3,000'], ['', '2026'],
+  ['Facebook', '2025', '50,000', '900,000', '4,000'], ['', '2026'],
+  ['LinkedIn', '2025', '8,000', '60,000', '700'], ['', '2026'],
+]
+
+test('parseKpiStartGrid: the start year\'s row per platform; the blank next-year rows are not read', () => {
+  expect(parseKpiStartGrid(START, '2025')).toEqual({
+    INSTAGRAM: { followers: 1000, impressions: 200000, engagements: 3000 },
+    FACEBOOK: { followers: 50000, impressions: 900000, engagements: 4000 },
+    LINKEDIN: { followers: 8000, impressions: 60000, engagements: 700 },
+  })
+})
+
+test('parseKpiStartGrid: viewing 2027 reads the 2026 rows; blank today, so no platform has a start', () => {
+  expect(parseKpiStartGrid(START, '2026')).toEqual({})
+})
+
+test('parseKpiStartGrid: a platform whose start row is missing, part-filled or "N/A" has no start; the others still do', () => {
+  const g = START.map((r) => [...r])
+  g[3] = ['Instagram', '2025', 'N/A', '200,000', '3,000']
+  g[5] = ['Facebook', '2025', '50,000', '', '4,000']
+  g[7] = ['LinkedIn', '2024', '8,000', '60,000', '700']
+  expect(parseKpiStartGrid(g, '2025')).toEqual({})
+  const y = START.map((r) => [...r]); y[3] = ['Instagram', '2025.0', '1', '2', '3'] // not a year: skipped, so Instagram has no start
+  expect(Object.keys(parseKpiStartGrid(y, '2025'))).toEqual(['FACEBOOK', 'LINKEDIN'])
+  const h = START.map((r) => [...r]); h[3] = ['Instagram', '2025', 'N/A', '1', '1']
+  expect(Object.keys(parseKpiStartGrid(h, '2025'))).toEqual(['FACEBOOK', 'LINKEDIN'])
+})
+
+// Paul, #469 review (issue 471): rows that cannot make the start figure ambiguous are skipped, not errors, so a row the team
+// adds later ("YoY %", a "Total" block) never takes the start line away from every platform.
+test('parseKpiStartGrid: a row whose column B is not a year is skipped, wherever it is', () => {
+  const g = [...START.slice(0, 3), ['', 'Notes'], ['Instagram', '2025', '1', '2', '3'], ['', 'YoY %', '10%', '5%', '2%'], ['', '2026'],
+    ['Facebook', 'Growth', '1', '1', '1'], ['', '2025', '4', '5', '6'], ['', '2025.0', '9', '9', '9']]
+  expect(parseKpiStartGrid(g, '2025')).toEqual({ INSTAGRAM: { followers: 1, impressions: 2, engagements: 3 }, FACEBOOK: { followers: 4, impressions: 5, engagements: 6 } })
+})
+
+test('parseKpiStartGrid: a block under a name that is not a platform ("Total") is skipped, rows and all', () => {
+  const g = [...START, ['Total', '2025', '59,000', '1,160,000', '7,700'], ['', '2026'], ['', '2025', '1', '1', '1']]
+  expect(Object.keys(parseKpiStartGrid(g, '2025'))).toEqual(['INSTAGRAM', 'FACEBOOK', 'LINKEDIN'])
+  expect(parseKpiStartGrid([...START.slice(0, 3), ['Pinterest', '2025', '1', '2', '3'], ['Instagram', '2025', '7', '8', '9']], '2025')).toEqual({ INSTAGRAM: { followers: 7, impressions: 8, engagements: 9 } })
+})
+
+test('parseKpiStartGrid: other years may repeat or sit above every platform; only the start year is strict', () => {
+  const g = [...START.slice(0, 3), ['', '2024', '1', '1', '1'], ['Instagram', '2025', '1', '2', '3'], ['', '2026'], ['', '2026']]
+  expect(parseKpiStartGrid(g, '2025')).toEqual({ INSTAGRAM: { followers: 1, impressions: 2, engagements: 3 } })
+})
+
+test('parseKpiStartGrid: the year is trimmed (" 2025 " reads) and empty rows anywhere are skipped', () => {
+  const g = [...START.slice(0, 3), ['Instagram', ' 2025 ', '1', '2', '3'], [], ['', '2026'], [''], ['Facebook', '2025', '4', '5', '6']]
+  expect(parseKpiStartGrid(g, '2025')).toEqual({ INSTAGRAM: { followers: 1, impressions: 2, engagements: 3 }, FACEBOOK: { followers: 4, impressions: 5, engagements: 6 } })
+})
+
+// The hard errors are only what would make a start figure ambiguous or unplaceable (Paul, #469 review, issue 471).
+test.each([
+  ['header', (g: unknown[][]) => { g[2] = ['', '', 'Followers', 'Impressions', 'Engagements'] }],
+  ['no platform', (g: unknown[][]) => { g.splice(3, 0, ['', '2025', '1', '2', '3']) }],
+  ['duplicate platform', (g: unknown[][]) => { g[5] = ['Instagram', '2025', '1', '2', '3'] }],
+  ['duplicate year', (g: unknown[][]) => { g[4] = ['', '2025', '1', '2', '3'] }],
+])('parseKpiStartGrid: a layout error names the fixed token %s, never cell text', (token, edit) => {
+  const g = START.map((r) => [...r]); edit(g)
+  const e = (() => { try { parseKpiStartGrid(g, '2025') } catch (x) { return x } })() as KpiSheetLayoutError
+  expect(e).toBeInstanceOf(KpiSheetLayoutError)
+  expect(e.missing).toBe(token)
+})

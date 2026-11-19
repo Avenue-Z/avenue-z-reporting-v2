@@ -43,3 +43,22 @@ test('the ring scales to its column up to a cap, and its text is sized from the 
   expect(getByText('858,907').className).toMatch(/min\(1\.75rem,10cqw\)/)
   expect(getByText('Target: 1,000,000').className).toMatch(/min\(14px,7cqw\)/)
 })
+
+// KPI starting point (spec 2026-11-19): taken on today's code BEFORE the `start` prop exists, so a ring without a start
+// must keep rendering byte for byte the same.
+test('without a start the ring markup is unchanged', () => {
+  const { container } = render(<ProgressRing label="Total Followers" value={18089} target={20000} color="#60FF80" />)
+  expect(container.innerHTML).toMatchSnapshot()
+})
+
+test('with a start, one line under the ring says where the year started; the arc, value and target are unchanged', () => {
+  const { getByText, container } = render(<ProgressRing label="Total Followers" value={18089} target={20000} start={{ label: 'End of 2025', value: 12345 }} />)
+  expect(getByText('End of 2025: 12,345')).toBeTruthy()
+  expect(getByText('18,089')).toBeTruthy()
+  expect(getByText('Target: 20,000')).toBeTruthy()
+  expect((container.querySelector('[data-ratio]') as SVGElement).getAttribute('data-ratio')).toBe('0.904')
+  // Outside the hole: the line is not inside the ring's own box, so the two lines in the hole keep their room (K1).
+  const ring = container.querySelector('svg')!.parentElement!
+  expect(ring.textContent).not.toContain('End of 2025')
+  expect(container.querySelector('svg')!.getAttribute('aria-label')).toBe('Total Followers: 18,089 of 20,000, end of 2025: 12,345')
+})

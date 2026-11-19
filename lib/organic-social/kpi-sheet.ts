@@ -82,20 +82,32 @@ export function kpiPeriodLabel(monthLabel: string, year: string): string {
 
 // ---- Month tabs (spec docs/superpowers/specs/2026-11-11-kpi-tab-by-month-design.md) ----
 
-/** A year's KPI tracker setting: a fixed tab (today's shape, unchanged), month tabs, nothing, or something unusable. */
+/** A year's KPI tracker setting: a fixed tab (today's shape, unchanged), month tabs, nothing, or something unusable.
+ *  Either usable shape may name a `startTab`, the tab holding where each platform ended last year (spec
+ *  docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md); an unusable one is `startTabInvalid` and the rest of
+ *  the entry is still used. Both keys are omitted when absent, so a choice without them is exactly today's. */
+type StartTab = { startTab?: string; startTabInvalid?: true }
 export type KpiSheetChoice =
-  | { kind: 'fixed'; sheetId: string; tab: string }
-  | { kind: 'byMonth'; sheetId: string; carriedFrom?: string }
+  | ({ kind: 'fixed'; sheetId: string; tab: string } & StartTab)
+  | ({ kind: 'byMonth'; sheetId: string; carriedFrom?: string } & StartTab)
   | { kind: 'none' }
   | { kind: 'invalid' }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const has = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k)
 
+/** The entry's `startTab`: trimmed like `tab` (ytd-sheet.ts:34); a non-string, or empty or over 100 characters once
+ *  trimmed, is marked invalid rather than dropping the whole entry. Pure: the part logs, once, with the slug. */
+function startTabOf(e: Record<string, unknown>): StartTab {
+  if (!has(e, 'startTab')) return {}
+  const v = typeof e.startTab === 'string' ? e.startTab.trim() : ''
+  return v.length > 0 && v.length <= 100 ? { startTab: v } : { startTabInvalid: true }
+}
+
 /** `{ sheetId, byMonth: true }` and nothing else that would make it ambiguous: no `tab`, `byMonth` exactly true. */
 function byMonthEntry(e: Record<string, unknown>): KpiSheetChoice {
   if (e.byMonth !== true || has(e, 'tab') || typeof e.sheetId !== 'string' || !SHEET_ID.test(e.sheetId)) return { kind: 'invalid' }
-  return { kind: 'byMonth', sheetId: e.sheetId }
+  return { kind: 'byMonth', sheetId: e.sheetId, ...startTabOf(e) }
 }
 
 /** The setting for `year` (`dash_social_config.kpiSheets`). An entry with `byMonth` is month tabs; any other entry is read
@@ -107,7 +119,7 @@ export function kpiSheetFor(value: unknown, year: string): KpiSheetChoice {
     if (isObj(e) && has(e, 'byMonth')) return byMonthEntry(e)
   }
   const fixed = ytdSheetFor(value, year)
-  if (fixed.kind === 'ok') return { kind: 'fixed', sheetId: fixed.entry.sheetId, tab: fixed.entry.tab }
+  if (fixed.kind === 'ok') return { kind: 'fixed', sheetId: fixed.entry.sheetId, tab: fixed.entry.tab, ...startTabOf((value as Record<string, unknown>)[year] as Record<string, unknown>) }
   if (fixed.kind === 'invalid' || !isObj(value)) return fixed
   const last = Object.keys(value).filter((k) => /^\d{4}$/.test(k) && k < year).sort().pop()
   const e = last === undefined ? undefined : value[last]
@@ -123,4 +135,46 @@ export function monthTabFor(titles: string[], year: string, month: number): { ki
   const hits = titles.filter((t) => t.trim().toLowerCase() === want)
   if (hits.length === 0) return { kind: 'none' }
   return hits.length > 1 ? { kind: 'ambiguous' } : { kind: 'one', title: hits[0] }
+}
+
+// ---- The start tab (spec docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md) ----
+
+/** Where each platform ended `startYear`, from the start tab, read like every tab (A1:Z40, ytd-sheet.ts:72-74):
+ *    row 3, columns C to E: the month tabs' header
+ *    then, per platform, a row [name, "<year>", a, b, c] and more rows [ "", "<year>", ... ] for other years
+ *  A row with an empty column A belongs to the last named block. Only the `startYear` row is read; a platform whose row is
+ *  missing or not three numbers has no start (the others still do). Skipped, never errors (Paul, #469 review, issue 471):
+ *  fully empty rows, rows whose column B is not a four-digit year ("YoY %", "2025.0"), other years' rows, and a block under
+ *  a name that is not a platform ("Total"), rows and all. Hard errors, only what would make a start figure ambiguous or
+ *  unplaceable: the header, the same platform twice, two `startYear` rows in one block, a `startYear` row above every
+ *  named block. Each is a KpiSheetLayoutError whose `missing` is a fixed token, never cell text. */
+export function parseKpiStartGrid(grid: unknown[][], startYear: string): Partial<Record<DashChannel, KpiFigures>> {
+  if (HEADER.some((h, i) => cell(grid[2], 2 + i).toLowerCase() !== h)) throw new KpiSheetLayoutError('header')
+  const out: Partial<Record<DashChannel, KpiFigures>> = {}
+  const seen = new Set<DashChannel>()
+  // null: no named block yet; 'skip': under a name that is not a platform, so its rows are skipped too.
+  let current: DashChannel | 'skip' | null = null
+  let startRowSeen = false
+  for (let i = 3; i < grid.length; i++) {
+    const row = grid[i]
+    if (!Array.isArray(row) || row.every((c) => String(c ?? '').trim() === '')) continue
+    const name = cell(row, 0)
+    if (name !== '') {
+      const channel = PLATFORMS[name.toLowerCase()]
+      if (!channel) { current = 'skip'; continue }
+      if (seen.has(channel)) throw new KpiSheetLayoutError('duplicate platform')
+      seen.add(channel); current = channel; startRowSeen = false
+    }
+    if (cell(row, 1) !== startYear) continue
+    if (current === null) throw new KpiSheetLayoutError('no platform')
+    if (current === 'skip') continue
+    if (startRowSeen) throw new KpiSheetLayoutError('duplicate year')
+    startRowSeen = true
+    const cells = [2, 3, 4].map((j) => classifyCell(cell(row, j)))
+    if (cells.every((c) => c.kind === 'number')) {
+      const [followers, impressions, engagements] = cells.map((c) => (c as { value: number }).value)
+      out[current] = { followers, impressions, engagements }
+    }
+  }
+  return out
 }

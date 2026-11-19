@@ -4,8 +4,8 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { organicSocialSubsections } from '@/lib/constants'
 import { isInternalStaff } from '@/lib/dashboard/permissions'
 import { CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/metrics'
-import { readMonthTab, readSheetTabTitles, readYtdTab, YtdSheetReadError } from '@/lib/organic-social/ytd-sheet'
-import { KpiSheetLayoutError, kpiPeriodLabel, kpiSheetFor, MONTH_NAMES, monthIndex, monthTabFor, parseKpiGrid, type KpiPlatform } from '@/lib/organic-social/kpi-sheet'
+import { readKpiStartTab, readMonthTab, readSheetTabTitles, readYtdTab, YtdSheetReadError } from '@/lib/organic-social/ytd-sheet'
+import { KpiSheetLayoutError, kpiPeriodLabel, kpiSheetFor, MONTH_NAMES, monthIndex, monthTabFor, parseKpiGrid, parseKpiStartGrid, type KpiFigures, type KpiPlatform, type KpiSheetChoice } from '@/lib/organic-social/kpi-sheet'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { resolveDateRange } from '@/lib/date-range'
 import { lockedRangeFor, requestClock } from '@/lib/organic-social/locked-range'
@@ -81,6 +81,9 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
     if (found.kind === 'note') return staff ? <PrintAsClient live={<p className={MONTH_NOTE}>{found.text}</p>} client={null} /> : null
     rows = found.rows
   }
+  // Where each platform ended last year (spec docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md): only now,
+  // with the rows known, so no early return above reads the start tab or logs about it.
+  const start = await startFigures({ slug: clientSlug, year, choice: sheet, shown })
   // In the PDF export each platform card is one unbreakable block, with the heading in the first (export-layout.ts);
   // a staff export prints the client's view (PrintAsClient).
   const view = (asStaff: boolean) => (
@@ -92,20 +95,22 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
         return (
           <div key={row.channel} data-export-block="" className="space-y-6">
             {i === 0 && <h2 className="text-sm font-extrabold uppercase tracking-widest text-text-muted">KPI Check-In</h2>}
+            {i === 0 && asStaff && start.blockNote && <p className={MONTH_NOTE}>{start.blockNote}</p>}
             <div className="rounded-lg border border-white/[0.06] bg-bg-surface px-6 py-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">{CHANNEL_LABEL[row.channel]}</h3>
                 {(!ahead || asStaff) && <span className="rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted">{kpiPeriodLabel(row.monthLabel, year)}</span>}
               </div>
+              {asStaff && start.cardNotes[row.channel] && <p className={`mt-2 ${MONTH_NOTE}`}>{start.cardNotes[row.channel]}</p>}
               {ahead && !asStaff ? <div className="mt-4">{note}</div> : (
                 <>
                   {note && <div className="mt-2">{note}</div>}
                   {/* Three across only when the CARD is wide enough for three readable rings (32rem), whatever the window. */}
                   <div className="@container mt-4">
                     <div className="grid grid-cols-1 gap-4 @lg:grid-cols-3">
-                      <ProgressRing label="Total Followers" color={RING_COLOR.followers} value={row.actual.followers} target={row.target.followers} />
-                      <ProgressRing label={impressionsLabel(row.channel)} color={RING_COLOR.impressions} value={row.actual.impressions} target={row.target.impressions} />
-                      <ProgressRing label="Total Engagements" color={RING_COLOR.engagements} value={row.actual.engagements} target={row.target.engagements} />
+                      <ProgressRing label="Total Followers" color={RING_COLOR.followers} value={row.actual.followers} target={row.target.followers} start={startOf(start, row.channel, 'followers')} />
+                      <ProgressRing label={impressionsLabel(row.channel)} color={RING_COLOR.impressions} value={row.actual.impressions} target={row.target.impressions} start={startOf(start, row.channel, 'impressions')} />
+                      <ProgressRing label="Total Engagements" color={RING_COLOR.engagements} value={row.actual.engagements} target={row.target.engagements} start={startOf(start, row.channel, 'engagements')} />
                     </div>
                   </div>
                 </>
@@ -117,6 +122,55 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
     </section>
   )
   return staff ? <PrintAsClient live={view(true)} client={view(false)} /> : view(false)
+}
+
+type StartFigures = { startYear: string; byChannel: Partial<Record<DashChannel, KpiFigures>>; blockNote: string | null; cardNotes: Partial<Record<DashChannel, string>> }
+
+/** The start line's label per metric (Paul, #469 review, issue 470): followers are a count on December 31, so "End of 2025";
+ *  impressions and engagements are totals over the year, so "2025 total", and a client never reads this year's 10 months
+ *  against last year's 12 as a drop. */
+export const startLabel = (field: keyof KpiFigures, startYear: string) => (field === 'followers' ? `End of ${startYear}` : `${startYear} total`)
+
+const startOf = (s: StartFigures, channel: DashChannel, field: keyof KpiFigures) => {
+  const f = s.byChannel[channel]
+  return f ? { label: startLabel(field, s.startYear), value: f[field] } : undefined
+}
+
+/** The start figures for the rings (spec 2026-11-19, failure table): last year's row on the setting's start tab. Never
+ *  throws and never blanks the rings: a failure is a staff note (block-wide, or on one card) and one log line with the slug
+ *  and year, never the sheet id or the tab title. Only the read is caught as a read failure; a parse error is a layout
+ *  error. The start tab is read like every tab (A1:Z40). */
+async function startFigures(a: { slug: string; year: string; choice: KpiSheetChoice; shown: DashChannel[] }): Promise<StartFigures> {
+  const startYear = String(Number(a.year) - 1)
+  const none = (blockNote: string | null = null): StartFigures => ({ startYear, byChannel: {}, blockNote, cardNotes: {} })
+  if (a.choice.kind !== 'fixed' && a.choice.kind !== 'byMonth') return none()
+  const at = `slug=${a.slug} year=${a.year}`
+  if (a.choice.startTabInvalid) {
+    console.warn(`[organic-social] kpi start tab setting invalid ${at}`)
+    return none("The start tab setting isn't valid.")
+  }
+  if (!a.choice.startTab) return none()
+  let grid: unknown[][] | 'gone'
+  try { grid = await readKpiStartTab(a.choice.sheetId, a.choice.startTab) } catch (e) {
+    console.error(`[organic-social] kpi start read failed ${at} status=${e instanceof YtdSheetReadError ? e.status : 'error'}`)
+    return none("Couldn't read the start figures.")
+  }
+  if (grid === 'gone') {
+    console.warn(`[organic-social] kpi start tab missing ${at}`)
+    return none('No start tab named in the setting was found.')
+  }
+  let byChannel: Partial<Record<DashChannel, KpiFigures>>
+  try { byChannel = parseKpiStartGrid(grid, startYear) } catch (e) {
+    console.warn(`[organic-social] kpi start layout not found ${at} missing=${e instanceof KpiSheetLayoutError ? e.missing : 'layout'}`)
+    return none("The start tab's layout isn't recognised.")
+  }
+  const cardNotes: Partial<Record<DashChannel, string>> = {}
+  for (const channel of a.shown) {
+    if (byChannel[channel]) continue
+    console.warn(`[organic-social] kpi start row missing ${at} platform=${channel}`)
+    cardNotes[channel] = `No end of ${startYear} figures for ${CHANNEL_LABEL[channel]}.`
+  }
+  return { startYear, byChannel, blockNote: null, cardNotes }
 }
 
 type MonthTabResult = { kind: 'rows'; rows: KpiPlatform[] } | { kind: 'note'; text: string } | { kind: 'error' }
