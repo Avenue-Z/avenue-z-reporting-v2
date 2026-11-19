@@ -9,7 +9,12 @@ vi.mock('@/app/actions/social-listening', () => ({
   addPostImageAction: vi.fn(), approvePostAction: vi.fn(), deletePostDraftAction: vi.fn(), removePostImageAction: vi.fn(),
   revokePostAction: vi.fn(), savePostAction: vi.fn(),
 }))
+// The browser's canvas shrink is not in jsdom; the form's retry logic is what these tests are about.
+vi.mock('./image-shrink', () => ({ shrinkScreenshot: vi.fn(async (f: File) => ({ bytes: new Blob([f.name]), print: new Blob([f.name]) })) }))
 
+import { act, waitFor } from '@testing-library/react'
+import { addPostImageAction, savePostAction } from '@/app/actions/social-listening'
+import { shrinkScreenshot } from './image-shrink'
 import { PostsSection } from './posts'
 import { changeText, pctText, pointsText, short } from '@/lib/organic-social/social-listening/format'
 import { roundDelta } from '@/lib/delta-rounding'
@@ -90,6 +95,53 @@ describe('the artifact\'s post groups', () => {
     const select = screen.getByRole('combobox', { name: 'Platform' }) as HTMLSelectElement
     expect(select.value).toBe('Reddit')
     expect([...select.options].map((o) => o.value)).toEqual(['Facebook', 'Instagram', 'LinkedIn', 'X', 'Reddit', 'YouTube', 'TikTok', 'Web article', 'Other'])
+  })
+})
+
+describe('the post form after a screenshot fails (#473)', () => {
+  const save = vi.mocked(savePostAction)
+  const add = vi.mocked(addPostImageAction)
+  const shrink = vi.mocked(shrinkScreenshot)
+  const pick = (files: File[]) => fireEvent.change(screen.getByLabelText('Screenshots'), { target: { files } })
+  const submit = async () => { await act(async () => { fireEvent.submit(screen.getByLabelText('Screenshots').closest('form')!) }) }
+  const savedIds = () => save.mock.calls.map(([a]) => a.id)
+  const uploaded = () => shrink.mock.calls.map(([f]) => f.name)
+  const fail = (n: number) => { let i = 0; add.mockImplementation(async () => (++i === n ? { ok: false, error: 'The image is over 300 KB.' } : { ok: true, id: `img${i}` })) }
+
+  test('a new post: the retry saves to the draft already made and sends only the screenshots not yet added', async () => {
+    vi.clearAllMocks()
+    save.mockResolvedValue({ ok: true, id: 'draft-1' })
+    fail(2)
+    render(<PostsSection posts={[]} clientSlug="a" range="r" caps={STAFF} />)
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Add post' })[0])
+    const files = [new File(['a'], 'one.png'), new File(['b'], 'two.png')]
+    pick(files)
+    await submit()
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(
+      'Saved, but a screenshot was not added: The image is over 300 KB. Fix it and save again; the post is kept.'))
+    expect(screen.getByRole('button', { name: 'Save post' })).toBeTruthy()
+
+    add.mockResolvedValue({ ok: true, id: 'img-retry' })
+    await submit()
+    expect(savedIds()).toEqual([null, 'draft-1'])
+    expect(uploaded()).toEqual(['one.png', 'two.png', 'two.png'])
+    expect(add.mock.calls.every(([form]) => (form as FormData).get('postId') === 'draft-1')).toBe(true)
+  })
+
+  test('an approved post: the retry edits the draft the first save forked, never asks for a second edit', async () => {
+    vi.clearAllMocks()
+    save.mockResolvedValue({ ok: true, id: 'fork-1' })
+    fail(1)
+    render(<PostsSection posts={[post({ imageIds: [] })]} clientSlug="a" range="r" caps={STAFF} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    pick([new File(['a'], 'one.png')])
+    await submit()
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/Saved, but a screenshot was not added/))
+
+    add.mockResolvedValue({ ok: true, id: 'img-retry' })
+    await submit()
+    expect(savedIds()).toEqual(['p1', 'fork-1'])
+    expect(uploaded()).toEqual(['one.png', 'one.png'])
   })
 })
 

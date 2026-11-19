@@ -170,6 +170,12 @@ function PostForm({ group, post, position, clientSlug, range, onDone }: {
   })
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null)
   const [pending, start] = useTransition()
+  // After a save whose screenshots did not all go up, the draft that save made (a new post's, or an approved post's
+  // fork) and the files already added to it. The next save edits that draft and sends only the rest, so a retry never
+  // makes a second draft, hits "already has an open edit", or adds a screenshot twice (#473). Files chosen again in the
+  // picker are new File objects, so they are sent.
+  const [savedId, setSavedId] = useState<string | null>(null)
+  const sent = useRef(new WeakSet<File>())
   const set = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => setD((x) => ({ ...x, [k]: v }))
   const id = (f: string) => `pf-${group}-${post?.id ?? 'new'}-${f}`
 
@@ -178,11 +184,17 @@ function PostForm({ group, post, position, clientSlug, range, onDone }: {
       setStatus(null)
       const engagements = d.engagements.trim() === '' ? null : Number(d.engagements)
       const saved = await savePostAction({
-        clientSlug, range, id: post?.id ?? null,
+        clientSlug, range, id: savedId ?? post?.id ?? null,
         post: { group, platform: d.platform, author: d.author, url: d.url, engagements, sentiment: d.sentiment, note: d.note, position },
       })
       if (!saved.ok) { setStatus({ text: saved.error, error: true }); return }
-      const chosen = [...(files.current?.files ?? [])]
+      const chosen = [...(files.current?.files ?? [])].filter((f) => !sent.current.has(f))
+      const partly = (why: string) => {
+        setSavedId(saved.id)
+        // The server's messages end in a full stop and a thrown one may not, so it ends in exactly one.
+        setStatus({ text: `Saved, but a screenshot was not added: ${why.trim().replace(/[.\s]*$/, '')}. Fix it and save again; the post is kept.`, error: true })
+        router.refresh()
+      }
       for (const [i, file] of chosen.entries()) {
         setStatus({ text: `Adding screenshot ${i + 1} of ${chosen.length}...`, error: false })
         try {
@@ -193,10 +205,10 @@ function PostForm({ group, post, position, clientSlug, range, onDone }: {
           form.set('bytes', new File([bytes], 'screen.jpg', { type: 'image/jpeg' }))
           form.set('print', new File([print], 'print.jpg', { type: 'image/jpeg' }))
           const r = await addPostImageAction(form)
-          if (!r.ok) { setStatus({ text: `Saved, but a screenshot was not added: ${r.error}`, error: true }); router.refresh(); return }
+          if (!r.ok) { partly(r.error); return }
+          sent.current.add(file)
         } catch (err) {
-          setStatus({ text: `Saved, but a screenshot was not added: ${err instanceof Error ? err.message : 'could not read it'}`, error: true })
-          router.refresh()
+          partly(err instanceof Error ? err.message : 'could not read it')
           return
         }
       }
@@ -243,7 +255,7 @@ function PostForm({ group, post, position, clientSlug, range, onDone }: {
         <input id={id('shots')} ref={files} type="file" accept="image/*" multiple disabled={(post?.imageIds.length ?? 0) >= MAX_IMAGES} />
       </label>
       <div className={`${s.wide} ${s.editRow}`}>
-        <button type="submit" className={`${s.tbtn} ${s.primary}`} disabled={pending}>{post ? 'Save post' : 'Add post'}</button>
+        <button type="submit" className={`${s.tbtn} ${s.primary}`} disabled={pending}>{post || savedId ? 'Save post' : 'Add post'}</button>
         <button type="button" className={s.tbtn} onClick={onDone} disabled={pending}>Cancel</button>
         {post && post.status === 'draft' && post.imageIds.length > 0 && (
           <button type="button" className={`${s.tbtn} ${s.ghost}`} onClick={clearShots} disabled={pending}>Remove screenshots</button>
