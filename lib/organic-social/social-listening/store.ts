@@ -453,8 +453,10 @@ export async function saveTrendsDraft(t: { clientId: string; month: SlMonth; lis
   updateTag('db')
 }
 
-/** Approve the month's draft lists: copy them into the approved columns clients read. False when there is no draft. */
-export async function approveTrends(t: { clientId: string; month: SlMonth; by: string }): Promise<boolean> {
+/** Approve the month's draft lists: copy them into the approved columns clients read. `seen` is what the approver was
+ *  shown: the draft is approved only while it still equals it (jsonb equality, in the same statement), so a list saved
+ *  after the page opened is never approved unseen. False when there is no draft or it changed. */
+export async function approveTrends(t: { clientId: string; month: SlMonth; by: string; seen: SlTrendLists }): Promise<boolean> {
   const now = new Date()
   const rows = await db
     .update(socialListeningTrends)
@@ -468,6 +470,9 @@ export async function approveTrends(t: { clientId: string; month: SlMonth; by: s
       eq(socialListeningTrends.clientId, t.clientId),
       eq(socialListeningTrends.month, monthDate(t.month)),
       eq(socialListeningTrends.status, 'draft'),
+      sql`${socialListeningTrends.emerging} = ${JSON.stringify(t.seen.emerging)}::jsonb`,
+      sql`${socialListeningTrends.decreasing} = ${JSON.stringify(t.seen.decreasing)}::jsonb`,
+      sql`${socialListeningTrends.newThemes} = ${JSON.stringify(t.seen.newThemes)}::jsonb`,
     ))
     .returning({ id: socialListeningTrends.id })
   if (rows.length > 0) updateTag('db')

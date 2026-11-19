@@ -168,12 +168,19 @@ describe('trends', () => {
     await store.saveTrendsDraft({ clientId: CLIENT, month: '2026-11', lists: lists('first'), by: 's' })
     let t = (await store.getSlMonth(CLIENT, ['2026-11'])).trends!
     expect([t.status, t.approved]).toEqual(['draft', null])
-    expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a' })).toBe(true)
-    expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a' })).toBe(false)
+    expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a', seen: lists('first') })).toBe(true)
+    expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a', seen: lists('first') })).toBe(false)
     await store.saveTrendsDraft({ clientId: CLIENT, month: '2026-11', lists: lists('second'), by: 's' })
     t = (await store.getSlMonth(CLIENT, ['2026-11'])).trends!
     expect(t.status).toBe('draft')
     expect(t.draft.emerging[0].theme).toBe('second')
     expect(t.approved!.emerging[0].theme).toBe('first')
+  })
+
+  test('a draft changed since the approver opened the page is never approved unseen', async () => {
+    await store.saveTrendsDraft({ clientId: CLIENT, month: '2026-11', lists: lists('newer'), by: 's' })
+    expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a', seen: lists('older') })).toBe(false)
+    expect((await store.getSlMonth(CLIENT, ['2026-11'])).trends!.approved).toBeNull()
+    expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a', seen: lists('newer') })).toBe(true)
   })
 })

@@ -11,9 +11,11 @@ import { slCapabilities } from '@/lib/organic-social/social-listening/capabiliti
 import { parseTalkwalkerExport } from '@/lib/organic-social/social-listening/export-parse'
 import { hasSocialListeningTab, parseSocialListeningSetting } from '@/lib/organic-social/social-listening/setting'
 import {
-  approvePost, countApprovedPosts, deleteImage, findImageOwner, findPost, forkPostDraft, insertImage, insertPost, insertUpload,
-  revokePost, softDeletePostDraft, updatePostDraft, type PostState,
+  approvePost, approveTrends, countApprovedPosts, deleteImage, findImageOwner, findPost, forkPostDraft, insertImage, insertPost,
+  insertUpload, revokePost, saveTrendsDraft, softDeletePostDraft, updatePostDraft, type PostState,
 } from '@/lib/organic-social/social-listening/store'
+import { checkTrendLists } from '@/lib/organic-social/social-listening/trends'
+import type { SlTrend, SlTrendLists } from '@/lib/organic-social/social-listening/types'
 import { checkImage, MAX_IMAGE_BYTES, MAX_IMAGES, MAX_POSTS, MAX_PRINT_BYTES, validatePostInput } from '@/lib/organic-social/social-listening/posts'
 import { uploadMonth } from '@/lib/organic-social/social-listening/upload-month'
 import { requestClock } from '@/lib/organic-social/locked-range'
@@ -255,4 +257,48 @@ export async function removePostImageAction(input: { clientSlug: string; imageId
   if (!owner || owner.clientId !== s.client.id) return NOT_FOUND
   return guarded('remove image', s.client.slug, async (): Promise<Result> =>
     ((await deleteImage(input.imageId)) ? { ok: true } : fail('Images are removed from a draft. Edit the post first.')))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Theme trends (spec sections 7 and 8): typed by staff per served finished month, approved by COMMENTARY_APPROVERS.
+// Clients see only the approved lists; saving after approval keeps them until the next approval (R2-11).
+
+const rangeOf = (range: unknown) => (typeof range === 'string' && range ? range : undefined)
+
+/** Save the three lists (one theme per line, an optional trailing change) as the month's draft. */
+export async function saveTrendsAction(input: { clientSlug: string; range?: string; emerging: string; decreasing: string; newThemes: string }): Promise<Result> {
+  const s = await staffClient(input?.clientSlug, 'edit')
+  if (!('client' in s)) return s
+  const checked = checkTrendLists(input)
+  if (!checked.ok) return fail(checked.error)
+  const when = uploadMonth(s.client, rangeOf(input.range), requestClock())
+  if (!when.ok) return fail(when.error)
+  return guarded('save trends', s.client.slug, async (): Promise<Result> => {
+    await saveTrendsDraft({ clientId: s.client.id, month: when.month, lists: checked.lists, by: s.email })
+    return { ok: true }
+  })
+}
+
+const isTrend = (t: unknown): t is SlTrend =>
+  typeof t === 'object' && t !== null && typeof (t as SlTrend).theme === 'string'
+  && ((t as SlTrend).change === null || typeof (t as SlTrend).change === 'string')
+const isLists = (v: unknown): v is SlTrendLists =>
+  typeof v === 'object' && v !== null
+  && (['emerging', 'decreasing', 'newThemes'] as const).every((k) => Array.isArray((v as Record<string, unknown>)[k]) && ((v as Record<string, unknown[]>)[k]).every(isTrend))
+
+/** Approve the month's draft, only while it still equals `seen`, the lists the approver was shown (checked in the
+ *  same statement as the approval). */
+export async function approveTrendsAction(input: { clientSlug: string; range?: string; seen: SlTrendLists }): Promise<Result> {
+  const s = await staffClient(input?.clientSlug, 'approve')
+  if (!('client' in s)) return s
+  if (!isLists(input.seen)) return fail('invalid trends')
+  // Exactly the stored shape, so the database's equality check compares like with like.
+  const only = (list: SlTrend[]) => list.map((t) => ({ theme: t.theme, change: t.change }))
+  const seen: SlTrendLists = { emerging: only(input.seen.emerging), decreasing: only(input.seen.decreasing), newThemes: only(input.seen.newThemes) }
+  const when = uploadMonth(s.client, rangeOf(input.range), requestClock())
+  if (!when.ok) return fail(when.error)
+  return guarded('approve trends', s.client.slug, async (): Promise<Result> =>
+    ((await approveTrends({ clientId: s.client.id, month: when.month, by: s.email, seen }))
+      ? { ok: true }
+      : fail('The trends changed since you opened the page, or are already approved. Reload to see them.')))
 }
