@@ -99,7 +99,11 @@ the file and image sizes too.
    `{ "enabled": true, "brandTopic": "<brand topic name>", "industryTopic": "<industry topic name>", "industrySample": 10 }`.
    The topic names must equal the first item of each export's filter line (rule V5). The client must be on locked months.
 3. Backfill `social_listening_history` from the team's private history sheet (a guarded script outside this repo, dry run
-   and rollback). October is not uploaded: the tab starts with November, which compares with October's history row.
+   and rollback). The sheet's "Monthly history" tab has two tables: whole-percent sentiment by month (brand, Reddit,
+   industry) and the headline numbers of the months that have them. Each month gives a brand row, plus an industry row
+   when its industry columns are filled. The headline percents must round to the sentiment table's whole percents, and
+   a month is written only once Confirmed is ticked on the sheet. October is not uploaded: the tab starts with November,
+   which compares with October's history row.
 4. Staging, then production, as in spec section 13.
 
 ## Private checks (outside this repo)

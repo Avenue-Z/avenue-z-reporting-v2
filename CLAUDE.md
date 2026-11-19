@@ -1127,14 +1127,18 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
 
 The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; no client has it on.
 
-- [ ] **Rollout, each step on my go.** Migration `0030_social_listening` is generated and applied nowhere. Then the
-  setting on the dev client, the history backfill, staging (Savannah uploads November and checks against her files),
+- [ ] **Rollout, each step on my go.** Migration `0030_social_listening` and the setting are on the dev client only
+  (2026-11-19). Next the history backfill on dev, then staging (Savannah uploads November and checks against her files),
   production after Savannah and Jasmine approve on staging (spec section 13).
-- [ ] **The history backfill script is not written.** The private history sheet ("Monthly History") answers 403 to the
-  app's service account, so its layout could not be read. Share it with the service account as Viewer, then write the
-  guarded script (dry run, rollback, host check) from the sheet's real columns, outside this repo.
-- [ ] **Phase 2, paid sentiment** (spec section 12, plan P2.1 to P2.4): read the paid ad comment sheet through the service
-  account (the column the team uses is E), then a spec addendum. `socialListening.paidSheet` is reserved for it.
+- [ ] **The history backfill is written and dry run on dev, not applied.** The guarded script lives outside this repo
+  (dev or staging only, pinned to each Neon endpoint; dry run by default; one all-or-nothing insert; refuses a client
+  that already has history rows; rollback deletes only rows tagged `history-sheet (...)`), with its own tests on an
+  in-memory Postgres. The dry run on dev parsed January to October brand and May to October industry with no problems.
+  Applying waits on Savannah ticking Confirmed on each month of the history sheet (a dev-only flag can override for
+  testing) and on my go.
+- [ ] **Phase 2, paid sentiment** (spec section 12, plan P2.1 to P2.4): the paid ad comment sheet is shared with the
+  service account and readable (2026-11-19); each month tab's column E is the comment. Next, a spec addendum.
+  `socialListening.paidSheet` is reserved for it.
 - [ ] **A cap can pass by one under two writes in the same instant.** Two approvals can pass the month's 12 posts and two
   screenshot uploads a post's 4 images (READ COMMITTED; neon-http holds no row lock). The page shows the first 12 and the
   first 4, so a client never sees more.
