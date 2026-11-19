@@ -86,3 +86,34 @@ test('a client without the AEO setting logs nothing', () => {
   toPortalSidebarClient(FULL)
   expect(warn).not.toHaveBeenCalled()
 })
+
+// The Social Listening tab (spec 2026-11-19 section 4): only the server-computed boolean leaves the server, never the setting (its topic
+// names). The field is sent only when true, so the record of every client without the tab is exactly as before.
+const RM = { firstMonth: '2026-07', clientMonths: 2 }
+const SL = { ...FULL, dashSocialConfig: { ...(FULL as unknown as { dashSocialConfig: object }).dashSocialConfig, reportingMonths: RM, socialListening: { enabled: true, brandTopic: 'SECRET-TOPIC', industryTopic: 'SECRET-INDUSTRY', industrySample: 10 } } } as unknown as Client
+
+test('the trimmed record carries the Social Listening boolean and never the setting', () => {
+  const out = toPortalSidebarClient(SL)
+  expect(out.socialListeningTab).toBe(true)
+  expect(Object.keys(out.dashSocialConfig ?? {})).not.toContain('socialListening')
+  expect(JSON.stringify(out)).not.toContain('SECRET')
+  expect(JSON.stringify(out)).not.toContain('industrySample')
+})
+
+test('a client without the tab gets no socialListeningTab field, so its record is unchanged', () => {
+  expect(toPortalSidebarClient(FULL)).not.toHaveProperty('socialListeningTab')
+  const hidden = { ...SL, hiddenReports: ['organic-social-listening'] } as unknown as Client
+  expect(toPortalSidebarClient(hidden)).not.toHaveProperty('socialListeningTab')
+})
+
+test('a malformed Social Listening setting, or the setting without reporting months, is no tab and one warning naming the client', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const bad = { ...SL, dashSocialConfig: { brandId: 1, reportingMonths: RM, socialListening: { enabled: true, brandTopic: 'SECRET-TOPIC', paidSheet: 'SECRET-SHEET' } } } as unknown as Client
+  expect(toPortalSidebarClient(bad)).not.toHaveProperty('socialListeningTab')
+  const noMonths = { ...SL, dashSocialConfig: { brandId: 1, socialListening: { enabled: true, brandTopic: 'SECRET-TOPIC' } } } as unknown as Client
+  expect(toPortalSidebarClient(noMonths)).not.toHaveProperty('socialListeningTab')
+  expect(warn).toHaveBeenCalledTimes(2)
+  expect(warn.mock.calls[0][0]).toMatch(/^\[social-listening\] .*slug=a-client: .*paidSheet/)
+  expect(warn.mock.calls[1][0]).toMatch(/^\[social-listening\] .*slug=a-client: .*reportingMonths/)
+  for (const [m] of warn.mock.calls) expect(String(m)).not.toContain('SECRET')
+})
