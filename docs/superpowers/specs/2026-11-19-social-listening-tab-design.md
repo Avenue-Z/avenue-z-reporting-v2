@@ -169,8 +169,10 @@ D5, decided by Thomas 2026-11-12 (social-listening `docs/2026-11-12-build-plan.m
 the record.** Talkwalker revises past months, so a later pull disagrees with what the client was shown.
 
 - **A month's presented upload** = the newest upload for that month and topic made before the month opened to the
-  client (`opensOn`, `lib/organic-social/reporting-months.ts:96`). If every upload came after the open date, the first
-  one. A re-upload after the open date is allowed and becomes what the page shows for that month, but it never
+  client. Whether an upload was "before open" is worked out once, when it is stored (`opensOn` with the client's
+  settings at that moment, `lib/organic-social/reporting-months.ts:96`), and saved on the row as `before_open`
+  (boolean), so a later change to `opensOnDay` or `weekendRule` can never change which upload is presented. If no upload
+  is `before_open`, the first one. A re-upload after the open date is allowed and becomes what the page shows for that month, but it never
   changes the presented upload; staff see a one-line note that later months still compare with the earlier numbers.
 - **A month's presented values** = its history row if one exists (section 8, backfilled from the reports already
   delivered), else its presented upload.
@@ -185,7 +187,8 @@ the record.** Talkwalker revises past months, so a later pull disagrees with wha
   and "n/a" in legends.
 - **Formulas.** pct(k) = 100 × count(k) / results, rounded to one decimal for display. Points change = pct(k) now minus
   the previous month's pct(k) (a history row's whole percent, or the presented upload's one-decimal pct), shown to one
-  decimal with its sign. Tile change = 100 × (now / previous − 1), then `roundDelta`. YTD point = round(pct(k)) for each
+  decimal with its sign. Tile change = 100 × (now / previous − 1), then `roundDelta`; a previous value that is
+missing, null or 0 gets the `comparisonExpected` placeholder instead (never Infinity). YTD point = round(pct(k)) for each
   of the three independently, as the deck charts them (they may sum to 99 or 101).
 - **Media type and influencer changes**: against the previous month's presented upload only (history rows don't hold
   them); influencers are matched by `authorId`. No upload last month, or a media type or author absent last month:
@@ -199,7 +202,8 @@ the record.** Talkwalker revises past months, so a later pull disagrees with wha
 ## 8. Storage (new tables, one migration)
 
 - `social_listening_uploads`: id, client_id, month (date, 1st), topic (`brand`|`industry`), data (jsonb, section 6
-  shape), raw (bytea, the file as uploaded, never selected by page reads), sha256, byte_size, uploaded_by, uploaded_at.
+  shape), raw (bytea, the file as uploaded, never selected by page reads), sha256, byte_size, before_open (boolean, set
+  once at upload, section 7), uploaded_by, uploaded_at.
   Append-only: a re-upload adds a row; the newest row per (client, month, topic) is current. Index (client_id, month, topic).
 - `social_listening_history`: client_id, month, topic, results, unique_authors, engagement, potential_reach (nullable
   numerics, as presented on the tiles), pos/neu/neg (whole percents), reddit_pos/neu/neg (nullable whole percents),
@@ -252,10 +256,14 @@ bars and `PointsDelta` are new small components. Colors: a new `SENTIMENT_COLORS
 (`CHART_COLORS.positive/neutral/negative` are the delta colours and stay as they are). Staff-only controls (upload,
 trends editor, add post) never render for a client role.
 
-**PDF export prints the client's view, whoever exports** (the commentary rule, `commentary-panel.tsx:73-75`,
-`useExportMode()`): under export mode the tab renders no controls, no drafts, no staff notes, approved posts with their
-first image at print size, approved trends, and each analysis box's client entry. A staff member's export can never put
-a draft in front of a client.
+**PDF export prints the client's view, whoever exports.** `useExportMode()` is a client-side context
+(`components/export/export-mode.tsx:14`) and the export page resolves with the exporter's role
+(`app/export/[clientSlug]/[section]/page.tsx:58`), so hiding controls in the browser is not enough. The export passes an
+explicit server-side flag from `exportReportElement` into the section, and every section 5 case is driven by one value,
+`clientView = role is a client OR exporting`. Under it the tab renders no controls, no drafts, no staff notes, no empty
+or analysis-only section without approved text, approved posts with their first image at print size, approved trends,
+and each analysis box's client entry (as commentary prints, `commentary-panel.tsx:73-75`). A staff member's export can
+never put a draft or an empty staff-only card in front of a client.
 
 Analysis boxes: view keys `organic-social:social-listening:${SocialListeningBoxId}` added to the `CommentaryViewKey`
 union (`lib/commentary/views.ts:16`) and to `COMMENTARY_VIEWS` with `{ label, owner: 'Savannah / Jasmine' }`, label
