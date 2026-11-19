@@ -1143,5 +1143,8 @@ The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; 
   topic is for me and Savannah to align on (team call, 2026-11-19).
 - [ ] **Colours.** Media type colours by name are my choice (unknown types get a grey fallback). The brand cloud maps
   the five theme colours the October brand export uses to sentiment; any other colour shows unlabelled.
-- [ ] **Not yet checked in a browser.** The tab needs the migration and the setting on a database first.
+- [ ] **Checked in a browser on dev in its empty states only** (2026-11-19: migration and setting applied on dev; staff
+  October upload control, both pills, sl kept by the month picker, the live month's "Upload opens when November 2026
+  ends.", no console or server errors, Renaissance unchanged). The data page needs an upload, then a client-role look and
+  a PDF export.
 
