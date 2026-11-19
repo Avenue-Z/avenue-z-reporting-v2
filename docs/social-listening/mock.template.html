@@ -1,0 +1,1034 @@
+<title>APFM Social Listening</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700;800;900&display=swap">
+<style>
+/* Layout: the reporting app's staff shell. Fixed 256px sidebar, max-w-7xl main column, sticky report header.
+   Tokens copied from app/globals.css (Avenue Z dark theme). This page commits to the app's dark look. */
+:root {
+  color-scheme: dark;
+  --bg: #000000;
+  --fg: #FFFFFF;
+  --surface: #272727;
+  --subtle: #1a1a1a;
+  --muted: #8A8A8A;
+  --border: rgba(255,255,255,0.08);
+  --border-soft: rgba(255,255,255,0.06);
+  --hover: rgba(255,255,255,0.04);
+  --active: rgba(255,255,255,0.08);
+  --cyan: #60FDFF;
+  --blue: #39A0FF;
+  --purple: #6034FF;
+  --green: #60FF80;
+  --yellow: #FFFC60;
+  --red: #FF4444;
+  --pos: #60FF80;
+  --neu: #FFFC60;
+  --neg: #FF4444;
+  --on-seg: #000000;
+  --font: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --r-md: 12px;
+  --r-lg: 16px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--fg);
+  background:
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(0,60,60,0.5) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 80% 100%, rgba(30,0,80,0.4) 0%, transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 50; background: var(--bg); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+.app { display: flex; min-height: 100vh; }
+
+/* ---------- Sidebar (components/layout/sidebar.tsx, client view) ---------- */
+.sidebar {
+  width: 256px; flex-shrink: 0; background: var(--surface);
+  position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
+}
+.sb-top { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; flex-shrink: 0; }
+.sb-top .logo { padding: 0 12px; color: var(--fg); display: flex; }
+.icon-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: var(--muted); background: none; border: 0; cursor: pointer; }
+.icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
+.sb-back { padding: 0 12px; }
+.sb-back a { display: flex; align-items: center; gap: 8px; border-radius: var(--r-md); padding: 8px 12px; font-size: 14px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.sb-back a:hover { background: var(--hover); color: var(--fg); }
+.sb-nav { flex: 1; overflow-y: auto; border-top: 1px solid var(--border-soft); padding: 16px 12px 0; }
+.sb-group-label { margin: 0 0 4px; padding: 0 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.sb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sb-link { display: flex; align-items: center; border-radius: var(--r-md); padding: 8px 12px; font-size: 14px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.sb-link.is-active { color: var(--fg); }
+.sb-sub { list-style: none; margin: 2px 0 0 12px; padding: 0 0 0 10px; border-left: 1px solid var(--active); display: flex; flex-direction: column; gap: 1px; }
+.sb-sub a { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-radius: var(--r-md); padding: 6px 10px; font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.sb-sub a:hover { background: var(--hover); color: rgba(255,255,255,0.7); }
+.sb-sub a.is-active { background: var(--active); color: var(--fg); }
+.new-chip { border-radius: 999px; background: rgba(96,253,255,0.14); color: var(--cyan); padding: 2px 8px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.sb-foot { margin-top: auto; border-top: 1px solid var(--border-soft); padding: 8px; }
+.sb-user { display: flex; align-items: center; gap: 12px; border-radius: var(--r-md); padding: 8px; }
+.avatar { width: 32px; height: 32px; border-radius: 999px; background: var(--active); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.sb-user .who { display: flex; flex-direction: column; min-width: 0; }
+.sb-user .who b { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.8); }
+.sb-user .who span { font-size: 11px; color: var(--muted); }
+
+/* ---------- Mobile top bar (stands in for the collapsed sidebar) ---------- */
+.topbar { display: none; }
+
+/* ---------- Main ---------- */
+.main { flex: 1; min-width: 0; }
+.wrap { max-width: 1280px; margin: 0 auto; padding-block: 0 48px; padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); }
+
+/* Sticky report header (components/layout/sticky-report-header.tsx) */
+.report-head { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); margin: 0 -32px; padding: 0 32px; }
+.rh-row { display: flex; align-items: flex-end; gap: 16px; padding: 32px 0 20px; flex-wrap: wrap; }
+.rh-title { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1 1 320px; }
+.rh-title img { width: 40px; height: 40px; border-radius: var(--r-lg); object-fit: cover; flex-shrink: 0; }
+.rh-sub { margin: 0; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.rh-h1 { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 800; text-transform: uppercase; text-wrap: balance; }
+.rh-actions { margin-left: auto; display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.month { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.month select { border-radius: var(--r-md); border: 1px solid rgba(255,255,255,0.1); background: var(--surface); padding: 8px 14px; font: 500 14px var(--font); color: var(--fg); }
+.month span { font-size: 11px; color: var(--muted); }
+.btn { border-radius: var(--r-md); border: 1px solid rgba(255,255,255,0.1); background: var(--surface); padding: 8px 14px; font-size: 14px; font-weight: 600; color: var(--fg); cursor: default; display: inline-flex; align-items: center; gap: 8px; }
+.divider-full { height: 1px; background: linear-gradient(135deg, #FFFC60, #60FF80, #60FDFF, #39A0FF, #6034FF); }
+
+/* Mock notice */
+.notice { margin-top: 24px; display: flex; gap: 12px; align-items: flex-start; border: 1px dashed rgba(96,253,255,0.35); background: rgba(96,253,255,0.05); border-radius: var(--r-lg); padding: 12px 16px; font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.85); }
+.notice b { color: var(--cyan); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; white-space: nowrap; padding-top: 2px; }
+
+/* Topic toggle (pill style from organic-social/trends.tsx) */
+.topics { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--active); background: none; padding: 6px 14px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.pill:hover { color: var(--fg); }
+.pill[aria-pressed="true"] { border-color: rgba(255,255,255,0.2); background: var(--active); color: var(--fg); }
+.pill .dot { width: 8px; height: 8px; border-radius: 999px; }
+.topics .hint { font-size: 12px; color: var(--muted); }
+
+/* Sections */
+.view { display: flex; flex-direction: column; gap: 40px; margin-top: 28px; }
+.section { display: flex; flex-direction: column; gap: 12px; }
+.section > h2, .section > .sec-head h2 { margin: 0; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sec-head span { font-size: 12px; color: var(--muted); }
+.grid { display: grid; gap: 12px; }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* KPI card (components/charts/kpi-card.tsx) */
+.kpi { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); padding: 20px 24px; min-width: 0; }
+.kpi .t { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.kpi .v { margin: 8px 0 0; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.kpi .d { margin: 4px 0 0; font-size: 14px; font-weight: 700; }
+.kpi .s { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.up { color: var(--green); } .down { color: var(--red); } .flat { color: var(--muted); }
+
+/* Chart card (components/charts/chart-card.tsx) */
+.card { border-radius: var(--r-lg); border: 1px solid var(--border-soft); background: var(--surface); padding: 20px 24px; min-width: 0; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.card h3 { margin: 0; font-size: 18px; font-weight: 700; }
+.card-head .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card-body { margin-top: 12px; }
+.card .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); }
+.t-muted { fill: var(--muted); }
+.t-fg { fill: var(--fg); }
+.t-seg { fill: var(--on-seg); font-weight: 800; }
+.grid-line { stroke: rgba(255,255,255,0.08); stroke-dasharray: 4 4; }
+
+/* Donut + legend */
+.donut-wrap { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.donut-wrap svg { width: 168px; flex-shrink: 0; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 180px; }
+.legend li { display: grid; grid-template-columns: 10px 1fr auto; gap: 4px 10px; align-items: center; font-size: 14px; }
+.legend .sw { width: 10px; height: 10px; border-radius: 999px; }
+.legend .num { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.legend .chg { grid-column: 2 / 4; font-size: 12px; font-weight: 700; margin-top: -4px; }
+
+/* Horizontal stacked bars */
+.hbars { display: flex; flex-direction: column; gap: 8px; }
+.hrow { display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: center; }
+.hrow .lab { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hrow .lab span { color: var(--muted); font-weight: 400; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.hbar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--subtle); }
+.hbar i { display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 11px; font-weight: 800; color: var(--on-seg); min-width: 0; overflow: hidden; }
+.key { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 12px; }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.key i { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+
+/* Media share bars */
+.mrow { display: grid; grid-template-columns: 150px 1fr 64px 92px; gap: 12px; align-items: center; font-size: 13px; }
+.mrow + .mrow { margin-top: 8px; }
+.mrow .lab { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrow .track { height: 10px; border-radius: 999px; background: var(--subtle); overflow: hidden; }
+.mrow .track i { display: block; height: 100%; border-radius: 999px; background: var(--cyan); }
+.mrow .pct { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mrow .chg { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mhead { display: grid; grid-template-columns: 150px 1fr 64px 92px; gap: 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); margin-bottom: 10px; }
+.mhead :nth-child(3), .mhead :nth-child(4) { text-align: right; }
+
+/* Word cloud */
+.cloud { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 14px; padding: 8px 4px; line-height: 1.15; }
+.cloud { overflow: hidden; }
+.cloud-wide { gap: 10px 28px; padding: 20px 12px; max-width: 980px; margin-left: auto; margin-right: auto; }
+.cloud span { font-weight: 800; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
+
+/* Theme trends */
+.trend-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.trend-cols h4 { margin: 0 0 8px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; }
+.tlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.tlist li { display: flex; justify-content: space-between; gap: 8px; }
+.tlist li span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span { border-radius: 999px; border: 1px solid var(--border); padding: 3px 9px; font-size: 12px; }
+
+/* Overview cards + table */
+.ov { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); padding: 16px 20px; min-width: 0; }
+.ov .t { margin: 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.ov .who { margin: 8px 0 0; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+.ov .net { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.ov .val { margin: 8px 0 0; font-size: 14px; font-weight: 700; color: var(--cyan); font-variant-numeric: tabular-nums; }
+.table-wrap { overflow-x: auto; border-radius: var(--r-lg); border: 1px solid var(--border-soft); background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+th { padding: 12px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); text-align: left; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+td { padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+th.r, td.r { text-align: right; }
+.mini { display: flex; height: 8px; width: 96px; border-radius: 999px; overflow: hidden; background: var(--subtle); }
+.mini i { display: block; height: 100%; }
+
+/* Analyst slots */
+.slot { border-radius: var(--r-lg); border: 1px dashed rgba(255,255,255,0.18); background: rgba(255,255,255,0.02); padding: 16px 20px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.slot h4 { margin: 0; font-size: 14px; font-weight: 800; }
+.slot p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.slot .ph { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.slot .ph div { aspect-ratio: 4 / 3; border-radius: 10px; background: rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); text-align: center; padding: 4px; }
+.who-tag { align-self: flex-start; border-radius: 999px; background: rgba(255,252,96,0.12); color: var(--yellow); padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Analyst commentary (editable) */
+.comm { border-radius: var(--r-lg); border: 1px solid rgba(255,252,96,0.22); background: rgba(255,252,96,0.035); padding: 16px 20px; min-width: 0; }
+.comm.is-empty { border: 0; background: none; padding: 0; }
+.card .comm-in { margin-top: 14px; }
+.card .comm-in:not(.is-empty) { padding: 12px 14px; }
+.add-analysis.small { font-size: 11px; padding: 3px 8px; }
+.add-analysis { border-style: dashed; background: none; color: var(--muted); }
+.add-analysis:hover { color: var(--yellow); border-color: rgba(255,252,96,0.5); background: none; }
+body.preview .comm.is-empty, body.preview .tbtn, body.preview .flag, body.preview .edited,
+body.preview .reset-all, body.preview .slot, body.preview .notice, body.preview .pgroup.is-empty, body.preview .status { display: none !important; }
+body.preview .comm { border-color: var(--border); background: var(--surface); }
+body.preview .comm-head .lbl { color: var(--muted); }
+#preview-toggle { cursor: pointer; }
+#preview-toggle[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); }
+.comm-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.comm-head .lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); }
+.comm-head .by { font-size: 12px; color: var(--muted); }
+.comm-head .sp { flex: 1; }
+.flag { border-radius: 999px; background: rgba(255,68,68,0.14); color: #FF8A8A; padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.edited { border-radius: 999px; background: rgba(96,253,255,0.12); color: var(--cyan); padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.comm-body { margin-top: 10px; font-size: 14px; line-height: 1.6; color: rgba(255,255,255,0.88); max-width: 80ch; }
+.comm-body p { margin: 0 0 8px; }
+.comm-body p:last-child { margin-bottom: 0; }
+.comm-body h5 { margin: 12px 0 2px; font-size: 14px; font-weight: 800; color: var(--fg); }
+.comm-body h5:first-child { margin-top: 0; }
+.comm-body .empty { color: var(--muted); font-style: italic; }
+.tbtn { border-radius: 8px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: var(--fg); padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tbtn:hover { background: rgba(255,255,255,0.1); }
+.tbtn.primary { background: var(--cyan); border-color: var(--cyan); color: #000; }
+.tbtn.ghost { border-color: transparent; background: none; color: var(--muted); }
+.tbtn.ghost:hover { color: var(--fg); }
+.edit-area { width: 100%; min-height: 160px; margin-top: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: var(--subtle); color: var(--fg); padding: 10px 12px; font: 400 14px/1.55 var(--font); resize: vertical; }
+.edit-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.edit-row .hint { font-size: 12px; color: var(--muted); }
+
+/* Posts (editable) */
+.pgroup { display: flex; flex-direction: column; gap: 10px; }
+.pgroup-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.pgroup-head h3 { margin: 0; font-size: 16px; font-weight: 800; }
+.pgroup-head span { font-size: 12px; color: var(--muted); }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.post { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.post-shots { background: #fff; display: flex; flex-direction: column; gap: 1px; max-height: 340px; overflow-y: auto; }
+.post-shots img { display: block; width: 100%; height: auto; }
+.post-shots.none { background: rgba(255,255,255,0.03); min-height: 80px; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
+.post-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.post-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+.chip { border-radius: 999px; border: 1px solid var(--border); padding: 2px 8px; font-weight: 700; }
+.chip.Positive { color: var(--pos); border-color: rgba(96,255,128,0.35); }
+.chip.Neutral { color: var(--neu); border-color: rgba(255,252,96,0.35); }
+.chip.Negative { color: #FF8A8A; border-color: rgba(255,68,68,0.4); }
+.post-who { font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
+.post-note { margin: 0; font-size: 13px; line-height: 1.55; color: rgba(255,255,255,0.85); }
+.post-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
+.post-foot a { font-size: 12px; color: var(--cyan); }
+.post-foot .sp { flex: 1; }
+.pform { border-radius: var(--r-lg); border: 1px solid rgba(96,253,255,0.35); background: rgba(96,253,255,0.04); padding: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.pform label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); min-width: 0; }
+.pform .wide { grid-column: 1 / -1; }
+.pform input, .pform select, .pform textarea { border-radius: 8px; border: 1px solid rgba(255,255,255,0.16); background: var(--subtle); color: var(--fg); padding: 8px 10px; font: 400 14px var(--font); min-width: 0; }
+.pform textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
+.pform .thumbs { display: flex; gap: 6px; flex-wrap: wrap; }
+.pform .thumbs img { height: 48px; width: auto; border-radius: 6px; border: 1px solid var(--border); }
+.status { font-size: 12px; color: var(--muted); }
+.reset-all { display: flex; justify-content: flex-end; }
+
+.source { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted); border-top: 1px solid var(--border-soft); padding-top: 16px; }
+
+@media (max-width: 1100px) {
+  .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .trend-cols { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .topbar { display: flex; align-items: center; gap: 12px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 40; background: var(--surface); padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: 13px; font-weight: 600; color: var(--muted); }
+  .topbar svg { width: auto; height: 16px; color: var(--fg); }
+  .topbar b { color: var(--fg); font-weight: 700; }
+  .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .report-head { position: static; margin: 0; padding: 0; }
+  .g2, .g3 { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .g4 { grid-template-columns: 1fr; }
+  .rh-h1 { font-size: 28px; }
+  .rh-actions { margin-left: 0; }
+  .month { align-items: flex-start; }
+  .hrow { grid-template-columns: 1fr; gap: 4px; }
+  .mrow, .mhead { grid-template-columns: 110px 1fr 52px 70px; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <aside class="sidebar" aria-label="Reports navigation">
+    <div class="sb-top">
+      <span class="logo" aria-label="Avenue Z">__AZLOGO__</span>
+      <button class="icon-btn" type="button" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+      </button>
+    </div>
+    <div class="sb-back">
+      <a href="#brand"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px"><path d="m15 18-6-6 6-6"/></svg>All Clients</a>
+    </div>
+    <nav class="sb-nav">
+      <p class="sb-group-label">Reports</p>
+      <ul class="sb-list">
+        <li>
+          <a class="sb-link is-active" href="#brand">Organic Social</a>
+          <ul class="sb-sub">
+            <li><a href="#brand">Instagram</a></li>
+            <li><a href="#brand">Facebook</a></li>
+            <li><a href="#brand">LinkedIn</a></li>
+            <li><a class="is-active" href="#brand" aria-current="page">Social Listening <span class="new-chip">New</span></a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-user"><span class="avatar">AZ</span><span class="who"><b>Avenue Z team</b><span>Staff view</span></span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">__AZLOGO__<span>Organic Social / <b>Social Listening</b></span></div>
+    <div class="wrap">
+      <header class="report-head">
+        <div class="rh-row">
+          <div class="rh-title">
+            <img src="data:image/png;base64,__APFMLOGO__" alt="">
+            <div>
+              <p class="rh-sub">A Place For Mom</p>
+              <h1 class="rh-h1">Social Listening</h1>
+            </div>
+          </div>
+          <div class="rh-actions">
+            <label class="month">
+              <select id="month" aria-label="Reporting month">
+                <option>October 2026</option>
+              </select>
+              <span>vs September 2026 report</span>
+            </label>
+            <button class="btn" type="button" id="preview-toggle" aria-pressed="false">Preview as client</button>
+            <span class="btn" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>Export PDF
+            </span>
+          </div>
+        </div>
+        <div class="divider-full"></div>
+      </header>
+
+      <div class="notice" role="note">
+        <b>Mockup</b>
+        <span id="notice-text"></span>
+      </div>
+
+      <div class="topics" role="group" aria-label="Topic">
+        <button class="pill" type="button" id="btn-brand" aria-pressed="true" data-view="brand"><span class="dot" style="background:var(--cyan)"></span>Brand: APFM mentions</button>
+        <button class="pill" type="button" id="btn-industry" aria-pressed="false" data-view="industry"><span class="dot" style="background:var(--purple)"></span>Industry: senior care</button>
+        <span class="hint">Talkwalker topics: APFM - Brand Sentiment, and the Industry topic</span>
+      </div>
+
+      <!-- ================= BRAND ================= -->
+      <div class="view" id="view-brand">
+        <section class="section">
+          <h2>Data</h2>
+          <div class="grid g4" id="brand-kpis"></div>
+          <div class="comm" data-key="b-kpis"></div>
+        </section>
+
+        <section class="section">
+          <div class="card">
+            <div class="card-head"><h3>Results over time</h3><span class="meta" id="brand-daily-total"></span></div>
+            <div class="card-body" id="brand-daily"></div>
+          </div>
+          <div class="comm" data-key="b-overview"></div>
+        </section>
+
+        <section class="section">
+          <h2>Sentiment</h2>
+          <div class="grid g2">
+            <div class="card">
+              <div class="card-head"><h3>Share of sentiment</h3><span class="meta">All results</span></div>
+              <div class="card-body donut-wrap" id="brand-sent"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>Without APFM's own channels</h3><span class="meta" id="owned-meta"></span></div>
+              <div class="card-body donut-wrap" id="brand-owned"></div>
+              <p class="note">Drops posts from APFM's own accounts (Talkwalker panel "A Place for Mom Owned"), so this is what everyone else said.</p>
+            </div>
+          </div>
+          <div class="slot"><span class="who-tag">Needs a decision</span><h4>Also without Stacker and PR earned coverage</h4><p id="stacker-note"></p></div>
+          <div class="card">
+            <div class="card-head"><h3>Sentiment by media type</h3><span class="meta">Results per media type</span></div>
+            <div class="card-body" id="brand-cross"></div>
+          </div>
+          <div class="comm" data-key="b-sentiment"></div>
+        </section>
+
+        <section class="section">
+          <div class="sec-head"><h2>Year to date</h2><span>January to September as presented in each month's report; October from this export</span></div>
+          <div class="card">
+            <div class="card-head"><h3>Sentiment, January to October</h3><span class="meta">% of results</span></div>
+            <div class="card-body" id="ytd-all"></div>
+          </div>
+          <div class="grid g2">
+            <div class="card">
+              <div class="card-head"><h3>Positive + neutral combined</h3><span class="meta">% of results</span></div>
+              <div class="card-body" id="ytd-posneu"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>Reddit sentiment</h3><span class="meta">% of Reddit results</span></div>
+              <div class="card-body" id="ytd-reddit"></div>
+            </div>
+          </div>
+          <div class="grid g2">
+            <div class="comm" data-key="b-ytd"></div>
+            <div class="comm" data-key="b-reddit"></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Media types</h2>
+          <div class="card">
+            <div class="card-head"><h3>Share of media types</h3><span class="meta">Change vs the September export</span></div>
+            <div class="card-body" id="brand-media"></div>
+            <p class="note">September grouped Newspaper inside Other, so neither has a comparison.</p>
+          </div>
+          <div class="comm" data-key="b-media"></div>
+        </section>
+
+        <section class="section">
+          <h2>Themes</h2>
+          <div class="card">
+            <div class="card-head"><h3>Keyword themes</h3><span class="meta">Size = share of results</span></div>
+            <div class="card-body cloud cloud-wide" id="brand-cloud"></div>
+            <div class="key"><span><i style="background:var(--pos)"></i>Mostly positive</span><span><i style="background:var(--neu)"></i>Mostly neutral</span><span><i style="background:var(--neg)"></i>Mostly negative</span></div>
+          </div>
+          <div class="comm" data-key="b-themes"></div>
+          <div class="card">
+            <div class="card-head"><h3>Trends in keyword themes</h3><span class="meta">vs September, from Talkwalker</span></div>
+            <div class="card-body trend-cols" id="brand-trends"></div>
+          </div>
+          <div class="comm" data-key="b-trends"></div>
+        </section>
+
+        <section class="section">
+          <h2>Top conversation themes</h2>
+          <div class="comm" data-key="b-conv"></div>
+        </section>
+
+        <section class="section">
+          <h2>Top influencers</h2>
+          <div class="grid g4" id="brand-overview"></div>
+          <div class="table-wrap"><table id="brand-infl"></table></div>
+          <div class="comm" data-key="b-infl"></div>
+        </section>
+
+        <section class="section">
+          <div class="sec-head"><h2>Most relevant posts</h2><span>Picked by the analyst. Add as many as you like.</span></div>
+          <div class="pgroup" data-group="social"></div>
+          <div class="pgroup" data-group="forum"></div>
+          <div class="pgroup" data-group="web"></div>
+          <div class="comm" data-key="b-posts"></div>
+        </section>
+
+        <section class="section">
+          <h2>Key takeaways</h2>
+          <div class="comm" data-key="b-takeaways"></div>
+        </section>
+
+        <div class="reset-all"><button class="tbtn ghost" type="button" id="reset-all">Reset all edits to the October deck</button></div>
+
+        <p class="source" id="brand-source"></p>
+      </div>
+
+      <!-- ================= INDUSTRY ================= -->
+      <div class="view" id="view-industry" hidden>
+        <section class="section">
+          <div class="sec-head"><h2>Data</h2><span>The Industry topic is a 10% sample of the conversation, by design</span></div>
+          <div class="grid g4" id="ind-kpis"></div>
+          <div class="comm" data-key="i-kpis"></div>
+        </section>
+
+        <section class="section">
+          <div class="card">
+            <div class="card-head"><h3>Results over time</h3><span class="meta" id="ind-daily-total"></span></div>
+            <div class="card-body" id="ind-daily"></div>
+          </div>
+          <div class="comm" data-key="i-overview"></div>
+        </section>
+
+        <section class="section">
+          <h2>Sentiment</h2>
+          <div class="grid g2">
+            <div class="card">
+              <div class="card-head"><h3>Share of sentiment</h3><span class="meta">All results</span></div>
+              <div class="card-body donut-wrap" id="ind-sent"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>Sentiment, May to October</h3><span class="meta">% of results</span></div>
+              <div class="card-body" id="ytd-ind"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Sentiment over time</h3><span class="meta">Results per day</span></div>
+            <div class="card-body" id="ind-sent-daily"></div>
+            <div class="key"><span><i style="background:var(--pos)"></i>Positive</span><span><i style="background:var(--neu)"></i>Neutral</span><span><i style="background:var(--neg)"></i>Negative</span></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Sentiment by media type</h3><span class="meta">Results per media type</span></div>
+            <div class="card-body" id="ind-cross"></div>
+          </div>
+          <div class="comm" data-key="i-sentiment"></div>
+        </section>
+
+        <section class="section">
+          <h2>Themes</h2>
+          <div class="card">
+            <div class="card-head"><h3>Keyword themes</h3><span class="meta">Size = share of results</span></div>
+            <div class="card-body cloud cloud-wide" id="ind-cloud"></div>
+            <p class="note">Colour is decoration on the industry cloud. It does not mean sentiment.</p>
+          </div>
+          <div class="comm" data-key="i-themes"></div>
+        </section>
+
+        <section class="section">
+          <h2>Top conversation themes</h2>
+          <div class="comm" data-key="i-conv"></div>
+        </section>
+
+        <section class="section">
+          <h2>Key takeaways</h2>
+          <div class="comm" data-key="i-takeaways"></div>
+        </section>
+
+        <p class="source" id="ind-source"></p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* Brand: the October 2026 Talkwalker export of "APFM - Brand Sentiment", pulled 2026-11-19 10:11
+   (apfm-social-listening-mock/brand_oct_2026-11-19.json). Industry: the October industry export pulled 2026-11-12
+   (social-listening runs/2026-10/oct/oct.json), the same numbers as the October deck. Changes compare with the
+   September report as presented (decision D5); media type and influencer changes use the September export.
+   Theme trends are dashboard-only and come from the October deck (slide 12). */
+/*__DATA__*/
+
+const KEYS = ["Positive", "Neutral", "Negative"];
+const SC = { Positive: "var(--pos)", Neutral: "var(--neu)", Negative: "var(--neg)" };
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const short = v => v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? (v / 1e3).toFixed(1) + "K" : fmt(v);
+const pct1 = (a, b) => Math.round(1000 * a / b) / 10;
+const sum = o => (Array.isArray(o) ? o : Object.values(o)).reduce((a, b) => a + b, 0);
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= raw) return m * p;
+  return 10 * p;
+}
+
+/* change line: dir from the number, colour from whether up is good */
+function change(v, unit, label, opts = {}) {
+  if (v === null || v === undefined) return `<span class="flat">n/a ${label}</span>`;
+  const shown = unit === "%" ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1);
+  if (Number(shown) === 0) return `<span class="flat">0${unit === "%" ? "%" : " pts"} ${label}</span>`;
+  const up = v > 0;
+  const good = opts.neutral ? null : (opts.invert ? !up : up);
+  const cls = good === null ? "flat" : good ? "up" : "down";
+  return `<span class="${cls}">${up ? "↑" : "↓"} ${shown}${unit === "%" ? "%" : " pts"} ${label}</span>`;
+}
+
+function kpi({ title, value, delta, unit = "%", label = "vs Sep report", sub, invert, neutral }) {
+  return `<div class="kpi"><p class="t">${title}</p><p class="v">${value}</p>`
+    + `<p class="d">${change(delta, unit, label, { invert, neutral })}</p>`
+    + (sub ? `<p class="s">${sub}</p>` : "") + `</div>`;
+}
+
+/* ---------- line chart (results over time) ---------- */
+function lineChart(values, color, fillId) {
+  const W = 960, H = 240, L = 48, R = 16, T = 24, B = 30;
+  const max = Math.max(...values);
+  const step = niceStep(max * 1.15 / 4), top = step * Math.ceil(max * 1.15 / step);
+  const x = i => L + i * (W - L - R) / (values.length - 1);
+  const y = v => T + (H - T - B) * (1 - v / top);
+  let g = "";
+  for (let v = 0; v <= top + 1e-9; v += step) {
+    g += `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`;
+    g += `<text class="t-muted" x="${L - 8}" y="${y(v) + 4}" font-size="11" text-anchor="end">${short(v)}</text>`;
+  }
+  values.forEach((_, i) => {
+    if (i % 7 === 0 || i === values.length - 1) g += `<text class="t-muted" x="${x(i)}" y="${H - 8}" font-size="11" text-anchor="middle">Oct ${i + 1}</text>`;
+  });
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `M${x(0)},${y(0)} L${pts.replace(/ /g, " L")} L${x(values.length - 1)},${y(0)} Z`;
+  const pk = values.indexOf(max);
+  const anchor = pk > values.length - 4 ? "end" : pk < 3 ? "start" : "middle";
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Results per day in October 2026, peak ${fmt(max)} on October ${pk + 1}">
+    <defs><linearGradient id="${fillId}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="0.35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    ${g}<path d="${area}" fill="url(#${fillId})"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="${x(pk)}" cy="${y(max)}" r="5" fill="${color}" stroke="#272727" stroke-width="2"/>
+    <text class="t-fg" x="${x(pk)}" y="${y(max) - 12}" font-size="12" font-weight="800" text-anchor="${anchor}">${fmt(max)} on Oct ${pk + 1}</text></svg>`;
+}
+
+/* ---------- donut ---------- */
+function donut(counts, centerLabel) {
+  const total = sum(counts), r = 62, c = 2 * Math.PI * r;
+  let off = 0, segs = "";
+  KEYS.forEach(k => {
+    const len = c * counts[k] / total;
+    segs += `<circle cx="84" cy="84" r="${r}" fill="none" stroke="${SC[k]}" stroke-width="28" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-off}" transform="rotate(-90 84 84)"/>`;
+    off += len;
+  });
+  return `<svg viewBox="0 0 168 168" role="img" aria-label="${KEYS.map(k => `${k} ${pct1(counts[k], total)}%`).join(", ")}">${segs}
+    <text class="t-fg" x="84" y="84" font-size="22" font-weight="800" text-anchor="middle">${fmt(total)}</text>
+    <text class="t-muted" x="84" y="102" font-size="11" text-anchor="middle">${centerLabel}</text></svg>`;
+}
+function legend(counts, prevPct, label) {
+  const total = sum(counts);
+  return `<ul class="legend">` + KEYS.map(k => {
+    const p = pct1(counts[k], total);
+    const chg = prevPct ? `<span class="chg">${change(Math.round((p - prevPct[k]) * 10) / 10, "pts", label, { invert: k === "Negative", neutral: k === "Neutral" })}</span>` : "";
+    return `<li><span class="sw" style="background:${SC[k]}"></span><span>${k} <span style="color:var(--muted)">(${fmt(counts[k])})</span></span><span class="num">${p}%</span>${chg}</li>`;
+  }).join("") + `</ul>`;
+}
+
+/* ---------- horizontal stacked bars ---------- */
+function hbars(cross) {
+  const rows = Object.entries(cross).sort((a, b) => sum(b[1]) - sum(a[1]));
+  return `<div class="hbars">` + rows.map(([m, v]) => {
+    const t = sum(v);
+    const segs = KEYS.map(k => { const p = 100 * v[k] / t; return p > 0 ? `<i style="width:${p}%;background:${SC[k]}" title="${k}: ${fmt(v[k])}">${p >= 9 ? Math.round(p) + "%" : ""}</i>` : ""; }).join("");
+    return `<div class="hrow"><div class="lab">${esc(m)}<span>${fmt(t)}</span></div><div class="hbar" role="img" aria-label="${esc(m)}: ${KEYS.map(k => `${k} ${fmt(v[k])}`).join(", ")}">${segs}</div></div>`;
+  }).join("") + `</div><div class="key"><span><i style="background:var(--pos)"></i>Positive</span><span><i style="background:var(--neu)"></i>Neutral</span><span><i style="background:var(--neg)"></i>Negative</span></div>`;
+}
+
+/* ---------- 100% stacked columns (year to date) ---------- */
+function ytdColumns(months, triples, aria) {
+  const W = 960, H = 250, L = 8, R = 8, T = 8, B = 28;
+  const slot = (W - L - R) / months.length, bw = Math.min(64, slot * 0.62);
+  let out = "";
+  triples.forEach((tr, i) => {
+    const tot = tr[0] + tr[1] + tr[2];
+    const cx = L + slot * i + slot / 2;
+    let yb = H - B;
+    tr.forEach((v, j) => {
+      const h = (H - B - T) * v / tot;
+      const ytop = yb - h;
+      out += `<rect x="${cx - bw / 2}" y="${ytop}" width="${bw}" height="${Math.max(h - 1, 0)}" rx="3" style="fill:${SC[KEYS[j]]}"/>`;
+      if (h >= 16) out += `<text class="t-seg" x="${cx}" y="${ytop + h / 2 + 4}" font-size="11" text-anchor="middle">${v}</text>`;
+      yb = ytop;
+    });
+    out += `<text class="t-muted" x="${cx}" y="${H - 8}" font-size="12" text-anchor="middle" font-weight="${i === months.length - 1 ? 800 : 400}">${months[i]}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">${out}</svg>
+    <div class="key"><span><i style="background:var(--pos)"></i>Positive</span><span><i style="background:var(--neu)"></i>Neutral</span><span><i style="background:var(--neg)"></i>Negative</span></div>`;
+}
+
+/* ---------- two lines with point labels (positive + neutral above, negative below) ---------- */
+function pointLines(months, series) {
+  const W = 480, H = 240, L = 34, R = 16, T = 22, B = 28;
+  const x = i => L + i * (W - L - R) / (months.length - 1);
+  const y = v => T + (H - T - B) * (1 - v / 100);
+  let g = "";
+  for (let v = 0; v <= 100; v += 25) g += `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="t-muted" x="${L - 6}" y="${y(v) + 4}" font-size="11" text-anchor="end">${v}%</text>`;
+  months.forEach((m, i) => g += `<text class="t-muted" x="${x(i)}" y="${H - 8}" font-size="11" text-anchor="middle" font-weight="${i === months.length - 1 ? 800 : 400}">${m}</text>`);
+  series.forEach(({ vals, color, below }) => {
+    g += `<polyline points="${vals.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
+    vals.forEach((v, i) => {
+      g += `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${color}" stroke="#272727" stroke-width="2"/>`;
+      g += `<text class="t-fg" x="${x(i)}" y="${below ? y(v) + 18 : y(v) - 10}" font-size="11" font-weight="700" text-anchor="middle">${v}</text>`;
+    });
+  });
+  const aria = series.map(s => s.name + ": " + months.map((m, i) => m + " " + s.vals[i] + "%").join(", ")).join("; ");
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">${g}</svg>
+    <div class="key">${series.map(s => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join("")}</div>`;
+}
+
+/* ---------- daily stacked columns (industry sentiment over time) ---------- */
+function dailyStack(rows) {
+  const W = 960, H = 240, L = 48, R = 12, T = 24, B = 30;
+  const tot = rows.map(r => r[0] + r[1] + r[2]);
+  const max = Math.max(...tot), step = niceStep(max * 1.1 / 4), top = step * Math.ceil(max * 1.1 / step);
+  const slot = (W - L - R) / rows.length, bw = slot * 0.7;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  let g = "";
+  for (let v = 0; v <= top + 1e-9; v += step) g += `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="t-muted" x="${L - 8}" y="${y(v) + 4}" font-size="11" text-anchor="end">${short(v)}</text>`;
+  rows.forEach((r, i) => {
+    let base = 0;
+    const cx = L + slot * i + slot / 2;
+    r.forEach((v, j) => { g += `<rect x="${cx - bw / 2}" y="${y(base + v)}" width="${bw}" height="${Math.max(y(base) - y(base + v), 0)}" style="fill:${SC[KEYS[j]]}"/>`; base += v; });
+    if (i % 7 === 0 || i === rows.length - 1) g += `<text class="t-muted" x="${cx}" y="${H - 8}" font-size="11" text-anchor="middle">Oct ${i + 1}</text>`;
+  });
+  const pk = tot.indexOf(max), cx = L + slot * pk + slot / 2;
+  g += `<text class="t-fg" x="${cx}" y="${y(max) - 8}" font-size="12" font-weight="800" text-anchor="end">${fmt(max)} on Oct ${pk + 1}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Industry results per day by sentiment, October 2026">${g}</svg>`;
+}
+
+/* ---------- word cloud ---------- */
+function cloud(themes, colorFor) {
+  const sorted = [...themes].sort((a, b) => b[1] - a[1]);
+  const lo = sorted[sorted.length - 1][1], hi = sorted[0][1];
+  const arr = [];
+  sorted.forEach((t, i) => (i % 2 ? arr.push(t) : arr.unshift(t)));
+  return arr.map((t, i) => {
+    const size = 13 + 19 * Math.sqrt((t[1] - lo) / (hi - lo || 1));
+    return `<span style="font-size:${size.toFixed(1)}px;color:${colorFor(t, i)}" title="${esc(t[0])}: ${t[1]}% of results">${esc(t[0])}</span>`;
+  }).join("");
+}
+const sentColor = t => t[2] === "#F2C100" ? "var(--neu)" : (t[2] === "#1FCE6E" || t[2] === "#4bd78b") ? "var(--pos)" : "var(--neg)";
+const decoColor = (t, i) => ["var(--cyan)", "var(--blue)", "#A08BFF", "#9EFEFF"][i % 4];
+
+/* ================= render: brand ================= */
+const B = D.brand;
+const mom = (now, before) => 100 * (now / before - 1);
+$("brand-kpis").innerHTML = [
+  kpi({ title: "Results", value: fmt(B.results), delta: mom(B.results, B.sepReport.results) }),
+  kpi({ title: "Unique authors", value: fmt(B.authors), delta: mom(B.authors, B.sepReport.authors) }),
+  kpi({ title: "Engagement", value: short(B.engagement), delta: mom(B.engagement, B.sepReport.engagement), sub: fmt(B.engagement) + " exact" }),
+  kpi({ title: "Potential reach", value: short(B.reach), delta: mom(B.reach, B.sepReport.reach), sub: fmt(B.reach) + " exact" })
+].join("");
+/* October's year-to-date points, whole percents from this export's counts */
+const wholePct = (c, t) => Math.round(100 * c / t);
+const octAll = KEYS.map(k => wholePct(B.sent[k], B.results));
+const rd = B.cross.Reddit, rdT = sum(rd);
+const octReddit = KEYS.map(k => wholePct(rd[k], rdT));
+const ytdAll = [...B.ytd.all, octAll];
+const ytdReddit = [...B.ytd.reddit, octReddit];
+const posNeu = [...B.ytd.all.map(([p, n]) => p + n), wholePct(B.sent.Positive + B.sent.Neutral, B.results)];
+const negOnly = ytdAll.map(t => t[2]);
+$("brand-daily-total").textContent = fmt(sum(B.daily)) + " results";
+$("brand-daily").innerHTML = lineChart(B.daily, "#60FDFF", "gb");
+$("brand-sent").innerHTML = donut(B.sent, "results") + legend(B.sent, B.sepReport.sentPct, "vs Sep report");
+$("owned-meta").textContent = fmt(sum(B.ownedExcl)) + " results";
+$("brand-owned").innerHTML = donut(B.ownedExcl, "results") + legend(B.ownedExcl, null);
+$("brand-cross").innerHTML = hbars(B.cross);
+$("ytd-all").innerHTML = ytdColumns(B.ytd.months, ytdAll, "Brand sentiment by month, January to October 2026");
+$("ytd-posneu").innerHTML = pointLines(B.ytd.months, [
+  { name: "Positive + neutral", vals: posNeu, color: "var(--pos)" },
+  { name: "Negative", vals: negOnly, color: "var(--neg)", below: true }
+]);
+$("ytd-reddit").innerHTML = ytdColumns(B.ytd.months, ytdReddit, "Reddit sentiment by month, January to October 2026");
+
+/* September grouped Newspaper inside Other, so neither gets a change */
+const mediaChange = m => (m === "Newspaper" || m === "Other" || !B.sepExportMedia[m]) ? null : mom(sum(B.cross[m]), B.sepExportMedia[m]);
+const media = Object.entries(B.cross).map(([m, v]) => [m, sum(v)]).sort((a, b) => b[1] - a[1]);
+const mTotal = sum(media.map(m => m[1])), mMax = media[0][1];
+$("brand-media").innerHTML = `<div class="mhead"><span>Media type</span><span>Share</span><span>%</span><span>Change</span></div>` + media.map(([m, n]) => {
+  const c = mediaChange(m);
+  return `<div class="mrow"><span class="lab">${esc(m)} <span style="color:var(--muted);font-weight:400">${fmt(n)}</span></span><span class="track"><i style="width:${100 * n / mMax}%"></i></span><span class="pct">${pct1(n, mTotal)}%</span><span class="chg">${c === null ? '<span class="flat">n/a</span>' : change(c, "%", "", { neutral: true }).replace(" </span>", "</span>")}</span></div>`;
+}).join("");
+
+$("brand-cloud").innerHTML = cloud(B.themes, sentColor);
+const T_ = B.trends;
+$("brand-trends").innerHTML =
+  `<div><h4 class="up">Emerging</h4><ul class="tlist">${T_.emerging.map(([t, g]) => `<li><span>${esc(t)}</span><span class="up">+${g}</span></li>`).join("")}</ul></div>`
+  + `<div><h4 class="down">Decreasing</h4><ul class="tlist">${T_.decreasing.map(([t, g]) => `<li><span>${esc(t)}</span><span class="down">-${g}</span></li>`).join("")}</ul></div>`
+  + `<div><h4 style="color:var(--cyan)">New</h4><div class="chips">${T_.newly.map(t => `<span>${esc(t)}</span>`).join("")}</div></div>`;
+
+$("brand-overview").innerHTML = B.overview.map(([t, who, net, val]) =>
+  `<div class="ov"><p class="t">${t}</p><p class="who">${esc(who)}</p><p class="net">${net}</p><p class="val">${val}</p></div>`).join("");
+$("brand-infl").innerHTML = `<thead><tr><th>Author</th><th>Network</th><th class="r">Posts</th><th class="r">vs Sep</th><th>Sentiment</th><th class="r">Reach</th><th class="r">Engagement</th></tr></thead><tbody>`
+  + B.influencers.map(i => {
+    const t = i.pos + i.neu + i.neg;
+    const bar = KEYS.map((k, j) => { const v = [i.pos, i.neu, i.neg][j]; return v ? `<i style="width:${100 * v / t}%;background:${SC[k]}"></i>` : ""; }).join("");
+    const chg = i.chg === null ? '<span class="flat">new</span>' : `<span class="${i.chg > 0 ? "up" : "down"}">${i.chg > 0 ? "+" : "−"}${Math.abs(i.chg)}</span>`;
+    return `<tr><td><b>${esc(i.name)}</b></td><td>${i.net}</td><td class="r">${fmt(i.posts)}</td><td class="r">${chg}</td><td><span class="mini" role="img" aria-label="${i.pos} positive, ${i.neu} neutral, ${i.neg} negative">${bar}</span></td><td class="r">${short(i.reach)}</td><td class="r">${fmt(i.eng)}</td></tr>`;
+  }).join("") + `</tbody>`;
+$("brand-source").textContent = "Source: Talkwalker export of the dashboard \"APFM - Brand Sentiment\", October 1 to 31, 2026 (Eastern), pulled November 19, 2026. Tile and sentiment changes compare with the September report as presented to the client; media type and influencer changes compare with the September export. Year to date: January to September as presented in each month's report. Theme trends exist only on the Talkwalker dashboard; these are the ones in the October deck.";
+
+/* ================= render: industry ================= */
+const I = D.industry;
+const iSent = { Positive: 0, Neutral: 0, Negative: 0 };
+Object.values(I.cross).forEach(v => KEYS.forEach(k => (iSent[k] += v[k])));
+const iPct = k => pct1(iSent[k], I.results);
+$("ind-kpis").innerHTML = [
+  kpi({ title: "Results", value: short(I.results), delta: I.momVsSepReport, sub: fmt(I.results) + " exact" }),
+  kpi({ title: "Positive", value: iPct("Positive") + "%", delta: Math.round((iPct("Positive") - I.sepReport.sentPct.Positive) * 10) / 10, unit: "pts" }),
+  kpi({ title: "Neutral", value: iPct("Neutral") + "%", delta: Math.round((iPct("Neutral") - I.sepReport.sentPct.Neutral) * 10) / 10, unit: "pts", neutral: true }),
+  kpi({ title: "Negative", value: iPct("Negative") + "%", delta: Math.round((iPct("Negative") - I.sepReport.sentPct.Negative) * 10) / 10, unit: "pts", invert: true })
+].join("");
+$("ind-daily-total").textContent = fmt(sum(I.daily)) + " results";
+$("ind-daily").innerHTML = lineChart(I.daily, "#A08BFF", "gi");
+$("ind-sent").innerHTML = donut(iSent, "results") + legend(iSent, I.sepReport.sentPct, "vs Sep report");
+$("ytd-ind").innerHTML = ytdColumns(I.ytd.months, I.ytd.all, "Industry sentiment by month, May to October 2026");
+$("ind-sent-daily").innerHTML = dailyStack(I.dailyBySent);
+$("ind-cross").innerHTML = hbars(I.cross);
+$("ind-cloud").innerHTML = cloud(I.themes, decoColor);
+$("ind-source").textContent = "Source: Talkwalker export of the dashboard \"APFM - New template Industry\", October 1 to 31, 2026 (Eastern), pulled November 12, 2026. The Industry topic counts a 10% sample. Changes compare with the September report as presented.";
+
+/* ================= analyst content (from the private data file) ================= */
+
+const IMG = __POSTIMG__;
+const GROUPS = {
+  social: { title: "Social posts", sub: "The most engaged positive post from outside APFM, and a typical negative one" },
+  forum: { title: "Forum posts", sub: "Reddit can't be exported, so these are screenshots" },
+  web: { title: "Web posts", sub: "Articles and syndicated stories that mention APFM" }
+};
+const PLATFORMS = ["Facebook", "Instagram", "LinkedIn", "X", "Reddit", "YouTube", "TikTok", "Web article", "Other"];
+const SENTS = ["Positive", "Neutral", "Negative"];
+
+/* per-viewer storage; the page works without it */
+const PFX = "apfm-sl-mock:v1:";
+const store = {
+  get(k) { try { const v = localStorage.getItem(PFX + k); return v === null ? null : JSON.parse(v); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(PFX + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  del(k) { try { localStorage.removeItem(PFX + k); } catch (e) {} }
+};
+
+function richText(text) {
+  if (!text || !text.trim()) return `<p class="empty">No commentary yet.</p>`;
+  return text.trim().split(/\n\s*\n/).map(block => block.split("\n").map(line =>
+    line.startsWith("# ") ? `<h5>${esc(line.slice(2))}</h5>` : (line.trim() ? `<p>${esc(line)}</p>` : "")
+  ).join("")).join("");
+}
+
+/* ---------- commentary boxes ---------- */
+const commEdits = {};
+function renderComm(el) {
+  const key = el.dataset.key, def = COMM[key] || { slide: null, text: "" };
+  const saved = store.get("c:" + key) ?? commEdits[key] ?? null;
+  const text = (saved ?? def.text) || "";
+  const empty = !text.trim();
+  el.classList.toggle("is-empty", empty);
+  const openEditor = () => {
+    el.classList.remove("is-empty");
+    el.innerHTML = `<div class="comm-head"><span class="lbl">Analysis</span><span class="by">Editing</span></div>`
+      + `<textarea class="edit-area" id="ta-${key}" aria-label="Analysis text" placeholder="What stands out this month and why">${esc(text)}</textarea>`
+      + `<div class="edit-row"><button class="tbtn primary" type="button" data-act="save">Save</button><button class="tbtn" type="button" data-act="cancel">Cancel</button>`
+      + (!empty ? `<button class="tbtn ghost" type="button" data-act="remove">Remove analysis</button>` : "")
+      + (saved !== null && def.text ? `<button class="tbtn ghost" type="button" data-act="reset">Reset to deck text</button>` : "")
+      + `<span class="hint">Start a line with # for a heading. Leave a blank line between paragraphs.</span></div>`;
+    const ta = el.querySelector("textarea");
+    ta.focus();
+    const put = v => { commEdits[key] = v; store.set("c:" + key, v); renderComm(el); };
+    el.querySelector('[data-act="save"]').onclick = () => put(ta.value);
+    el.querySelector('[data-act="cancel"]').onclick = () => renderComm(el);
+    const rm = el.querySelector('[data-act="remove"]');
+    if (rm) rm.onclick = () => put("");
+    const r = el.querySelector('[data-act="reset"]');
+    if (r) r.onclick = () => { delete commEdits[key]; store.del("c:" + key); renderComm(el); };
+  };
+  if (empty) {
+    el.innerHTML = `<button class="tbtn add-analysis" type="button" data-act="edit">+ Add analysis</button>`;
+  } else {
+    const src = saved !== null ? `<span class="edited">Edited</span>` : (def.slide ? `<span class="by">${esc(PAGE.analyst)} · deck slide ${def.slide}</span>` : "");
+    el.innerHTML = `<div class="comm-head"><span class="lbl">Analysis</span>${src}`
+      + (saved === null && def.flag ? `<span class="flag">${def.flag}</span>` : "")
+      + `<span class="sp"></span><button class="tbtn" type="button" data-act="edit">Edit</button></div>`
+      + `<div class="comm-body">${richText(text)}</div>`;
+  }
+  el.querySelector('[data-act="edit"]').onclick = openEditor;
+}
+/* An optional analysis box inside every chart card, and under the influencer table. Hidden until used. */
+document.querySelectorAll(".card").forEach(card => {
+  const body = card.querySelector(".card-body[id]") || card.querySelector("[id]");
+  if (!body) return;
+  const box = document.createElement("div");
+  box.className = "comm comm-in";
+  box.dataset.key = "a-" + body.id;
+  card.appendChild(box);
+});
+document.querySelectorAll(".table-wrap").forEach(tw => {
+  const t = tw.querySelector("table[id]");
+  if (!t) return;
+  const box = document.createElement("div");
+  box.className = "comm comm-in";
+  box.dataset.key = "a-" + t.id;
+  tw.after(box);
+});
+document.querySelectorAll(".comm[data-key]").forEach(renderComm);
+
+/* ---------- posts ---------- */
+let posts = store.get("posts") || JSON.parse(JSON.stringify(DEFAULT_POSTS));
+let editing = null; /* { group, id } where id null means a new post */
+let saveNote = "";
+const imgSrc = ref => ref.startsWith("img:") ? (IMG[ref.slice(4)] || "") : ref;
+function persistPosts() {
+  saveNote = store.set("posts", posts) ? "" : "Saved for now. This browser couldn't keep it after a reload (the screenshots may be too large).";
+}
+
+function postCard(p) {
+  const shots = p.images.length
+    ? `<div class="post-shots">${p.images.map(r => `<img src="${imgSrc(r)}" alt="Screenshot of the ${esc(p.platform)} post by ${esc(p.who)}">`).join("")}</div>`
+    : `<div class="post-shots none">No screenshot</div>`;
+  return `<article class="post">${shots}<div class="post-body">
+    <div class="post-meta"><span class="chip">${esc(p.platform)}</span><span class="chip ${p.sentiment}">${p.sentiment}</span>${p.eng !== null && p.eng !== "" ? `<span class="chip">${fmt(Number(p.eng))} engagements</span>` : ""}</div>
+    <div class="post-who">${esc(p.who)}</div>
+    <p class="post-note">${esc(p.note)}</p>
+    <div class="post-foot">${p.link ? `<a href="${esc(p.link)}" target="_blank" rel="noopener noreferrer">View post ↗</a>` : ""}<span class="sp"></span>
+      <button class="tbtn" type="button" data-edit="${p.id}">Edit</button><button class="tbtn ghost" type="button" data-del="${p.id}">Remove</button></div>
+  </div></article>`;
+}
+
+function postForm(group, p) {
+  const v = p || { platform: group === "forum" ? "Reddit" : group === "web" ? "Web article" : "Facebook", who: "", link: "", eng: "", sentiment: "Positive", note: "", images: [] };
+  const id = f => `pf-${group}-${f}`;
+  return `<form class="pform" data-form="${group}" novalidate>
+    <label for="${id("platform")}">Platform<select id="${id("platform")}" name="platform">${PLATFORMS.map(x => `<option${x === v.platform ? " selected" : ""}>${x}</option>`).join("")}</select></label>
+    <label for="${id("sentiment")}">Sentiment<select id="${id("sentiment")}" name="sentiment">${SENTS.map(x => `<option${x === v.sentiment ? " selected" : ""}>${x}</option>`).join("")}</select></label>
+    <label for="${id("who")}">Author, thread or site<input id="${id("who")}" name="who" value="${esc(v.who)}" placeholder="@handle, r/subreddit thread, or site name" required></label>
+    <label for="${id("eng")}">Engagements<input id="${id("eng")}" name="eng" type="number" min="0" value="${v.eng ?? ""}" placeholder="Leave blank if none"></label>
+    <label class="wide" for="${id("link")}">Link to post<input id="${id("link")}" name="link" type="url" value="${esc(v.link)}" placeholder="https://"></label>
+    <label class="wide" for="${id("note")}">Commentary<textarea id="${id("note")}" name="note" placeholder="What this post shows and why it matters this month">${esc(v.note)}</textarea></label>
+    <label class="wide" for="${id("shots")}">Screenshots<input id="${id("shots")}" name="shots" type="file" accept="image/*" multiple>
+      <span class="thumbs">${v.images.map(r => `<img src="${imgSrc(r)}" alt="">`).join("")}</span></label>
+    <div class="wide edit-row"><button class="tbtn primary" type="submit">${p ? "Save post" : "Add post"}</button><button class="tbtn" type="button" data-act="cancel">Cancel</button>
+      ${v.images.length ? `<button class="tbtn ghost" type="button" data-act="clear-shots">Remove screenshots</button>` : ""}<span class="status" role="status"></span></div>
+  </form>`;
+}
+
+/* shrink an uploaded screenshot so it fits in browser storage */
+function shrink(file) {
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const s = Math.min(1, 900 / im.width), c = document.createElement("canvas");
+        c.width = Math.round(im.width * s); c.height = Math.round(im.height * s);
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", 0.78));
+      };
+      im.onerror = () => resolve(null);
+      im.src = r.result;
+    };
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  });
+}
+
+function renderGroup(el) {
+  const g = el.dataset.group, meta = GROUPS[g];
+  const list = posts.filter(p => p.group === g);
+  const addingHere = editing && editing.group === g && editing.id === null;
+  el.innerHTML = `<div class="pgroup-head"><div><h3>${meta.title} <span>(${list.length})</span></h3><span>${meta.sub}</span></div>`
+    + (addingHere ? "" : `<button class="tbtn" type="button" data-add="${g}">+ Add post</button>`) + `</div>`
+    + (addingHere ? postForm(g, null) : "")
+    + `<div class="pgrid">${list.map(p => (editing && editing.id === p.id) ? postForm(g, p) : postCard(p)).join("")}</div>`
+    + (saveNote ? `<p class="status">${esc(saveNote)}</p>` : "");
+
+  const add = el.querySelector("[data-add]");
+  if (add) add.onclick = () => { editing = { group: g, id: null }; renderAllPosts(); el.querySelector("input[name=who]").focus(); };
+  el.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { editing = { group: g, id: b.dataset.edit }; renderAllPosts(); });
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { posts = posts.filter(p => p.id !== b.dataset.del); persistPosts(); renderAllPosts(); });
+
+  const form = el.querySelector("form[data-form]");
+  if (!form) return;
+  const current = editing.id ? posts.find(p => p.id === editing.id) : null;
+  let images = current ? [...current.images] : [];
+  form.querySelector('[data-act="cancel"]').onclick = () => { editing = null; renderAllPosts(); };
+  const clr = form.querySelector('[data-act="clear-shots"]');
+  if (clr) clr.onclick = () => { images = []; form.querySelector(".thumbs").innerHTML = ""; clr.remove(); };
+  form.querySelector("input[name=shots]").onchange = async e => {
+    const st = form.querySelector(".status");
+    st.textContent = "Adding screenshots…";
+    for (const f of e.target.files) { const d = await shrink(f); if (d) images.push(d); }
+    form.querySelector(".thumbs").innerHTML = images.map(r => `<img src="${imgSrc(r)}" alt="">`).join("");
+    st.textContent = "";
+  };
+  form.onsubmit = e => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const who = String(fd.get("who") || "").trim();
+    if (!who) { form.querySelector(".status").textContent = "Add the author, thread or site first."; form.querySelector("input[name=who]").focus(); return; }
+    const engRaw = String(fd.get("eng") || "").trim();
+    const rec = { group: g, platform: fd.get("platform"), sentiment: fd.get("sentiment"), who, link: String(fd.get("link") || "").trim(), eng: engRaw === "" ? null : Math.max(0, Number(engRaw)), note: String(fd.get("note") || "").trim(), images };
+    if (current) Object.assign(current, rec);
+    else posts.push({ id: "p" + Date.now(), ...rec });
+    editing = null;
+    persistPosts();
+    renderAllPosts();
+  };
+}
+function renderAllPosts() {
+  document.querySelectorAll(".pgroup[data-group]").forEach(el => {
+    renderGroup(el);
+    el.classList.toggle("is-empty", !posts.some(p => p.group === el.dataset.group));
+  });
+}
+$("preview-toggle").onclick = () => {
+  const on = !document.body.classList.contains("preview");
+  document.body.classList.toggle("preview", on);
+  $("preview-toggle").setAttribute("aria-pressed", String(on));
+  $("preview-toggle").textContent = on ? "Back to editing" : "Preview as client";
+};
+renderAllPosts();
+
+$("reset-all").onclick = () => {
+  Object.keys(COMM).forEach(k => { store.del("c:" + k); delete commEdits[k]; });
+  store.del("posts");
+  posts = JSON.parse(JSON.stringify(DEFAULT_POSTS));
+  editing = null; saveNote = "";
+  document.querySelectorAll(".comm[data-key]").forEach(renderComm);
+  renderAllPosts();
+};
+
+$("notice-text").textContent = PAGE.notice;
+$("stacker-note").textContent = PAGE.stackerNote;
+
+/* ================= topic toggle ================= */
+function show(view) {
+  ["brand", "industry"].forEach(v => {
+    $("view-" + v).hidden = v !== view;
+    $("btn-" + v).setAttribute("aria-pressed", String(v === view));
+  });
+}
+document.querySelectorAll(".pill[data-view]").forEach(b => b.addEventListener("click", () => {
+  show(b.dataset.view);
+  try { history.replaceState(null, "", "#" + b.dataset.view); } catch (e) {}
+}));
+function fromHash() { show(location.hash === "#industry" ? "industry" : "brand"); }
+window.addEventListener("hashchange", fromHash);
+fromHash();
+</script>
