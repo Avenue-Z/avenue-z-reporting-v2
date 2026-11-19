@@ -7,6 +7,7 @@ export function transformCreative(rows: Record<string, string>[]): CreativeRow[]
   return rows
     .map((r): CreativeRow => {
       const spend = num(r, 'cost')
+      const hasReach = 'reach' in r // live rows always do; a BigQuery row without it is unavailable, not 0
       return {
         ad: r.ad_name,
         campaign: r.adcampaign_name,
@@ -14,8 +15,8 @@ export function transformCreative(rows: Record<string, string>[]): CreativeRow[]
         status: r.adstatus ?? '',
         spend,
         impressions: num(r, 'impressions'),
-        reach: num(r, 'reach'),
-        frequency: +num(r, 'Frequency').toFixed(1),
+        reach: hasReach ? num(r, 'reach') : null,
+        frequency: hasReach ? +num(r, 'Frequency').toFixed(1) : null,
         linkClicks: num(r, 'inline_link_clicks'),
         ctr: +(num(r, 'CTR') * 100).toFixed(1), // Meta CTR is a 0-1 fraction
         cpc: +num(r, 'CPC').toFixed(2),
@@ -31,7 +32,8 @@ export function transformCreative(rows: Record<string, string>[]): CreativeRow[]
 function aggregate(items: CreativeMetrics[], grandTotalSpend: number): CreativeMetrics {
   const spend = items.reduce((s, r) => s + r.spend, 0)
   const impressions = items.reduce((s, r) => s + r.impressions, 0)
-  const reach = items.reduce((s, r) => s + r.reach, 0)
+  // One ad without reach makes the sum unknown, so the level shows — rather than an undercount.
+  const reach = items.some((r) => r.reach == null) ? null : items.reduce((s, r) => s + r.reach!, 0)
   const linkClicks = items.reduce((s, r) => s + r.linkClicks, 0)
   const lpv = items.reduce((s, r) => s + r.lpv, 0)
   const engagements = items.reduce((s, r) => s + r.engagements, 0)
@@ -44,7 +46,7 @@ function aggregate(items: CreativeMetrics[], grandTotalSpend: number): CreativeM
     engagements,
     // Derived metrics are recomputed from the sums, never summed.
     // CTR/CPC use link clicks to stay consistent with the Link Clicks column.
-    frequency: reach ? +(impressions / reach).toFixed(1) : 0,
+    frequency: reach == null ? null : reach ? +(impressions / reach).toFixed(1) : 0,
     ctr: impressions ? +((linkClicks / impressions) * 100).toFixed(1) : 0,
     cpc: linkClicks ? +(spend / linkClicks).toFixed(2) : 0,
     costPerLpv: lpv ? +(spend / lpv).toFixed(2) : 0,

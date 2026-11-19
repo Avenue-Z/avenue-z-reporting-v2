@@ -72,3 +72,23 @@ describe('Cost / LPV keeps cents at every level', () => {
     expect(centTree[0].costPerLpv).toBe(0.23)
   })
 })
+
+describe('reach unavailable (a BigQuery row without reach)', () => {
+  const live = { ad_name: 'Ad A', adcampaign_name: 'Awareness', adset_name: 'Set 1', adstatus: 'ACTIVE', cost: '300', impressions: '8000', reach: '5000', Frequency: '1.6', inline_link_clicks: '200', CTR: '0.025', CPC: '1.5', landing_page_views: '150', cost_per_landing_page_view: '2.0', action_post_engagement: '500' }
+  const { reach: _r, Frequency: _f, ...noReach } = { ...live, ad_name: 'Ad C', cost: '100' }
+
+  test('a live row keeps its reach and frequency', () => {
+    expect(transformCreative([live])[0]).toMatchObject({ reach: 5000, frequency: 1.6 })
+  })
+
+  test('a row without reach has null reach and frequency, and its other metrics as usual', () => {
+    expect(transformCreative([noReach])[0]).toMatchObject({ reach: null, frequency: null, spend: 100, impressions: 8000 })
+  })
+
+  test('any ad without reach makes its ad set, campaign and grand total reach and frequency null', () => {
+    const tree = buildCreativeTree([live, noReach])
+    expect(tree[0]).toMatchObject({ reach: null, frequency: null, spend: 400, impressions: 16000 })
+    expect(tree[0].adSets[0]).toMatchObject({ reach: null, frequency: null })
+    expect(creativeGrandTotals(tree)).toMatchObject({ reach: null, frequency: null, spend: 400 })
+  })
+})

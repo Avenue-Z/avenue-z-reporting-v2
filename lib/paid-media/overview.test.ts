@@ -208,3 +208,25 @@ describe('getPaidMediaOverview with a Paid Search window (C3)', () => {
     expect(o.blendedSpend).toBeNull()
   })
 })
+
+// C2: Meta gets the same treatment: its own range, the part of the range the Meta marts hold.
+describe('getPaidMediaOverview with a Meta window (C2)', () => {
+  test('Meta reads its own range; Paid Search and LinkedIn keep theirs', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, meta: true, li: true }))
+    psMock.mockResolvedValue(ps(1000, 200, 12))
+    metaMock.mockResolvedValue(meta(500, 80))
+    liMock.mockResolvedValue(li(300, 40, 5))
+    await getPaidMediaOverview('acme', 'this_month', null, 'this_month', 'custom:2026-11-01,2026-11-16')
+    expect(metaMock).toHaveBeenCalledWith('acme', 'custom:2026-11-01,2026-11-16', 'previous_period')
+    expect(psMock).toHaveBeenCalledWith('acme', 'this_month', 'previous_period')
+    expect(liMock).toHaveBeenCalledWith('acme', 'this_month', 'previous_period')
+  })
+  test('no Meta range: Meta is not fetched, reads as failed, and blanks the blend', async () => {
+    clientMock.mockResolvedValue(client({ ps: true, meta: true }))
+    psMock.mockResolvedValue(ps(1000, 200, 12))
+    const o = await getPaidMediaOverview('acme', 'this_week', null, 'this_week', null)
+    expect(metaMock).not.toHaveBeenCalled()
+    expect(o.channels.find((c) => c.key === 'meta')).toMatchObject({ configured: true, ok: false, spend: null })
+    expect(o.blendedSpend).toBeNull()
+  })
+})

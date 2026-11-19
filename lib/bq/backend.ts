@@ -1,10 +1,11 @@
 import { BqUnavailable } from './errors'
 
-export type BqSource = 'googleads' | 'linkedin'
+export type BqSource = 'googleads' | 'linkedin' | 'meta'
 
 const FLAG: Record<BqSource, string> = {
   googleads: 'DATA_BACKEND_GOOGLEADS',
   linkedin: 'DATA_BACKEND_LINKEDIN',
+  meta: 'DATA_BACKEND_META',
 }
 
 /** BigQuery serves a section only when its source is switched to `bq` AND the client is allowlisted. */
@@ -16,7 +17,7 @@ export function bqEnabled(source: BqSource, slug: string): boolean {
 
 /**
  * One greppable line per BigQuery miss, so a reviewer can see which client missed, and why, at 3am.
- * `served` says what the viewer got instead: live Supermetrics (LinkedIn), or nothing (Google Ads since C3).
+ * `served` says what the viewer got instead: live Supermetrics (LinkedIn), or nothing (Google Ads since C3, Meta since C2).
  * The event keeps its C1 name so the `reason=error` acceptance count still finds it.
  */
 export function logBqFallback(source: BqSource, slug: string, err: unknown, served: 'live' | 'none' = 'live'): void {

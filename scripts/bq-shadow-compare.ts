@@ -1,4 +1,7 @@
 // Run: CACHE_DISABLE=1 npx tsx --env-file=.env.local scripts/bq-shadow-compare.ts renaissance
+// One source only (googleads | linkedin | meta):
+//      CACHE_DISABLE=1 npx tsx --env-file=.env.local scripts/bq-shadow-compare.ts renaissance meta
+// Other ranges: SHADOW_RANGES='last_7_days;2025-01-01,2025-03-31' (`;`-separated, since a range holds a comma).
 // Calls every in-scope fetcher with the live path and with the BigQuery path, then diffs the outputs.
 // Exit 0 only when nothing differs and no BigQuery call fell back (a fallback would compare live with live).
 import { getPaidSearchKpis } from '@/lib/paid-search/kpis'
@@ -10,16 +13,24 @@ import { getKeywordsData } from '@/lib/paid-search/keywords'
 import { getLinkedInKpis } from '@/lib/linkedin/kpis'
 import { getCreativeTree } from '@/lib/linkedin/creative'
 import { getPaidMediaTrend } from '@/lib/paid-media/trend'
+import { getMetaKpis } from '@/lib/meta/kpis'
+import { getCreativeTree as getMetaCreativeTree } from '@/lib/meta/creative'
+import { getMetaGeoData } from '@/lib/meta/geo'
 import { AW_HISTORY_FROM } from '@/lib/bq/googleads'
 
+const SOURCES = ['googleads', 'linkedin', 'meta'] as const
+type Source = (typeof SOURCES)[number]
 const slug = process.argv[2]
-if (!slug) throw new Error('usage: bq-shadow-compare.ts <client-slug>')
+const only = process.argv[3] as Source | undefined
+if (!slug || (only && !SOURCES.includes(only))) throw new Error(`usage: bq-shadow-compare.ts <client-slug> [${SOURCES.join('|')}]`)
 process.env.BQ_CLIENTS = slug
 
 // Ranges > 31 days exercise the ISO-week (Yearweekiso) path. None may start before AW_HISTORY_FROM
 // (2026-04-01). Since C3 a Google Ads read before it throws instead of falling back to live, so a
 // range starting on the floor is compared without its prior period (Q1), which BigQuery cannot serve.
-const RANGES = ['last_7_days', 'last_30_days', 'last_90_days', 'last_month', '2026-04-01,2026-06-30']
+const RANGES = process.env.SHADOW_RANGES
+  ? process.env.SHADOW_RANGES.split(';').map((r) => r.trim()).filter(Boolean)
+  : ['last_7_days', 'last_30_days', 'last_90_days', 'last_month', '2026-04-01,2026-06-30']
 
 type Diff = { path: string; live: unknown; bq: unknown; kind: 'MISMATCH' | 'TIE' | 'ORDER' }
 
@@ -90,22 +101,32 @@ async function both<T>(flags: string[], fn: () => Promise<T>): Promise<{ live: T
 }
 
 async function main() {
-  const AW = ['DATA_BACKEND_GOOGLEADS']
-  const LI = ['DATA_BACKEND_LINKEDIN']
+  const FLAGS: Record<Source, string[]> = {
+    googleads: ['DATA_BACKEND_GOOGLEADS'],
+    linkedin: ['DATA_BACKEND_LINKEDIN'],
+    meta: ['DATA_BACKEND_META'],
+  }
+  const { googleads: AW, linkedin: LI, meta: META } = FLAGS
+  // The trend blends every channel: with one source asked for, only that source switches to BigQuery.
+  const TREND = only ? FLAGS[only] : [...AW, ...LI, ...META]
   let compared = 0, mismatches = 0, ties = 0, orders = 0, notRun = 0
   for (const r of RANGES) {
-    const checks: Array<[string, string[], () => Promise<unknown>]> = [
-      ['paid-search.kpis', AW, () => getPaidSearchKpis(slug, r, r.startsWith(AW_HISTORY_FROM) ? null : 'previous_period')],
-      ['paid-search.hero', AW, () => getHeroSeries(slug, r)],
-      ['paid-search.campaigns', AW, () => getCampaignRows(slug, r)],
-      ['paid-search.leads', AW, () => getLeadBreakdown(slug, r)],
-      ['paid-search.geo', AW, () => getGeoRows(slug, r)],
-      ['paid-search.keywords', AW, () => getKeywordsData(slug, r)],
-      ['linkedin.kpis', LI, () => getLinkedInKpis(slug, r, 'previous_period')],
-      ['linkedin.creative', LI, () => getCreativeTree(slug, r)],
-      ['paid-media.trend', [...AW, ...LI], () => getPaidMediaTrend(slug, r)],
+    const checks: Array<[string, Source | 'all', string[], () => Promise<unknown>]> = [
+      ['paid-search.kpis', 'googleads', AW, () => getPaidSearchKpis(slug, r, r.startsWith(AW_HISTORY_FROM) ? null : 'previous_period')],
+      ['paid-search.hero', 'googleads', AW, () => getHeroSeries(slug, r)],
+      ['paid-search.campaigns', 'googleads', AW, () => getCampaignRows(slug, r)],
+      ['paid-search.leads', 'googleads', AW, () => getLeadBreakdown(slug, r)],
+      ['paid-search.geo', 'googleads', AW, () => getGeoRows(slug, r)],
+      ['paid-search.keywords', 'googleads', AW, () => getKeywordsData(slug, r)],
+      ['linkedin.kpis', 'linkedin', LI, () => getLinkedInKpis(slug, r, 'previous_period')],
+      ['linkedin.creative', 'linkedin', LI, () => getCreativeTree(slug, r)],
+      ['meta.kpis', 'meta', META, () => getMetaKpis(slug, r, 'previous_period')],
+      ['meta.creative', 'meta', META, () => getMetaCreativeTree(slug, r)],
+      ['meta.geo', 'meta', META, () => getMetaGeoData(slug, r, 'previous_period')],
+      ['paid-media.trend', 'all', TREND, () => getPaidMediaTrend(slug, r)],
     ]
-    for (const [name, flags, fn] of checks) {
+    for (const [name, source, flags, fn] of checks) {
+      if (only && source !== 'all' && source !== only) continue
       const { live, bq, fellBack } = await both(flags, fn)
       if (fellBack.length) { notRun++; console.log(`NOT RUN  ${r}  ${name}  (BigQuery fell back: ${fellBack[0]})`); continue }
       const out: Diff[] = []

@@ -13,6 +13,7 @@ import { num } from '@/lib/supermetrics/format'
 import { PaidMediaTrendChart } from './trend'
 import { DataDelayedNotice } from '../data-delayed-notice'
 import { googleAdsWindow } from '@/lib/bq/googleads-window'
+import { metaWindow } from '@/lib/bq/meta-window'
 import { bqEnabled } from '@/lib/bq/backend'
 
 const dash = '—'
@@ -28,14 +29,16 @@ export async function PaidMediaOverviewReport({
   dateRange?: string
   compareRange?: string | null
 }) {
-  // On BigQuery, Paid Search shows only what the warehouse holds, never live (C3). Meta and LinkedIn keep the page range.
-  const ads = await googleAdsWindow(clientSlug, dateRange)
+  // On BigQuery, Paid Search (C3) and Meta (C2) show only what the warehouse holds, never live. LinkedIn keeps the page range.
+  const [ads, meta] = await Promise.all([googleAdsWindow(clientSlug, dateRange), metaWindow(clientSlug, dateRange)])
   const [o, trend] = await Promise.all([
-    getPaidMediaOverview(clientSlug, dateRange, compareRange, ads.dateRange),
-    getPaidMediaTrend(clientSlug, dateRange, ads.dateRange),
+    getPaidMediaOverview(clientSlug, dateRange, compareRange, ads.dateRange, meta.dateRange),
+    getPaidMediaTrend(clientSlug, dateRange, ads.dateRange, meta.dateRange),
   ])
   const ps = o.channels.find((c) => c.key === 'paid-search')
   const psFailedOnBq = !!ads.dateRange && ps?.configured && !ps.ok && bqEnabled('googleads', clientSlug)
+  const mc = o.channels.find((c) => c.key === 'meta')
+  const metaFailedOnBq = !!meta.dateRange && mc?.configured && !mc.ok && bqEnabled('meta', clientSlug)
 
   return (
     <div className="space-y-8">
@@ -43,6 +46,12 @@ export async function PaidMediaOverviewReport({
         <>
           <DataDelayedNotice notice={ads.notice} channel="Paid Search" />
           <DataDelayedNotice notice={psFailedOnBq ? { kind: 'unavailable' } : null} />
+        </>
+      )}
+      {mc?.configured && (
+        <>
+          <DataDelayedNotice notice={meta.notice} channel="Meta" source="Meta" />
+          <DataDelayedNotice notice={metaFailedOnBq ? { kind: 'unavailable' } : null} source="Meta" />
         </>
       )}
       {/* Combined top line — Spend + Clicks (item 11a). Blended Leads / Cost per Lead were

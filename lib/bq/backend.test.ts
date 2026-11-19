@@ -18,6 +18,15 @@ describe('bqEnabled', () => {
     expect(bqEnabled('googleads', 'kind-patches')).toBe(false)
     expect(bqEnabled('linkedin', 'renaissance')).toBe(false)
   })
+  test('Meta is switched by DATA_BACKEND_META, only when exactly `bq` and allowlisted', () => {
+    vi.stubEnv('BQ_CLIENTS', 'renaissance')
+    vi.stubEnv('DATA_BACKEND_GOOGLEADS', 'bq')
+    vi.stubEnv('DATA_BACKEND_META', 'BQ')
+    expect(bqEnabled('meta', 'renaissance')).toBe(false)
+    vi.stubEnv('DATA_BACKEND_META', 'bq')
+    expect(bqEnabled('meta', 'renaissance')).toBe(true)
+    expect(bqEnabled('meta', 'kind-patches')).toBe(false)
+  })
   test('an empty allowlist serves nobody', () => {
     vi.stubEnv('DATA_BACKEND_LINKEDIN', 'bq')
     vi.stubEnv('BQ_CLIENTS', '')

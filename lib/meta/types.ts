@@ -1,8 +1,9 @@
 export interface CreativeMetrics {
   spend: number
   impressions: number
-  reach: number
-  frequency: number
+  /** null when the BigQuery marts hold no reach for the window (rendered —, never 0). */
+  reach: number | null
+  frequency: number | null
   linkClicks: number
   ctr: number
   cpc: number

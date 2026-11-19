@@ -30,6 +30,8 @@ export default defineConfig({
       'lib/delta-rounding.test.ts',
       'lib/health/sweep-probe.test.ts',
       'lib/cache.negative.test.ts',
+      'lib/meta/base.bq.test.ts',
+      'lib/meta/geo.compare.test.ts',
       'lib/meta/kpis.test.ts',
       'lib/meta/creative.test.ts',
       'lib/salesforce/num.test.ts',

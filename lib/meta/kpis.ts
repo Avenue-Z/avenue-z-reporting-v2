@@ -1,5 +1,9 @@
 import { metaQuery, resolveCompareIso } from './base'
 import type { Kpi } from '@/lib/paid-search/types'
+import { DASH } from '@/lib/paid-media/format'
+
+// No suffix: an unavailable Frequency reads "—", not "—x".
+const NO_REACH = { value: DASH, delta: undefined, suffix: undefined, tooltip: 'Reach and frequency are shown for the preset date ranges only.' }
 
 function n(row: Record<string, string>, id: string): number {
   return Number(row[id] || 0)
@@ -19,11 +23,14 @@ export function transformMetaKpis(
 
   const d = (id: string) => delta(n(totals, id), compare ? n(compare, id) : undefined)
   const cv = (id: string) => (compare ? n(compare, id) : undefined)
+  // Live rows always carry `reach`; a BigQuery row lacks it when the marts hold no reach for the window
+  // (only preset ranges are pulled). That is unavailable, not 0. An empty live result (`{}`) stays 0.
+  const noReach = Object.keys(totals).length > 0 && !('reach' in totals)
 
   return [
     { key: 'spend', label: 'Spend', value: n(totals, 'cost'), format: 'money', delta: d('cost'), compareValue: cv('cost') },
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
-    { key: 'reach', label: 'Reach', value: n(totals, 'reach'), delta: d('reach') },
+    { key: 'reach', label: 'Reach', value: n(totals, 'reach'), delta: d('reach'), ...(noReach && NO_REACH) },
     {
       key: 'frequency',
       label: 'Frequency',
@@ -31,6 +38,7 @@ export function transformMetaKpis(
       suffix: 'x',
       delta: d('Frequency'),
       invertDelta: true,
+      ...(noReach && NO_REACH),
     },
     {
       key: 'linkClicks',
