@@ -12,8 +12,11 @@ const client = (o: { channels?: string[]; hidden?: string[]; aeo?: unknown; proj
   } as unknown as Client)
 const ids = (c: OrganicTabsClient) => organicSocialSubsections(c).map((s) => s.id)
 
-test('the AEO Informed Social tab is last in the list, with no channel and its own view', () => {
-  expect(ORGANIC_SOCIAL_SUBSECTIONS.at(-1)).toEqual({ id: 'organic-aeo-informed', label: 'AEO Informed Social', channel: null, view: 'aeo-informed' })
+// Changed on purpose (Social Listening spec 2026-11-19, section 14): the Social Listening tab is now last in the list, so the AEO
+// Informed Social tab is second to last. A client without the Social Listening setting is offered neither change, so its tabs are as before.
+test('the AEO Informed Social tab is second to last in the list, before Social Listening, with no channel and its own view', () => {
+  expect(ORGANIC_SOCIAL_SUBSECTIONS.at(-2)).toEqual({ id: 'organic-aeo-informed', label: 'AEO Informed Social', channel: null, view: 'aeo-informed' })
+  expect(ORGANIC_SOCIAL_SUBSECTIONS.at(-1)?.id).toBe('organic-social-listening')
 })
 
 test('a client with the setting and a Peec project gets the tab last; the report still opens on Overview', () => {
