@@ -27,4 +27,6 @@ test('a renamed start tab (400) is "gone", not a failure', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response('Unable to parse range', { status: 400 })))
   const seen = await runWithCollector(async () => ({ result: await readKpiStartTab(ID, 'Start Renamed'), health: getCollected() }))
   expect(seen.result).toBe('gone')
+  // Paul, #469 review: a 400 must never be recorded as a failed fetch either.
+  expect(seen.health.filter((h) => !h.ok)).toEqual([])
 })
