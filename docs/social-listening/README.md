@@ -1,5 +1,11 @@
 # Social Listening (mockup, pre-spec)
 
+> **Superseded by the real tab.** The team approved this mockup on 2026-11-19, and the tab is now built in the app:
+> `lib/organic-social/social-listening/ENGINEERS.md`. This folder stays as the record of what was approved and how the
+> layout was decided. The open decisions at the bottom were settled in the spec
+> (`docs/superpowers/specs/2026-11-19-social-listening-tab-design.md`): D5 for the baseline, staff type theme trends, the
+> Stacker donut is left out, and uploads and analysis live in the app's database.
+
 A clickable mockup of a Social Listening tab under Organic Social for A Place For Mom, built so the team can
 react to the format before anything is built in the app. It replaces the monthly social listening deck: the
 analyst uploads her Talkwalker exports, the numbers fill in, and she adds her analysis and posts.
