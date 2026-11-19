@@ -11,8 +11,10 @@ where we start, our progress, and our EOY target". She put the figures in the sa
 
 Today each ring shows the year-to-date figure against the half's target and nothing else
 (`components/report-sections/organic-social/parts/kpi-check-in.tsx:106-108`, `components/charts/progress-ring.tsx:12-34`).
-The target row is "H2 <year> Target" (`lib/organic-social/kpi-sheet.ts:26`); H2 ends December 31, so it is the
-end-of-year target. Progress and target are already on screen; the start is what is missing.
+The target row is "H<1|2> <year> Target" (`lib/organic-social/kpi-sheet.ts:26`); an H1 target is allowed only on a January
+to June row (`:56`). From July the target is H2, which ends December 31: the end-of-year target. In January to June the
+ring's target is the H1 target, and the start line is still last year's end (the start does not depend on the half).
+Progress and target are already on screen; the start is what is missing.
 
 ## Measured (read only, 2026-11-19)
 
@@ -41,27 +43,38 @@ the team left blank, ready). A row for any other year is ignored.
    (`{ sheetId, byMonth: true }` or `{ sheetId, tab }`). Absent: exactly today. `kpiSheetFor` (`kpi-sheet.ts:104-117`)
    returns it as `startTab?: string` on the `fixed` and `byMonth` choices. A carried-forward month-tab entry (January,
    `kpi-sheet.ts:112-116`) carries its `startTab` too. A `startTab` that is not a non-empty string of at most 100
-   characters is dropped with one warning; the rest of the entry is still used (the rings never depend on it). Today's
+   characters is dropped: the choice carries `startTabInvalid: true` instead, the rest of the entry is still used (the
+   rings never depend on it). `kpiSheetFor` stays pure and logs nothing; the part logs it once, with the slug and year,
+   after its final lookup (`kpi-check-in.tsx:49`, `:52` may call `kpiSheetFor` twice). Today's
    code ignores an unknown key in both shapes (`byMonthEntry`, `kpi-sheet.ts:96-99`; `ytdSheetFor`, `ytd-sheet.ts:28-37`),
    so the setting can be written before or after the deploy without breaking anything.
 2. **Parser.** `parseKpiStartGrid(grid, startYear): Partial<Record<DashChannel, KpiFigures>>` in `kpi-sheet.ts`:
    - row 3, columns C to E, must be the same header as the month tabs (`kpi-sheet.ts:24`, `:40`);
    - from row 4, a row with a platform name in column A starts that platform's block (same names as `kpi-sheet.ts:20`);
      rows after it with an empty column A belong to it; a fully empty row is skipped;
-   - column B must be a four-digit year on every non-empty row;
+   - column B, trimmed, must be exactly four digits on every non-empty row (" 2025 " is 2025; "2025.0" is a layout error);
    - the block's row for `startYear` must have three numbers in C to E (`classifyCell`); other years' rows are not read;
    - a layout error (`KpiSheetLayoutError`, the same class) on: wrong header, unknown platform name, a row with no
      platform above it, a non-year in column B, the same platform twice, or the same year twice in one block;
    - a platform whose `startYear` row is missing or not three numbers has no start (no error: the others still show).
 3. **Reader.** `readKpiStartTab = cached('google-sheets', 'kpiStartTab', readMonthTabImpl, { version: '1', ttlSeconds: 300,
-   negativeTtlSeconds: 30, healthCritical: true })` in `ytd-sheet.ts`, beside `readMonthTab` (`:194-197`): the same read,
-   its own key. A 400 (tab renamed or deleted) is `'gone'`, not a failure (`readMonthTabImpl`, `:183-191`).
+   negativeTtlSeconds: 30, healthCritical: false })` in `ytd-sheet.ts`, beside `readMonthTab`: the same read, its own key.
+   `healthCritical: false` because the start is a garnish next to the rings: a failed start read must not put the page in
+   the health beacon's failed set, which `deriveStatus` turns into a page-wide `down` and a Slack page (`lib/cache.ts:46-52`,
+   `:191`). The failure is still logged. A 400 (tab renamed or deleted) is `'gone'`, not a failure (`readMonthTabImpl`).
 4. **Display.** `ProgressRing` gains an optional `start?: { label: string; value: number }`, drawn as one muted line
    under the ring ("End of 2025: 12,345"), outside the hole so the two lines inside keep their room (K1,
    `progress-ring.tsx:17-19`). The arc, the value and "Target" are unchanged: the arc stays value over target. Without
    `start` the ring renders byte for byte as today.
-5. **Part.** `KpiCheckInSection` reads the start tab only when the choice has `startTab`, in parallel with the month
-   read, and passes `start` per ring for the platforms that have one. Same rules as today for who sees what: a card a
+5. **Part.** `KpiCheckInSection` reads the start tab only when the choice has `startTab` AND the rows are known (after
+   `kpi-check-in.tsx:83`), never before: every early return (no setting `:57`, invalid `:59`, read failed `:75`, `:80`,
+   month note `:81`) makes no start read and logs nothing about the start. The read is awaited in a try/catch that turns
+   any throw into the "read failed" row below, so it can never reject unhandled. It costs one extra cached read (5
+   minutes) only for clients with `startTab`. It passes `start` per ring for the platforms that have one.
+   **Where the start notes go:** only in the staff live view (`view(true)`, `:119`), never in the client view or the PDF
+   export (`PrintAsClient`, `print-as-client.tsx:9-10`). A block-wide note (read failed, gone, layout, setting invalid)
+   is one line under the "KPI Check-In" heading, above the first card; a per-platform note is one line inside that card,
+   under the badge row. Same rules as today for who sees what: a card a
    client sees only as the "updates with the <Month> report" note shows no start either (`kpi-check-in.tsx:89-100`).
    Shown to clients and staff, and in the PDF export (each card stays one export block, `:93`).
 
@@ -85,7 +98,7 @@ the team left blank, ready). A row for any other year is ignored.
 | 3 | A month tab not ready (staff note today) | unchanged: the note, no start |
 | 4 | Fixed `{ sheetId, tab, startTab }` | same start behaviour as month tabs |
 | 5 | Start tab has a platform the client doesn't show (TikTok) | ignored |
-| 6 | "2025" written as `2025.0` or ` 2025 ` | trimmed; anything not four digits is a layout error |
+| 6 | Column B ` 2025 ` / `2025.0` | ` 2025 ` reads as 2025; `2025.0` is a layout error (failure table row 4) |
 | 7 | A figure "N/A" or blank on the 2025 row | that platform has no start (case table row 5) |
 | 8 | Renaissance and every client without `kpiSheets` | untouched |
 
