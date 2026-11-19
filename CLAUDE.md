@@ -1133,9 +1133,10 @@ The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; 
 - [ ] **The history backfill is written and dry run on dev, not applied.** The guarded script lives outside this repo
   (dev or staging only, pinned to each Neon endpoint; dry run by default; one all-or-nothing insert; refuses a client
   that already has history rows; rollback deletes only rows tagged `history-sheet (...)`), with its own tests on an
-  in-memory Postgres. The dry run on dev parsed January to October brand and May to October industry with no problems.
-  Applying waits on Savannah ticking Confirmed on each month of the history sheet (a dev-only flag can override for
-  testing) and on my go.
+  in-memory Postgres. Past months are taken as the client was shown them, never from a fresh Talkwalker pull: the
+  history sheet now holds January to October as charted in the October report as sent (September's tiles from the
+  September report), every row checked against those decks and Confirmed. The dry run on dev parsed January to October
+  brand and May to October industry with no problems. Applying waits on my go.
 - [ ] **Phase 2, paid sentiment** (spec section 12, plan P2.1 to P2.4): the paid ad comment sheet is shared with the
   service account and readable (2026-11-19); each month tab's column E is the comment. Next, a spec addendum.
   `socialListening.paidSheet` is reserved for it.

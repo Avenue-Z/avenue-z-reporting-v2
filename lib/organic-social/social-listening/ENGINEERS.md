@@ -101,8 +101,10 @@ the file and image sizes too.
 3. Backfill `social_listening_history` from the team's private history sheet (a guarded script outside this repo, dry run
    and rollback). The sheet's "Monthly history" tab has two tables: whole-percent sentiment by month (brand, Reddit,
    industry) and the headline numbers of the months that have them. Each month gives a brand row, plus an industry row
-   when its industry columns are filled. The headline percents must round to the sentiment table's whole percents, and
-   a month is written only once Confirmed is ticked on the sheet. October is not uploaded: the tab starts with November,
+   when its industry columns are filled. Every value is as the client was shown it (the latest report's year-to-date
+   charts, each month's own tiles), never a fresh Talkwalker pull. The headline percents must be within 1 of the
+   sentiment table's whole percents (a deck charts points that add to 100), and a month is written only once Confirmed
+   is ticked on the sheet. October is not uploaded: the tab starts with November,
    which compares with October's history row.
 4. Staging, then production, as in spec section 13.
 
