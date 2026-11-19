@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from 'react'
 import { useExportMode } from '@/components/export/export-mode'
 import { num, pct } from '@/lib/supermetrics/format'
-import { money } from '@/lib/paid-media/format'
+import { DASH, money } from '@/lib/paid-media/format'
 import type { CampaignNode, AdSetNode, CreativeRow, CreativeMetrics } from '@/lib/meta/types'
 
 type MetricKey =
@@ -49,14 +49,16 @@ function sortItems<T extends CreativeMetrics & { name?: string; ad?: string }>(
   key: SortKey,
   dir: 'asc' | 'desc',
 ): T[] {
-  const sorted = [...items].sort((a, b) => {
+  // Null reach/frequency (unavailable on BigQuery) sorts last either way; without nulls the order is as before.
+  const isNull = (i: T) => key !== 'name' && i[key] == null
+  const sorted = items.filter((i) => !isNull(i)).sort((a, b) => {
     const av = key === 'name' ? (a.name ?? a.ad ?? '') : (a[key] as number)
     const bv = key === 'name' ? (b.name ?? b.ad ?? '') : (b[key] as number)
     if (av < bv) return -1
     if (av > bv) return 1
     return 0
   })
-  return dir === 'desc' ? sorted.reverse() : sorted
+  return [...(dir === 'desc' ? sorted.reverse() : sorted), ...items.filter(isNull)]
 }
 
 export function CreativeTableClient({
@@ -89,7 +91,7 @@ export function CreativeTableClient({
   const metricCells = (m: CreativeMetrics) =>
     COLS.map((c) => (
       <td key={c.key} className="px-5 py-3 text-right text-white">
-        {c.fmt(m[c.key])}
+        {m[c.key] == null ? DASH : c.fmt(m[c.key]!)}
       </td>
     ))
 

@@ -8,11 +8,19 @@ vi.mock('@/lib/paid-media/overview', () => ({ getPaidMediaOverview: vi.fn() }))
 vi.mock('@/lib/paid-media/trend', () => ({ getPaidMediaTrend: vi.fn() }))
 // Mock the trend CHART component so Recharts doesn't load.
 vi.mock('./trend', () => ({ PaidMediaTrendChart: () => <div data-testid="trend" /> }))
+// C3: the Paid Search window. Off by default here (the range passes through); the C3 tests below set it.
+vi.mock('@/lib/bq/googleads-window', () => ({ googleAdsWindow: vi.fn(async (_s: string, r: string) => ({ dateRange: r, notice: null })) }))
+// C2: the Meta window, likewise off by default here.
+vi.mock('@/lib/bq/meta-window', () => ({ metaWindow: vi.fn(async (_s: string, r: string) => ({ dateRange: r, notice: null })) }))
+vi.mock('@/lib/bq/backend', () => ({ bqEnabled: vi.fn(() => false) }))
 
 import { PaidMediaOverviewReport } from './index'
 import { getPaidMediaOverview } from '@/lib/paid-media/overview'
 import { getPaidMediaTrend } from '@/lib/paid-media/trend'
 import type { Mock } from 'vitest'
+import { googleAdsWindow } from '@/lib/bq/googleads-window'
+import { metaWindow } from '@/lib/bq/meta-window'
+import { bqEnabled } from '@/lib/bq/backend'
 
 const mock = getPaidMediaOverview as Mock
 ;(getPaidMediaTrend as Mock).mockResolvedValue({ channels: [], points: [] })
@@ -83,4 +91,94 @@ test('the KPI grid and each channel row are page-break blocks; "By Channel" stay
   expect(container.querySelector('.grid.grid-cols-2[data-export-block]')).not.toBeNull()
   expect(container.querySelectorAll('section[data-export-block]').length).toBeGreaterThanOrEqual(2)
   expect(screen.getByText('By Channel').hasAttribute('data-export-keep-with-next')).toBe(true)
+})
+
+describe('Paid Search data delayed on the Overview (C3)', () => {
+  const channels = (psOk: boolean) => ({
+    channels: [
+      psOk
+        ? { key: 'paid-search', label: 'Paid Search', configured: true, spend: 1000, clicks: 200, leads: 12, ok: true }
+        : { key: 'paid-search', label: 'Paid Search', configured: true, spend: null, clicks: null, leads: null, ok: false },
+      { key: 'meta', label: 'Meta Advertising', configured: true, spend: 500, clicks: 80, leads: null, ok: true },
+    ],
+    blendedSpend: null, blendedClicks: null,
+  })
+
+  test('the clipped window reaches both fetchers and the notice names Paid Search', async () => {
+    ;(googleAdsWindow as Mock).mockResolvedValueOnce({ dateRange: 'custom:2026-11-01,2026-11-16', notice: { kind: 'clipped', from: null, through: '2026-11-16', empty: false } })
+    mock.mockResolvedValue(channels(true))
+    render(await PaidMediaOverviewReport({ clientSlug: 'renaissance', dateRange: 'this_month' }))
+    expect(screen.getByRole('note').textContent).toBe('Paid Search data delayed — showing through Nov 16, 2026.')
+    expect(mock).toHaveBeenLastCalledWith('renaissance', 'this_month', null, 'custom:2026-11-01,2026-11-16', 'this_month')
+    expect(getPaidMediaTrend).toHaveBeenLastCalledWith('renaissance', 'this_month', 'custom:2026-11-01,2026-11-16', 'this_month')
+  })
+
+  test('Paid Search failing on BigQuery says the data is delayed', async () => {
+    ;(bqEnabled as Mock).mockReturnValueOnce(true)
+    mock.mockResolvedValue(channels(false))
+    render(await PaidMediaOverviewReport({ clientSlug: 'renaissance', dateRange: 'last_30_days' }))
+    expect(screen.getByRole('note').textContent).toBe("Data delayed — Paid Search data can't be loaded right now. Try again shortly.")
+  })
+
+  test('no notice for a client that does not run Paid Search', async () => {
+    ;(googleAdsWindow as Mock).mockResolvedValueOnce({ dateRange: null, notice: { kind: 'unavailable' } })
+    mock.mockResolvedValue({ channels: [{ key: 'paid-search', label: 'Paid Search', configured: false, spend: null, clicks: null, leads: null, ok: false }], blendedSpend: null, blendedClicks: null })
+    render(await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' }))
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+})
+
+describe('Meta data delayed on the Overview (C2)', () => {
+  const channels = (metaOk: boolean, metaConfigured = true) => ({
+    channels: [
+      { key: 'paid-search', label: 'Paid Search', configured: false, spend: null, clicks: null, leads: null, ok: false },
+      metaOk
+        ? { key: 'meta', label: 'Meta Advertising', configured: true, spend: 500, clicks: 80, leads: null, ok: true }
+        : { key: 'meta', label: 'Meta Advertising', configured: metaConfigured, spend: null, clicks: null, leads: null, ok: false },
+    ],
+    blendedSpend: null, blendedClicks: null,
+  })
+
+  test('the clipped window reaches both fetchers and the notice names Meta', async () => {
+    ;(metaWindow as Mock).mockResolvedValueOnce({ dateRange: 'custom:2024-01-01,2026-11-16', notice: { kind: 'clipped', from: '2024-01-01', through: '2026-11-16', empty: false } })
+    mock.mockResolvedValue(channels(true))
+    render(await PaidMediaOverviewReport({ clientSlug: 'renaissance', dateRange: 'custom:2023-06-01,2026-11-17' }))
+    expect(screen.getByRole('note').textContent).toBe(
+      'Meta data delayed — showing through Nov 16, 2026. Meta history starts Jan 1, 2024, so this range is shown from then.',
+    )
+    expect(metaWindow).toHaveBeenLastCalledWith('renaissance', 'custom:2023-06-01,2026-11-17')
+    expect(mock).toHaveBeenLastCalledWith('renaissance', 'custom:2023-06-01,2026-11-17', null, 'custom:2023-06-01,2026-11-17', 'custom:2024-01-01,2026-11-16')
+    expect(getPaidMediaTrend).toHaveBeenLastCalledWith('renaissance', 'custom:2023-06-01,2026-11-17', 'custom:2023-06-01,2026-11-17', 'custom:2024-01-01,2026-11-16')
+  })
+
+  test('Meta failing on BigQuery says Meta data cannot be loaded', async () => {
+    ;(bqEnabled as Mock).mockImplementation((source: string) => source === 'meta')
+    mock.mockResolvedValue(channels(false))
+    render(await PaidMediaOverviewReport({ clientSlug: 'renaissance', dateRange: 'last_30_days' }))
+    expect(screen.getByRole('note').textContent).toBe("Data delayed — Meta data can't be loaded right now. Try again shortly.")
+    ;(bqEnabled as Mock).mockImplementation(() => false)
+  })
+
+  test('Meta failing live (switched off) adds no notice', async () => {
+    mock.mockResolvedValue(channels(false))
+    render(await PaidMediaOverviewReport({ clientSlug: 'renaissance', dateRange: 'last_30_days' }))
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  test('Meta with no range: the window notice only, not the failure notice too', async () => {
+    ;(bqEnabled as Mock).mockImplementation((source: string) => source === 'meta')
+    ;(metaWindow as Mock).mockResolvedValueOnce({ dateRange: null, notice: { kind: 'unavailable' } })
+    mock.mockResolvedValue(channels(false))
+    render(await PaidMediaOverviewReport({ clientSlug: 'renaissance', dateRange: 'last_30_days' }))
+    expect(screen.getAllByRole('note').map((n) => n.textContent)).toEqual(["Data delayed — Meta data can't be loaded right now. Try again shortly."])
+    expect(mock).toHaveBeenLastCalledWith('renaissance', 'last_30_days', null, 'last_30_days', null)
+    ;(bqEnabled as Mock).mockImplementation(() => false)
+  })
+
+  test('no notice for a client that does not run Meta', async () => {
+    ;(metaWindow as Mock).mockResolvedValueOnce({ dateRange: null, notice: { kind: 'unavailable' } })
+    mock.mockResolvedValue(channels(false, false))
+    render(await PaidMediaOverviewReport({ clientSlug: 'acme', dateRange: 'last_30_days' }))
+    expect(screen.queryByRole('note')).toBeNull()
+  })
 })

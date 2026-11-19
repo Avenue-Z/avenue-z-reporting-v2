@@ -194,3 +194,11 @@ export async function readMonthTabImpl(sheetId: string, tab: string): Promise<un
 export const readMonthTab = cached('google-sheets', 'kpiMonthTab', readMonthTabImpl, {
   version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: true,
 })
+
+/** The KPI start tab (spec docs/superpowers/specs/2026-11-19-kpi-starting-point-design.md, item 3): the same read as a
+ *  month tab (readMonthTabImpl, :183-190; A1:Z40; a 400 is 'gone'), its own key. healthCritical false: the start figures
+ *  are a garnish beside the rings, so a failed read is logged by the part but never turns the page `down`
+ *  (lib/cache.ts:162, :191). */
+export const readKpiStartTab = cached('google-sheets', 'kpiStartTab', readMonthTabImpl, {
+  version: '1', ttlSeconds: 300, negativeTtlSeconds: 30, healthCritical: false,
+})

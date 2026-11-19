@@ -102,3 +102,38 @@ describe('getPaidMediaTrend', () => {
     expect(t.points[0].channels['paid-search']).toEqual({ spend: 100, clicks: 10 })
   })
 })
+
+describe('getPaidMediaTrend with a Paid Search window (C3)', () => {
+  test('Paid Search reads its own range; the others read the page range', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: null })
+    aw.mockResolvedValue([]); meta.mockResolvedValue([])
+    await getPaidMediaTrend('acme', 'this_month', 'custom:2026-11-01,2026-11-16')
+    expect(aw).toHaveBeenCalledWith('acme', ['Date', 'Cost', 'Clicks'], 'custom:2026-11-01,2026-11-16')
+    expect(meta.mock.calls[0][2]).toBe('this_month')
+  })
+  test('no Paid Search range: Paid Search is left out of the chart, not fetched', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: null })
+    meta.mockResolvedValue([{ Date: '2026-11-16', cost: '5', inline_link_clicks: '1' }])
+    const t = await getPaidMediaTrend('acme', 'this_week', null)
+    expect(aw).not.toHaveBeenCalled()
+    expect(t.channels).toEqual(['meta'])
+  })
+})
+
+describe('getPaidMediaTrend with a Meta window (C2)', () => {
+  test('Meta reads its own range; the others keep theirs', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: {} })
+    aw.mockResolvedValue([]); meta.mockResolvedValue([]); li.mockResolvedValue([])
+    await getPaidMediaTrend('acme', 'this_month', 'this_month', 'custom:2026-11-01,2026-11-16')
+    expect(meta).toHaveBeenCalledWith('acme', ['Date', 'cost', 'inline_link_clicks'], 'custom:2026-11-01,2026-11-16')
+    expect(aw.mock.calls[0][2]).toBe('this_month')
+    expect(li.mock.calls[0][2]).toBe('this_month')
+  })
+  test('no Meta range: Meta is left out of the chart, not fetched', async () => {
+    client.mockResolvedValue({ paidSearchConfig: {}, metaConfig: {}, linkedinConfig: null })
+    aw.mockResolvedValue([{ Date: '2026-11-16', Cost: '5', Clicks: '1' }])
+    const t = await getPaidMediaTrend('acme', 'this_week', 'this_week', null)
+    expect(meta).not.toHaveBeenCalled()
+    expect(t.channels).toEqual(['paid-search'])
+  })
+})

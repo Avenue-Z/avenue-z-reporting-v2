@@ -32,8 +32,10 @@ export async function getMetaGeoData(
   const compareIso = resolveCompareIso(dateRange, compareRange)
   const [cur, prev] = await Promise.all([
     metaQuery(slug, GEO_FIELDS, dateRange, { maxRows: 500 }),
+    // A failed prior period drops the comparison, never the section, as the KPIs do. On BigQuery that
+    // includes a prior period before the account's history floor (C2).
     compareIso
-      ? metaQuery(slug, GEO_FIELDS, compareIso, { maxRows: 500 })
+      ? metaQuery(slug, GEO_FIELDS, compareIso, { maxRows: 500 }).catch(() => null)
       : Promise.resolve(null),
   ])
 
