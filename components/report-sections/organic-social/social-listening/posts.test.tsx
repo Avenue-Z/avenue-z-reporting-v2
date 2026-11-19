@@ -43,6 +43,13 @@ describe('PostsSection', () => {
     expect([...container.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(['/api/social-listening/image/11111111-1111-4111-8111-111111111111?print=1'])
     expect(screen.queryByRole('button')).toBeNull()
   })
+  test('the PDF loads screenshots eagerly; on the page they stay lazy (#475)', () => {
+    const pdf = render(<ExportModeProvider><PostsSection posts={[post()]} clientSlug="a" range="r" caps={NONE} /></ExportModeProvider>)
+    expect([...pdf.container.querySelectorAll('img')].map((i) => i.getAttribute('loading'))).toEqual([null])
+    pdf.unmount()
+    const page = render(<PostsSection posts={[post()]} clientSlug="a" range="r" caps={NONE} />)
+    expect([...page.container.querySelectorAll('img')].map((i) => i.getAttribute('loading'))).toEqual(['lazy', 'lazy'])
+  })
   test('staff see every group with Add post, and a draft carries its state and Approve for an approver', () => {
     render(<PostsSection posts={[post({ status: 'draft' })]} clientSlug="a" range="r" caps={STAFF} />)
     expect(screen.getAllByRole('button', { name: '+ Add post' })).toHaveLength(3)

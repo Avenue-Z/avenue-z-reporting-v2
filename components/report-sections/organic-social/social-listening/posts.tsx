@@ -106,8 +106,11 @@ function PostCard({ post, clientSlug, caps, staff, print, onEdit }: {
         <div className={s.postShots}>
           {images.map((id) => (
             <div key={id} className={s.shot}>
+              {/* Lazy on the page only. The export browser's viewport is fixed (render-pdf.ts) and the PDF waits for every
+                  image to finish (readiness.ts), so a lazy one below the fold would print blank or hold the export until
+                  it times out (#475); the Influencer tab's PDF image is eager too (post-card.tsx ExportMedia). */}
               {/* eslint-disable-next-line @next/next/no-img-element -- served by our own route with its own access check */}
-              <img src={imageSrc(id, print)} alt={`Screenshot of the ${post.platform} post by ${post.author}`} loading="lazy" />
+              <img src={imageSrc(id, print)} alt={`Screenshot of the ${post.platform} post by ${post.author}`} loading={print ? undefined : 'lazy'} />
               {staff && post.status === 'draft' && (
                 <button type="button" className={`${s.tbtn} ${s.shotRemove}`} disabled={pending} onClick={() => run(() => removePostImageAction({ clientSlug, imageId: id }))}>Remove</button>
               )}
