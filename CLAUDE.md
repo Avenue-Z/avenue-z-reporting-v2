@@ -1128,15 +1128,16 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
 The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; no client has it on.
 
 - [ ] **Rollout, each step on my go.** Migration `0030_social_listening` and the setting are on the dev client only
-  (2026-11-19). Next the history backfill on dev, then staging (Savannah uploads November and checks against her files),
+  (2026-11-19), with the history backfill. Next staging (Savannah uploads November and checks against her files),
   production after Savannah and Jasmine approve on staging (spec section 13).
-- [ ] **The history backfill is written and dry run on dev, not applied.** The guarded script lives outside this repo
+- [ ] **The history backfill is written and applied on dev only.** The guarded script lives outside this repo
   (dev or staging only, pinned to each Neon endpoint; dry run by default; one all-or-nothing insert; refuses a client
   that already has history rows; rollback deletes only rows tagged `history-sheet (...)`), with its own tests on an
   in-memory Postgres. Past months are taken as the client was shown them, never from a fresh Talkwalker pull: the
   history sheet now holds January to October as charted in the October report as sent (September's tiles from the
-  September report), every row checked against those decks and Confirmed. The dry run on dev parsed January to October
-  brand and May to October industry with no problems. Applying waits on my go.
+  September report), every row checked against those decks and Confirmed. Applied on dev 2026-11-19 (16 rows, read
+  back equal); staging and production wait on the rollout steps. A row written outside the app shows on the page after
+  the page read's 5 minute cache (`getSlMonthRows`, `store.ts`).
 - [ ] **Phase 2, paid sentiment** (spec section 12, plan P2.1 to P2.4): the paid ad comment sheet is shared with the
   service account and readable (2026-11-19); each month tab's column E is the comment. Next, a spec addendum.
   `socialListening.paidSheet` is reserved for it.
