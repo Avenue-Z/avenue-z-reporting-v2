@@ -166,22 +166,20 @@ export function posNeu(point: SlPct): number {
 
 /** Each media type's percent change in results against the previous month's presented upload (history rows don't
  *  hold media types), unrounded like `tileChange`. Null ("n/a") with no upload last month, a type absent last month,
- *  or a type with no results last month. */
-export function mediaChanges(now: SlExport, prev: SlExport | null): Record<string, number | null> {
+ *  or a type with no results last month. Keyed by the media name in a Map: the name comes from the uploaded file, which
+ *  never becomes a plain object key (export-parse.ts), since "__proto__" would read back as Object.prototype (#477). */
+export function mediaChanges(now: SlExport, prev: SlExport | null): Map<string, number | null> {
   const before = new Map((prev?.sentimentByMedia ?? []).map((r) => [r.media, r.pos + r.neu + r.neg]))
-  const out: Record<string, number | null> = {}
-  for (const r of now.sentimentByMedia) out[r.media] = tileChange(r.pos + r.neu + r.neg, before.get(r.media)) ?? null
-  return out
+  return new Map(now.sentimentByMedia.map((r) => [r.media, tileChange(r.pos + r.neu + r.neg, before.get(r.media)) ?? null]))
 }
 
 /** Each influencer's change in posts against the previous month's presented upload, matched by `authorId` (a name
- *  can change, an id does not). Null ("new") when the author was not in last month's list or there is no list. */
-export function authorChanges(now: SlExport, prev: SlExport | null): Record<string, number | null> {
+ *  can change, an id does not). Null ("new") when the author was not in last month's list or there is no list. Keyed
+ *  by author id in a Map, for the same reason as `mediaChanges`. */
+export function authorChanges(now: SlExport, prev: SlExport | null): Map<string, number | null> {
   const before = new Map((prev?.influencers ?? []).map((i) => [i.authorId, i.posts]))
-  const out: Record<string, number | null> = {}
-  for (const i of now.influencers ?? []) {
+  return new Map((now.influencers ?? []).map((i) => {
     const p = before.get(i.authorId)
-    out[i.authorId] = p === undefined ? null : i.posts - p
-  }
-  return out
+    return [i.authorId, p === undefined ? null : i.posts - p]
+  }))
 }

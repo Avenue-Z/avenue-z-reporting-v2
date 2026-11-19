@@ -162,6 +162,15 @@ describe('sections', () => {
     const r = buildTopicView(input({ data: data({ uploads: [up(now), up(prev, true, '2026-10-02T00:00:00Z')] }) })).ready!
     expect(r.influencers.map((i) => [i.authorId, i.change])).toEqual([['a', 2], ['b', null]])
   })
+  test('an author id or media name taken from the file can be any text, "__proto__" included (#477)', () => {
+    const inf = (authorId: string, posts: number) => ({ authorId, name: `n${authorId}`, network: 'X', posts, reach: 1, engagement: 1, pos: posts, neu: 0, neg: 0 })
+    const media = (n: number) => [{ media: '__proto__', pos: n, neu: 0, neg: 0 }, { media: 'constructor', pos: n, neu: 0, neg: 0 }]
+    const now = exp('brand', '2026-10', { pos: 10, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 5), inf('constructor', 4)], sentimentByMedia: media(6) })
+    const prev = exp('brand', '2026-09', { pos: 6, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 3)], sentimentByMedia: media(3) })
+    const r = buildTopicView(input({ data: data({ uploads: [up(now), up(prev, true, '2026-10-02T00:00:00Z')] }) })).ready!
+    expect(r.influencers.map((i) => [i.authorId, i.change])).toEqual([['__proto__', 2], ['constructor', null]])
+    expect(r.media.map((m) => [m.media, m.change])).toEqual([['__proto__', 100], ['constructor', 100]])
+  })
 })
 
 describe('analysis-only sections, posts and trends by viewer (spec sections 5 and 9, R2-1)', () => {

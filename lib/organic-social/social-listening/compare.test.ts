@@ -181,16 +181,21 @@ describe('mediaChanges', () => {
 
   test('percent change of each media type count against the previous month presented upload', () => {
     const c = mediaChanges(now, prev)
-    expect(c.X).toBeCloseTo(50, 9)
-    expect(c.Reddit).toBe(-100)
+    expect(c.get('X')).toBeCloseTo(50, 9)
+    expect(c.get('Reddit')).toBe(-100)
   })
   test('new media type has n/a change, and so does one with no results last month', () => {
     const c = mediaChanges(now, prev)
-    expect(c.Threads).toBeNull()
-    expect(c.Blogs).toBeNull()
+    expect(c.get('Threads')).toBeNull()
+    expect(c.get('Blogs')).toBeNull()
   })
   test('no upload last month: every change is n/a', () => {
-    expect(mediaChanges(now, null)).toEqual({ X: null, Blogs: null, Threads: null, Reddit: null })
+    expect(mediaChanges(now, null)).toEqual(new Map([['X', null], ['Blogs', null], ['Threads', null], ['Reddit', null]]))
+  })
+  test('a media name from the file is a Map key, never an object key: "__proto__" is an ordinary name (#477)', () => {
+    const p = exp('2026-10', { pos: 2, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: '__proto__', pos: 2, neu: 0, neg: 0 }] })
+    const n = exp('2026-11', { pos: 3, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: '__proto__', pos: 3, neu: 0, neg: 0 }] })
+    expect(mediaChanges(n, p)).toEqual(new Map([['__proto__', 50]]))
   })
 })
 
@@ -199,12 +204,17 @@ describe('authorChanges', () => {
   test('posts difference, matched by author id, not name', () => {
     const prev = exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'Old name', 4), inf('b2', 'Same name', 9)] })
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'New name', 7), inf('c3', 'Same name', 2)] })
-    expect(authorChanges(now, prev)).toEqual({ a1: 3, c3: null })
+    expect(authorChanges(now, prev)).toEqual(new Map([['a1', 3], ['c3', null]]))
   })
   test('no upload or no influencers last month: every change is n/a; no influencers now: empty', () => {
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'x', 1)] })
-    expect(authorChanges(now, null)).toEqual({ a1: null })
-    expect(authorChanges(now, exp('2026-10', { pos: 1, neu: 0, neg: 0 }))).toEqual({ a1: null })
-    expect(authorChanges(exp('2026-11', { pos: 1, neu: 0, neg: 0 }), null)).toEqual({})
+    expect(authorChanges(now, null)).toEqual(new Map([['a1', null]]))
+    expect(authorChanges(now, exp('2026-10', { pos: 1, neu: 0, neg: 0 }))).toEqual(new Map([['a1', null]]))
+    expect(authorChanges(exp('2026-11', { pos: 1, neu: 0, neg: 0 }), null)).toEqual(new Map())
+  })
+  test('an author id from the file is a Map key, never an object key: "__proto__" is an ordinary id (#477)', () => {
+    const prev = exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 'x', 4)] })
+    const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 'x', 7), inf('constructor', 'y', 1)] })
+    expect(authorChanges(now, prev)).toEqual(new Map([['__proto__', 3], ['constructor', null]]))
   })
 })

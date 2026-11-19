@@ -121,7 +121,7 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
   const mediaTotal = d.sentimentByMedia.reduce((a, r) => a + sum(r), 0)
   const mChanges = mediaChanges(d, prevUpload)
   const media = d.sentimentByMedia
-    .map((r) => ({ media: r.media, count: sum(r), pct: pct(sum(r), mediaTotal), change: mChanges[r.media] ?? null, color: mediaColor(r.media) }))
+    .map((r) => ({ media: r.media, count: sum(r), pct: pct(sum(r), mediaTotal), change: mChanges.get(r.media) ?? null, color: mediaColor(r.media) }))
     .sort((a, b) => b.count - a.count)
   const cross = d.sentimentByMedia.map((r) => ({ media: r.media, pos: r.pos, neu: r.neu, neg: r.neg, total: sum(r) })).sort((a, b) => b.total - a.total)
 
@@ -142,7 +142,7 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
     posNeu: topic === 'brand' ? ytd.map((p) => ({ month: p.month, value: p.value ? posNeu(p.value) : null })) : [],
     reddit: topic === 'brand' ? ytdSeries(d, data.history, data.uploads, 'reddit') : null,
     themes: d.themes.map((t) => ({ theme: t.theme, share: t.share, color: topic === 'brand' ? brandThemeColor(t.color) : t.color })),
-    influencers: (d.influencers ?? []).map((i) => ({ ...i, change: aChanges[i.authorId] ?? null })),
+    influencers: (d.influencers ?? []).map((i) => ({ ...i, change: aChanges.get(i.authorId) ?? null })),
     overview: d.overview ?? [],
   }
 }
