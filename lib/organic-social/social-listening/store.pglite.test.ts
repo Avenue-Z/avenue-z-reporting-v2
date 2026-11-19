@@ -65,6 +65,13 @@ describe('uploads', () => {
     expect(d.uploads.every((u) => u.month === '2026-11' && !('raw' in u))).toBe(true)
   })
 
+  test('a stored upload refreshes the page once (updateTag db)', async () => {
+    const { updateTag } = await import('next/cache')
+    vi.mocked(updateTag).mockClear()
+    await upload('2026-11', 1, true)
+    expect(vi.mocked(updateTag).mock.calls).toEqual([['db']])
+  })
+
   test('the database refuses a month that is not the 1st, and a byte size that does not match the file', async () => {
     await expect(pg.exec(`INSERT INTO "social_listening_uploads" ("client_id","month","topic","data","raw","sha256","byte_size","before_open","uploaded_by")
       VALUES ('${CLIENT}','2026-11-15','brand','{}','\\x00','x',1,true,'s')`)).rejects.toThrow(/month_first/)
