@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
     staleTimes: {
       dynamic: 180,
     },
+    // The Social Listening upload action takes a Talkwalker export of up to 2 MB, checked by the action itself
+    // (lib/organic-social/social-listening/export-parse.ts, MAX_EXPORT_BYTES). The default 1 MB body limit would refuse
+    // it in the framework first, so the cap is 3 MB. It is app wide; no other action sends bodies this large.
+    serverActions: {
+      bodySizeLimit: '3mb',
+    },
   },
   images: {
     remotePatterns: [
