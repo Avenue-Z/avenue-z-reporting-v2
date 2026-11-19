@@ -124,11 +124,16 @@ export async function KpiCheckInSection({ ctx }: { ctx: OrganicSocialCtx }) {
   return staff ? <PrintAsClient live={view(true)} client={view(false)} /> : view(false)
 }
 
-type StartFigures = { label: string; byChannel: Partial<Record<DashChannel, KpiFigures>>; blockNote: string | null; cardNotes: Partial<Record<DashChannel, string>> }
+type StartFigures = { startYear: string; byChannel: Partial<Record<DashChannel, KpiFigures>>; blockNote: string | null; cardNotes: Partial<Record<DashChannel, string>> }
+
+/** The start line's label per metric (Paul, #469 review, issue 470): followers are a count on December 31, so "End of 2025";
+ *  impressions and engagements are totals over the year, so "2025 total", and a client never reads this year's 10 months
+ *  against last year's 12 as a drop. */
+export const startLabel = (field: keyof KpiFigures, startYear: string) => (field === 'followers' ? `End of ${startYear}` : `${startYear} total`)
 
 const startOf = (s: StartFigures, channel: DashChannel, field: keyof KpiFigures) => {
   const f = s.byChannel[channel]
-  return f ? { label: s.label, value: f[field] } : undefined
+  return f ? { label: startLabel(field, s.startYear), value: f[field] } : undefined
 }
 
 /** The start figures for the rings (spec 2026-11-19, failure table): last year's row on the setting's start tab. Never
@@ -137,7 +142,7 @@ const startOf = (s: StartFigures, channel: DashChannel, field: keyof KpiFigures)
  *  error. The start tab is read like every tab (A1:Z40). */
 async function startFigures(a: { slug: string; year: string; choice: KpiSheetChoice; shown: DashChannel[] }): Promise<StartFigures> {
   const startYear = String(Number(a.year) - 1)
-  const none = (blockNote: string | null = null): StartFigures => ({ label: `End of ${startYear}`, byChannel: {}, blockNote, cardNotes: {} })
+  const none = (blockNote: string | null = null): StartFigures => ({ startYear, byChannel: {}, blockNote, cardNotes: {} })
   if (a.choice.kind !== 'fixed' && a.choice.kind !== 'byMonth') return none()
   const at = `slug=${a.slug} year=${a.year}`
   if (a.choice.startTabInvalid) {
@@ -165,7 +170,7 @@ async function startFigures(a: { slug: string; year: string; choice: KpiSheetCho
     console.warn(`[organic-social] kpi start row missing ${at} platform=${channel}`)
     cardNotes[channel] = `No end of ${startYear} figures for ${CHANNEL_LABEL[channel]}.`
   }
-  return { label: `End of ${startYear}`, byChannel, blockNote: null, cardNotes }
+  return { startYear, byChannel, blockNote: null, cardNotes }
 }
 
 type MonthTabResult = { kind: 'rows'; rows: KpiPlatform[] } | { kind: 'note'; text: string } | { kind: 'error' }

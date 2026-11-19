@@ -474,6 +474,9 @@ describe('starting point: where each platform ended last year', () => {
     rows.linkedin ?? ['LinkedIn', year, '8,500', '40,000', '5,000'], ['', String(Number(year) + 1)],
   ]
   const WITH_START = { 2026: { sheetId: ID, byMonth: true, startTab: START_TAB } }
+  // Paul, #469 review (issue 470): followers are a count, so "End of 2025"; impressions and engagements are totals over the
+  // year, so "2025 total" and a client never reads 10 months against 12 as a drop.
+  const LINE = /^(End of 2025|2025 total): /
   const octOpen = () => requestClock.mockReturnValue(clockFor(new Date('2026-11-13T12:00:00Z')))
   const spyAll = () => ({ warn: vi.spyOn(console, 'warn').mockImplementation(() => {}), error: vi.spyOn(console, 'error').mockImplementation(() => {}) })
   /** Every log line, which must never carry the sheet id or the tab title. */
@@ -489,7 +492,7 @@ describe('starting point: where each platform ended last year', () => {
     tabs({ 'October 2026': monthGrid(9) })
     const c = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
     expect(readKpiStartTab).not.toHaveBeenCalled()
-    expect(c.queryByText(/End of 2025/)).toBeNull()
+    expect(c.queryByText(LINE)).toBeNull()
   })
 
   test('edge 1: each ring shows where that platform ended 2025, for clients and staff, after the month read', async () => {
@@ -498,10 +501,12 @@ describe('starting point: where each platform ended last year', () => {
     readKpiStartTab.mockResolvedValue(startGrid())
     for (const ctx of [OCT, staffOf(OCT)]) {
       const c = render(await KpiCheckInSection({ ctx }))
-      expect(c.getAllByText(/^End of 2025: /).map((e) => e.textContent)).toEqual([
-        'End of 2025: 700', 'End of 2025: 150,000', 'End of 2025: 2,000', 'End of 2025: 8,500', 'End of 2025: 40,000', 'End of 2025: 5,000',
+      expect(c.getAllByText(LINE).map((e) => e.textContent)).toEqual([
+        'End of 2025: 700', '2025 total: 150,000', '2025 total: 2,000', 'End of 2025: 8,500', '2025 total: 40,000', '2025 total: 5,000',
       ])
-      expect(c.getAllByRole('img')[0].getAttribute('aria-label')).toBe('Total Followers: 1,100 of 2,000, end of 2025: 700')
+      expect(c.getAllByRole('img').slice(0, 3).map((e) => e.getAttribute('aria-label'))).toEqual([
+        'Total Followers: 1,100 of 2,000, end of 2025: 700', 'Impressions/Views: 20,000 of 50,500, 2025 total: 150,000', 'Total Engagements: 300 of 1,250, 2025 total: 2,000',
+      ])
       c.unmount()
     }
     expect(readKpiStartTab).toHaveBeenCalledWith(ID, START_TAB)
@@ -514,7 +519,7 @@ describe('starting point: where each platform ended last year', () => {
     readKpiStartTab.mockResolvedValue(startGrid('2025', { linkedin: ['LinkedIn', '2025', 'N/A', '1', '1'] }))
     const s = spyAll()
     const pdf = await inPdf(staffOf(OCT))
-    expect(pdf.getAllByText(/^End of 2025: /)).toHaveLength(3)
+    expect(pdf.getAllByText(LINE)).toHaveLength(3)
     expect(pdf.queryByText(/No end of 2025 figures/)).toBeNull()
     clean(s)
   })
@@ -530,7 +535,7 @@ describe('starting point: where each platform ended last year', () => {
     const s = spyAll()
     const staff = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
     expect(staff.getAllByRole('img')).toHaveLength(6)
-    expect(staff.queryByText(/^End of 2025: /)).toBeNull()
+    expect(staff.queryByText(LINE)).toBeNull()
     const n = staff.getByText(note)
     expect(n.closest('[data-export-block]')?.querySelector('h2')?.textContent).toBe('KPI Check-In') // under the heading, in the first block
     expect(n.closest('.rounded-lg')).toBeNull() // above the first card, not inside it
@@ -551,11 +556,11 @@ describe('starting point: where each platform ended last year', () => {
     const staff = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
     const note = staff.getByText('No end of 2025 figures for LinkedIn.')
     expect(note.closest('.rounded-lg')?.querySelector('h3')?.textContent).toBe('LinkedIn')
-    expect(staff.getAllByText(/^End of 2025: /)).toHaveLength(3)
+    expect(staff.getAllByText(LINE)).toHaveLength(3)
     staff.unmount()
     const client = render(await KpiCheckInSection({ ctx: OCT }))
     expect(client.queryByText(/No end of 2025 figures/)).toBeNull()
-    expect(client.getAllByText(/^End of 2025: /)).toHaveLength(3)
+    expect(client.getAllByText(LINE)).toHaveLength(3)
     expect(clean(s)).toContain('[organic-social] kpi start row missing slug=c year=2026 platform=LINKEDIN')
   })
 
@@ -592,9 +597,9 @@ describe('starting point: where each platform ended last year', () => {
     readKpiStartTab.mockResolvedValue(startGrid())
     const client = render(await KpiCheckInSection({ ctx: OCT }))
     expect(client.getAllByText('KPI Check-In updates with the October report.')).toHaveLength(2)
-    expect(client.queryByText(/^End of 2025: /)).toBeNull()
+    expect(client.queryByText(LINE)).toBeNull()
     client.unmount()
-    expect(render(await KpiCheckInSection({ ctx: staffOf(OCT) })).getAllByText(/^End of 2025: /)).toHaveLength(6)
+    expect(render(await KpiCheckInSection({ ctx: staffOf(OCT) })).getAllByText(LINE)).toHaveLength(6)
   })
 
   test('edge 4: a fixed { sheetId, tab, startTab } entry shows the start the same way', async () => {
@@ -602,7 +607,7 @@ describe('starting point: where each platform ended last year', () => {
     readYtdTab.mockResolvedValue(GRID)
     readKpiStartTab.mockResolvedValue(startGrid())
     const c = render(await KpiCheckInSection({ ctx: CTX }))
-    expect(c.getAllByText(/^End of 2025: /)).toHaveLength(6)
+    expect(c.getAllByText(LINE)).toHaveLength(6)
   })
 
   test('edge 5: a platform on the start tab that the client does not show is ignored', async () => {
@@ -611,7 +616,7 @@ describe('starting point: where each platform ended last year', () => {
     readKpiStartTab.mockResolvedValue([...startGrid(), ['TikTok', '2025', '1', '2', '3']])
     const s = spyAll()
     const c = render(await KpiCheckInSection({ ctx: staffOf(OCT) }))
-    expect(c.getAllByText(/^End of 2025: /)).toHaveLength(6)
+    expect(c.getAllByText(LINE)).toHaveLength(6)
     expect(c.queryByText(/TikTok/)).toBeNull()
     expect(clean(s).some((l) => l.includes('kpi start'))).toBe(false)
   })
@@ -625,7 +630,7 @@ describe('starting point: where each platform ended last year', () => {
     const c = render(await KpiCheckInSection({ ctx: staffOf({ ...CTX, dateRange: 'custom:2027-01-01,2027-01-31' }) }))
     expect(c.getByText('No end of 2026 figures for Instagram.')).toBeTruthy()
     expect(c.getByText('No end of 2026 figures for LinkedIn.')).toBeTruthy()
-    expect(c.queryByText(/^End of 2026: /)).toBeNull()
+    expect(c.queryByText(/^(End of 2026|2026 total): /)).toBeNull()
     clean(s)
   })
 })
