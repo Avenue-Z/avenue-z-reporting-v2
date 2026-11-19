@@ -35,8 +35,10 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
       // Locked months resolve inside OrganicSocialReport from the raw range, as on the page.
       // aeo and aeoMin on the AEO Informed Social tab only, as the report pages pass them (getReportComponent), with the export's own limit:
       // a slow Peec read must print its card rather than leave the export "still loading" (the 40 s ready budget below, as the CRM's 25 s).
+      // The Social Listening tab prints the client's view, brand then industry, whichever pill was open (spec 2026-11-19 R2-5).
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} view={view.view}
-        {...(view.view === 'aeo-informed' ? { aeo: aeo ?? 'month', aeoMin: aeoMin ?? 2, aeoDeadlineMs: AEO_EXPORT_DEADLINE_MS } : {})} />
+        {...(view.view === 'aeo-informed' ? { aeo: aeo ?? 'month', aeoMin: aeoMin ?? 2, aeoDeadlineMs: AEO_EXPORT_DEADLINE_MS } : {})}
+        {...(view.view === 'social-listening' ? { exporting: true } : {})} />
     case 'peec-ai':
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (view.subsectionId === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />

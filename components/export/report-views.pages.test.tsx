@@ -177,6 +177,36 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
   })
 }
 
+// The Social Listening tab (spec 2026-11-19 section 4): its own view; sl= reaches the report on this tab only; the export prints the
+// client's view of both topics, so it carries no sl and adds the export flag (R2-5).
+const SL_CLIENT = { ...CLIENT, dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' }, socialListening: { enabled: true, brandTopic: 'Made Up Brand' } } }
+async function onPageWith(Route: typeof PortalSpa, subsection: string, extra: Record<string, string>) {
+  getClientBySlug.mockResolvedValue(SL_CLIENT)
+  const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
+    searchParams: Promise.resolve({ section: 'organic-social', subsection, ...Q, ...extra }) } as never))
+  if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
+  const [report] = findElements(r.element, (e) => REPORTS.has(nameOf(e.type)))
+  const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
+  return { report, button }
+}
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  test(`${routeName}: the Social Listening tab is titled Social Listening, renders its view with sl, and exports the client view`, async () => {
+    const { report, button } = await onPageWith(Route, 'organic-social-listening', { sl: 'industry' })
+    expect(button.props.pageTitle).toBe('Social Listening')
+    expect(report.props).toMatchObject({ channel: null, view: 'social-listening', sl: 'industry' })
+    const view = resolveExportView(SL_CLIENT as ExportViewClient, 'organic-social', 'organic-social-listening')
+    expect(view.pageTitle).toBe('Social Listening')
+    const withoutSl = Object.fromEntries(Object.entries(report.props as Record<string, unknown>).filter(([k]) => k !== 'sl'))
+    // The button sends the served ranges (a locked month's own comparison), so the export gets those.
+    expect(button.props.serverExport).toMatchObject({ subsection: 'organic-social-listening', compareRange: report.props.compareRange })
+    expect(exportReportElement(view, { ...params, compareRange: report.props.compareRange as string }).props).toEqual({ ...withoutSl, exporting: true })
+  })
+  test(`${routeName}: anything but sl=industry is brand, and no other tab gets sl`, async () => {
+    expect((await onPageWith(Route, 'organic-social-listening', { sl: 'nope' })).report.props).toMatchObject({ sl: 'brand' })
+    expect((await onPageWith(Route, 'organic-instagram', { sl: 'industry' })).report.props).not.toHaveProperty('sl')
+  })
+}
+
 // The button exports on the server only for sections switched on (lib/export/sections.ts); every other section
 // keeps the browser print until its own PR switches it on.
 for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {

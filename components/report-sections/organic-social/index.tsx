@@ -18,6 +18,8 @@ import { noMonthsText, viewerForRole } from '@/lib/organic-social/reporting-mont
 import { NoMonths } from './no-months'
 import { AeoInformedSection } from './aeo-informed/section'
 import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
+import { SocialListeningSection } from './social-listening/section'
+import type { SlTopic } from '@/lib/organic-social/social-listening/types'
 
 /** The AEO Informed Social tab's own settings, read from the URL by the route (parseAeoRange, parseAeoMin) and its time limit (page 120 s,
  *  export 30 s). Handed to the body on that tab only, so every other tab's body and parts get exactly what they got before. */
@@ -25,7 +27,7 @@ export type AeoViewSettings = { range: AeoRange; min: number; deadlineMs: number
 const AEO_DEFAULTS: AeoViewSettings = { range: 'month', min: 2, deadlineMs: 120_000 }
 
 export function OrganicSocialReport({
-  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null, aeo, aeoMin, aeoDeadlineMs,
+  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null, aeo, aeoMin, aeoDeadlineMs, sl, exporting,
 }: {
   clientSlug: string
   dateRange?: string
@@ -38,8 +40,23 @@ export function OrganicSocialReport({
   aeo?: AeoRange
   aeoMin?: number
   aeoDeadlineMs?: number
+  /** The Social Listening tab only: the open pill (sl=) and whether this render is the PDF export, which prints the client's view,
+   *  brand then industry (spec 2026-11-19 sections 4 and 9). Ignored on every other tab. */
+  sl?: SlTopic
+  exporting?: boolean
 }) {
   const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, view })
+  // The Social Listening tab has an analysis box inside every card and no Insights or Recommendations of its own, so neither
+  // shared header box is rendered and the 'organic-social' commentary is never read on it (R2-7).
+  if (view === 'social-listening') {
+    return (
+      <div className="space-y-8">
+        <Suspense fallback={<OverviewSkeleton />}>
+          <OrganicSocialBody ctx={ctx} sl={{ topic: sl ?? 'brand', exporting: exporting ?? false }} />
+        </Suspense>
+      </div>
+    )
+  }
   const aeoSettings: AeoViewSettings | undefined = view === 'aeo-informed'
     ? { range: aeo ?? AEO_DEFAULTS.range, min: aeoMin ?? AEO_DEFAULTS.min, deadlineMs: aeoDeadlineMs ?? AEO_DEFAULTS.deadlineMs }
     : undefined
@@ -70,7 +87,7 @@ export function OrganicSocialReport({
 
 /** Resolves the viewer role, the composition (DB template + per-client override), and renders the
  *  parts. Async and isolated behind the Suspense above so its awaits don't gate first paint. */
-export async function OrganicSocialBody({ ctx, aeo }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings }) {
+export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings; sl?: { topic: SlTopic; exporting: boolean } }) {
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
   // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a
@@ -100,6 +117,25 @@ export async function OrganicSocialBody({ ctx, aeo }: { ctx: OrganicSocialCtx; a
       <AeoInformedSection clientSlug={rctx.clientSlug} servedRange={aeoLocked?.month?.dateRange ?? rctx.dateRange}
         aeo={settings.range} aeoMin={settings.min} role={role} deadlineMs={settings.deadlineMs} />
     )
+  }
+  // The Social Listening tab (spec 2026-11-19 section 4): its own section, no template parts, served the same month as every other tab
+  // by the same three locked-months calls, as the AEO tab above. The PDF prints the client's view, brand then industry (R2-5).
+  if (rctx.view === 'social-listening') {
+    let slClient: unknown
+    let slReadFailed = false
+    try { slClient = await getClientBySlug(rctx.clientSlug) } catch { slReadFailed = true }
+    const slLocked = slReadFailed ? null : lockedRangeFor(slClient, role, rctx.dateRange, requestClock())
+    if (slLocked?.reason === 'malformed-config') logMalformedConfig(rctx.clientSlug, slLocked.malformedKey)
+    if (slLocked && !slLocked.month) return <NoMonths text={noMonthsText(slLocked, viewerForRole(role))} />
+    if (slLocked?.month && slLocked.outcome === 'replaced' && slLocked.hiddenMonthAttempt) {
+      logHiddenMonthAttempt(rctx.clientSlug, rctx.dateRange, slLocked.month.dateRange)
+    }
+    const servedRange = slLocked?.month?.dateRange ?? rctx.dateRange
+    const exporting = sl?.exporting ?? false
+    const section = (topic: SlTopic) => (
+      <SocialListeningSection clientSlug={rctx.clientSlug} servedRange={servedRange} role={role} email={email} topic={topic} exporting={exporting} />
+    )
+    return exporting ? <div className="space-y-12">{section('brand')}{section('industry')}</div> : section(sl?.topic ?? 'brand')
   }
   const key = rctx.view === 'influencer' ? 'organic-social:influencer' : rctx.channel ? 'organic-social:platform' : 'organic-social'
   // Resolve the composition defensively. A DB hiccup here must NOT blank the whole section: on
