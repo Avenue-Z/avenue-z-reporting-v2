@@ -27,7 +27,7 @@
 | # | Sev | Finding | Disposition |
 |---|---|---|---|
 | 1 | MAJOR | Test line still said the start read runs alongside the month read | Fixed (one fix, no choice): test line now says no read on early returns, read after rows resolve |
-| 2 | MAJOR | Invalid `startTab`: item 5 lists a staff note, the failure table says no note | DECISION for Thomas (has a choice) |
+| 2 | MAJOR | Invalid `startTab`: item 5 lists a staff note, the failure table says no note | Decided by me 2026-11-19: staff note (failure table updated) |
 | 3 | MAJOR | Start-line rules ran into the notes paragraph, reading as if notes print for clients | Fixed (one fix, no choice): start-line rules moved above the notes paragraph |
 | 4 | MINOR | Try/catch should wrap the read only; parse errors go to the layout row | Plan |
 | 5 | MINOR | Serial read can delay the rings up to the reader's 10 s deadline; or start after `:59`, await after `:83` | Plan |

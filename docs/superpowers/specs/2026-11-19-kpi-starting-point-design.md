@@ -88,7 +88,7 @@ the team left blank, ready). A row for any other year is ignored.
 | Start tab gone (400) | rings, no start | note "No start tab named in the setting was found." | `kpi start tab missing` |
 | Layout error | rings, no start | note "The start tab's layout isn't recognised." | `kpi start layout not found missing=<what>` |
 | A shown platform has no `startYear` row or not three numbers | rings, no start on that card | that card: note "No end of <startYear> figures for <Platform>." | `kpi start row missing platform=` |
-| Invalid `startTab` value | today's rings | today's rings | `kpi start tab setting invalid` (once per render) |
+| Invalid `startTab` value | today's rings | rings, no start, note "The start tab setting isn't valid." | `kpi start tab setting invalid` (once per render) |
 
 ## Edge cases
 
