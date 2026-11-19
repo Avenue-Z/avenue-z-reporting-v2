@@ -70,13 +70,14 @@ the team left blank, ready). A row for any other year is ignored.
    `kpi-check-in.tsx:83`), never before: every early return (no setting `:57`, invalid `:59`, read failed `:75`, `:80`,
    month note `:81`) makes no start read and logs nothing about the start. The read is awaited in a try/catch that turns
    any throw into the "read failed" row below, so it can never reject unhandled. It costs one extra cached read (5
-   minutes) only for clients with `startTab`. It passes `start` per ring for the platforms that have one.
+   minutes) only for clients with `startTab`. It passes `start` per ring for the platforms that have one. The start line
+   follows today's rules for who sees what: a card a client sees only as the "updates with the <Month> report" note shows
+   no start either (`kpi-check-in.tsx:89-100`); otherwise the start line is shown to clients and staff, and in the PDF
+   export (each card stays one export block, `:93`).
    **Where the start notes go:** only in the staff live view (`view(true)`, `:119`), never in the client view or the PDF
    export (`PrintAsClient`, `print-as-client.tsx:9-10`). A block-wide note (read failed, gone, layout, setting invalid)
    is one line under the "KPI Check-In" heading, above the first card; a per-platform note is one line inside that card,
-   under the badge row. Same rules as today for who sees what: a card a
-   client sees only as the "updates with the <Month> report" note shows no start either (`kpi-check-in.tsx:89-100`).
-   Shown to clients and staff, and in the PDF export (each card stays one export block, `:93`).
+   under the badge row.
 
 ## Failure behaviour (the rings never depend on the start)
 
@@ -116,4 +117,5 @@ the team left blank, ready). A row for any other year is ignored.
   `kpiSheetFor` returns `startTab` on both shapes, carries it into January, drops an invalid one and keeps the entry.
 - `progress-ring` test: without `start` the markup is unchanged (snapshot); with it, the line reads "End of 2025: 12,345".
 - `kpi-check-in.test.tsx`: no `startTab` makes no extra read; with it, every row in the failure table and edge cases 1 to 5,
-  including the client note-only card showing no start; the start read runs alongside the month read.
+  including the client note-only card showing no start; no start read on any early return (`:57`, `:59`, `:75`, `:80`,
+  `:81`), and the start read starts only after the rows resolve.

@@ -19,3 +19,16 @@
 | 11 | MINOR | Citations: `readMonthTabImpl` is `ytd-sheet.ts:183-190`, `readMonthTab` `:194-196` | Plan |
 | 12 | MINOR | Missing tests: edge 6, edge 8, health record, logs carry no tab or id, ring `aria-label`; capture the ring snapshot BEFORE the change | Plan |
 | 13 | MINOR | Omit `startTab` when absent so existing `toEqual` tests hold | Plan |
+
+## Round 2 (2026-11-19), changed lines only
+
+3 MAJOR, 3 MINOR. No round 3.
+
+| # | Sev | Finding | Disposition |
+|---|---|---|---|
+| 1 | MAJOR | Test line still said the start read runs alongside the month read | Fixed (one fix, no choice): test line now says no read on early returns, read after rows resolve |
+| 2 | MAJOR | Invalid `startTab`: item 5 lists a staff note, the failure table says no note | DECISION for Thomas (has a choice) |
+| 3 | MAJOR | Start-line rules ran into the notes paragraph, reading as if notes print for clients | Fixed (one fix, no choice): start-line rules moved above the notes paragraph |
+| 4 | MINOR | Try/catch should wrap the read only; parse errors go to the layout row | Plan |
+| 5 | MINOR | Serial read can delay the rings up to the reader's 10 s deadline; or start after `:59`, await after `:83` | Plan |
+| 6 | MINOR | `healthCritical: false` also gates the negative-memo replay, `lib/cache.ts:162` | Plan (cite it) |
