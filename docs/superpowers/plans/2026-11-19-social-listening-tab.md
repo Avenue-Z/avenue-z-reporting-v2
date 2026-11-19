@@ -32,18 +32,41 @@
 4. Double-clicked upload: two rows, the newer is current, no error shown. (Task 5 test `two uploads in a row both store, newest current`.)
 5. A client opening a month whose brand export arrived after the month opened: the page shows it; the next month still compares with the presented upload. (Task 4 test `after-open upload is shown but not presented`.)
 
+## Parallel execution: waves, sessions and file ownership
+
+`feat/social-listening` (PR #468 into `dev`) is the deliverable branch. Each session works on its own branch cut from
+it, in its own worktree, and opens a draft PR **into `feat/social-listening`** (never into `dev`). A session touches only
+the files its row owns; anything else it needs from another session waits for that PR to merge. Shared shapes live in
+`lib/organic-social/social-listening/types.ts`, committed before wave 1; no session changes it (a needed change comes back
+to the coordinating session). Thomas merges, or tells the coordinating session to merge.
+
+| Wave | Session | Tasks | Owns (only these files) |
+|---|---|---|---|
+| 1 | A: export parser | 1 | `package.json`, `package-lock.json`, `next.config.ts`, `social-listening/export-parse*.ts`, `social-listening/test-workbook.ts` |
+| 1 | B: setting and tab gate | 2 | `social-listening/setting*.ts`, `lib/constants.ts`, `lib/portal/sidebar-client*.ts`, `lib/organic-social/aeo-tab/tab-list.test.ts`, `lib/organic-social/subsections.test.ts` |
+| 1 | C: analysis boxes | 8 | `social-listening/boxes*.ts`, `lib/commentary/views*.ts`, `lib/commentary/labels*.ts`, `lib/db/queries.ts`, `components/report-sections/commentary/monthly*.tsx` |
+| 1 | D: data layer | 3, 4 | `lib/db/schema.ts`, `lib/db/schema.social-listening.test.ts`, `drizzle/0030_*`, `drizzle/meta/*`, `social-listening/store.ts`, `social-listening/select*.ts`, `social-listening/compare*.ts` |
+| 2 | E: actions and image route | 5, 6, 7 | `app/actions/social-listening*.ts`, `app/api/social-listening/**`, `social-listening/capabilities*.ts`, `social-listening/upload-month*.ts`, `social-listening/posts*.ts`, `social-listening/trends*.ts` |
+| 2 | F: private checks | 11 | `~/.claude/organic-social-work/social-listening/**` only, no repo files |
+| 3 | G: page and wiring | 9, 10 | `components/report-sections/organic-social/social-listening/**`, `social-listening/colors.ts`, `social-listening/params*.ts`, `components/report-sections/organic-social/index*.tsx`, both `reports/page.tsx`, `components/export/report-element*.tsx`, `lib/organic-social/report-views.pages.test.tsx` |
+| end | coordinating session | 12 | docs, `CLAUDE.md`, PR #468 |
+
+(`social-listening/` = `lib/organic-social/social-listening/`.) Wave 2 starts when every wave 1 PR has merged into
+`feat/social-listening`; wave 3 when wave 2's has. Before each merge the coordinating session reads the diff, checks no
+file outside the row changed, and runs `npm test`, `npm run typecheck` and `npm run lint` on the merged tree.
+
 ---
 
 ### Task 1: Export parser and contract (V1 to V9)
 
 **Files:**
 - Modify: `package.json` (dependency), `package-lock.json`, `next.config.ts` (`experimental.serverActions.bodySizeLimit: '3mb'`)
-- Create: `lib/organic-social/social-listening/export-types.ts`, `lib/organic-social/social-listening/export-parse.ts`, `lib/organic-social/social-listening/test-workbook.ts`
+- Create: `lib/organic-social/social-listening/export-parse.ts`, `lib/organic-social/social-listening/test-workbook.ts`
+- Consumes: `lib/organic-social/social-listening/types.ts` (already on the branch; do not change it)
 - Test: `lib/organic-social/social-listening/export-parse.test.ts`
 
 **Interfaces:**
-- Produces: `type SlTopic = 'brand' | 'industry'`; `type SlExport` (spec section 6 shape, `version: 1`); `type RuleId = 'V1'|...|'V9'`;
-  `parseTalkwalkerExport(bytes: Uint8Array, expect: { topic: SlTopic; topicName: string; month: string /* YYYY-MM */ }): { ok: true; data: SlExport } | { ok: false; failed: { rule: RuleId; message: string }[] }`;
+- Produces: `parseTalkwalkerExport(bytes: Uint8Array, expect: { topic: SlTopic; topicName: string; month: SlMonth }): SlParseResult` (types from `types.ts`);
   `MAX_EXPORT_BYTES = 2 * 1024 * 1024`.
 - Test helper (test-only module): `buildWorkbook(opts: { topic: SlTopic; topicName: string; month: string; overrides?: Partial<...> }): Uint8Array` writing `bookType: 'biff8'` with the exact title and filter rows of the real exports (findings doc, Format section).
 
@@ -63,7 +86,7 @@
 
 **Files:**
 - Create: `lib/organic-social/social-listening/setting.ts`
-- Modify: `lib/constants.ts:203-260` (OrganicView, ORGANIC_SOCIAL_SUBSECTIONS, OrganicTabsClient, organicSocialSubsections), `lib/portal/sidebar-client.ts`, `lib/db/schema.ts` (`DashSocialConfig.socialListening?: unknown`, doc comment)
+- Modify: `lib/constants.ts:203-260` (OrganicView, ORGANIC_SOCIAL_SUBSECTIONS, OrganicTabsClient, organicSocialSubsections), `lib/portal/sidebar-client.ts`. Not `lib/db/schema.ts` (Task 3 owns it): read the setting through a narrow cast of `dashSocialConfig`
 - Test: `lib/organic-social/social-listening/setting.test.ts`; update `lib/organic-social/aeo-tab/tab-list.test.ts`, `lib/organic-social/subsections.test.ts`; `lib/portal/sidebar-client.test.ts`
 
 **Interfaces:**
@@ -81,7 +104,7 @@
 ### Task 3: Tables, migration and store
 
 **Files:**
-- Modify: `lib/db/schema.ts` (five tables, spec section 8)
+- Modify: `lib/db/schema.ts` (five tables, spec section 8, and `DashSocialConfig.socialListening?: unknown` with its doc comment)
 - Create: `drizzle/0030_social_listening.sql` (via `npm run db:generate`), `lib/organic-social/social-listening/store.ts`, `lib/organic-social/social-listening/select.ts`
 - Test: `lib/organic-social/social-listening/select.test.ts`, `lib/db/schema.social-listening.test.ts`
 
@@ -186,7 +209,7 @@
 
 **Files:**
 - Create under `components/report-sections/organic-social/social-listening/`: `section.tsx` (server: loads, decides `clientView`), `brand.tsx`, `industry.tsx`, `cards.tsx` (chart card plus its analysis box), `cloud.tsx`, `sentiment-bars.tsx`, `points-delta.tsx`, `ytd-chart.tsx`, `posts.tsx`, `trends.tsx`, `empty.tsx`
-- Modify: `lib/constants.ts` (`SENTIMENT_COLORS`, `MEDIA_FALLBACK_COLOR`)
+- Create: `lib/organic-social/social-listening/colors.ts` (`SENTIMENT_COLORS`, `MEDIA_FALLBACK_COLOR`; not in `lib/constants.ts`, which Task 2 owns)
 - Test: `components/report-sections/organic-social/social-listening/section.test.tsx`, `brand.test.tsx`, `industry.test.tsx`
 
 **Interfaces:**
