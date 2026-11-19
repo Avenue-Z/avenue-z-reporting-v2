@@ -125,9 +125,7 @@ export function kpiSheetFor(value: unknown, year: string): KpiSheetChoice {
   const e = last === undefined ? undefined : value[last]
   if (last === undefined || !isObj(e) || !has(e, 'byMonth')) return { kind: 'none' }
   const carried = byMonthEntry(e)
-  if (carried.kind !== 'byMonth') return { kind: 'none' }
-  const { startTab, startTabInvalid, ...rest } = carried
-  return { ...rest, carriedFrom: last, ...(startTab !== undefined ? { startTab } : {}), ...(startTabInvalid ? { startTabInvalid } : {}) }
+  return carried.kind === 'byMonth' ? { ...carried, carriedFrom: last } : { kind: 'none' }
 }
 
 /** The tab named "<Month> <Year>" for `month` (0 to 11), matched trimmed and in any case; the raw title is returned because
@@ -144,34 +142,38 @@ export function monthTabFor(titles: string[], year: string, month: number): { ki
 /** Where each platform ended `startYear`, from the start tab, read like every tab (A1:Z40, ytd-sheet.ts:72-74):
  *    row 3, columns C to E: the month tabs' header
  *    then, per platform, a row [name, "<year>", a, b, c] and more rows [ "", "<year>", ... ] for other years
- *  Fully empty rows are skipped anywhere; a row with an empty column A belongs to the last named platform. Only the
- *  `startYear` row is read; a platform whose row is missing or not three numbers has no start (the others still do).
- *  A deviation is a KpiSheetLayoutError whose `missing` is a fixed token, never cell text. */
+ *  A row with an empty column A belongs to the last named block. Only the `startYear` row is read; a platform whose row is
+ *  missing or not three numbers has no start (the others still do). Skipped, never errors (Paul, #469 review, issue 471):
+ *  fully empty rows, rows whose column B is not a four-digit year ("YoY %", "2025.0"), other years' rows, and a block under
+ *  a name that is not a platform ("Total"), rows and all. Hard errors, only what would make a start figure ambiguous or
+ *  unplaceable: the header, the same platform twice, two `startYear` rows in one block, a `startYear` row above every
+ *  named block. Each is a KpiSheetLayoutError whose `missing` is a fixed token, never cell text. */
 export function parseKpiStartGrid(grid: unknown[][], startYear: string): Partial<Record<DashChannel, KpiFigures>> {
   if (HEADER.some((h, i) => cell(grid[2], 2 + i).toLowerCase() !== h)) throw new KpiSheetLayoutError('header')
   const out: Partial<Record<DashChannel, KpiFigures>> = {}
   const seen = new Set<DashChannel>()
-  let current: DashChannel | null = null
-  let years = new Set<string>()
+  // null: no named block yet; 'skip': under a name that is not a platform, so its rows are skipped too.
+  let current: DashChannel | 'skip' | null = null
+  let startRowSeen = false
   for (let i = 3; i < grid.length; i++) {
     const row = grid[i]
     if (!Array.isArray(row) || row.every((c) => String(c ?? '').trim() === '')) continue
     const name = cell(row, 0)
     if (name !== '') {
       const channel = PLATFORMS[name.toLowerCase()]
-      if (!channel) throw new KpiSheetLayoutError('platform name')
+      if (!channel) { current = 'skip'; continue }
       if (seen.has(channel)) throw new KpiSheetLayoutError('duplicate platform')
-      seen.add(channel); current = channel; years = new Set()
-    } else if (current === null) throw new KpiSheetLayoutError('no platform')
-    const y = cell(row, 1)
-    if (!/^\d{4}$/.test(y)) throw new KpiSheetLayoutError('year')
-    if (years.has(y)) throw new KpiSheetLayoutError('duplicate year')
-    years.add(y)
-    if (y !== startYear) continue
+      seen.add(channel); current = channel; startRowSeen = false
+    }
+    if (cell(row, 1) !== startYear) continue
+    if (current === null) throw new KpiSheetLayoutError('no platform')
+    if (current === 'skip') continue
+    if (startRowSeen) throw new KpiSheetLayoutError('duplicate year')
+    startRowSeen = true
     const cells = [2, 3, 4].map((j) => classifyCell(cell(row, j)))
     if (cells.every((c) => c.kind === 'number')) {
       const [followers, impressions, engagements] = cells.map((c) => (c as { value: number }).value)
-      out[current!] = { followers, impressions, engagements }
+      out[current] = { followers, impressions, engagements }
     }
   }
   return out
