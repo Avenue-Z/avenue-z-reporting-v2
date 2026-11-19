@@ -43,3 +43,10 @@ test('the ring scales to its column up to a cap, and its text is sized from the 
   expect(getByText('858,907').className).toMatch(/min\(1\.75rem,10cqw\)/)
   expect(getByText('Target: 1,000,000').className).toMatch(/min\(14px,7cqw\)/)
 })
+
+// KPI starting point (spec 2026-11-19): taken on today's code BEFORE the `start` prop exists, so a ring without a start
+// must keep rendering byte for byte the same.
+test('without a start the ring markup is unchanged', () => {
+  const { container } = render(<ProgressRing label="Total Followers" value={18089} target={20000} color="#60FF80" />)
+  expect(container.innerHTML).toMatchSnapshot()
+})
