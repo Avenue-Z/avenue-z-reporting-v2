@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router (RSC + client components), TypeScript strict, Vitest + Testing Library, Recharts, Neon/Drizzle (`clients.report_section_config` JSON), Peec AI REST API, GA4 Data API.
 
-**Spec:** `docs/superpowers/specs/2026-11-17-aeo-content-tab-redesign-design.md` (decisions D-1…D-19, review tags R-1…R-21, stakeholder feedback F-1…F-6). Read it before any task; this plan cites it by id and does not restate its reasoning.
+**Spec:** `docs/superpowers/specs/2026-11-17-aeo-content-tab-redesign-design.md` (decisions D-1…D-21, review tags R-1…R-21, stakeholder feedback F-1…F-7). Read it before any task; this plan cites it by id and does not restate its reasoning.
 
 ## Global Constraints
 
@@ -19,13 +19,13 @@
 - Missing or failed source data renders `--` (null), never `0` or `0%` (D-17).
 - Copy fixed by the spec is used verbatim (chip labels, descriptions, axis titles, empty state). Search for the quoted strings in the spec.
 - Cache versions: bump the `version` of any `cached()` fetcher whose response shape or fetch logic changes, with a one-line reason comment, matching the existing comments.
-- Peec `/reports/urls` returns **no `totalCount`** and only sorts by `citation_count` (see `countDuplicateUrlKeys` comment, `lib/peec/url-citations.ts:259`). Completeness = a short final page within `maxPages` **and** zero duplicate row keys.
+- Peec `/reports/urls` returns **no `totalCount`** and only sorts by `citation_count` (see `countDuplicateUrlKeys` comment, `lib/peec/url-citations.ts:259`). Completeness rule (D-21): a walk is **complete** when it ends on a short page within `maxPages`. Duplicate row keys mean Peec reordered mid-walk: dedupe, retry the walk once, and if duplicates persist accept the result, record `duplicateRows`, and `console.warn` it. Only a walk that hits `maxPages` (or throws) is incomplete.
 - A cached payload must stay under Next's 2 MB data-cache limit (FB-069). Cache only filtered or aggregated results, never a full uncapped walk.
 
 ## Review Focus
 
 1. **A client loads the portal or a PDF while `prompt-gaps` is not in `clientVisible`:** the block and every prompt string are absent, including Overview's gap table prompt text. Pinned by Task 11 (matrix test), Task 16 (D-15 test).
-2. **Peec coverage walk is incomplete** (maxPages hit, or a mid-walk reorder shows duplicates): prompt gaps render an error card, not "Not cited" rows. Pinned by Task 2 and Task 10.
+2. **Peec coverage walk is incomplete** (maxPages hit): prompt gaps render an error card, not "Not cited" rows; a walk with persistent duplicate rows still renders (D-21). Pinned by Task 2 and Task 10.
 3. **A commentary opt-in (or any other `saveReportSectionConfig` save) after the switch was turned on:** `clientVisible` survives; a `CLIENT_ADMIN` posting `clientVisible` is refused. Pinned by Task 11.
 4. **A calendar URL appears on two tabs** (once New, once Optimized) **or as a bare `/path`:** one merged row, badge "New · Optimized", link to the live domain; counted once in time-to-first. Pinned by Task 5.
 5. **Model filter active on Overview:** competitor deltas all hidden (FB-063), H1 rows filtered by model. Pinned by Task 16.
@@ -36,8 +36,9 @@
 
 | File | Status | Responsibility |
 |---|---|---|
-| `lib/peec/url-citations.ts` | modify | `fetchAllPagesChecked`; complete `getDomainCoverage`; new `getOwnedUrlCitations` |
-| `lib/peec/owned-hosts.ts` | create | FB-050 owned-host rule, shared |
+| `lib/peec/url-citations.ts` | modify | `fetchAllPagesChecked`; new `getOwnedUrlCitations` (`getDomainCoverage` unchanged: PR Influence keeps it) |
+| `lib/peec/coverage-projection.ts` | create | complete prompt×model walk, cached as a <1 MB projection (D-20) |
+| `lib/peec/owned-hosts.ts` | create (Task 2) | FB-050 owned-host rule, shared |
 | `lib/peec/client.ts` | modify | `TrackedPrompt.id`; cache v12 |
 | `lib/content-calendar/date.ts`, `client.ts` | modify | V2 fixes (Publish Date formats / Content Type mapping) only if Task 1 finds them |
 | `lib/content-calendar/pages.ts` | create | bare-path resolution + dedupe into `CalendarPage` |
@@ -79,47 +80,63 @@
 
 ---
 
-### Task 2: Complete prompt coverage (R-1)
+### Task 2: Complete prompt coverage, cached as a projection (R-1, D-20, D-21)
+
+Task 1 measured the complete 30-day prompt×model walk for Renaissance: 48,478 rows, 5 pages, ~13 s, 2–3 duplicate keys
+per run, and a 5.75 MB aggregate (over Next's 2 MB cache limit). So the walk is cached as a projection of only what
+Content Impact and the Overview competitor parts read (measured ~0.86 MB). `getDomainCoverage` is **not changed**: PR
+Influence reads it for arbitrary domains (follow-up in the spec's Known issues).
 
 **Files:**
-- Modify: `lib/peec/url-citations.ts` (`fetchAllPages`, `DomainCoverage`, `getDomainCoverageImpl`, `getDomainCoverage` version)
+- Create: `lib/peec/owned-hosts.ts`, `lib/peec/owned-hosts.test.ts`, `lib/peec/coverage-projection.ts`, `lib/peec/coverage-projection.test.ts`
+- Modify: `lib/peec/url-citations.ts` (`fetchAllPagesChecked`; export `post`/`last30`/`ApiUrlRow` helpers only if the new module needs them)
+- Modify: `docs/qa/aeo-content-impact-verifications.md` (carry Task 1 review minors: add the projection-size table from `task-1-report.md` and note that duplicate keys vary 2–3 per run)
 - Test: `lib/peec/url-citations.test.ts`
 
 **Interfaces:**
 - Produces:
-  - `fetchAllPagesChecked<T>(fetchPage, opts: { pageSize: number; maxPages: number; label?: string; rowKey?: (row: T) => string }): Promise<{ rows: T[]; complete: boolean }>`. `complete` is false when maxPages is hit with every page full, when a reported `totalCount` disagrees, or when `rowKey` finds a duplicate. `fetchAllPages` becomes `(…) => fetchAllPagesChecked(…).then(r => r.rows)`; its warnings are unchanged.
-  - `DomainCoverage.complete?: boolean` (optional so existing literal placeholders compile; consumers treat `undefined` as `true` only for the empty shape).
-  - `getDomainCoverage` cache `version: 'v6'`.
+  - `ownedHostKeys(ownDomains: { domain: string }[]): Set<string>` and `isOwnedHost(hostKey: string | null, owned: Set<string>): boolean` (exact match or `endsWith('.' + key)`, the FB-050 rule now inline at `content-impact.tsx` ~1305–1313).
+  - `fetchAllPagesChecked<T>(fetchPage, opts: { pageSize: number; maxPages: number; label?: string; rowKey?: (row: T) => string }): Promise<{ rows: T[]; complete: boolean; duplicateRows: number }>` — `complete` is false only when maxPages is hit with every page full (or a reported `totalCount` disagrees); `rows` are de-duplicated by `rowKey` when given; `duplicateRows` counts the dropped duplicates. `fetchAllPages` becomes `(…) => fetchAllPagesChecked(…).then(r => r.rows)`; its warnings are unchanged.
+  - `type OtherSite = { urlKey: string; url: string; citationCount: number; namesCompetitor: boolean }`
+  - `type CoverageProjection = DomainCoverage & { complete: boolean; duplicateRows: number; ownedPromptIds: string[]; ownedPromptIdsByModel: Record<string, string[]>; otherSitesByPrompt: Record<string, { urls: OtherSite[]; more: number }> }` — the `DomainCoverage` fields are **restricted** so existing helpers (`domainPromptIds`, `urlPromptIds`, `ownedPromptCoveragePctForModels`, `domainTagNames`) keep working on it:
+    - `promptIdsByDomain` / `promptIdsByDomainByModel`: owned hosts (Peec domains classified Own) and Competitor-classified domains only.
+    - `promptIdsByUrlKey`: owned url keys (FB-050) ∪ the url keys of the current `getUrlCitations(clientSlug)` rows with `!mentionsYourBrand && competitorBrandNames.length > 0` (the gap table's rows, D-10 window).
+    - `tagIdsByDomain`, `tagIdsByUrlKey`, `tagNameById`: as `getDomainCoverage` builds them today (single tag walk, unchanged).
+    - `ownedPromptIds` / `ownedPromptIdsByModel`: union of prompt ids over owned url keys, overall and per `normalizeEngine` label.
+    - `otherSitesByPrompt`: per prompt id, non-owned url keys ranked competitor-naming first (row's `mentioned_brands` contains a non-you brand, using the same `/reports/brands` + `resolveYourBrandIds` logic as `getUrlCitations`), then by summed `citation_count`; top 3 + `more` = the rest.
+  - `getCoverageProjection(clientSlug: string | undefined, opts: { startDate: string; endDate: string }): Promise<CoverageProjection>` — `cached('peec', 'getCoverageProjection', …, { version: 'v1', extractTags: ([slug]) => ({ client: slug ?? 'default' }) })`. Walk with `fetchAllPagesChecked` (`pageSize: CITATION_PAGE_SIZE`, `maxPages: CITATION_MAX_PAGES`, `rowKey: r => \`${r.url}|${r.prompt?.id}|${r.model?.id}\``, label `'coverage projection (prompt×model)'`); if `duplicateRows > 0`, walk once more and keep the second result; if it still has duplicates, `console.warn` with the client slug and count and accept it (D-21). Returns `EMPTY` (all maps `{}`, `complete: true`, `duplicateRows: 0`) when no Peec project is configured.
+  - `EMPTY_COVERAGE_PROJECTION: CoverageProjection` exported for consumers' rejected-fetch placeholders.
+  - `projectCoverage(input: { promptRows: ApiUrlRow[]; tagRows: ApiUrlRow[]; tagNameById: Record<string,string>; ownedHosts: Set<string>; competitorDomains: Set<string>; gapUrlKeys: Set<string>; yourBrandIds: string[]; complete: boolean; duplicateRows: number }): CoverageProjection` — pure; all the projection logic lives here so it is tested without HTTP.
 
-- [ ] **Step 1: Write failing tests** in `url-citations.test.ts`:
-  - `fetchAllPagesChecked: short final page → complete true` (pages of 3, 3, 1 with pageSize 3).
-  - `fetchAllPagesChecked: maxPages hit with full pages → complete false`.
-  - `fetchAllPagesChecked: duplicate rowKey across pages → complete false`.
-  - `getDomainCoverageImpl walks prompt rows past 10,000` : mock `post` so the prompt-dimensioned call returns 10,000 rows then 5 rows; assert the aggregate includes a prompt id that only appears in the second page and `complete === true`.
-- [ ] **Step 2: Run** `npx vitest run lib/peec/url-citations.test.ts`. Expected: the four new tests FAIL.
-- [ ] **Step 3: Implement.** In `getDomainCoverageImpl`, replace the single prompt-dimensioned `post` with `fetchAllPagesChecked` (`pageSize: CITATION_PAGE_SIZE`, `maxPages: CITATION_MAX_PAGES`, `rowKey: r => \`${r.url}|${r.prompt?.id}|${r.model?.id}\``, label `'coverage (prompt×model)'`); keep the tag fetch as is. Set `complete` on the returned aggregate. Bump the cache to `'v6'` with comment `// v6: prompt×model rows walked to completion (was one 10,000-row page, R-1); adds complete flag`.
-- [ ] **Step 4: Run** the same command. Expected: PASS, and existing tests in the file still PASS.
-- [ ] **Step 5: Commit.** `git commit -am "fix(peec): walk prompt coverage to completion and report completeness"`
+- [ ] **Step 1: Failing tests:**
+  - `owned-hosts.test.ts`: `blog.x.com` owned when `x.com` is Own; `notx.com` not owned; `null` not owned.
+  - `url-citations.test.ts`: `fetchAllPagesChecked: short final page → complete true, duplicateRows 0` (pages of 3, 3, 1 with pageSize 3); `maxPages hit with full pages → complete false`; `duplicate rowKey across pages → rows de-duplicated, duplicateRows 1, complete true`.
+  - `coverage-projection.test.ts` (on `projectCoverage`): owned prompt ids include a prompt cited only via `blog.<owned>`; `promptIdsByUrlKey` keeps owned and gap url keys and drops others; `promptIdsByDomain` keeps owned + competitor hosts only; per-model owned ids by engine label; `otherSitesByPrompt` ranks a competitor-naming URL above a higher-cited non-naming one, caps at 3, `more` counts the rest; existing helper `ownedPromptCoveragePctForModels` gives the same result on the projection as on the full aggregate for the fixture.
+  - `coverage-projection.test.ts` (on `getCoverageProjection` with `post` mocked): a prompt id appearing only after row 10,000 is present; a first walk with a duplicate triggers exactly one retry; persistent duplicates → `complete: true`, `duplicateRows > 0`, one `console.warn`; `maxPages` exhausted → `complete: false`.
+- [ ] **Step 2: Run** `npx vitest run lib/peec/owned-hosts.test.ts lib/peec/url-citations.test.ts lib/peec/coverage-projection.test.ts`. Expected: new tests FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** the same command. Expected: PASS; existing tests in `url-citations.test.ts` still PASS.
+- [ ] **Step 5: Measure** with Task 1's script approach: `CACHE_DISABLE=1 npx tsx --env-file=.env.local` a one-off snippet (or extend `scripts/measure-coverage-walk.ts`) that prints `JSON.stringify(await getCoverageProjection('renaissance', last30)).length`. Expected: under 1,500,000 bytes. Record it in the verifications doc with the Task 1 minors.
+- [ ] **Step 6: Commit.** `git commit -m "feat(peec): complete prompt coverage cached as a projection"` (add new files).
 
 ---
 
 ### Task 3: Owned cited pages without the 2,000 cap (R-6)
 
 **Files:**
-- Create: `lib/peec/owned-hosts.ts`, `lib/peec/owned-hosts.test.ts`
 - Modify: `lib/peec/url-citations.ts`
 - Test: `lib/peec/url-citations.test.ts`
 
 **Interfaces:**
+- Consumes: `ownedHostKeys`, `isOwnedHost`, `fetchAllPagesChecked` (Task 2).
 - Produces:
-  - `ownedHostKeys(ownDomains: { domain: string }[]): Set<string>` and `isOwnedHost(hostKey: string | null, owned: Set<string>): boolean` (exact match or `endsWith('.' + key)`, the FB-050 rule now inline at `content-impact.tsx` ~1305–1313).
   - `getOwnedUrlCitations(clientSlug: string | undefined, ownedHosts: string[], opts?: { startDate?: string; endDate?: string }): Promise<OwnedUrlCitations>` where `type OwnedUrlCitations = { rows: UrlCitation[]; totalCitationCount: number; complete: boolean }`. `rows` = merged citations on owned hosts only; `totalCitationCount` = sum of `citation_count` over **every** walked base row (the all-sites denominator). Cached (`'peec', 'getOwnedUrlCitations'`, `version: 'v1'`). Window defaults to `last30()` (D-10).
 
-- [ ] **Step 1: Failing tests.** `owned-hosts.test.ts`: `blog.x.com` owned when `x.com` is Own; `notx.com` not owned; `null` not owned. `url-citations.test.ts`: `getOwnedUrlCitations keeps only owned rows and sums all rows` (mock two pages: 10,000 rows mixed hosts + 3 rows; assert `rows` are owned-only, `totalCitationCount` equals the sum over all 10,003, `complete` true).
-- [ ] **Step 2: Run** `npx vitest run lib/peec/owned-hosts.test.ts lib/peec/url-citations.test.ts`. Expected: new tests FAIL.
-- [ ] **Step 3: Implement** both files. `getOwnedUrlCitationsImpl` mirrors `getPlacementCitationsImpl` (base + engine walks, brands, `mergeUrlCitations`), then filters merged rows with `isOwnedHost(urlJoinKey(c.domain), …)` and computes the total from base rows before filtering. `complete` = both walks complete.
+- [ ] **Step 1: Failing test** in `url-citations.test.ts`: `getOwnedUrlCitations keeps only owned rows and sums all rows` (mock two pages: 10,000 rows mixed hosts + 3 rows; assert `rows` are owned-only, `totalCitationCount` equals the sum over all 10,003, `complete` true).
+- [ ] **Step 2: Run** `npx vitest run lib/peec/url-citations.test.ts`. Expected: new tests FAIL.
+- [ ] **Step 3: Implement.** `getOwnedUrlCitationsImpl` mirrors `getPlacementCitationsImpl` (base + engine walks, brands, `mergeUrlCitations`), then filters merged rows with `isOwnedHost(urlJoinKey(c.domain), …)` and computes the total from base rows before filtering. `complete` = both walks complete.
 - [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit.** `git commit -m "feat(peec): uncapped owned cited pages with all-sites citation total"` (add the new files).
+- [ ] **Step 5: Commit.** `git commit -am "feat(peec): uncapped owned cited pages with all-sites citation total"`
 
 ---
 
@@ -172,12 +189,12 @@
 - Create: `lib/peec/content-performance-rows.ts`, `lib/peec/content-performance-rows.test.ts`
 
 **Interfaces:**
-- Consumes: `CalendarPage` (Task 5), `OwnedUrlCitations` (Task 3), `DomainCoverage` + `urlPromptIds` (Task 2), `isOwnedHost` (Task 3).
+- Consumes: `CalendarPage` (Task 5), `OwnedUrlCitations` (Task 3), `CoverageProjection` + `urlPromptIds` (Task 2), `isOwnedHost` (Task 2).
 - Produces:
   - `type PathMetrics = { aiReferred: number | null; organic: number | null; engagementRate: number | null }`
   - `engagementRateByPath(rows: { pagePath: unknown; sessions: unknown; engagementRate: unknown }[]): Map<string, number>` — keyed by `normPath`, session-weighted mean across rows that normalise to the same path (D-17).
   - `type ContentPerformanceRow = { key: string; title: string; url: string; slug: string; badge: AzBadge | null; publishDate: string | null; lastOptimizedDate: string | null; promptCoverage: number | null; promptCoverageDelta: number | null; citationShare: number | null; citationShareDelta: number | null; aiReferred: number | null; aiReferredDelta: number | null; organic: number | null; organicDelta: number | null; engagementRate: number | null; engagementRateDelta: number | null; scopes: ('az' | 'all')[] }`
-  - `buildContentPerformanceRows(input: { pages: CalendarPage[]; owned: OwnedUrlCitations; ownedPrior: OwnedUrlCitations | null; coverage: DomainCoverage; coveragePrior: DomainCoverage | null; totalTrackedPrompts: number; current: (path: string) => PathMetrics; prior: ((path: string) => PathMetrics) | null }): ContentPerformanceRow[]`
+  - `buildContentPerformanceRows(input: { pages: CalendarPage[]; owned: OwnedUrlCitations; ownedPrior: OwnedUrlCitations | null; coverage: CoverageProjection; coveragePrior: CoverageProjection | null; totalTrackedPrompts: number; current: (path: string) => PathMetrics; prior: ((path: string) => PathMetrics) | null }): ContentPerformanceRow[]`
 - Rules (from spec + today's code): `az` rows = `pages.filter(p => p.published)`; `all` = az ∪ owned rows with `citationCount > 0`, joined on `urlKey`. Prompt coverage = `urlPromptIds(cov, key).length / totalTrackedPrompts * 100`, **null** when `coverage.complete === false` or `totalTrackedPrompts === 0`. Citation share = `citationCount / owned.totalCitationCount * 100`, **null** when `owned.complete === false`; an owned-but-uncited AZ page = `0` only when `owned.complete`. Count deltas (AI-referred, organic) = % change, null when prior is null or 0. Share/coverage/ER deltas = current − prior (×100 for ER fractions). Title: calendar topic, else Peec title, else `labelFromPath(url)`. `slug` = URL path.
 
 - [ ] **Step 1: Failing tests:**
@@ -208,7 +225,7 @@
 - [ ] **Step 1: Failing tests** (`content-performance-table.test.tsx`, add `'use client'` at top per check:rsc): default scope shows only rows whose `scopes` include `'az'`; clicking "All cited pages" shows the rest; Page cell renders the title and a visible slug link with `href` = `row.url` and `target="_blank"`; badge text "New · Optimized" for `new-optimized`; column headers "Published" and "Last optimized" (no "Last updated", D-19); null cells render `--`; empty AZ scope with calendar connected shows exactly *"No published content yet. A calendar row appears here once its Status is set to Published."*; the Published column header tooltip states the V1 rule.
 - [ ] **Step 2: Run** `npx vitest run components/report-sections/peec-ai/content-performance-table.test.tsx`. Expected: FAIL.
 - [ ] **Step 3: Implement** the component (columns per spec §2 table; "AI-referred sessions" header). Persisting scope in `localStorage` key `aeo-content-scope:<slug>` is optional; if added, wrap reads/writes in try/catch.
-- [ ] **Step 4: Wire into `content-impact.tsx`:** primary owned domain = `ownedDomainNames[0]`; `pages = toCalendarPages(calendarData?.rows ?? [], primary)`; `current`/`prior` path lookups built from the existing `aiReferredForPath*`, `organicForPath*`, and `engagementRateByPath` (replacing `erByPath`/`getGA4Metrics` ER use; if the prior per-path GA4 query lacks the `sessions` metric, add it so the prior rate can be weighted too). Remove the §B and §F render blocks.
+- [ ] **Step 4: Wire into `content-impact.tsx`:** switch both `getDomainCoverage` calls (current, compare) to `getCoverageProjection` (Task 2), with `EMPTY_COVERAGE_PROJECTION` replacing the inline empty-coverage literals; primary owned domain = `ownedDomainNames[0]`; `pages = toCalendarPages(calendarData?.rows ?? [], primary)`; `current`/`prior` path lookups built from the existing `aiReferredForPath*`, `organicForPath*`, and `engagementRateByPath` (replacing `erByPath`/`getGA4Metrics` ER use; if the prior per-path GA4 query lacks the `sessions` metric, add it so the prior rate can be weighted too). Remove the §B and §F render blocks.
 - [ ] **Step 5: Run** `npx vitest run components/report-sections/peec-ai && npm run typecheck && npm run check:rsc`. Expected: PASS (update parity/golden snapshots only after reviewing that the diff is the §B/§F → merged table swap).
 - [ ] **Step 6: Commit.** `git commit -m "feat(aeo): merged content table with Avenue Z / all-cited scope"`
 
@@ -254,16 +271,16 @@
 - Create: `lib/peec/prompt-gaps.ts`, `lib/peec/prompt-gaps.test.ts`
 
 **Interfaces:**
-- Consumes: `TrackedPrompt` with `id` (Task 4), `DomainCoverage` with `complete` (Task 2), `isOwnedHost` (Task 3), `UrlCitation` (for which other-site URLs name a competitor).
+- Consumes: `TrackedPrompt` with `id` (Task 4), `CoverageProjection` (Task 2: `ownedPromptIds`, `ownedPromptIdsByModel`, `otherSitesByPrompt`, `complete`).
 - Produces:
   - `type PromptGapStatus = 'not-cited' | 'lost' | 'declining'`
   - `type PromptGapRow = { promptId: string; text: string; topic: string; status: PromptGapStatus; otherSites: { url: string; namesCompetitor: boolean }[]; otherSitesMore: number }`
   - `type PromptGapsResult = { ok: true; rows: PromptGapRow[] } | { ok: false; reason: 'incomplete' | 'unavailable' }`
-  - `computePromptGaps(input: { prompts: TrackedPrompt[]; coverage: DomainCoverage; coveragePrevious: DomainCoverage; ownedHosts: Set<string>; models: AEOModel[] | null; declineThreshold: number; competitorUrlKeys: Set<string> }): PromptGapsResult`
+  - `computePromptGaps(input: { prompts: TrackedPrompt[]; coverage: CoverageProjection; coveragePrevious: CoverageProjection; models: AEOModel[] | null; declineThreshold: number }): PromptGapsResult`
   - `DEFAULT_DECLINE_THRESHOLD = 1` (average position worsening ≥ 1 rank; proposal for Tina, Q-2), read at the call site from `report_section_config['peec-ai:content-impact'].thresholds['prompt-gaps.decline']` when set.
-- Rules: owned prompt ids = union of `promptIdsByUrlKey[k]` for every url key whose host `isOwnedHost` (R-11: subdomain rule, not `domainPromptIds`); with `models` set, use the model-filtered ids (`promptIdsByDomainByModel`) for both periods. **not-cited** = not owned now and not owned before. **lost** = owned before, not now. **declining** = owned now, and mean of `positionByModel` over selected (or all) models minus mean of `priorPositionByModel` ≥ threshold, both defined and non-zero. Other sites = url keys citing the prompt whose host is not owned, competitor-named first, then by `citationCount`; top 3 + count of the rest. Either coverage `complete === false` → `{ ok: false, reason: 'incomplete' }`.
+- Rules: owned prompt ids = `coverage.ownedPromptIds` (already FB-050, R-11); with `models` set, the union of `ownedPromptIdsByModel[label]` over the selected models' engine labels, for both periods. **not-cited** = not owned now and not owned before. **lost** = owned before, not now. **declining** = owned now, and mean of `positionByModel` over selected (or all) models minus mean of `priorPositionByModel` ≥ threshold, both defined and non-zero. Other sites = `coverage.otherSitesByPrompt[promptId]` as projected (competitor-named first, top 3, `more`). Either coverage `complete === false` → `{ ok: false, reason: 'incomplete' }` (persistent duplicates alone don't make it incomplete, D-21).
 
-- [ ] **Step 1: Failing tests:** one per status; `blog.owned.com citation counts as owned`; `incomplete coverage → ok:false incomplete`; `position 0 / missing prior is not declining`; `model filter restricts both periods`; `otherSites top 3 with competitor-named first and otherSitesMore`.
+- [ ] **Step 1: Failing tests:** one per status; `incomplete coverage → ok:false incomplete`; `duplicateRows > 0 with complete true still renders rows`; `position 0 / missing prior is not declining`; `model filter restricts both periods`; `otherSites passed through from the projection with otherSitesMore`.
 - [ ] **Step 2: Run** `npx vitest run lib/peec/prompt-gaps.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run.** Expected: PASS.
@@ -323,7 +340,7 @@
 
 - [ ] **Step 1: Failing tests** (matrix): client + not visible → renders nothing (no prompt text in DOM); client + visible → table, no chip, no switch; internal + not visible → table + "Internal" chip; internal with `canToggle` → switch labelled "Visible to client" reflecting state; `result.ok === false` → error card text, no rows; statuses render "Not cited", "Lost", "Declining"; column header "Other sites cited"; competitor-named URLs marked.
 - [ ] **Step 2: Run** `npx vitest run components/report-sections/peec-ai/prompt-gaps.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement.** In `content-impact.tsx`: `canToggle = session.user.role === 'INTERNAL_ADMIN' && audience === 'internal'` (via `auth()`); previous-period coverage = existing `coveragePrior` when `compareRange === 'previous_period'`, else a `getDomainCoverage` call on `deriveCompareRange(mainRangeStr, 'previous_period')`.
+- [ ] **Step 3: Implement.** In `content-impact.tsx`: `canToggle = session.user.role === 'INTERNAL_ADMIN' && audience === 'internal'` (via `auth()`); previous-period projection = the compare-period one when `compareRange === 'previous_period'`, else a `getCoverageProjection` call on `deriveCompareRange(mainRangeStr, 'previous_period')`.
 - [ ] **Step 4: Run** `npx vitest run components/report-sections/peec-ai && npm run check:rsc`. Expected: PASS.
 - [ ] **Step 5: Commit.** `git commit -m "feat(aeo): internal prompt-gaps block with admin client-visibility switch"`
 
@@ -337,8 +354,8 @@
 
 **Interfaces:**
 - Produces:
-  - `buildCompetitorDomainRows(input: { competitorDomains: TopDomain[]; coverage: DomainCoverage; coveragePrior: DomainCoverage | null; totalTrackedPrompts: number; models: AEOModel[] | null; showDeltas: boolean }): CompetitorDomainsCitedRow[]` — the FB-051/FB-058 math at `content-impact.tsx` ~1405–1440, with `filterDomainRowsByModel` applied when `models` is set; all deltas null when `!showDeltas` or a model filter is active (FB-063).
-  - `buildBrandAbsentRows(input: { citations: UrlCitation[]; citationsPrior: UrlCitation[] | null; coverage: DomainCoverage; showDelta: boolean }): BrandAbsentRow[]` with `type BrandAbsentRow = CompetitorUrlsBrandAbsentRow & { pageType: string; promptIds: string[] }` — row rule unchanged (`!mentionsYourBrand && competitorBrandNames.length > 0`).
+  - `buildCompetitorDomainRows(input: { competitorDomains: TopDomain[]; coverage: CoverageProjection; coveragePrior: CoverageProjection | null; totalTrackedPrompts: number; models: AEOModel[] | null; showDeltas: boolean }): CompetitorDomainsCitedRow[]` — the FB-051/FB-058 math at `content-impact.tsx` ~1405–1440, with `filterDomainRowsByModel` applied when `models` is set; all deltas null when `!showDeltas` or a model filter is active (FB-063).
+  - `buildBrandAbsentRows(input: { citations: UrlCitation[]; citationsPrior: UrlCitation[] | null; coverage: CoverageProjection; showDelta: boolean }): BrandAbsentRow[]` with `type BrandAbsentRow = CompetitorUrlsBrandAbsentRow & { pageType: string; promptIds: string[] }` — row rule unchanged (`!mentionsYourBrand && competitorBrandNames.length > 0`).
 - [ ] **Step 1: Characterisation tests first:** feed both builders a fixture and assert the exact numbers today's inline code produces (copy expected values by running the old code path once on the fixture before deleting it); plus `model filter nulls every delta`.
 - [ ] **Step 2: Run** `npx vitest run lib/peec/competitor-tables.test.ts`. Expected: FAIL (module missing).
 - [ ] **Step 3: Implement** by moving the code, then delete §H from `content-impact.tsx`.
@@ -361,7 +378,7 @@ default template (D-11), template order places them. Numbering is kept so cross-
 - Modify: `ctx.ts` (`PeecCtx.models: AEOModel[] | null`, `PeecCtx.audience: ReportAudience`; `buildPeecCtx` args), `index.tsx` (pass both), `parts/registry.ts`, `template.ts`, `parts/__fixtures__/peec-ctx.ts`; existing parity/template tests as needed
 
 **Interfaces:**
-- Consumes: Task 14 builders, Task 3 `getOwnedUrlCitations` is **not** used here (H2 keeps `getUrlCitations`, D-10), `getDomainCoverage` (Task 2), `ReportAudience` (Task 12).
+- Consumes: Task 14 builders, Task 3 `getOwnedUrlCitations` is **not** used here (H2 keeps `getUrlCitations`, D-10), `getCoverageProjection` (Task 2), `ReportAudience` (Task 12).
 - Produces: `competitorVisibilityV1: PartImpl<PeecCtx>` (id `competitor-visibility`, label "Competitor visibility") and `competitorGapsV1` (id `competitor-gaps`, label "Where competitors are cited and you aren't"), both `published: true`, registered at version 1, and appended to `PEEC_TEMPLATE.order` immediately before `{ id: 'footer', version: 1 }` (D-11, F-1).
 - Rules: `render` returns `null` when `!ctx.isPeec`; otherwise `<Suspense>` around an async child that fetches (`getPeecOverview` domains already in `ctx.data`; coverage current + previous period; `getUrlCitations` current + previous period). Deltas: always previous period; all null under a model filter; H2 citation-share Δ only when `ctx.dateRange` is `last_30_days` (D-8). Gap table columns: Page (title + linked slug), Page type (humanised `classification`), Domain, Citation share, Δ, Prompts citing it (count; for `audience === 'internal'` the count expands to the prompt texts via `trackedPrompts` by id), Competitors mentioned.
 

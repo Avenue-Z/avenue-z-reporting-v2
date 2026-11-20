@@ -5,7 +5,7 @@ Requests" feedback from the Renaissance training session (quoted where it decide
 Reviewed 2026-11-17 by an independent reviewer for inconsistencies, unproven assumptions and deviations from the request;
 all 21 findings are applied below (R-n tags point at them).
 **Stakeholder feedback, 2026-11-19 (Tina Fleming, Danielle Lopez):** every item approved; D-11, D-12, D-14 and the "Last
-updated" column changed as a result (F-n tags: see "Feedback round 1" at the end).
+updated" column changed as a result; D-20/D-21 added after the build's first measurement (F-n tags: see "Feedback round 1" at the end).
 
 ## Why
 
@@ -129,6 +129,8 @@ Decisions without a tag were made by Paul. *(design call)* = the author's call, 
 | D-16 *(design call)* | Prompt gaps add a **Declining** state, and all its comparisons (Lost, Declining) are against the previous period whatever the compare toggle says. R-4. | The feedback asks for prompts that *"lack brand citations or are trending down"*; "Lost" alone misses prompts still cited but slipping. Peec's prior positions are always previous-period, so one comparison basis keeps Lost and Declining consistent. | Lost only; following the compare toggle (mixes bases). |
 | D-17 *(design call)* | Merged-table cells are null ("--") when their source is missing or failed (§B's rule, not §F's 0%). Engagement rate is session-weighted across a path's trailing-slash variants (§B takes the first variant, §F the last; neither is right). Pages whose engagement rate moves because of this are listed in the PR. R-9. | §B and §F compute some columns differently today, so "lifted unchanged" can't hold for both. Null is honest; 0% reads as "no coverage". | Keeping both rules per scope. |
 | D-18 *(design call)* | Calendar rows: a bare path (`/blog/x`) is resolved against the client's primary owned domain before linking. Rows are de-duplicated on `urlJoinKey` into one page with a badge of **New**, **Optimized**, or **New · Optimized** when the calendar lists both; its dates follow D-19. Time-to-first uses the New row's publish date. R-13. | Bare paths would link into the reporting app; duplicates would double-count in medians and table. | Linking raw values; no dedupe. |
+| D-20 | Complete prompt coverage is cached as a ~0.86 MB **projection** (`getCoverageProjection`), not the full 5.75 MB aggregate; `getDomainCoverage` is untouched. F-7. | The full aggregate exceeds Next's 2 MB data-cache limit, which would silently disable caching (FB-069). PR Influence needs coverage for arbitrary domains, so the shared fetcher can't be projected. | Caching the full aggregate; storing it outside Next's cache (new storage); projecting `getDomainCoverage` (breaks PR Influence). |
+| D-21 | A coverage walk with duplicate rows is retried once; persistent duplicates are accepted and logged, not treated as incomplete. Only a walk that exhausts `maxPages` or fails is incomplete. F-7. | Every measured run had 2–3 duplicates out of ~48k rows, so "any duplicate = incomplete" would show prompt gaps' error card every time. A shifted row only matters if it was a prompt's sole owned citation. | Treating any duplicate as incomplete (block always errors). |
 | D-19 | The table's "Last updated" column becomes **"Last optimized"**: the latest Publish Date among the page's **Optimized** calendar rows. **"Published"** is the earliest Publish Date among its other rows (New or unclassified). Either is "--" when the page has no such row. No new sheet column. F-2. | Danielle, 2026-11-19: the calendar has no last-updated column; Publish Date (column F) *"is typically the last date that we updated or pushed anything live for that page or article."* So an Optimized row's Publish Date is its optimization date. | Dropping the column (loses "when did we last touch this page"); asking the content team for a new column. |
 
 ## Design
@@ -149,13 +151,18 @@ How is content performing across AI and human channels?        (header, unchange
 
 These land first; the blocks below are wrong without them.
 
-- **Complete coverage.** `getDomainCoverage` pages through `/reports/urls` (prompt × model) with `fetchAllPages` instead of
-  one 10,000-row request, and records whether the result is complete (rows received vs `totalCount`, or a short final page).
-  The builder first measures Renaissance's full row count and payload, read-only. If Peec's API accepts a domain filter on
-  that endpoint (not verified), the prompt-gap fetch may instead be narrowed to owned domains plus the URLs needed for the
-  competitor column. If completeness can't be established, prompt gaps render an error card, never partial rows.
+- **Complete coverage, cached as a projection (D-20, D-21).** Measured 2026-11-20 (Task 1, Renaissance, 30 days): the
+  complete prompt × model walk is 48,478 rows over 5 pages (~13 s), and the full aggregate is **5.75 MB**, almost three times
+  Next's 2 MB cache limit. So a new `getCoverageProjection` walks every page and caches only what this build reads (~0.86 MB
+  measured): owned prompt ids (overall and per engine), per-URL prompt ids for owned pages and for the gap table's pages,
+  per-domain prompt ids for owned and Competitor-classified domains, the top 3 other sites per prompt, and the tag maps as
+  today. Content Impact and the Overview competitor parts read the projection. `getDomainCoverage` is left unchanged because
+  PR Influence reads it for arbitrary domains (Known issues). Every run shows 2–3 duplicate rows (Peec reorders mid-walk):
+  the walk is retried once and, if duplicates persist, accepted and logged (D-21). Only a walk that runs out of pages, or
+  fails, renders prompt gaps' error card.
   **This changes client numbers:** the Prompt Coverage KPI, per-URL prompt coverage and H1's coverage were computed on
-  truncated data and will likely rise. The PR lists before/after for Renaissance, and Tina is told before staging QA.
+  truncated data and will rise (97 of 100 tracked prompts cite Renaissance's own site in the complete data). The PR lists
+  before/after for Renaissance; no client note needed (F-4).
 - **Owned cited pages without the 2,000 cap.** The merged table's "All cited pages" set and the Avenue Z rows' citation share
   come from a paged fetch filtered to owned hosts (FB-050 subdomain rule) *before* caching, so the cache holds only owned rows
   (FB-069's payload concern is about the unfiltered result). The global citation-share denominator (all cited URLs) needs the
@@ -312,6 +319,10 @@ functions so the (disabled) synopsis doesn't break.
 
 ## Known issues carried forward (follow-ups)
 
+- **PR Influence still reads truncated coverage.** `getDomainCoverage` keeps its single 10,000-row prompt × model request
+  (D-20), so PR Influence's prompt coverage for placement domains is computed on part of the data for large accounts.
+  File as its own issue: it needs its own projection or a narrower fetch.
+
 - **URL citations ignore the date picker** for the current period (D-10). Until fixed: the merged table's citation-share
   column and the "All cited pages" set reflect the last 30 days while coverage and GA4 follow the picker; H2's rows are the
   last 30 days while its prompt counts follow the picker; H2's Δ is hidden off "last 30 days" (D-8); and the Movers Citation
@@ -354,3 +365,4 @@ Source: Tina Fleming's inline (TF) notes and Danielle Lopez's comments on the de
 | F-4 | Tina, item 1: corrected numbers confirmed, no client comms needed. | Rollout note. |
 | F-5 | Danielle, item 9: agrees with "--", but if the table is still mostly blank, a column may be dropped; wants to see it in practice. | Blank counts per column delivered before staging QA; the decision is hers at QA. |
 | F-6 | Danielle: one-position Declining threshold is fine. | Q-2 closed. |
+| F-7 | Paul, 2026-11-20, after Task 1's measurement: cache only the needed pieces; accept the rare shifted row. | D-20, D-21. Plan Task 2 rewritten. |
