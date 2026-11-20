@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getOwnedUrlCitations, domainPromptIds, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
+import { getUrlCitations, getOwnedUrlCitations, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
 import { planOwnedCitations } from '@/lib/peec/owned-citations-plan'
 import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION } from '@/lib/peec/coverage-projection'
 import { buildContentPerformanceRows, engagementRateByPath, normPath } from '@/lib/peec/content-performance-rows'
@@ -28,15 +28,10 @@ import type { SlopeChartInput } from '@/lib/peec/slope-chart'
 import SlopeChart from '@/components/report-sections/peec-ai/slope-chart'
 import type { ReportAudience } from './ctx'
 import { ContentPerformanceTable } from './content-performance-table'
-import {
-  CompetitorDomainsCitedTable,
-  CompetitorUrlsBrandAbsentTable,
-  type CompetitorDomainsCitedRow,
-  type CompetitorUrlsBrandAbsentRow,
-} from './content-impact-tables'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
+import { filterCompetitorDomains, isBrandAbsent } from '@/lib/peec/competitor-tables'
 import { computePromptGaps, DEFAULT_DECLINE_THRESHOLD } from '@/lib/peec/prompt-gaps'
 import { isClientVisible } from '@/lib/report-sections/mutations'
 import { PromptGapsBlock, gatedPromptGaps, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID } from './prompt-gaps'
@@ -411,7 +406,6 @@ export async function ContentImpactReport({
   let coverage     = coverageResult.status === 'fulfilled'
     ? coverageResult.value
     : EMPTY_COVERAGE_PROJECTION
-  const citationsOk = urlCitationsResult.status === 'fulfilled'
   // GA4 host×source rows (§A totals + §F per-host AI-referred). null when the
   // query rejected (GA4 unconfigured / property not shared) → callers reserve
   // -- for that case, 0 stays 0.
@@ -522,13 +516,9 @@ export async function ContentImpactReport({
       )
     : ownDomains
 
-  const filteredCompetitorDomains: TopDomain[] = peecData?.domainCitationsByModel
-    ? filterDomainRowsByModel(
-        competitorDomains,
-        peecData.domainCitationsByModel,
-        models ?? null,
-      )
-    : competitorDomains
+  const filteredCompetitorDomains: TopDomain[] = filterCompetitorDomains(
+    competitorDomains, peecData?.domainCitationsByModel, models ?? null,
+  )
 
   const unmatchedPct = calendarData && calendarData.plannedCount > 0
     ? Math.round((calendarData.unmatchedCount / calendarData.plannedCount) * 100)
@@ -547,18 +537,6 @@ export async function ContentImpactReport({
   const coveragePriorAvailable =
     Object.keys(coveragePrior.promptIdsByDomain).length > 0 ||
     Object.keys(coveragePrior.tagIdsByDomain).length > 0
-  const getPromptCoverage = (domain: string): number | null =>
-    coverageAvailable && totalTrackedPrompts > 0
-      ? Math.round(domainPromptIds(coverage, domain).length / totalTrackedPrompts * 100)
-      : null
-  // FB-040: prior-period mirror of getPromptCoverage. Uses the same
-  // totalTrackedPrompts denominator (tracked-prompt list is configuration,
-  // not period-dependent). Returns null when prior coverage is unavailable
-  // so the delta in §H.1 stays null and renders nothing.
-  const getPromptCoveragePrior = (domain: string): number | null =>
-    coveragePriorAvailable && totalTrackedPrompts > 0
-      ? Math.round(domainPromptIds(coveragePrior, domain).length / totalTrackedPrompts * 100)
-      : null
 
   // Citation-count-weighted avg citations-per-answer per domain (§F owned pages).
   // host key is www-stripped + lowercased to match avgCitationsByDomain()/domainTagNames().
@@ -892,12 +870,6 @@ export async function ContentImpactReport({
 
   // ── FB-035 · §B Watched Pages: per-row metrics × current/prior + deltas ─────
 
-  // Total AI citations across all URLs in this period; denominator for Citation Share %.
-  const sumCitations = (rows: typeof urlCitations) =>
-    rows.reduce((s, c) => s + (c.citationCount || 0), 0)
-  const totalCitationsCurrentRows = sumCitations(urlCitations)
-  const totalCitationsPriorRows = sumCitations(urlCitationsPrior)
-  const citeByKeyPrior = new Map(urlCitationsPrior.map((c) => [c.urlKey, c]))
 
   // Per-path AI sessions (prior). Mirror the current-period builder ga4AiPathRows
   // logic (content-impact.tsx around line 459-467) but against prior rows.
@@ -1018,9 +990,7 @@ export async function ContentImpactReport({
     .map(d => ({ domain: d.domain, citationCount: d.citationCount ?? 0 }))
 
   // Brand-absent URLs, mirror §H.2 live filter exactly.
-  const brandAbsentUrlsForSynopsis = urlCitations.filter(
-    c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0,
-  )
+  const brandAbsentUrlsForSynopsis = urlCitations.filter(isBrandAbsent)
   const topBrandAbsentForSynopsis = brandAbsentUrlsForSynopsis
     .slice()
     .sort((a, b) => b.citationCount - a.citationCount)
@@ -1203,6 +1173,14 @@ export async function ContentImpactReport({
         )}
       </SectionCard>
 
+      {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}
+      <SectionCard
+        chart
+        title="Which pages are gaining or losing momentum?"
+      >
+        <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
+      </SectionCard>
+
       {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
       <SectionCard
         chart
@@ -1210,14 +1188,6 @@ export async function ContentImpactReport({
         description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data. When your selected date range is within the last 30 days, this chart follows it. Otherwise it shows the last 30 days."
       >
         <BotVsHumanScatter data={scatterData} clientDomain={ownedDomainNames[0] ?? ''} />
-      </SectionCard>
-
-      {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}
-      <SectionCard
-        chart
-        title="Which pages are gaining or losing momentum?"
-      >
-        <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
       </SectionCard>
 
       {promptGaps && (
@@ -1229,120 +1199,6 @@ export async function ContentImpactReport({
           clientSlug={clientSlug}
         />
       )}
-
-      {/* ── Section H: Competitor Analysis (PRD: 2 sub-views) ── */}
-      <SectionCard
-        title="Competitor Analysis"
-        description="See which competitor domains are gaining or losing ground across Source Visibility, Citation Share, and Prompt Coverage for your target prompts."
-      >
-        {/* Sub-view 1: Top Competitor Domains - Source Visibility / Citation Share / Prompt Coverage */}
-        {(() => {
-          // FB-051: Citation Share = (domain.citationCount / sumOfAllCompetitorCitationCounts) * 100.
-          // Mirrors §B and §H.2 share-of-period math. Replaces the broken
-          // d.citationRate path that produced 199.9% values (citation_rate is
-          // an avg count, not a fraction).
-          //
-          // FB-058: Citation Share delta is now computed truthfully. Each competitor
-          // domain carries priorCitationCount (from buildTopDomains' priorData), so we
-          // build a prior-period competitor denominator the same way as the current one
-          // and take currentShare - priorShare. Both periods use the competitor-only
-          // denominator so the math is consistent. Gated on compareIso, like every other
-          // delta. A competitor with zero prior citations yields priorShare 0, so its
-          // delta is the full current share (a clean period-over-period gain).
-          // FB-063: when a model filter is active, prior-period values used
-          // by these deltas are stale. filterDomainRowsByModel only rewrites
-          // citationCount for the current period; priorCitationCount stays
-          // populated from all-model prior data (see by-model.ts:25-27).
-          // d.retrievedDelta and the per-domain prior coverage are likewise
-          // computed without model scoping. Mixing model-filtered current
-          // with all-model prior produces nonsense deltas (live audit:
-          // nogood.io showed ↑48.7 pp Citation Share Δ under ChatGPT-only).
-          // Fix: when models is set, render every Δ as -- (null) so the
-          // numbers shown are at least internally consistent.
-          const modelFilterActive = models != null && models.length > 0
-          const totalCompetitorCitations = filteredCompetitorDomains
-            .reduce((s, d) => s + (d.citationCount ?? 0), 0)
-          const totalCompetitorCitationsPrior = filteredCompetitorDomains
-            .reduce((s, d) => s + (d.priorCitationCount ?? 0), 0)
-          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 25).map((d) => {
-            const promptCovCurrent = getPromptCoverage(d.domain)
-            const promptCovPrior   = compareIso && !modelFilterActive ? getPromptCoveragePrior(d.domain) : null
-            const promptCovDelta   = compareIso && !modelFilterActive && promptCovCurrent !== null && promptCovPrior !== null
-              ? promptCovCurrent - promptCovPrior
-              : null
-            const citationShareValue = totalCompetitorCitations > 0
-              ? (d.citationCount / totalCompetitorCitations) * 100
-              : 0
-            const citationSharePrior = compareIso && !modelFilterActive && totalCompetitorCitationsPrior > 0
-              ? (d.priorCitationCount / totalCompetitorCitationsPrior) * 100
-              : null
-            const citationShareDelta = compareIso && !modelFilterActive && citationSharePrior !== null
-              ? citationShareValue - citationSharePrior
-              : null
-            return {
-              domain: d.domain,
-              aiVisibility:        d.retrieved,
-              aiVisibilityDelta:   compareIso && !modelFilterActive ? d.retrievedDelta : null,
-              citationShare:       citationShareValue,
-              citationShareDelta:  citationShareDelta,
-              promptCoverage:      promptCovCurrent,
-              promptCoverageDelta: promptCovDelta,
-            }
-          })
-          return (
-            <CompetitorDomainsCitedTable
-              rows={h1Rows}
-              emptyMessage="No competitor domain data available from Peec AI"
-            />
-          )
-        })()}
-
-        <div className="border-t border-white/[0.06]" />
-
-        {/* Sub-view 2: Brand-Absent Competitor URLs */}
-        {(() => {
-          // Live source only. Citation Share math mirrors §B
-          // Watched Pages: (urlCitationCount / periodTotalCitations) * 100,
-          // delta = current pp - prior pp, gated on compareIso !== null AND
-          // the row appearing in citeByKeyPrior with a non-zero prior total.
-          const competitorCitedUrls = urlCitations
-            .filter((c) => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)
-            .sort((a, b) => b.citationCount - a.citationCount)
-            .slice(0, 10)
-
-          const h2Rows: CompetitorUrlsBrandAbsentRow[] = competitorCitedUrls.map((c) => {
-            const cite = c.citationCount
-            const citePrior = citeByKeyPrior.get(c.urlKey)?.citationCount ?? null
-            const citationShare = (citationsOk && totalCitationsCurrentRows > 0)
-              ? (cite / totalCitationsCurrentRows) * 100
-              : null
-            const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
-              ? (citePrior / totalCitationsPriorRows) * 100
-              : null
-            const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
-              ? citationShare - citationSharePrior
-              : null
-            return {
-              domain: c.domain,
-              articleTitle: c.title,
-              url: c.url,
-              citationShare,
-              citationShareDelta,
-              competitorsMentioned: c.competitorBrandNames.join(', ') || null,
-            }
-          })
-
-          return (
-            <div className="flex flex-col gap-3">
-              <CompetitorUrlsBrandAbsentTable
-                rows={h2Rows}
-                emptyMessage="No competitor citation data available from Peec AI"
-              />
-            </div>
-          )
-        })()}
-
-      </SectionCard>
 
     </div>
   )

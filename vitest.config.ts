@@ -26,6 +26,7 @@ export default defineConfig({
       'lib/peec/owned-hosts.test.ts',
       'lib/peec/coverage-projection.test.ts',
       'lib/peec/prompt-gaps.test.ts',
+      'lib/peec/competitor-tables.test.ts',
       'lib/ga4/format-speed.test.ts',
       'lib/ga4/content-derive.timing.test.ts',
       'lib/ga4/order-by.test.ts',

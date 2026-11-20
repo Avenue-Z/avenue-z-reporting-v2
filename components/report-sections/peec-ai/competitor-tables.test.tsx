@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ExportModeProvider } from '@/components/export/export-mode'
-import { CompetitorUrlsBrandAbsentTable, type CompetitorUrlsBrandAbsentRow } from './content-impact-tables'
+import { CompetitorUrlsBrandAbsentTable, type CompetitorUrlsBrandAbsentRow } from './competitor-tables'
 
 // Section H.2 table: Citation Share and its period-over-period delta used to share
 // one cell (delta was not independently sortable). It is now split so the delta
