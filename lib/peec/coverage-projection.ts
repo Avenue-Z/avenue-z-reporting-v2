@@ -7,10 +7,11 @@
 import { cached } from '@/lib/cache'
 import { urlJoinKey } from '@/lib/url'
 import { isOwnedHost, ownedHostKeys } from './owned-hosts'
+import { isBrandAbsent } from './competitor-tables'
 import {
   aggregateDomainCoverage, fetchAllPagesChecked, walkWithD21Retry, get, getUrlCitations, hostOf, last30,
   normalizeEngine, post, resolveYourBrandIds, CITATION_MAX_PAGES, CITATION_PAGE_SIZE,
-  type ApiUrlRow, type DomainCoverage,
+  type ApiUrlRow, type DomainCoverage, type UrlCitation,
 } from './url-citations'
 
 export type OtherSite = { urlKey: string; url: string; citationCount: number; namesCompetitor: boolean }
@@ -31,6 +32,36 @@ export const EMPTY_COVERAGE_PROJECTION: CoverageProjection = {
 }
 
 const TOP_OTHER_SITES = 3
+
+/** Gap-table urls whose prompt ids the projection keeps. H2 renders the top 10; 50 leaves headroom (M7). */
+export const GAP_URL_KEYS_LIMIT = 50
+/** Warn well before Next's 2 MB data-cache limit (FB-069), so growth is seen before caching silently stops. */
+export const PROJECTION_WARN_BYTES = 1_500_000
+
+/** Usable for a coverage number: a complete walk (D-21) that returned some data (else `--`). */
+export function coverageAvailable(c: CoverageProjection): boolean {
+  return c.complete && (Object.keys(c.promptIdsByDomain).length > 0 || Object.keys(c.tagIdsByDomain).length > 0)
+}
+
+/**
+ * The gap table's candidate urls: brand-absent, competitor-naming, top GAP_URL_KEYS_LIMIT by
+ * citations. Same filter and order as buildBrandAbsentRows, so its top 10 are always inside.
+ */
+export function topGapUrlKeys(citations: UrlCitation[]): Set<string> {
+  return new Set(
+    citations.filter(isBrandAbsent)
+      .sort((a, b) => b.citationCount - a.citationCount)
+      .slice(0, GAP_URL_KEYS_LIMIT)
+      .map((c) => c.urlKey),
+  )
+}
+
+export function warnIfProjectionLarge(p: CoverageProjection, label: string): void {
+  const bytes = JSON.stringify(p).length
+  if (bytes > PROJECTION_WARN_BYTES) {
+    console.warn(`[coverage-projection] ${label}: projection is ${bytes} bytes, near Next's 2 MB cache limit`)
+  }
+}
 
 function pick<T>(o: Record<string, T> | undefined, keep: (k: string) => boolean): Record<string, T> {
   return Object.fromEntries(Object.entries(o ?? {}).filter(([k]) => keep(k)))
@@ -157,24 +188,25 @@ async function getCoverageProjectionImpl(
     byClass('COMPETITOR').map((x) => urlJoinKey(x.domain)).filter((k): k is string => k !== null),
   )
 
-  return projectCoverage({
+  const projection = projectCoverage({
     promptRows: promptWalk.rows,
     tagRows: tagRes.data ?? [],
     tagNameById: Object.fromEntries((tagsRes.data ?? []).map((t) => [t.id, t.name])),
     ownedHosts: ownedHostKeys(byClass('OWN')),
     competitorDomains,
-    // The gap table's rows (D-10 window): brand-absent URLs that name a competitor.
-    gapUrlKeys: new Set(
-      citations.filter((c) => !c.mentionsYourBrand && c.competitorBrandNames.length > 0).map((c) => c.urlKey),
-    ),
+    // The gap table's rows (D-10 window): brand-absent URLs that name a competitor, top 50 (M7).
+    gapUrlKeys: topGapUrlKeys(citations),
     yourBrandIds: resolveYourBrandIds(brandsRes.data ?? [], yourBrand),
     complete: promptWalk.complete,
     duplicateRows: promptWalk.duplicateRows,
   })
+  warnIfProjectionLarge(projection, `getCoverageProjection(${clientSlug ?? 'default'})`)
+  return projection
 }
 
 const getCoverageProjectionCached = cached('peec', 'getCoverageProjection', getCoverageProjectionImpl, {
-  version: 'v1',
+  version: 'v2', // v2: promptIdsByUrlKey keeps only the top 50 gap urls (M7), not every brand-absent url
+
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 

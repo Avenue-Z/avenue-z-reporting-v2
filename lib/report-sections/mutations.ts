@@ -11,6 +11,11 @@ import type { PartRegistry, ReportSectionConfig, ResolvedPart, SectionOverride, 
 /** Blocks hidden from clients unless an admin opens them per client (clientVisible). */
 export const INTERNAL_ONLY_BLOCKS = ['prompt-gaps'] as const
 
+/** The one viewKey each internal-only block lives under; setClientVisible writes nowhere else. */
+export const INTERNAL_ONLY_BLOCK_VIEW_KEYS: Record<(typeof INTERNAL_ONLY_BLOCKS)[number], string> = {
+  'prompt-gaps': 'peec-ai:content-impact',
+}
+
 /** When re-saving a section override, preserve a prior sharedParts opt-in if the new
  *  payload doesn't set one. An explicit sharedParts in `next` wins. Keeps a body-only
  *  edit from dropping a client's commentary (shared-part) opt-in.

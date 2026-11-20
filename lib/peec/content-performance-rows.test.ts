@@ -121,3 +121,19 @@ describe('blankCountsByColumn', () => {
     expect(c.citationShare).toBe(0)
   })
 })
+
+describe('unlinked calendar pages (M4)', () => {
+  it('a bare-path page with no owned domain keeps its slug, has no URL, and Peec-joined cells are --', () => {
+    const [r] = buildContentPerformanceRows(base({
+      pages: [page({ urlKey: '/blog/x', url: null })],
+      coverage: cov({ '/blog/x': ['p1'] }),
+      current: () => ({ aiReferred: 3, organic: 4, engagementRate: 0.5 }),
+    }))
+    expect(r.url).toBeNull()
+    expect(r.slug).toBe('/blog/x')
+    expect(r.title).toBe('Topic A')
+    expect(r.promptCoverage).toBeNull()
+    expect(r.citationShare).toBeNull()
+    expect(r.aiReferred).toBe(3)
+  })
+})

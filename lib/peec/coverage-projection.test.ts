@@ -16,7 +16,9 @@ vi.mock('./url-citations', async (orig) => ({
 
 import {
   projectCoverage, getCoverageProjection, EMPTY_COVERAGE_PROJECTION,
+  coverageAvailable, topGapUrlKeys, warnIfProjectionLarge, GAP_URL_KEYS_LIMIT, PROJECTION_WARN_BYTES,
 } from './coverage-projection'
+import type { UrlCitation } from './url-citations'
 
 const row = (url: string, prompt: string, model: string, extra: Partial<ApiUrlRow> = {}): ApiUrlRow => ({
   url, classification: 'OTHER', title: null, channel_title: null,
@@ -206,5 +208,51 @@ describe('getCoverageProjection', () => {
   it('exports an empty placeholder', () => {
     expect(EMPTY_COVERAGE_PROJECTION.complete).toBe(true)
     expect(EMPTY_COVERAGE_PROJECTION.otherSitesByPrompt).toEqual({})
+  })
+})
+
+describe('coverageAvailable (M3)', () => {
+  it('needs a complete walk with some data', () => {
+    const data = { ...EMPTY_COVERAGE_PROJECTION, promptIdsByDomain: { 'x.com': ['p1'] } }
+    expect(coverageAvailable(data)).toBe(true)
+    expect(coverageAvailable({ ...data, complete: false })).toBe(false)
+    expect(coverageAvailable(EMPTY_COVERAGE_PROJECTION)).toBe(false)
+    expect(coverageAvailable({ ...EMPTY_COVERAGE_PROJECTION, tagIdsByDomain: { 'x.com': ['t'] } })).toBe(true)
+  })
+})
+
+describe('topGapUrlKeys (M7)', () => {
+  const c = (urlKey: string, n: number, o: Partial<UrlCitation> = {}): UrlCitation => ({
+    url: `https://${urlKey}`, urlKey, domain: 'o.com', classification: 'x', title: null, citationCount: n,
+    citationRate: 0, citationAvg: 0, engines: [], mentionedBrandIds: [], competitorBrandNames: ['Rival'],
+    mentionsYourBrand: false, ...o,
+  })
+  it(`keeps only the top ${50} brand-absent competitor-naming urls by citations`, () => {
+    const cits = [
+      ...Array.from({ length: 60 }, (_, i) => c(`o.com/${i}`, i)),
+      c('o.com/mine', 999, { mentionsYourBrand: true }),
+      c('o.com/nocomp', 998, { competitorBrandNames: [] }),
+    ]
+    const keys = topGapUrlKeys(cits)
+    expect(GAP_URL_KEYS_LIMIT).toBe(50)
+    expect(keys.size).toBe(50)
+    expect(keys.has('o.com/59')).toBe(true)
+    expect(keys.has('o.com/10')).toBe(true)
+    expect(keys.has('o.com/9')).toBe(false)
+    expect(keys.has('o.com/mine')).toBe(false)
+    expect(keys.has('o.com/nocomp')).toBe(false)
+  })
+})
+
+describe('warnIfProjectionLarge (M9)', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+  it('warns over 1.5 MB and stays quiet under it', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    warnIfProjectionLarge(EMPTY_COVERAGE_PROJECTION, 's')
+    expect(warn).not.toHaveBeenCalled()
+    const big = { ...EMPTY_COVERAGE_PROJECTION, tagNameById: { t: 'x'.repeat(PROJECTION_WARN_BYTES) } }
+    warnIfProjectionLarge(big, 's')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(PROJECTION_WARN_BYTES).toBe(1_500_000)
   })
 })

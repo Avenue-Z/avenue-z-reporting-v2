@@ -7,7 +7,7 @@ import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { applyClientVisible, INTERNAL_ONLY_BLOCKS, applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { applyClientVisible, INTERNAL_ONLY_BLOCKS, INTERNAL_ONLY_BLOCK_VIEW_KEYS, applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { lookup } from '@/lib/report-sections/registry'
 import { resolveSection } from '@/lib/report-sections/resolve'
@@ -104,6 +104,11 @@ export async function setClientVisible(
   if (session.user.role !== 'INTERNAL_ADMIN') return { ok: false, error: 'forbidden' }
   if (!(INTERNAL_ONLY_BLOCKS as readonly string[]).includes(blockId)) {
     return { ok: false, error: `unknown internal-only block ${blockId}` }
+  }
+  // A server action takes whatever the wire sends: check the shape, and only the block's own viewKey.
+  if (typeof visible !== 'boolean') return { ok: false, error: 'invalid' }
+  if (viewKey !== INTERNAL_ONLY_BLOCK_VIEW_KEYS[blockId as keyof typeof INTERNAL_ONLY_BLOCK_VIEW_KEYS]) {
+    return { ok: false, error: 'invalid' }
   }
   const client = await getClientBySlug(slug)
   if (!client) return { ok: false, error: 'client not found' }

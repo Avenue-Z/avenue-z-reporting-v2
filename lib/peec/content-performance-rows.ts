@@ -18,7 +18,8 @@ export type PathMetrics = {
 export type ContentPerformanceRow = {
   key: string
   title: string
-  url: string
+  /** null = unlinked: a bare calendar path with no owned domain to resolve it against (M4). */
+  url: string | null
   slug: string
   badge: AzBadge | null
   publishDate: string | null
@@ -61,9 +62,11 @@ export function engagementRateByPath(
   return out
 }
 
-function pathOf(url: string, urlKey: string): string {
-  try { return normPath(new URL(url).pathname) }
-  catch { return normPath('/' + urlKey.split('/').slice(1).join('/')) }
+function pathOf(url: string | null, urlKey: string): string {
+  if (url) {
+    try { return normPath(new URL(url).pathname) } catch { /* fall through to the key */ }
+  }
+  return normPath('/' + urlKey.split('/').slice(1).join('/'))
 }
 
 function pctChange(cur: number | null, prior: number | null): number | null {
@@ -108,27 +111,30 @@ export function buildContentPerformanceRows(input: {
   return keys.map((key): ContentPerformanceRow => {
     const cal = az.get(key)
     const peec = cited.get(key) ?? owned.rows.find((r) => r.urlKey === key)
-    const url = cal?.url ?? peec?.url ?? `https://${key}`
+    // M4: an unlinked calendar page (bare path, no owned domain) keeps its slug but has no URL,
+    // and its key is a path, so the Peec joins (keyed host/path) can't be made: those cells are --.
+    const unlinked = !!cal && cal.url === null
+    const url = cal ? cal.url : (peec?.url ?? `https://${key}`)
     const path = pathOf(url, key)
     const cur = current(path)
     const pri = prior ? prior(path) : null
 
-    const promptCoverage = coveragePct(coverage, key, totalTrackedPrompts)
-    const citationShare = sharePct(owned, key)
+    const promptCoverage = unlinked ? null : coveragePct(coverage, key, totalTrackedPrompts)
+    const citationShare = unlinked ? null : sharePct(owned, key)
     const engagementRate = cur.engagementRate
 
     return {
       key,
-      title: cal?.topic || peec?.title || labelFromPath(url),
+      title: cal?.topic || peec?.title || labelFromPath(url ?? key),
       url,
       slug: path,
       badge: cal ? cal.badge : null,
       publishDate: cal?.publishDate ?? null,
       lastOptimizedDate: cal?.lastOptimizedDate ?? null,
       promptCoverage,
-      promptCoverageDelta: diff(promptCoverage, coveragePct(coveragePrior, key, totalTrackedPrompts)),
+      promptCoverageDelta: unlinked ? null : diff(promptCoverage, coveragePct(coveragePrior, key, totalTrackedPrompts)),
       citationShare,
-      citationShareDelta: diff(citationShare, sharePct(ownedPrior, key)),
+      citationShareDelta: unlinked ? null : diff(citationShare, sharePct(ownedPrior, key)),
       aiReferred: cur.aiReferred,
       aiReferredDelta: pctChange(cur.aiReferred, pri?.aiReferred ?? null),
       organic: cur.organic,

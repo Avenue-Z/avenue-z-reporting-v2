@@ -12,7 +12,8 @@ export type AzBadge = 'new' | 'optimized' | 'new-optimized' | 'other'
 
 export type CalendarPage = {
   urlKey: string
-  url: string
+  /** Live URL; null for a bare path with no owned domain to resolve it against (shown unlinked). */
+  url: string | null
   topic: string
   contentType: string
   published: boolean
@@ -60,11 +61,12 @@ export function toCalendarPages(
   rows: ContentCalendarRow[],
   primaryOwnedDomain: string | null,
 ): CalendarPage[] {
-  const groups = new Map<string, { url: string; rows: ContentCalendarRow[] }>()
+  const groups = new Map<string, { url: string | null; rows: ContentCalendarRow[] }>()
   for (const row of rows) {
     const url = resolveCalendarUrl(row.url, primaryOwnedDomain)
-    const key = urlJoinKey(url)
-    if (!url || !key) continue
+    // M4: with no owned domain (Peec overview failed) a bare path is kept, keyed by its path, unlinked.
+    const key = urlJoinKey(url ?? row.url)
+    if (!key) continue
     const g = groups.get(key)
     if (g) g.rows.push(row)
     else groups.set(key, { url, rows: [row] })
@@ -79,19 +81,21 @@ export function toCalendarPages(
         latestRow = r
       }
     }
+    // M1: only a Published row's date is a publish or optimize date; a planned row's isn't.
+    const live = rs.filter((r) => isPublished(r.status))
     return {
       urlKey,
       url,
       topic: latestRow.topic,
       contentType: latestRow.contentType,
-      published: rs.some((r) => isPublished(r.status)),
+      published: live.length > 0,
       badge: badgeFor(rs),
       // D-19: Publish Date is the only calendar date; updateDate is not used.
       publishDate: earliest(
-        rs.filter((r) => r.contentAction !== 'optimized').map((r) => r.publishDate),
+        live.filter((r) => r.contentAction !== 'optimized').map((r) => r.publishDate),
       ),
       lastOptimizedDate: latest(
-        rs.filter((r) => r.contentAction === 'optimized').map((r) => r.publishDate),
+        live.filter((r) => r.contentAction === 'optimized').map((r) => r.publishDate),
       ),
     }
   })

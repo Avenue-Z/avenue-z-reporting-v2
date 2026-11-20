@@ -9,7 +9,7 @@ import type { TopDomain, PeecOverview } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import { getUrlCitations, getOwnedUrlCitations, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
 import { planOwnedCitations, OWNED_UNAVAILABLE } from '@/lib/peec/owned-citations-plan'
-import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION } from '@/lib/peec/coverage-projection'
+import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION, coverageAvailable as isCoverageUsable } from '@/lib/peec/coverage-projection'
 import { buildContentPerformanceRows, engagementRateByPath, normPath } from '@/lib/peec/content-performance-rows'
 import { toCalendarPages } from '@/lib/content-calendar/pages'
 import { urlJoinKey } from '@/lib/url'
@@ -566,14 +566,10 @@ export async function ContentImpactReport({
   // host — not trackedPrompts[].sources, which are AI-engine ids, never domains.
   // coverageAvailable distinguishes a known 0 (domain cited by no prompt/theme)
   // from missing data (fetch failed / unconfigured / demo) → only the former
-  // shows 0; the latter stays --.
+  // shows 0; the latter stays --. An incomplete walk (D-21) is missing data too (M3).
   const totalTrackedPrompts = peecData?.trackedPrompts.length ?? 0
-  const coverageAvailable =
-    Object.keys(coverage.promptIdsByDomain).length > 0 ||
-    Object.keys(coverage.tagIdsByDomain).length > 0
-  const coveragePriorAvailable =
-    Object.keys(coveragePrior.promptIdsByDomain).length > 0 ||
-    Object.keys(coveragePrior.tagIdsByDomain).length > 0
+  const coverageAvailable = isCoverageUsable(coverage)
+  const coveragePriorAvailable = isCoverageUsable(coveragePrior)
 
   // Citation-count-weighted avg citations-per-answer per domain (§F owned pages).
   // host key is www-stripped + lowercased to match avgCitationsByDomain()/domainTagNames().

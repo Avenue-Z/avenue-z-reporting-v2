@@ -202,6 +202,20 @@ describe('clientVisible guards', () => {
     expect(h.set).not.toHaveBeenCalled()
   })
 
+  test('setClientVisible rejects a non-boolean visible (H1)', async () => {
+    for (const v of ['true', 1, null, undefined] as unknown[]) {
+      const r = await setClientVisible('acme', VK, 'prompt-gaps', v as boolean)
+      expect(r).toEqual({ ok: false, error: 'invalid' })
+    }
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setClientVisible requires the block\'s own viewKey (H1)', async () => {
+    const r = await setClientVisible('acme', 'peec-ai:pr-influence', 'prompt-gaps', true)
+    expect(r).toEqual({ ok: false, error: 'invalid' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
   test('setClientVisible persists for INTERNAL_ADMIN', async () => {
     const r = await setClientVisible('acme', VK, 'prompt-gaps', true)
     expect(r.ok).toBe(true)

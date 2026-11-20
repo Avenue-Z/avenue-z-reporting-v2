@@ -159,9 +159,16 @@ export function humanisePageType(classification: string | null | undefined): str
  */
 export function toCompetitorGapRows(
   rows: BrandAbsentRow[],
-  opts: { audience: ReportAudience; coverageOk: boolean; promptTextById: Map<string, string> },
+  opts: {
+    audience: ReportAudience
+    coverageOk: boolean
+    promptTextById: Map<string, string>
+    /** Only these prompts count (M6): the walk can cite prompts no longer tracked, which have no text. */
+    trackedPromptIds: Set<string>
+  },
 ): CompetitorGapRow[] {
   return rows.map((r) => {
+    const ids = r.promptIds.filter((id) => opts.trackedPromptIds.has(id))
     const row: CompetitorGapRow = {
       domain: r.domain,
       articleTitle: r.articleTitle,
@@ -170,10 +177,10 @@ export function toCompetitorGapRows(
       citationShareDelta: r.citationShareDelta,
       competitorsMentioned: r.competitorsMentioned,
       pageTypeLabel: humanisePageType(r.pageType),
-      promptCount: opts.coverageOk ? r.promptIds.length : null,
+      promptCount: opts.coverageOk ? ids.length : null,
     }
     if (opts.audience === 'internal' && opts.coverageOk) {
-      row.prompts = r.promptIds.map((id) => opts.promptTextById.get(id)).filter((t): t is string => !!t)
+      row.prompts = ids.map((id) => opts.promptTextById.get(id)).filter((t): t is string => !!t)
     }
     return row
   })

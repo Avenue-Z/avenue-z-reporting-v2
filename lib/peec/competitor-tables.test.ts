@@ -110,7 +110,7 @@ describe('toCompetitorGapRows (D-15 data boundary)', () => {
   const promptTextById = new Map([['p1', 'first prompt text'], ['p2', 'second prompt text']])
 
   it('client rows carry only the count: no prompt ids, no prompt text', () => {
-    const rows = toCompetitorGapRows(base, { audience: 'client', coverageOk: true, promptTextById })
+    const rows = toCompetitorGapRows(base, { audience: 'client', coverageOk: true, promptTextById, trackedPromptIds: new Set(['p1', 'p2']) })
     expect(rows[0]).toEqual({
       domain: 'x.com', articleTitle: 'a', url: 'https://x.com/a', citationShare: 25, citationShareDelta: 5,
       competitorsMentioned: 'Acme', pageTypeLabel: 'Article', promptCount: 2,
@@ -121,7 +121,7 @@ describe('toCompetitorGapRows (D-15 data boundary)', () => {
     expect(wire).not.toContain('promptIds')
   })
   it('internal rows also carry the prompt texts, looked up by id', () => {
-    const rows = toCompetitorGapRows(base, { audience: 'internal', coverageOk: true, promptTextById })
+    const rows = toCompetitorGapRows(base, { audience: 'internal', coverageOk: true, promptTextById, trackedPromptIds: new Set(['p1', 'p2']) })
     expect(rows[0].promptCount).toBe(2)
     expect(rows[0].prompts).toEqual(['first prompt text', 'second prompt text'])
     expect(rows[1].prompts).toEqual([])
@@ -129,7 +129,7 @@ describe('toCompetitorGapRows (D-15 data boundary)', () => {
   })
   it('an unusable coverage walk renders the count as -- (null), never 0, and shows no prompts', () => {
     for (const audience of ['client', 'internal'] as const) {
-      const rows = toCompetitorGapRows(base, { audience, coverageOk: false, promptTextById })
+      const rows = toCompetitorGapRows(base, { audience, coverageOk: false, promptTextById, trackedPromptIds: new Set(['p1', 'p2']) })
       expect(rows.every((r) => r.promptCount === null && r.prompts === undefined)).toBe(true)
     }
   })
@@ -138,7 +138,20 @@ describe('toCompetitorGapRows (D-15 data boundary)', () => {
 describe('a null Peec classification (vendor JSON) does not throw', () => {
   it('builds the gap row with page type null', () => {
     const rows = buildBrandAbsentRows({ citations: [mk('n', { classification: null })], citationsPrior: null, coverage: urlCov, showDelta: false })
-    const [row] = toCompetitorGapRows(rows, { audience: 'client', coverageOk: true, promptTextById: new Map() })
+    const [row] = toCompetitorGapRows(rows, { audience: 'client', coverageOk: true, promptTextById: new Map(), trackedPromptIds: new Set() })
     expect(row.pageTypeLabel).toBeNull()
+  })
+})
+
+describe('toCompetitorGapRows counts tracked prompts only (M6)', () => {
+  const rows = buildBrandAbsentRows({ citations, citationsPrior: prior, coverage: urlCov, showDelta: true })
+  const promptTextById = new Map([['p1', 'first prompt text'], ['p2', 'second prompt text']])
+  it('an id outside the tracked set is not counted, so the client count equals the internal list length', () => {
+    const trackedPromptIds = new Set(['p1'])
+    const client = toCompetitorGapRows(rows, { audience: 'client', coverageOk: true, promptTextById, trackedPromptIds })
+    const internal = toCompetitorGapRows(rows, { audience: 'internal', coverageOk: true, promptTextById, trackedPromptIds })
+    expect(client[0].promptCount).toBe(1)
+    expect(internal[0].prompts).toEqual(['first prompt text'])
+    expect(client[0].promptCount).toBe(internal[0].prompts!.length)
   })
 })

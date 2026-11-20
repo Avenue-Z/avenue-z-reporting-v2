@@ -5,6 +5,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { ContentPerformanceRow } from '@/lib/peec/content-performance-rows'
 import { ContentPerformanceTable } from './content-performance-table'
+import { ExportModeProvider } from '@/components/export/export-mode'
 
 function row(over: Partial<ContentPerformanceRow>): ContentPerformanceRow {
   return {
@@ -87,4 +88,23 @@ test('the Published header tooltip states the V1 rule', () => {
   fireEvent.focus(within(th as HTMLElement).getByText('?'))
   const tip = screen.getAllByText(/Status is exactly "Published"/)
   expect(tip.length).toBeGreaterThan(0)
+})
+
+test('an unlinked page (no URL) renders its slug as text, not a link (M4)', () => {
+  renderTable([row({ key: 'u', title: 'Unlinked', url: null, slug: '/blog/x', scopes: ['az', 'all'] })])
+  expect(screen.getByText('/blog/x')).toBeTruthy()
+  expect(screen.queryByRole('link')).toBeNull()
+})
+
+test('in the PDF export the active scope prints as a label, not two buttons (M5)', () => {
+  render(
+    <ExportModeProvider>
+      <TooltipProvider>
+        <ContentPerformanceTable rows={ROWS} ga4Connected calendarConnected />
+      </TooltipProvider>
+    </ExportModeProvider>,
+  )
+  expect(screen.queryByRole('button', { name: 'Avenue Z content' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'All cited pages' })).toBeNull()
+  expect(screen.getByText('Avenue Z content')).toBeTruthy()
 })

@@ -7,8 +7,11 @@ import type { AzBadge } from '@/lib/content-calendar/pages'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { renderDelta } from './content-impact-tables'
 import { GA4 } from '@/lib/peec/metric-definitions'
+import { useExportMode } from '@/components/export/export-mode'
 
 type Scope = 'az' | 'all'
+
+const SCOPES = [['az', 'Avenue Z content'], ['all', 'All cited pages']] as const
 
 const BADGE_LABEL: Record<AzBadge, string> = {
   new: 'New',
@@ -69,15 +72,20 @@ const COLUMNS: SortableColumn<ContentPerformanceRow>[] = [
     render: (r) => (
       <div className="max-w-[260px]">
         <span className="block truncate font-medium text-white" title={r.title}>{r.title}</span>
-        <a
-          href={r.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block truncate text-[10px] text-white/40 underline-offset-2 hover:text-white/70 hover:underline"
-          title={r.url}
-        >
-          {r.slug}
-        </a>
+        {r.url ? (
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block truncate text-[10px] text-white/40 underline-offset-2 hover:text-white/70 hover:underline"
+            title={r.url}
+          >
+            {r.slug}
+          </a>
+        ) : (
+          // No owned domain to resolve a bare calendar path against (M4): the slug, unlinked.
+          <span className="block truncate text-[10px] text-white/40" title={r.slug}>{r.slug}</span>
+        )}
       </div>
     ),
   },
@@ -107,6 +115,8 @@ export function ContentPerformanceTable({
   calendarConnected: boolean
 }) {
   const [scope, setScope] = useState<Scope>('az')
+  // The PDF export prints the active scope as a label rather than two buttons (as slope-chart does).
+  const exportMode = useExportMode()
   const visible = rows.filter((r) => r.scopes.includes(scope))
 
   const emptyMessage = scope === 'az'
@@ -123,8 +133,11 @@ export function ContentPerformanceTable({
           See where each page is represented in AI citations, how often it is being retrieved, and whether that exposure is translating into referral traffic and meaningful on-site behavior.
         </p>
       </div>
+      {exportMode ? (
+        <p data-export-toggle-label="" className="text-xs font-semibold text-white">{SCOPES.find(([v]) => v === scope)![1]}</p>
+      ) : (
       <div role="group" aria-label="Content scope" className="inline-flex w-fit gap-1 rounded-lg border border-white/[0.06] p-0.5">
-        {([['az', 'Avenue Z content'], ['all', 'All cited pages']] as const).map(([value, label]) => (
+        {SCOPES.map(([value, label]) => (
           <button
             key={value}
             type="button"
@@ -139,6 +152,7 @@ export function ContentPerformanceTable({
           </button>
         ))}
       </div>
+      )}
       <SortableTable
         columns={COLUMNS}
         rows={visible}

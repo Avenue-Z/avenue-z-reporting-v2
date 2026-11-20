@@ -39,6 +39,8 @@ export function PromptGapsBlock({
   clientSlug: string
 }) {
   if (audience === 'client' && !clientVisible) return null
+  // Clients never see error copy (M9b): an unusable result hides the block for them.
+  if (audience === 'client' && !result.ok) return null
   const showChip = audience === 'internal' && !clientVisible
 
   return (

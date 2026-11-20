@@ -40,7 +40,7 @@ describe('toCalendarPages', () => {
     const pages = toCalendarPages(
       [
         row({ contentAction: 'new', publishDate: '2026-03-04' }),
-        row({ contentAction: 'optimized', publishDate: '2026-06-12', status: 'Live' }),
+        row({ contentAction: 'optimized', publishDate: '2026-06-12' }),
       ],
       DOMAIN,
     )
@@ -88,10 +88,14 @@ describe('toCalendarPages', () => {
     expect(pub[0].published).toBe(true)
   })
 
-  it('drops rows without a resolvable URL', () => {
-    expect(
-      toCalendarPages([row({ url: null }), row({ url: '/x' })], null),
-    ).toEqual([])
+  it('drops rows without a URL', () => {
+    expect(toCalendarPages([row({ url: null })], DOMAIN)).toEqual([])
+  })
+
+  it('keeps a bare path as an unlinked page when there is no owned domain (M4)', () => {
+    const pages = toCalendarPages([row({ url: '/Blog/X/' }), row({ url: '/blog/x', contentAction: 'optimized' })], null)
+    expect(pages).toHaveLength(1)
+    expect(pages[0]).toMatchObject({ urlKey: '/blog/x', url: null, badge: 'new-optimized' })
   })
 
   it('takes topic/contentType from the latest-dated row, ties to the last row', () => {
@@ -118,6 +122,30 @@ describe('toCalendarPages', () => {
       [row({ contentAction: 'optimized', publishDate: null, updateDate: '2026-09-09' })],
       DOMAIN,
     )[0]
+    expect(p.lastOptimizedDate).toBeNull()
+  })
+})
+
+describe('toCalendarPages dates come from Published rows only (M1)', () => {
+  it('a planned row\'s date is neither Published nor Last optimized', () => {
+    const [p] = toCalendarPages(
+      [
+        row({ contentAction: 'new', publishDate: '2026-01-01', status: 'Planned' }),
+        row({ contentAction: 'new', publishDate: '2026-02-01', status: 'Published' }),
+        row({ contentAction: 'optimized', publishDate: '2026-09-01', status: 'In progress' }),
+        row({ contentAction: 'optimized', publishDate: '2026-05-01', status: 'Published' }),
+      ],
+      DOMAIN,
+    )
+    expect(p.publishDate).toBe('2026-02-01')
+    expect(p.lastOptimizedDate).toBe('2026-05-01')
+  })
+  it('a page with no Published row has no dates', () => {
+    const [p] = toCalendarPages(
+      [row({ publishDate: '2026-01-01', status: 'Planned' }), row({ contentAction: 'optimized', publishDate: '2026-02-01', status: 'Live' })],
+      DOMAIN,
+    )
+    expect(p.publishDate).toBeNull()
     expect(p.lastOptimizedDate).toBeNull()
   })
 })

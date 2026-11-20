@@ -58,6 +58,7 @@ export async function CompetitorGapsSection({
     audience,
     coverageOk: !!coverage?.complete,
     promptTextById: audience === 'internal' ? new Map(trackedPrompts.map((p) => [p.id, p.text])) : new Map(),
+    trackedPromptIds: new Set(trackedPrompts.map((p) => p.id)),
   })
 
   return (

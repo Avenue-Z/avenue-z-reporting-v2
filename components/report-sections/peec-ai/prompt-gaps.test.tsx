@@ -89,3 +89,11 @@ test('caller gate: internal and client + On compute; no Peec data does not', () 
   expect(gatedPromptGaps({ audience: 'internal', clientVisible: true, hasPeecData: false }, compute)).toBeNull()
   expect(compute).toHaveBeenCalledTimes(2)
 })
+
+test('client + visible + incomplete or unavailable renders nothing, no error copy (M9b)', () => {
+  for (const reason of ['incomplete', 'unavailable'] as const) {
+    const { container, unmount } = renderBlock({ audience: 'client', clientVisible: true, result: { ok: false, reason } })
+    expect(container.innerHTML).toBe('')
+    unmount()
+  }
+})
