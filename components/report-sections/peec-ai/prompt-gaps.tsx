@@ -1,59 +1,29 @@
-import type { PromptGapRow, PromptGapStatus, PromptGapsResult } from '@/lib/peec/prompt-gaps'
+import type { PromptGapsResult } from '@/lib/peec/prompt-gaps'
 import type { ReportAudience } from './ctx'
-import { SortableTable, type SortableColumn } from './sortable-table'
+import { PromptGapsTable } from './prompt-gaps-table'
 import { ClientVisibleSwitch } from './client-visible-switch'
 
 export const PROMPT_GAPS_VIEW_KEY = 'peec-ai:content-impact'
 export const PROMPT_GAPS_BLOCK_ID = 'prompt-gaps'
 
-const STATUS_LABEL: Record<PromptGapStatus, string> = {
-  'not-cited': 'Not cited',
-  lost: 'Lost',
-  declining: 'Declining',
+/** Data boundary: prompt text is computed only when this is true (client viewers need the block switched on). */
+export function shouldComputePromptGaps({ audience, clientVisible }: { audience: ReportAudience; clientVisible: boolean }): boolean {
+  return audience === 'internal' || clientVisible
 }
-const STATUS_ORDER: Record<PromptGapStatus, number> = { 'not-cited': 0, lost: 1, declining: 2 }
+
+/** Gaps result for the caller, or null when they must not be computed. `compute` is not called when gated off. */
+export function gatedPromptGaps(
+  input: { audience: ReportAudience; clientVisible: boolean; hasPeecData: boolean },
+  compute: () => PromptGapsResult,
+): PromptGapsResult | null {
+  if (!input.hasPeecData || !shouldComputePromptGaps(input)) return null
+  return compute()
+}
 
 const ERROR_COPY = {
   incomplete: "Prompt data from Peec came back incomplete, so gaps aren't shown. This usually clears on the next refresh.",
   unavailable: "Prompt data from Peec couldn't be loaded.",
 } as const
-
-function host(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
-}
-
-const COLUMNS: SortableColumn<PromptGapRow>[] = [
-  { key: 'text', label: 'Prompt', accessor: (r) => r.text.toLowerCase(), render: (r) => <span className="text-white">{r.text}</span> },
-  { key: 'topic', label: 'Topic', accessor: (r) => r.topic.toLowerCase(), render: (r) => r.topic || '--' },
-  {
-    key: 'status', label: 'Status',
-    accessor: (r) => STATUS_ORDER[r.status],
-    render: (r) => <span className="whitespace-nowrap text-xs font-semibold text-white">{STATUS_LABEL[r.status]}</span>,
-  },
-  {
-    key: 'otherSites', label: 'Other sites cited', sortable: false,
-    render: (r) => r.otherSites.length === 0 ? '--' : (
-      <div className="flex flex-col gap-0.5">
-        {r.otherSites.map((s) => (
-          <div key={s.url} className="flex items-center gap-1.5">
-            <a href={s.url} target="_blank" rel="noopener noreferrer" title={s.url}
-              className="max-w-[240px] truncate text-[11px] text-white/60 underline-offset-2 hover:text-white hover:underline">
-              {host(s.url)}
-            </a>
-            {s.namesCompetitor && (
-              <span className="rounded bg-[#FF6B6B]/10 px-1 py-0.5 text-[10px] font-bold text-[#FF6B6B]">competitor</span>
-            )}
-          </div>
-        ))}
-        {r.otherSitesMore > 0 && <span className="text-[10px] text-white/40">{`+${r.otherSitesMore}`}</span>}
-      </div>
-    ),
-  },
-]
 
 export function PromptGapsBlock({
   result,
@@ -90,15 +60,7 @@ export function PromptGapsBlock({
         )}
       </div>
       {result.ok ? (
-        <SortableTable
-          columns={COLUMNS}
-          rows={result.rows}
-          rowKey={(r) => r.promptId}
-          initialPageSize={10}
-          defaultSortKey="status"
-          defaultSortDir="asc"
-          emptyMessage="No prompt gaps in this period"
-        />
+        <PromptGapsTable rows={result.rows} />
       ) : (
         <p className="text-xs text-text-muted">{ERROR_COPY[result.reason]}</p>
       )}

@@ -37,9 +37,9 @@ import {
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 import { auth } from '@/auth'
 import { getClientBySlug } from '@/lib/db/queries'
-import { computePromptGaps, DEFAULT_DECLINE_THRESHOLD, type PromptGapsResult } from '@/lib/peec/prompt-gaps'
+import { computePromptGaps, DEFAULT_DECLINE_THRESHOLD } from '@/lib/peec/prompt-gaps'
 import { isClientVisible } from '@/lib/report-sections/mutations'
-import { PromptGapsBlock, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID } from './prompt-gaps'
+import { PromptGapsBlock, gatedPromptGaps, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID } from './prompt-gaps'
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -1062,23 +1062,21 @@ export async function ContentImpactReport({
   const gapsClientVisible = isClientVisible(gapsConfig, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID)
   const gapsSession = sessionResult.status === 'fulfilled' ? sessionResult.value : null
   const canToggleGaps = audience === 'internal' && gapsSession?.user?.role === 'INTERNAL_ADMIN'
-  let promptGaps: PromptGapsResult | null = null
-  if (peecData && !(audience === 'client' && !gapsClientVisible)) {
+  const promptGaps = gatedPromptGaps({ audience, clientVisible: gapsClientVisible, hasPeecData: !!peecData }, () => {
     const gapsPrevious = compareRange === 'previous_period'
       ? (coveragePriorResult.status === 'fulfilled' ? coveragePriorResult.value : null)
       : (coverageGapsPriorResult.status === 'fulfilled' ? coverageGapsPriorResult.value : null)
-    if (coverageResult.status !== 'fulfilled' || !gapsPrevious) {
-      promptGaps = { ok: false, reason: 'unavailable' }
-    } else {
-      promptGaps = computePromptGaps({
-        prompts: peecData.trackedPrompts,
-        coverage: coverageResult.value,
-        coveragePrevious: gapsPrevious,
-        models: models && models.length > 0 ? models : null,
-        declineThreshold: gapsConfig?.[PROMPT_GAPS_VIEW_KEY]?.thresholds?.['prompt-gaps.decline'] ?? DEFAULT_DECLINE_THRESHOLD,
-      })
+    if (coverageResult.status !== 'fulfilled' || !gapsPrevious || !peecData) {
+      return { ok: false, reason: 'unavailable' }
     }
-  }
+    return computePromptGaps({
+      prompts: peecData.trackedPrompts,
+      coverage: coverageResult.value,
+      coveragePrevious: gapsPrevious,
+      models: models && models.length > 0 ? models : null,
+      declineThreshold: gapsConfig?.[PROMPT_GAPS_VIEW_KEY]?.thresholds?.['prompt-gaps.decline'] ?? DEFAULT_DECLINE_THRESHOLD,
+    })
+  })
 
   // ── Render ────────────────────────────────────────────────────────────────
 

@@ -4,7 +4,8 @@ import { expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { PromptGapsResult } from '@/lib/peec/prompt-gaps'
-import { PromptGapsBlock } from './prompt-gaps'
+import { PromptGapsBlock, gatedPromptGaps } from './prompt-gaps'
+import { isClientVisible } from '@/lib/report-sections/mutations'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 vi.mock('@/app/actions/report-sections', () => ({ setClientVisible: vi.fn(async () => ({ ok: true })) }))
@@ -70,4 +71,21 @@ test('statuses, column header, competitor mark and +n', () => {
   expect(screen.getByText('Other sites cited')).toBeTruthy()
   expect(screen.getAllByText('competitor')).toHaveLength(1)
   expect(screen.getByText('+2')).toBeTruthy()
+})
+
+test('caller gate: client + Off never computes; rejected config (null) stays hidden', () => {
+  const compute = vi.fn(() => RESULT)
+  // getClientBySlug rejected -> config null -> not visible
+  const visible = isClientVisible(null, 'peec-ai:content-impact', 'prompt-gaps')
+  expect(gatedPromptGaps({ audience: 'client', clientVisible: visible, hasPeecData: true }, compute)).toBeNull()
+  expect(compute).not.toHaveBeenCalled()
+})
+
+test('caller gate: internal and client + On compute; no Peec data does not', () => {
+  const compute = vi.fn(() => RESULT)
+  expect(gatedPromptGaps({ audience: 'internal', clientVisible: false, hasPeecData: true }, compute)).toBe(RESULT)
+  expect(gatedPromptGaps({ audience: 'client', clientVisible: true, hasPeecData: true }, compute)).toBe(RESULT)
+  expect(compute).toHaveBeenCalledTimes(2)
+  expect(gatedPromptGaps({ audience: 'internal', clientVisible: true, hasPeecData: false }, compute)).toBeNull()
+  expect(compute).toHaveBeenCalledTimes(2)
 })
