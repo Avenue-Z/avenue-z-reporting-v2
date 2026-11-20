@@ -1122,3 +1122,42 @@ The tab: spec `docs/superpowers/specs/2026-11-12-aeo-informed-social-tab-design.
   (`lib/organic-social/aeo-tab/params.ts`), so on the 2nd MoM is the 1st alone, compared with the one day before. A
   client on locked months always gets a full month, so Renaissance is not affected. Settle it from the outline before
   the tab goes on for a client without locked months.
+
+## Known Follow-ups: Social Listening tab (from PR #468)
+
+The tab: `lib/organic-social/social-listening/ENGINEERS.md`. Opt in per client; on for the dev database's client only,
+none on staging or production.
+
+- [ ] **Rollout, each step on my go.** Migration `0030_social_listening` and the setting are on the dev client only
+  (2026-11-19), with the history backfill. Next staging (Savannah uploads November and checks against her files),
+  production after Savannah and Jasmine approve on staging (spec section 13).
+- [ ] **The history backfill is written and applied on dev only.** The guarded script lives outside this repo
+  (dev or staging only, pinned to each Neon endpoint; dry run by default; one all-or-nothing insert; refuses a client
+  that already has history rows; rollback deletes only rows tagged `history-sheet (...)`), with its own tests on an
+  in-memory Postgres. Past months are taken as the client was shown them, never from a fresh Talkwalker pull: the
+  history sheet now holds January to October as charted in the October report as sent (September's tiles from the
+  September report), every row checked against those decks and Confirmed. Applied on dev 2026-11-19 (16 rows, read
+  back equal); staging and production wait on the rollout steps. A row written outside the app shows on the page after
+  the page read's 5 minute cache (`getSlMonthRows`, `store.ts`).
+- [ ] **Phase 2, paid sentiment** (spec section 12, plan P2.1 to P2.4): the paid ad comment sheet is shared with the
+  service account and readable (2026-11-19); each month tab's column E is the comment. Next, a spec addendum.
+  `socialListening.paidSheet` is reserved for it.
+- [ ] **A cap can pass by one under two writes in the same instant.** Two approvals can pass the month's 12 posts and two
+  screenshot uploads a post's 4 images (READ COMMITTED; neon-http holds no row lock). The page shows the first 12 and the
+  first 4, so a client never sees more.
+- [ ] **The health sweep and the cache warmer do not reach the tab**, as for the AEO tab.
+- [ ] **Keyword appendix is free text.** The two boxes exist (`b-keywords`, `i-keywords`); a structured keyword list per
+  topic is for me and Savannah to align on (team call, 2026-11-19).
+- [ ] **Colours.** Media type colours by name are my choice (unknown types get a grey fallback). The brand cloud maps
+  the five theme colours the October brand export uses to sentiment; any other colour shows unlabelled.
+- [x] **RESOLVED: the tab looks like the approved mockup.** Its stylesheet (`sl.module.css`, scoped to this tab), its
+  charts (`artifact-charts.tsx`, the same SVG), its analysis box (`analysis.tsx`, a drop-in for CommentaryPanel through
+  `monthlyCommentary`'s `Panel`), its post cards and its trends are ported from `docs/social-listening/mock.template.html`.
+  Every other tab keeps the standard look.
+- [ ] **Still to check in a browser: a real client login and a PDF export.** Checked on dev, 2026-11-19, with the real
+  October brand and industry exports and the history rows: both pills, the year-to-date charts drawing earlier months from
+  the history rows, the changes against the September report, the staff note on a month with a report on record, Preview
+  as client both ways, an analysis editor, the live month's "Upload opens when November 2026 ends.", sl kept by the month
+  picker, no console or server errors, Renaissance unchanged. Open: a `CLIENT_VIEWER` login, and a PDF export (check that
+  the post screenshots print, #475).
+

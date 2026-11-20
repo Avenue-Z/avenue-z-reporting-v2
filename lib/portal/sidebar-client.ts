@@ -2,6 +2,7 @@ import type { Client } from '@/lib/db/schema'
 import { parseInfluencerSection } from '@/lib/organic-social/influencer-section'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { aeoSettingProblem, hasAeoInformedTab, logMalformedAeoSetting } from '@/lib/organic-social/aeo-tab/setting'
+import { hasSocialListeningTab, logMalformedSocialListeningSetting, socialListeningSettingProblem } from '@/lib/organic-social/social-listening/setting'
 
 /** The only client fields the portal sidebar reads. The sidebar is a client component, so its
  *  props are sent to the browser of whoever is logged in, client users included. Nothing
@@ -18,12 +19,18 @@ export type PortalSidebarClient = Pick<Client, 'slug' | 'name' | 'logoUrl' | 'en
   /** Whether the client has the AEO Informed Social tab (hasAeoInformedTab on the full row). Only the boolean leaves the server: never the
    *  Peec project id, never the setting. */
   aeoInformedTab: boolean
+  /** Whether the client has the Social Listening tab (hasSocialListeningTab on the full row). Only the boolean leaves the server, never the
+   *  setting. Sent only when true, so the record of every client without the tab (Renaissance included) is exactly as before; a record
+   *  without it is no tab, because the trimmed dashSocialConfig never carries the setting. */
+  socialListeningTab?: boolean
 }
 
 /** The one place that decides what of a client record reaches the portal's browser. */
 export function toPortalSidebarClient(client: Client): PortalSidebarClient {
   const aeoProblem = aeoSettingProblem(client)
   if (aeoProblem) logMalformedAeoSetting(client.slug, aeoProblem)
+  const slProblem = socialListeningSettingProblem(client)
+  if (slProblem) logMalformedSocialListeningSetting(client.slug, slProblem)
   return {
     slug: client.slug,
     name: client.name,
@@ -35,6 +42,7 @@ export function toPortalSidebarClient(client: Client): PortalSidebarClient {
       : null,
     lockedMonths: hasReportingMonths(client),
     aeoInformedTab: hasAeoInformedTab(client),
+    ...(hasSocialListeningTab(client) ? { socialListeningTab: true } : {}),
   }
 }
 

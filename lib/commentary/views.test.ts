@@ -107,3 +107,19 @@ test('the AEO Informed Social tab has its own Insights key and no Recommendation
   expect(isCommentaryViewKey('organic-social:aeo-informed:recommendations')).toBe(false)
   expect(COMMENTARY_VIEWS['organic-social:aeo-informed']).toEqual({ label: 'Organic Social, AEO Informed Social', owner: 'Jasmine / Kyleah' })
 })
+
+describe('Social Listening analysis box keys (spec section 9)', () => {
+  test('every box key is canonical, has a "Social Listening, ..." entry and no Recommendations key', async () => {
+    const { SL_BOX_IDS, slBoxViewKey } = await import('@/lib/organic-social/social-listening/boxes')
+    expect(SL_BOX_IDS).toHaveLength(26)
+    for (const id of SL_BOX_IDS) {
+      const k = slBoxViewKey(id)
+      expect(isCommentaryViewKey(k)).toBe(true)
+      expect(COMMENTARY_VIEWS[k]).toEqual({ label: expect.stringMatching(/^Social Listening, /), owner: 'Savannah / Jasmine' })
+      expect(recommendationsViewKeyFor(k)).toBeNull()
+    }
+  })
+  test('no route resolves to a box key: boxes are rendered by the tab, not by a route', () => {
+    expect(resolveCommentaryView('organic-social', 'social-listening')).toBe('organic-social')
+  })
+})

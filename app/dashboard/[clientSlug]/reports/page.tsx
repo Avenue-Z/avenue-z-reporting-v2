@@ -43,6 +43,8 @@ import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organ
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 import { requireStaff } from '@/lib/auth/page-access'
 import { parseAeoMin, parseAeoRange, type AeoRange } from '@/lib/organic-social/aeo-tab/params'
+import { parseSlPreview, parseSlTopic } from '@/lib/organic-social/social-listening/params'
+import type { SlTopic } from '@/lib/organic-social/social-listening/types'
 
 function getReportComponent(
   slug: ReportSlug,
@@ -58,6 +60,9 @@ function getReportComponent(
   // The AEO Informed Social tab's aeo= and aeomin=, handed to the section on that tab only (every other tab's props are unchanged).
   aeo: AeoRange = 'month',
   aeoMin = 2,
+  // The Social Listening tab's sl= (its open pill), handed to the section on that tab only.
+  sl: SlTopic = 'brand',
+  slPreview = false,
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -95,7 +100,7 @@ function getReportComponent(
       if (subsection === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slPreview ? { slPreview: true } : {}) } : {})} />
     default:
       return null
   }
@@ -128,14 +133,16 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string }>
 }) {
   const { clientSlug } = await params
   await requireStaff()
-  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam } = await searchParams
+  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
+  const sl = parseSlTopic(slParam)
+  const slPreview = parseSlPreview(slViewParam)
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -216,7 +223,7 @@ export default async function ReportPage({
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
   if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
-    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin)
+    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)
     return (
       <HealthProbe
         surface="dashboard"
@@ -237,6 +244,8 @@ export default async function ReportPage({
     // Kept through the redirect, so a viewer's YTD or min is not reset to the default (Review Focus 1); a default value is left out.
     if (aeo !== 'month') sp.set('aeo', aeo)
     if (aeoMin !== 2)    sp.set('aeomin', String(aeoMin))
+    if (sl !== 'brand') sp.set('sl', sl)
+    if (slPreview) sp.set('slview', 'client')
     if (healthParam)     sp.set('health', healthParam)
     sp.set('dateRange', locked.month.dateRange)
     redirect(`/dashboard/${clientSlug}/reports?${sp.toString()}`)
@@ -328,8 +337,8 @@ export default async function ReportPage({
             identically to a plain Overview visit, or it forces a needless remount
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin)}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)}
         </Suspense>
       </ReportErrorBoundary>
     </TooltipProvider>

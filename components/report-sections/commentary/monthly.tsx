@@ -7,16 +7,23 @@ import { firstOf, lastOf, monthTitle, viewerForRole } from '@/lib/organic-social
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { CommentaryPanel } from './commentary-panel'
 import { emptyMonthText, type CommentaryLabels } from '@/lib/commentary/labels'
+import type { CommentaryEntry } from '@/lib/commentary/types'
+import type { ComponentProps, ComponentType } from 'react'
 
 type MonthlyClient = { id: string; slug: string; dashSocialConfig?: unknown }
 
 /** A commentary box (Insights or Recommendations, per `labels`) for a locked-months client on an Organic Social
  *  view (spec 3.9, 4.7). A client-role viewer is a client whatever the email: approved entries of the served month
  *  only, ending by the newest month they can see, redacted, no history. Resolves the month with the same inputs and
- *  clock as the section, so both serve the same month. */
-export async function monthlyCommentary({ client, role, email, viewKey, requestedRange, labels }: {
+ *  clock as the section, so both serve the same month. `entries`, when given, are rows already read for several boxes
+ *  at once (the Social Listening tab's one prefix read, spec 2026-11-19 section 9): the box keeps the rows of its own
+ *  view key and makes no query. Without it the box reads its own view, as every other caller does. */
+export async function monthlyCommentary({ client, role, email, viewKey, requestedRange, labels, entries: prefetched, Panel = CommentaryPanel }: {
   client: MonthlyClient; role: unknown; email: string | null; viewKey: CommentaryViewKey; requestedRange: string | undefined
-  labels: CommentaryLabels
+  labels: CommentaryLabels; entries?: CommentaryEntry[]
+  /** The box that renders the entries. Default: CommentaryPanel, as every report uses. The Social Listening tab passes its
+   *  own (the approved mockup's look) with the same props and the same commentary actions. */
+  Panel?: ComponentType<ComponentProps<typeof CommentaryPanel>>
 }) {
   const viewer = viewerForRole(role)
   const capabilities = viewer === 'team'
@@ -28,11 +35,11 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
   if (!month) {
     if (!capabilities.canEdit) return null
     return (
-      <CommentaryPanel clientSlug={client.slug} viewKey={viewKey} entries={[]} initialId={null} clientEntryId={null}
+      <Panel clientSlug={client.slug} viewKey={viewKey} entries={[]} initialId={null} clientEntryId={null}
         capabilities={capabilities} history={[]} emptyText="No reporting months yet" labels={labels} />
     )
   }
-  const all = await getCommentaryForView(client.id, viewKey)
+  const all = prefetched ? prefetched.filter((e) => e.viewKey === viewKey) : await getCommentaryForView(client.id, viewKey)
   const visible = visibleEntries(all, capabilities)
   const cutoff = viewer === 'client' ? lastOf(locked!.months[0].key) : null
   const eligible = eligibleEntries(visible, month.key, cutoff)
@@ -50,7 +57,7 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
     ? Object.fromEntries(eligible.flatMap((e) => { const n = clientOpensNote(e, cfg, clock); return n ? [[e.id, n]] : [] }))
     : undefined
   return (
-    <CommentaryPanel
+    <Panel
       key={month.key}
       clientSlug={client.slug}
       viewKey={viewKey}

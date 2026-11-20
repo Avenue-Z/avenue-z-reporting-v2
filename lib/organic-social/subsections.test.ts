@@ -5,9 +5,11 @@ import type { Client, DashSocialConfig } from '@/lib/db/schema'
 const client = (over: Partial<Client> = {}): Client =>
   ({ dashSocialConfig: { brandId: 1, channels: undefined }, hiddenReports: [], ...over } as Client)
 
-test('order is Overview, Influencer, Instagram, Facebook, LinkedIn, X, TikTok, AEO Informed Social', () => {
+// The full id list changed on purpose (Social Listening spec 2026-11-19, section 14): 'organic-social-listening' is added last. It is
+// offered only by hasSocialListeningTab, so a client without the setting gets the same tabs as before.
+test('order is Overview, Influencer, Instagram, Facebook, LinkedIn, X, TikTok, AEO Informed Social, Social Listening', () => {
   expect(ORGANIC_SOCIAL_SUBSECTIONS.map((s) => s.id)).toEqual(
-    [null, 'organic-influencer', 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x', 'organic-tiktok', 'organic-aeo-informed'],
+    [null, 'organic-influencer', 'organic-instagram', 'organic-facebook', 'organic-linkedin', 'organic-x', 'organic-tiktok', 'organic-aeo-informed', 'organic-social-listening'],
   )
 })
 

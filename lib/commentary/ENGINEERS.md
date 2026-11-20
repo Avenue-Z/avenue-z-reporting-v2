@@ -30,6 +30,10 @@ Search, Meta, LinkedIn, Organic Social, and one per Organic Social platform subp
 new Dash channel gets its view for free. A client only reaches the TikTok view if its channel
 allowlist names TikTok.
 
+The Social Listening tab adds one view per analysis box (26, `organic-social:social-listening:<box id>`, the fixed list
+in `lib/organic-social/social-listening/boxes.ts`). The tab reads all of them in one query
+(`getCommentaryForViewPrefix`) and hands each box its rows through `monthlyCommentary`'s `entries`.
+
 ---
 
 ## Render path — read this first

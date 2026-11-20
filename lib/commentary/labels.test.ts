@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { INSIGHTS_LABELS, INSIGHTS_OUTLINE, RECOMMENDATIONS_LABELS, addText, emptyMonthText, emptyText, untouchedOutline } from './labels'
+import { ANALYSIS_LABELS, INSIGHTS_LABELS, INSIGHTS_OUTLINE, KEYWORD_LABELS, RECOMMENDATIONS_LABELS, addText, emptyMonthText, emptyText, untouchedOutline } from './labels'
 
 test('the Insights wording', () => {
   expect(INSIGHTS_LABELS).toEqual({ title: 'Insights', noun: 'insights', outline: INSIGHTS_OUTLINE })
@@ -41,4 +41,13 @@ test('the untouched-outline guard: only a non-null outline can be untouched', ()
   expect(untouchedOutline('<p>Real words</p>', INSIGHTS_OUTLINE)).toBe(false)
   expect(untouchedOutline('', null)).toBe(false)
   expect(untouchedOutline('<p></p>', null)).toBe(false)
+})
+
+test('the Social Listening analysis and keyword wording (spec section 9): no outline', () => {
+  expect(ANALYSIS_LABELS).toEqual({ title: 'Analysis', noun: 'analysis', outline: null })
+  expect(addText(ANALYSIS_LABELS)).toBe('Add analysis')
+  expect(emptyMonthText(ANALYSIS_LABELS, 'October 2026')).toBe('No analysis for October 2026 yet')
+  expect(KEYWORD_LABELS).toEqual({ title: 'Keywords in this topic', noun: 'keywords', outline: null })
+  expect(addText(KEYWORD_LABELS)).toBe('Add keywords')
+  expect(JSON.parse(JSON.stringify(KEYWORD_LABELS))).toEqual(KEYWORD_LABELS)
 })

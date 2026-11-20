@@ -1,4 +1,5 @@
 import { CHANNELS, CHANNEL_LABEL, type DashChannel } from '@/lib/organic-social/metrics'
+import { SL_BOX_IDS, SL_BOX_SECTION, slBoxViewKey, type SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 
 /** Per-channel Organic Social commentary key, e.g. 'organic-social:instagram'. The Overview
  *  (all channels) keeps the bare 'organic-social' key; each platform subpage gets its own. */
@@ -9,6 +10,10 @@ export type OrgSocialChannelViewKey = `organic-social:${Lowercase<DashChannel>}`
 export type OrgSocialRecommendationsViewKey =
   | 'organic-social:recommendations'
   | `organic-social:${Lowercase<DashChannel>}:recommendations`
+
+/** One analysis box of the Social Listening tab (spec 2026-11-19, section 9), e.g.
+ *  'organic-social:social-listening:b-kpis'. The ids are the fixed list in social-listening/boxes.ts. */
+export type SocialListeningViewKey = `organic-social:social-listening:${SlBoxId}`
 
 /** Canonical identity for an in-scope commentary view. Stable across the four
  *  report route files, which address the same report under inconsistent
@@ -25,6 +30,7 @@ export type CommentaryViewKey =
   | OrgSocialRecommendationsViewKey
   | 'organic-social:influencer'
   | 'organic-social:aeo-informed'
+  | SocialListeningViewKey
 
 /** The commentary key for a single Organic Social platform subpage. */
 export function orgSocialChannelViewKey(channel: DashChannel): OrgSocialChannelViewKey {
@@ -98,6 +104,12 @@ const ORG_SOCIAL_RECOMMENDATION_VIEWS = Object.fromEntries([
   ]),
 ]) as Record<OrgSocialRecommendationsViewKey, { label: string; owner: string }>
 
+/** The Social Listening analysis boxes: one entry per box, so the write path accepts exactly these keys. No
+ *  Recommendations keys (recommendationsViewKeyFor returns null for every box). */
+const SOCIAL_LISTENING_VIEWS = Object.fromEntries(
+  SL_BOX_IDS.map((id) => [slBoxViewKey(id), { label: `Social Listening, ${SL_BOX_SECTION[id]}`, owner: 'Savannah / Jasmine' }]),
+) as Record<SocialListeningViewKey, { label: string; owner: string }>
+
 /** Display label + service owner per view (owners per the PRD). */
 export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner: string }> = {
   'peec-ai': { label: 'AEO Overview', owner: 'Melena' },
@@ -114,6 +126,8 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   'organic-social:influencer': { label: 'Organic Social — Influencer', owner: 'Jasmine / Kyleah' },
   // The AEO Informed Social tab (spec 2026-11-12): its own Insights. The outline lists Insights only, so no Recommendations key.
   'organic-social:aeo-informed': { label: 'Organic Social, AEO Informed Social', owner: 'Jasmine / Kyleah' },
+  // The Social Listening tab (spec 2026-11-19, section 9): one Analysis box per chart and section.
+  ...SOCIAL_LISTENING_VIEWS,
 }
 
 /** Runtime guard: is this string one of the canonical view keys? Used to reject

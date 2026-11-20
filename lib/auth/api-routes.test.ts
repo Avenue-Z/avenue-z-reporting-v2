@@ -38,6 +38,9 @@ const ROUTES = [
   'api/perf/boundary',
   'api/shopify/callback',
   'api/shopify/install',
+  // Social Listening screenshots (Organic Social): checks the session, the client and the post itself, outside the proxy
+  // matcher; 404 for anything the viewer may not see (lib/organic-social/social-listening/image-access.ts).
+  'api/social-listening/image/[id]',
 ]
 
 test('every API route is listed here, so adding one is deliberate', () => {

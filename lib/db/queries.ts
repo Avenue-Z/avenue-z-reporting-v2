@@ -1,5 +1,5 @@
 import { cache } from 'react'
-import { eq, and, lt, isNotNull, desc } from 'drizzle-orm'
+import { eq, and, lt, isNotNull, desc, like } from 'drizzle-orm'
 import { db } from './client'
 import { clients, users, healthState, smDimensionValueCache, dashboardShares, sectionTemplates, reportCommentary, type Client, type User, type ClientRole, type ReportCommentary } from './schema'
 import type { SectionTemplate } from '@/lib/report-sections/types'
@@ -291,6 +291,25 @@ export const getCommentaryForView = cache(
       .select()
       .from(reportCommentary)
       .where(and(eq(reportCommentary.clientId, clientId), eq(reportCommentary.viewKey, viewKey)))
+      .orderBy(desc(reportCommentary.periodStart), desc(reportCommentary.updatedAt))
+    return rows.map(toCommentaryEntry)
+  },
+)
+
+/** LIKE treats `%`, `_` and the escape character `\` as special; escape them so a prefix matches only itself. */
+const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`)
+
+/** All commentary entries for a client whose view key starts with `prefix`, newest first, in one query. The Social
+ *  Listening tab reads its 26 analysis boxes with it ('organic-social:social-listening:', spec 2026-11-19 section 9)
+ *  and hands each box its own rows. React.cache only (per render), like getCommentaryForView; freshness after writes
+ *  comes from updateTag('db'). An empty prefix is refused: it would read every view of the client. */
+export const getCommentaryForViewPrefix = cache(
+  async (clientId: string, prefix: string): Promise<CommentaryEntry[]> => {
+    if (!prefix) throw new Error('getCommentaryForViewPrefix needs a non-empty prefix')
+    const rows = await db
+      .select()
+      .from(reportCommentary)
+      .where(and(eq(reportCommentary.clientId, clientId), like(reportCommentary.viewKey, `${escapeLike(prefix)}%`)))
       .orderBy(desc(reportCommentary.periodStart), desc(reportCommentary.updatedAt))
     return rows.map(toCommentaryEntry)
   },
