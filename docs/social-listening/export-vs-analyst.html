@@ -1,0 +1,115 @@
+<title>Social Listening: Who Fills What</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: one page, two equal columns (export | Savannah), stacking on phones. Avenue Z dark tokens. */
+:root {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #1c1c1c;
+  --fg: #FFFFFF;
+  --muted: #9A9A9A;
+  --line: rgba(255,255,255,0.09);
+  --cyan: #60FDFF;
+  --yellow: #FFFC60;
+  --font: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.eyebrow { margin: 0; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+h1 { margin: 6px 0 0; font-size: clamp(26px, 4vw, 36px); font-weight: 800; line-height: 1.15; text-wrap: balance; }
+.lede { margin: 12px 0 0; font-size: 16px; line-height: 1.55; color: rgba(255,255,255,0.82); max-width: 62ch; }
+.rule { height: 1px; margin: 24px 0 28px; background: linear-gradient(135deg, #FFFC60, #60FF80, #60FDFF, #39A0FF, #6034FF); }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.col { border-radius: 16px; border: 1px solid var(--line); background: var(--surface); padding: 22px 24px; min-width: 0; }
+.col.auto { border-top: 3px solid var(--cyan); }
+.col.you { border-top: 3px solid var(--yellow); }
+.col h2 { margin: 0; font-size: 20px; font-weight: 800; }
+.col .sub { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.col.auto h2 { color: var(--cyan); }
+.col.you h2 { color: var(--yellow); }
+.col h3 { margin: 20px 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+li { position: relative; padding-left: 20px; font-size: 15px; line-height: 1.45; }
+li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 7px; height: 7px; border-radius: 999px; }
+.auto li::before { background: var(--cyan); }
+.you li::before { background: var(--yellow); }
+li span { color: var(--muted); }
+.steps { margin-top: 28px; border-radius: 16px; border: 1px solid var(--line); padding: 20px 24px; }
+.steps h2 { margin: 0 0 12px; font-size: 16px; font-weight: 800; }
+.steps ol { margin: 0; padding-left: 22px; display: grid; gap: 6px; font-size: 15px; line-height: 1.45; }
+.open { margin: 16px 0 0; font-size: 14px; line-height: 1.55; color: var(--muted); }
+.open b { color: var(--fg); }
+@media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">A Place For Mom · Social Listening</p>
+  <h1>Upload the export. The dashboard fills in. You add the analysis.</h1>
+  <p class="lede">Each month Savannah uploads her two Talkwalker exports, brand and industry. Everything on the left fills in on its own. Everything on the right is hers to add, and a box she leaves empty doesn't show.</p>
+  <div class="rule"></div>
+
+  <div class="cols">
+    <section class="col auto">
+      <h2>Comes from the export</h2>
+      <p class="sub">Fills in automatically</p>
+      <h3>Brand</h3>
+      <ul>
+        <li>Results, unique authors, engagement, potential reach</li>
+        <li>Results over time</li>
+        <li>Sentiment split, with and without APFM's own channels</li>
+        <li>Sentiment by media type</li>
+        <li>Share of media types</li>
+        <li>Keyword theme cloud</li>
+        <li>Top 5 influencers, most active and most influential authors and sites</li>
+      </ul>
+      <h3>Industry</h3>
+      <ul>
+        <li>Results and results over time</li>
+        <li>Sentiment split, sentiment over time, sentiment by media type</li>
+        <li>Keyword theme cloud</li>
+      </ul>
+      <h3>Over time</h3>
+      <ul>
+        <li>Change vs last month <span>(from last month's upload)</span></li>
+        <li>Year-to-date sentiment, Reddit and industry charts <span>(from past uploads)</span></li>
+      </ul>
+    </section>
+
+    <section class="col you">
+      <h2>Savannah adds</h2>
+      <p class="sub">Optional boxes. Empty ones stay hidden.</p>
+      <h3>Every section</h3>
+      <ul>
+        <li>An analysis box under each chart or section</li>
+      </ul>
+      <h3>Her picks and writing</h3>
+      <ul>
+        <li>Top conversation themes, brand and industry</li>
+        <li>Most relevant posts: screenshot, link, note. As many as she wants</li>
+        <li>Key takeaways, brand and industry</li>
+      </ul>
+      <h3>Not in the export</h3>
+      <ul>
+        <li>Emerging, decreasing and new themes <span>(only on the Talkwalker screen)</span></li>
+        <li>Sentiment without Stacker and PR earned coverage <span>(no export sheet yet)</span></li>
+        <li>Reddit posts <span>(Reddit can't be exported, so screenshots)</span></li>
+        <li>Paid ads comments <span>(not from Talkwalker)</span></li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="steps">
+    <h2>Savannah's month</h2>
+    <ol>
+      <li>Finish her cleanup in Talkwalker.</li>
+      <li>Export the brand and industry dashboards.</li>
+      <li>Upload both. The dashboard checks the month, the topic and that every total adds up before anything shows.</li>
+      <li>Add her analysis, posts and takeaways.</li>
+    </ol>
+    <p class="open"><b>Still to agree:</b> whether "vs last month" means September as Talkwalker shows it today, or September as the client saw it in the report.</p>
+  </section>
+</div>

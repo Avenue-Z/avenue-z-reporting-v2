@@ -24,6 +24,10 @@ export const INSIGHTS_OUTLINE =
 export const INSIGHTS_LABELS: CommentaryLabels = { title: 'Insights', noun: 'insights', outline: INSIGHTS_OUTLINE }
 // No outline yet: the box opens empty until the team writes one (Paul, #334 round 2; my call, 2026-10-07).
 export const RECOMMENDATIONS_LABELS: CommentaryLabels = { title: 'Recommendations', noun: 'recommendations', outline: null }
+// The Social Listening tab's analysis boxes (spec 2026-11-19, section 9): one shared wording for every chart and section
+// box, no outline. The two keyword appendix boxes are titled for what they hold.
+export const ANALYSIS_LABELS: CommentaryLabels = { title: 'Analysis', noun: 'analysis', outline: null }
+export const KEYWORD_LABELS: CommentaryLabels = { title: 'Keywords in this topic', noun: 'keywords', outline: null }
 
 const strip = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 

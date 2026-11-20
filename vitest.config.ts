@@ -90,6 +90,7 @@ export default defineConfig({
       'components/report-sections/**/*.test.{ts,tsx}',
       'lib/aeo-outbound/**/*.test.{ts,tsx}',
       'app/api/aeo-outbound/**/*.test.{ts,tsx}',
+      'app/api/social-listening/**/*.test.{ts,tsx}',
       'app/tools/**/*.test.{ts,tsx}',
       'app/snapshot/**/*.test.{ts,tsx}',
       'components/aeo-outbound/**/*.test.{ts,tsx}',
