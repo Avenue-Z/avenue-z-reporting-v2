@@ -172,8 +172,8 @@ const BOT_TO_MODEL: Record<string, AEOModel> = {
 
 /** Section C's four cards. In the PDF export the Fastest and Slowest URLs, which are the answer, print in full (the theme
  *  un-truncates inside data-export-wrap) and break anywhere, since a URL has no spaces; live they stay one truncated line. */
-export function TimeToFirstCards({ medFirstTraffic, medFirstAi, fastestAi, slowestAi, fastestAiUrl, slowestAiUrl }: {
-  medFirstTraffic: number | null
+export function TimeToFirstCards({ medFirstSearch, medFirstAi, fastestAi, slowestAi, fastestAiUrl, slowestAiUrl }: {
+  medFirstSearch: number | null
   medFirstAi: number | null
   fastestAi: number | null
   slowestAi: number | null
@@ -183,10 +183,10 @@ export function TimeToFirstCards({ medFirstTraffic, medFirstAi, fastestAi, slowe
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-export-block="" data-export-wrap="">
       {[
-        { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic, sourceUrl: null as string | null },
-        { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
-        { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
-        { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
+        { icon: Clock, label: 'Median days to first search visit',     color: '#39A0FF', val: medFirstSearch, sourceUrl: null as string | null },
+        { icon: Clock, label: 'Median days to first AI-referred visit', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
+        { icon: TrendingUp,   label: 'Fastest to first AI-referred visit',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
+        { icon: TrendingDown, label: 'Slowest to first AI-referred visit',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
       ].map(({ icon: Icon, label, color, val, sourceUrl }) => (
         <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
           <Icon className="h-4 w-4" style={{ color }} />
@@ -592,19 +592,21 @@ export async function ContentImpactReport({
     return aiRefByPath.get(np) ?? 0
   }
 
-  // ── §C · time-to-first-traffic / first-AI-activity (GA4-4) ───────────────────
-  // Keys off planned content (URL + publish date). One date-bucketed GA4 query,
-  // restricted to the planned paths over the window from the earliest publish
-  // date to today, feeds §C: days-to-first across URLs. Gated on the content
-  // calendar — without publish dates there is no URL spine to measure.
-  const isoDate = (s: string | null): string | null =>
-    s && /^\d{4}-\d{2}-\d{2}/.test(s.trim()) ? s.trim().slice(0, 10) : null
-  const plannedTiming = (calendarData?.rows ?? [])
-    .map(r => ({ path: extractPath(r.url), url: r.url ?? null, publishDate: isoDate(r.publishDate) }))
-    .filter((r): r is { path: string; url: string | null; publishDate: string } =>
-      r.path !== null && r.publishDate !== null)
+  // ── §C · time-to-first search visit / AI-referred visit (D-1, D-9) ───────────
+  // Universe: published, New (or New · Optimized) Avenue Z pages with a publish
+  // date, measured from publishDate. One date-bucketed GA4 query restricted to
+  // those paths, from the earliest publish date to today. Gated on the content
+  // calendar: without publish dates there is no URL spine to measure.
+  // ── Merged content performance table (D-5, D-17, D-18, D-19) ───────────────
+  const primaryOwnedDomain = (ownDomains[0]?.domain ?? '')
+    .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') || null
+  const calendarPages = toCalendarPages(calendarData?.rows ?? [], primaryOwnedDomain)
+  const plannedTiming = calendarPages
+    .filter(p => p.published && (p.badge === 'new' || p.badge === 'new-optimized') && p.publishDate)
+    .map(p => ({ path: extractPath(p.url), url: p.url, publishDate: p.publishDate as string }))
+    .filter((r): r is { path: string; url: string; publishDate: string } => r.path !== null)
 
-  const daysByPath = new Map<string, Map<string, { sessions: number; aiSessions: number }>>()
+  const daysByPath = new Map<string, Map<string, { aiSessions: number; searchSessions: number }>>()
   let timingOk = false
   if (plannedTiming.length > 0) {
     const today = new Date().toISOString().slice(0, 10)
@@ -622,7 +624,7 @@ export async function ContentImpactReport({
         clientSlug,
         dateRange: `${minPublish},${today}`,
         metrics: ['sessions'],
-        dimensions: ['pagePath', 'date', 'sessionSource'],
+        dimensions: ['pagePath', 'date', 'sessionSource', 'sessionDefaultChannelGroup'],
         dimensionFilter: { filter: { fieldName: 'pagePath', inListFilter: { values: filterValues } } },
         limit: 100000,
       })
@@ -634,9 +636,9 @@ export async function ContentImpactReport({
         const sessions = Number(row.sessions) || 0
         if (!daysByPath.has(path)) daysByPath.set(path, new Map())
         const byDate = daysByPath.get(path)!
-        const acc = byDate.get(iso) ?? { sessions: 0, aiSessions: 0 }
-        acc.sessions += sessions
+        const acc = byDate.get(iso) ?? { aiSessions: 0, searchSessions: 0 }
         if (isAiSource(row.sessionSource)) acc.aiSessions += sessions
+        if (String(row.sessionDefaultChannelGroup ?? '') === 'Organic Search') acc.searchSessions += sessions
         byDate.set(iso, acc)
       }
     } catch (e) {
@@ -652,10 +654,10 @@ export async function ContentImpactReport({
     ...computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
   }))
 
-  // §C aggregates (median days-to-first; fastest/slowest AI-indexed).
-  const firstTrafficDays = urlTimings.map(t => t.daysToFirstTraffic).filter((n): n is number => n !== null)
+  // §C aggregates (median days-to-first; fastest/slowest AI-referred).
+  const firstSearchDays = urlTimings.map(t => t.daysToFirstSearch).filter((n): n is number => n !== null)
   const firstAiDays = urlTimings.map(t => t.daysToFirstAi).filter((n): n is number => n !== null)
-  const medFirstTraffic = median(firstTrafficDays)
+  const medFirstSearch = median(firstSearchDays)
   const medFirstAi = median(firstAiDays)
   const fastestAi = firstAiDays.length ? Math.min(...firstAiDays) : null
   const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
@@ -942,10 +944,6 @@ export async function ContentImpactReport({
   const erByPath = ga4Rows ? engagementRateByPath(erRows(ga4Rows)) : null
   const erByPathPrior = ga4PerPathPriorRows ? engagementRateByPath(erRows(ga4PerPathPriorRows)) : null
 
-  // ── Merged content performance table (D-5, D-17, D-18, D-19) ───────────────
-  const primaryOwnedDomain = (ownDomains[0]?.domain ?? '')
-    .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') || null
-  const calendarPages = toCalendarPages(calendarData?.rows ?? [], primaryOwnedDomain)
   // A rejected coverage walk must render --, not 0%: EMPTY is "complete", so flag it incomplete.
   const rowsCoverage = coverageResult.status === 'fulfilled'
     ? coverage
@@ -1143,18 +1141,18 @@ export async function ContentImpactReport({
         calendarConnected={!!calendarData}
       />
 
-      {/* ── Section C: Time to First Traffic / AI Activity ─────────────────── */}
+      {/* ── Section C: Time to first search / AI-referred visit ─────────────────── */}
       <SectionCard
-        title="How quickly does new content earn traffic and AI citations?"
-        description="For each published URL, measures days from publish date to first GA4 session and first GA4 session referred by an AI assistant (ChatGPT, Claude, Perplexity, Gemini, etc.). Always measures publish date through today, independent of the page date range."
+        title="How quickly does new content get found?"
+        description="For new content: days from publish date to the first visit by a person arriving from search, and from an AI answer (ChatGPT, Perplexity, Gemini…). Crawler visits don't count. Measured from publish date to today, whatever range is selected."
       >
-        <TimeToFirstCards medFirstTraffic={medFirstTraffic} medFirstAi={medFirstAi} fastestAi={fastestAi} slowestAi={slowestAi}
+        <TimeToFirstCards medFirstSearch={medFirstSearch} medFirstAi={medFirstAi} fastestAi={fastestAi} slowestAi={slowestAi}
           fastestAiUrl={fastestAiUrl} slowestAiUrl={slowestAiUrl} />
         {!sectionCOk && (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
             <p className="text-xs text-text-muted">
               {calendarData
-                ? 'Connect GA4 to calculate days-to-first-traffic per planned URL'
+                ? 'Connect GA4 to calculate days-to-first-visit per planned URL'
                 : 'Requires content calendar publish dates + GA4 page-level first-session data'}
             </p>
           </div>
