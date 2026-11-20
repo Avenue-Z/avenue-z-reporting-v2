@@ -156,13 +156,32 @@ function getKey(): string {
   return key
 }
 
+const RETRY_AFTER_DEFAULT_S = 2
+const RETRY_AFTER_MAX_S = 10
+
+/**
+ * I1: one retry on HTTP 429, after `Retry-After` seconds (default 2 s, capped at 10 s).
+ * A coverage walk is several pages plus sibling requests, so one rate-limited page
+ * used to discard the whole walk.
+ */
+async function with429Retry(send: () => Promise<Response>): Promise<Response> {
+  const res = await send()
+  if (res.status !== 429) return res
+  // Missing (Number(null) is 0) or an HTTP-date value falls back to the default.
+  const raw = res.headers?.get('retry-after')
+  const header = raw == null || raw.trim() === '' ? NaN : Number(raw)
+  const waitS = Number.isFinite(header) && header >= 0 ? Math.min(header, RETRY_AFTER_MAX_S) : RETRY_AFTER_DEFAULT_S
+  await new Promise((r) => setTimeout(r, waitS * 1000))
+  return send()
+}
+
 export async function post<T>(path: string, body: Record<string, unknown>, pid?: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await with429Retry(() => fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'X-API-Key': getKey(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...(pid ? { project_id: pid } : {}), ...body }),
     cache: 'no-store',
-  })
+  }))
   if (!res.ok) throw new Error(`Peec.AI API error ${res.status}: ${path}`)
   return res.json()
 }
@@ -171,7 +190,7 @@ export async function get<T>(path: string, params: Record<string, string>, pid?:
   const url = new URL(`${BASE_URL}${path}`)
   if (pid) url.searchParams.set('project_id', pid)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
-  const res = await fetch(url.toString(), { headers: { 'X-API-Key': getKey() }, cache: 'no-store' })
+  const res = await with429Retry(() => fetch(url.toString(), { headers: { 'X-API-Key': getKey() }, cache: 'no-store' }))
   if (!res.ok) throw new Error(`Peec.AI API error ${res.status}: ${path}`)
   return res.json()
 }

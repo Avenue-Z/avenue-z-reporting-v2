@@ -97,17 +97,21 @@ describe('getCoverageProjection', () => {
   const PAGE = 10_000
   let promptWalks: number
   let handler: (offset: number, walk: number) => ApiUrlRow[]
+  /** When set, prompt-walk pages wait for it: holds a walk in flight. */
+  let gate: Promise<void> | null
 
   beforeEach(() => {
     getUrlCitationsMock.mockClear()
     process.env.PEEC_AI_CUSTOMER_TOKEN = 't'
     promptWalks = 0
+    gate = null
     vi.stubGlobal('fetch', vi.fn(async (input: string, init?: { body?: string }) => {
       const path = String(input).replace('https://api.peec.ai/customer/v1', '').split('?')[0]
       const body = init?.body ? JSON.parse(init.body) : {}
       let data: unknown[] = []
       if (path === '/reports/urls' && body.dimensions?.includes('prompt_id')) {
         if (body.offset === 0) promptWalks++
+        if (gate) await gate
         data = handler(body.offset, promptWalks)
       } else if (path === '/reports/domains') {
         data = [{ domain: 'x.com', classification: 'OWN' }]
@@ -173,6 +177,30 @@ describe('getCoverageProjection', () => {
     const p = await getCoverageProjection('s', opts)
     expect(getUrlCitationsMock).toHaveBeenCalledWith('s')
     expect(Object.keys(p.promptIdsByUrlKey)).toEqual(['other.com/gap'])
+  })
+
+  it('two concurrent calls for the same window share one walk (I1 in-flight dedupe)', async () => {
+    handler = () => [row('https://x.com/a', 'p1', 'openai-0')]
+    const [a, b] = await Promise.all([getCoverageProjection('s', opts), getCoverageProjection('s', opts)])
+    expect(promptWalks).toBe(1)
+    expect(a).toBe(b)
+    // Cleared on settle: the next call walks again.
+    await getCoverageProjection('s', opts)
+    expect(promptWalks).toBe(2)
+  })
+
+  it('a call for a different window while one is in flight walks on its own', async () => {
+    handler = () => [row('https://x.com/a', 'p1', 'openai-0')]
+    let release!: () => void
+    gate = new Promise<void>((r) => { release = r })
+    // Started one after the other, not in the same tick: the impl's dynamic import of
+    // '@/lib/db/queries' loads the real module when two first imports race in Vitest.
+    const a = getCoverageProjection('s', opts)
+    await vi.waitFor(() => expect(promptWalks).toBe(1))
+    const b = getCoverageProjection('s', { ...opts, endDate: '2026-01-29' })
+    await vi.waitFor(() => expect(promptWalks).toBe(2))
+    release()
+    await Promise.all([a, b])
   })
 
   it('exports an empty placeholder', () => {

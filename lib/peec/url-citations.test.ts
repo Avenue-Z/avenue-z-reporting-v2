@@ -19,6 +19,8 @@ import {
   countDuplicateUrlKeys,
   getOwnedUrlCitations,
   walkWithD21Retry,
+  post,
+  get,
   type ApiUrlRow,
   type DomainCoverage,
 } from './url-citations'
@@ -587,5 +589,73 @@ describe('walkWithD21Retry', () => {
     const out = await walkWithD21Retry(walk, 'x')
     expect(walk).toHaveBeenCalledTimes(1)
     expect(out.complete).toBe(false)
+  })
+})
+
+describe('Peec post/get: one retry on HTTP 429 (I1)', () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+
+  const res = (status: number, body: unknown = {}, retryAfter?: string) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(retryAfter === undefined ? {} : { 'Retry-After': retryAfter }),
+    json: async () => body,
+  })
+  /** Resolves true once `p` has settled; false while it's still waiting. */
+  const settled = async (p: Promise<unknown>) => {
+    let done = false
+    p.then(() => { done = true }, () => { done = true })
+    await vi.advanceTimersByTimeAsync(0)
+    return done
+  }
+
+  it('post waits Retry-After seconds, retries once, and returns the retry', async () => {
+    process.env.PEEC_AI_CUSTOMER_TOKEN = 't'
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(res(429, {}, '3'))
+      .mockResolvedValueOnce(res(200, { data: ['ok'] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const p = post<{ data: string[] }>('/reports/urls', {}, 'pid')
+    await vi.advanceTimersByTimeAsync(2_900)
+    expect(await settled(p)).toBe(false)
+    await vi.advanceTimersByTimeAsync(200)
+    await expect(p).resolves.toEqual({ data: ['ok'] })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('get defaults to 2 s without Retry-After', async () => {
+    process.env.PEEC_AI_CUSTOMER_TOKEN = 't'
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValueOnce(res(429)).mockResolvedValueOnce(res(200, { data: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const p = get<{ data: unknown[] }>('/tags', { limit: '500' }, 'pid')
+    await vi.advanceTimersByTimeAsync(1_900)
+    expect(await settled(p)).toBe(false)
+    await vi.advanceTimersByTimeAsync(200)
+    await expect(p).resolves.toEqual({ data: [] })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('caps a long Retry-After at 10 s', async () => {
+    process.env.PEEC_AI_CUSTOMER_TOKEN = 't'
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValueOnce(res(429, {}, '120')).mockResolvedValueOnce(res(200, { data: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const p = post('/reports/urls', {})
+    await vi.advanceTimersByTimeAsync(10_000)
+    await expect(p).resolves.toEqual({ data: [] })
+  })
+
+  it('a second 429 throws (one retry only)', async () => {
+    process.env.PEEC_AI_CUSTOMER_TOKEN = 't'
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValue(res(429, {}, '1'))
+    vi.stubGlobal('fetch', fetchMock)
+    const p = post('/reports/urls', {})
+    const assertion = expect(p).rejects.toThrow('Peec.AI API error 429')
+    await vi.advanceTimersByTimeAsync(1_000)
+    await assertion
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

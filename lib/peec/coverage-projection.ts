@@ -173,7 +173,24 @@ async function getCoverageProjectionImpl(
   })
 }
 
-export const getCoverageProjection = cached('peec', 'getCoverageProjection', getCoverageProjectionImpl, {
+const getCoverageProjectionCached = cached('peec', 'getCoverageProjection', getCoverageProjectionImpl, {
   version: 'v1',
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
+
+// I1: unstable_cache doesn't dedupe concurrent cold misses, and the Overview's two competitor
+// parts ask for the same window at once, so each would run its own full walk. Share one
+// promise per (client, window) while it's in flight; cleared when it settles.
+const inFlight = new Map<string, Promise<CoverageProjection>>()
+
+export function getCoverageProjection(
+  clientSlug: string | undefined,
+  opts: { startDate: string; endDate: string },
+): Promise<CoverageProjection> {
+  const key = JSON.stringify([clientSlug, opts.startDate, opts.endDate])
+  const pending = inFlight.get(key)
+  if (pending) return pending
+  const p = getCoverageProjectionCached(clientSlug, opts).finally(() => inFlight.delete(key))
+  inFlight.set(key, p)
+  return p
+}
