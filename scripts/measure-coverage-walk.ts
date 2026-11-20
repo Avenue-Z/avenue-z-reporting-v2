@@ -6,7 +6,7 @@ export {} // module scope
 // the JSON size of the aggregated coverage / owned-host subset.
 
 import { getClientBySlug } from '@/lib/db/queries'
-import { aggregateDomainCoverage, type ApiUrlRow } from '@/lib/peec/url-citations'
+import { aggregateDomainCoverage, getUrlCitations, normalizeEngine, type ApiUrlRow } from '@/lib/peec/url-citations'
 import { urlJoinKey } from '@/lib/url'
 
 const BASE = 'https://api.peec.ai/customer/v1'
@@ -58,11 +58,13 @@ async function main() {
   }
 
   // 1) prompt_id + model_id dimensioned walk
+  const t0 = Date.now()
   const dim = await walk(pid, { dimensions: ['prompt_id', 'model_id'] })
+  const walkMs = Date.now() - t0
   const dupDim = dupKeys(dim.rows, (r) => `${r.url}|${r.prompt?.id}|${r.model?.id ?? r.model_channel?.id}`)
   const cov = aggregateDomainCoverage(dim.rows, [], {})
   console.log('[prompt_id+model_id walk]')
-  console.log(`  total rows: ${dim.rows.length}; pages: ${dim.pages}; truncated: ${dim.truncated}`)
+  console.log(`  total rows: ${dim.rows.length}; pages: ${dim.pages}; truncated: ${dim.truncated}; wall ${walkMs} ms`)
   console.log(`  duplicate (url,prompt,model) keys: ${dupDim}`)
   console.log(`  aggregateDomainCoverage JSON length: ${JSON.stringify(cov).length} bytes`)
 
@@ -88,6 +90,93 @@ async function main() {
   })
   console.log(`  owned-host rows: ${owned.length}; JSON size: ${JSON.stringify(owned).length} bytes`)
   console.log(`  full base JSON size (for reference): ${JSON.stringify(base.rows).length} bytes`)
+
+  await projections(pid, slug, dim.rows, ownKeys, isOwned)
+}
+
+const hostOfUrl = (u: string): string | null => {
+  try { return new URL(u).hostname.replace(/^www\./i, '').toLowerCase() } catch { return (urlJoinKey(u) ?? '').split('/')[0] || null }
+}
+const bytes = (v: unknown) => JSON.stringify(v).length
+
+async function projections(
+  pid: string, slug: string, rows: ApiUrlRow[], ownKeys: string[],
+  isOwned: (h: string | null) => boolean,
+) {
+  console.log('[projection sizes, bytes]')
+  // Same tag walk as production getDomainCoverage (tag_id, limit 2000) + /tags.
+  const [tagRes, tagsRes, promptsRes, domRes] = await Promise.all([
+    post<{ data: ApiUrlRow[] }>('/reports/urls', { ...last30(), dimensions: ['tag_id'], limit: 2000 }, pid),
+    fetch(`${BASE}/tags?project_id=${pid}&limit=500`, { headers: { 'X-API-Key': process.env.PEEC_AI_CUSTOMER_TOKEN! }, cache: 'no-store' }).then((r) => r.json()) as Promise<{ data: { id: string; name: string }[] }>,
+    fetch(`${BASE}/prompts?project_id=${pid}&limit=1`, { headers: { 'X-API-Key': process.env.PEEC_AI_CUSTOMER_TOKEN! }, cache: 'no-store' }).then((r) => r.json()) as Promise<{ totalCount?: number; data?: unknown[] }>,
+    post<{ data: { domain: string; classification: string; citation_count: number }[] }>('/reports/domains', { ...last30(), limit: 5000 }, pid),
+  ])
+  const tagNameById = Object.fromEntries((tagsRes.data ?? []).map((t) => [t.id, t.name]))
+  const cov = aggregateDomainCoverage(rows, tagRes.data ?? [], tagNameById)
+  console.log(`  tracked prompts (/prompts totalCount): ${promptsRes.totalCount ?? 'n/a'}`)
+  console.log('  1) full aggregate fields:')
+  for (const k of ['promptIdsByDomain', 'promptIdsByDomainByModel', 'promptIdsByUrlKey', 'tagIdsByDomain', 'tagIdsByUrlKey', 'tagNameById'] as const) {
+    console.log(`     ${k}: ${bytes(cov[k])}`)
+  }
+
+  // (a) owned prompt ids union + per engine
+  const ownedAll = new Set<string>(); const ownedByEng = new Map<string, Set<string>>()
+  for (const r of rows) {
+    if (!isOwned(hostOfUrl(r.url)) || !r.prompt?.id) continue
+    ownedAll.add(r.prompt.id)
+    const eng = normalizeEngine(r.model?.id ?? r.model_channel?.id ?? '')
+    if (!eng) continue
+    if (!ownedByEng.has(eng)) ownedByEng.set(eng, new Set())
+    ownedByEng.get(eng)!.add(r.prompt.id)
+  }
+  const a = { all: [...ownedAll], byEngine: Object.fromEntries([...ownedByEng].map(([k, v]) => [k, [...v]])) }
+  console.log(`  2a) owned prompt ids (+per engine): ${bytes(a)} (${ownedAll.size} prompts)`)
+
+  // (b) promptIdsByUrlKey restricted to owned url keys
+  const b: Record<string, string[]> = {}
+  for (const [k, v] of Object.entries(cov.promptIdsByUrlKey)) if (isOwned(k.split('/')[0])) b[k] = v
+  console.log(`  2b) promptIdsByUrlKey owned only: ${bytes(b)} (${Object.keys(b).length} keys)`)
+
+  // (c) top N competitor domains + owned domains
+  const comps = (domRes.data ?? []).filter((d) => d.classification?.toUpperCase() === 'COMPETITOR')
+    .sort((x, y) => y.citation_count - x.citation_count)
+  const cSize = (n: number) => {
+    const keep = new Set([...comps.slice(0, n).map((d) => urlJoinKey(d.domain)), ...ownKeys].filter((k): k is string => !!k))
+    const pick = <T,>(o: Record<string, T> | undefined) =>
+      Object.fromEntries(Object.entries(o ?? {}).filter(([h]) => keep.has(h)))
+    return bytes({ promptIdsByDomain: pick(cov.promptIdsByDomain), promptIdsByDomainByModel: pick(cov.promptIdsByDomainByModel) })
+  }
+  const c25 = cSize(25)
+  console.log(`  2c) top25 competitors+own: ${c25}; top50: ${cSize(50)} (competitor domains total: ${comps.length})`)
+
+  // (d) per prompt: top 3 non-owned url keys by citation count + rest count
+  const per = new Map<string, Map<string, { url: string; n: number }>>()
+  for (const r of rows) {
+    const pidr = r.prompt?.id
+    if (!pidr || isOwned(hostOfUrl(r.url))) continue
+    if (!per.has(pidr)) per.set(pidr, new Map())
+    const m = per.get(pidr)!; const key = urlJoinKey(r.url) ?? r.url
+    const e = m.get(key) ?? { url: r.url, n: 0 }
+    e.n += r.citation_count ?? 0
+    m.set(key, e)
+  }
+  const d: Record<string, { urls: { url: string; citationCount: number }[]; more: number }> = {}
+  for (const [id, m] of per) {
+    const sorted = [...m.values()].sort((x, y) => y.n - x.n)
+    d[id] = { urls: sorted.slice(0, 3).map((e) => ({ url: e.url, citationCount: e.n })), more: Math.max(0, sorted.length - 3) }
+  }
+  const dSize = bytes(d)
+  console.log(`  2d) per-prompt top3 non-owned: ${dSize} (${Object.keys(d).length} prompts)`)
+
+  // (e) promptIdsByUrlKey for brand-absent competitor-naming urls in capped getUrlCitations
+  const cites = await getUrlCitations(slug)
+  const keys = new Set(cites.filter((c) => !c.mentionsYourBrand && c.competitorBrandNames.length > 0).map((c) => c.urlKey))
+  const e: Record<string, string[]> = {}
+  for (const k of keys) if (cov.promptIdsByUrlKey[k]) e[k] = cov.promptIdsByUrlKey[k]
+  const eSize = bytes(e)
+  console.log(`  2e) brand-absent competitor urls: ${eSize} (${keys.size} qualifying of ${cites.length}; ${Object.keys(e).length} with prompt ids)`)
+
+  console.log(`  2f) sum a+b+c25+d+e: ${bytes(a) + bytes(b) + c25 + dSize + eSize}`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })
