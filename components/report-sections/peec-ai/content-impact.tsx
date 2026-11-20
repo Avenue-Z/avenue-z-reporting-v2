@@ -8,7 +8,7 @@ import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import { getUrlCitations, getOwnedUrlCitations, domainPromptIds, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
-import type { OwnedUrlCitations } from '@/lib/peec/url-citations'
+import { planOwnedCitations } from '@/lib/peec/owned-citations-plan'
 import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION } from '@/lib/peec/coverage-projection'
 import { buildContentPerformanceRows, engagementRateByPath, normPath } from '@/lib/peec/content-performance-rows'
 import { toCalendarPages } from '@/lib/content-calendar/pages'
@@ -456,20 +456,14 @@ export async function ContentImpactReport({
   // Merged content table (D-5): owned hosts only exist once Peec's overview
   // resolves, so this is a second awaited fetch after the main batch. Sorted
   // because the host list is part of getOwnedUrlCitations's cache key.
-  const ownedHostsSorted = ownDomains.map(d => d.domain).sort()
-  const [ownedCurResult, ownedPriorResult] = await Promise.allSettled([
-    getOwnedUrlCitations(clientSlug, ownedHostsSorted),
-    compareDates
-      ? getOwnedUrlCitations(clientSlug, ownedHostsSorted, { startDate: compareDates.startDate, endDate: compareDates.endDate })
-      : Promise.resolve(null),
-  ])
-  const OWNED_UNAVAILABLE: OwnedUrlCitations = { rows: [], totalCitationCount: 0, complete: false }
-  if (ownedCurResult.status === 'rejected') console.error('[content-impact] Owned URL citations error:', ownedCurResult.reason)
-  if (ownedPriorResult.status === 'rejected') console.error('[content-impact] Owned URL citations prior error:', ownedPriorResult.reason)
-  const ownedCitations: OwnedUrlCitations = ownedCurResult.status === 'fulfilled' ? ownedCurResult.value : OWNED_UNAVAILABLE
-  const ownedCitationsPrior: OwnedUrlCitations | null = !compareDates
-    ? null
-    : ownedPriorResult.status === 'fulfilled' && ownedPriorResult.value ? ownedPriorResult.value : OWNED_UNAVAILABLE
+  const { owned: ownedCitations, ownedPrior: ownedCitationsPrior } = await planOwnedCitations({
+    clientSlug,
+    ownedHosts: ownDomains.map(d => d.domain),
+    dateRange: mainRangeStr,
+    compareDates,
+    fetcher: getOwnedUrlCitations,
+    onError: (which, reason) => console.error(`[content-impact] Owned URL citations ${which} error:`, reason),
+  })
 
   // ── AI Citations KPI: filtered by selected models when active ───────────────
   // When a model filter is active, sum domainCitationsByModel across selected

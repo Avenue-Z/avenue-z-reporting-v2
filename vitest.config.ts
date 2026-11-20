@@ -31,6 +31,7 @@ export default defineConfig({
       'lib/concurrency.test.ts',
       'lib/content-calendar/pages.test.ts',
       'lib/peec/content-performance-rows.test.ts',
+      'lib/peec/owned-citations-plan.test.ts',
       'lib/delta-rounding.test.ts',
       'lib/health/sweep-probe.test.ts',
       'lib/cache.negative.test.ts',
