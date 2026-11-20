@@ -26,6 +26,7 @@ import { resolveScatterWindow } from '@/lib/peec/scatter-window'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
 import type { SlopeChartInput } from '@/lib/peec/slope-chart'
 import SlopeChart from '@/components/report-sections/peec-ai/slope-chart'
+import type { ReportAudience } from './ctx'
 import { ContentPerformanceTable } from './content-performance-table'
 import {
   CompetitorDomainsCitedTable,
@@ -221,6 +222,8 @@ export async function ContentImpactReport({
   dateRange?: string
   compareRange?: string
   models?: AEOModel[] | null
+  /** Not read yet: prompt gaps consume it later. Required so every caller states who the report is for. */
+  audience: ReportAudience
 }) {
   const effectiveRange = dateRange ?? 'last_30_days'
 

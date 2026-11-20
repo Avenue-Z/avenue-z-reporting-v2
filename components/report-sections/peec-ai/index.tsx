@@ -6,6 +6,7 @@ import { ProviderTabs, type AeoProvider } from './provider-tabs'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
 import { isAiSource, aiSourceModel } from '@/lib/constants'
+import type { ReportAudience } from './ctx'
 import type { AEOModel } from '@/lib/peec/models'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { Sparkles } from 'lucide-react'
@@ -69,7 +70,8 @@ export async function PeecAIReport({
   clientSlug,
   dateRange,
   models = null,
-}: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null } = {}) {
+  // audience is accepted for the callers now; the Overview parts consume it later (declared in the type only).
+}: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null; audience: ReportAudience }) {
   const config = clientSlug ? await getClientBySlug(clientSlug) : null
   const peecConfigured = !!config?.peecCustomerProjectId
   const profoundConfigured = !!config?.profoundCategoryId

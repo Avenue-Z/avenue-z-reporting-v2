@@ -15,6 +15,9 @@ import type { AIReferralKPI } from './index'
 
 type Overview = PeecOverview | ProfoundOverview
 
+/** Who the report is rendered for: the Avenue Z dashboard ('internal') or the client portal and PDF export ('client'). */
+export type ReportAudience = 'internal' | 'client'
+
 export type PeecCtx = {
   data: Overview
   provider: AeoProvider
