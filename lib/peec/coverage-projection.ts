@@ -8,7 +8,7 @@ import { cached } from '@/lib/cache'
 import { urlJoinKey } from '@/lib/url'
 import { isOwnedHost, ownedHostKeys } from './owned-hosts'
 import {
-  aggregateDomainCoverage, fetchAllPagesChecked, get, getUrlCitations, hostOf, last30,
+  aggregateDomainCoverage, fetchAllPagesChecked, walkWithD21Retry, get, getUrlCitations, hostOf, last30,
   normalizeEngine, post, resolveYourBrandIds, CITATION_MAX_PAGES, CITATION_PAGE_SIZE,
   type ApiUrlRow, type DomainCoverage,
 } from './url-citations'
@@ -140,25 +140,8 @@ async function getCoverageProjectionImpl(
     },
   )
 
-  const walkWithRetry = async () => {
-    let result = await walk()
-    // A repeated key means Peec reordered mid-walk. Walk once more and keep the
-    // second result; a walk that hit maxPages is incomplete either way, so it is
-    // not retried. (D-21)
-    if (result.duplicateRows > 0 && result.complete) {
-      result = await walk()
-      if (result.duplicateRows > 0) {
-        console.warn(
-          `[peec] getCoverageProjection(${clientSlug ?? 'default'}): ${result.duplicateRows} duplicate ` +
-          `row key(s) persisted after a retry — accepting the de-duplicated result`,
-        )
-      }
-    }
-    return result
-  }
-
   const [promptWalk, tagRes, tagsRes, domainsRes, brandsRes, citations] = await Promise.all([
-    walkWithRetry(),
+    walkWithD21Retry(walk, `getCoverageProjection(${clientSlug ?? 'default'})`),
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['tag_id'], limit: 2000 }, pid),
     get<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
     post<{ data: ApiDomainClass[] }>('/reports/domains', { ...window, limit: 5000 }, pid),

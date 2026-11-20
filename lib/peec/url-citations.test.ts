@@ -18,6 +18,7 @@ import {
   pickCitationsForUrls,
   countDuplicateUrlKeys,
   getOwnedUrlCitations,
+  walkWithD21Retry,
   type ApiUrlRow,
   type DomainCoverage,
 } from './url-citations'
@@ -545,5 +546,46 @@ describe('getOwnedUrlCitations', () => {
     expect(out.rows.length).toBe(5_001)
     expect(out.rows.every((r) => r.domain.endsWith('owned.com'))).toBe(true)
     expect(out.totalCitationCount).toBe(10_000 * 2 + 5 + 7 + 1)
+  })
+})
+
+describe('walkWithD21Retry', () => {
+  const mk = (...results: { complete: boolean; duplicateRows: number }[]) => {
+    const walk = vi.fn(async () => ({ rows: [1], ...results[Math.min(walk.mock.calls.length - 1, results.length - 1)] }))
+    return walk
+  }
+  it('no duplicates: one walk', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const walk = mk({ complete: true, duplicateRows: 0 })
+    await walkWithD21Retry(walk, 'x')
+    expect(walk).toHaveBeenCalledTimes(1)
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+  it('duplicates then clean: two walks, no warn', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const walk = mk({ complete: true, duplicateRows: 2 }, { complete: true, duplicateRows: 0 })
+    const out = await walkWithD21Retry(walk, 'x')
+    expect(walk).toHaveBeenCalledTimes(2)
+    expect(out.duplicateRows).toBe(0)
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+  it('persistent duplicates: two walks, one warn, accepted', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const walk = mk({ complete: true, duplicateRows: 2 })
+    const out = await walkWithD21Retry(walk, 'lbl')
+    expect(walk).toHaveBeenCalledTimes(2)
+    expect(out.duplicateRows).toBeGreaterThan(0)
+    expect(out.complete).toBe(true)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0][0])).toContain('lbl')
+    warn.mockRestore()
+  })
+  it('incomplete first walk: one walk', async () => {
+    const walk = mk({ complete: false, duplicateRows: 3 })
+    const out = await walkWithD21Retry(walk, 'x')
+    expect(walk).toHaveBeenCalledTimes(1)
+    expect(out.complete).toBe(false)
   })
 })

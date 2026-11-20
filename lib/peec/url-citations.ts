@@ -245,6 +245,28 @@ export async function fetchAllPagesChecked<T>(
   return { rows: out, complete: false, duplicateRows }
 }
 
+/**
+ * D-21: duplicate row keys mean Peec reordered mid-walk. Walk once more and keep
+ * the second result; a walk that hit maxPages is incomplete either way, so it is
+ * not retried. Persistent duplicates are accepted (de-duplicated) with one warning.
+ */
+export async function walkWithD21Retry<T>(
+  walk: () => Promise<{ rows: T[]; complete: boolean; duplicateRows: number }>,
+  label: string,
+): Promise<{ rows: T[]; complete: boolean; duplicateRows: number }> {
+  let result = await walk()
+  if (result.duplicateRows > 0 && result.complete) {
+    result = await walk()
+    if (result.duplicateRows > 0) {
+      console.warn(
+        `[peec] ${label}: ${result.duplicateRows} duplicate ` +
+        `row key(s) persisted after a retry — accepting the de-duplicated result`,
+      )
+    }
+  }
+  return result
+}
+
 export async function fetchAllPages<T>(
   fetchPage: (offset: number, limit: number) => Promise<{ rows: T[]; totalCount?: number }>,
   opts: { pageSize: number; maxPages: number; label?: string },
@@ -471,28 +493,8 @@ async function getOwnedUrlCitationsImpl(
   const d = last30()
   const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
 
-  // D-21: duplicate row keys mean Peec reordered mid-walk. Walk once more and keep
-  // the second result; a walk that hit maxPages is incomplete either way, so it is
-  // not retried. Persistent duplicates are accepted (de-duplicated) with a warning.
-  const walkWithRetry = async (
-    walk: () => ReturnType<typeof fetchAllPagesChecked<ApiUrlRow>>,
-    label: string,
-  ) => {
-    let result = await walk()
-    if (result.duplicateRows > 0 && result.complete) {
-      result = await walk()
-      if (result.duplicateRows > 0) {
-        console.warn(
-          `[peec] getOwnedUrlCitations(${clientSlug ?? 'default'}) ${label}: ${result.duplicateRows} duplicate ` +
-          `row key(s) persisted after a retry — accepting the de-duplicated result`,
-        )
-      }
-    }
-    return result
-  }
-
   const [baseWalk, engineWalk, brandsRes] = await Promise.all([
-    walkWithRetry(
+    walkWithD21Retry(
       () => fetchAllPagesChecked<ApiUrlRow>(
         (offset, limit) =>
           post<{ data: ApiUrlRow[]; totalCount?: number }>('/reports/urls', { ...window, limit, offset }, pid)
@@ -504,9 +506,9 @@ async function getOwnedUrlCitationsImpl(
           rowKey: (r) => r.url,
         },
       ),
-      'base',
+      `getOwnedUrlCitations(${clientSlug ?? 'default'}) base`,
     ),
-    walkWithRetry(
+    walkWithD21Retry(
       () => fetchAllPagesChecked<ApiUrlRow>(
         (offset, limit) =>
           post<{ data: ApiUrlRow[]; totalCount?: number }>(
@@ -521,7 +523,7 @@ async function getOwnedUrlCitationsImpl(
           rowKey: (r) => `${r.url}|${r.model_channel?.id}|${r.model?.id}`,
         },
       ),
-      'engines',
+      `getOwnedUrlCitations(${clientSlug ?? 'default'}) engines`,
     ),
     post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
   ])
