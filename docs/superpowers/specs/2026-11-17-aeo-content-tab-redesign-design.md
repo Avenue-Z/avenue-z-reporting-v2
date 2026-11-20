@@ -4,6 +4,8 @@ Status: draft, 2026-11-17. Written against `origin/dev` @ `551e8969`. Source: th
 Requests" feedback from the Renaissance training session (quoted where it decides something). No code changes in this doc.
 Reviewed 2026-11-17 by an independent reviewer for inconsistencies, unproven assumptions and deviations from the request;
 all 21 findings are applied below (R-n tags point at them).
+**Stakeholder feedback, 2026-11-19 (Tina Fleming, Danielle Lopez):** every item approved; D-11, D-12, D-14 and the "Last
+updated" column changed as a result (F-n tags: see "Feedback round 1" at the end).
 
 ## Why
 
@@ -119,14 +121,15 @@ Decisions without a tag were made by Paul. *(design call)* = the author's call, 
 | D-8 *(design call)* | On Overview the competitor deltas follow Overview's rule: always against the previous period, formulas unchanged, with two exceptions kept from today: every Δ is hidden while a model filter is active (FB-063), and H2's citation-share Δ is shown only when the picker is "last 30 days" (its current period is fixed at 30 days, D-10). R-5. | Overview never receives `compareRange`. Two parts obeying a toggle the rest of the page ignores would confuse more than it helps. | Threading `compareRange` through both routes, export, `PeecAIReport` and `PeecCtx` for two parts. |
 | D-9 *(design call)* | Time-to-first cards count **New** published Avenue Z pages only (not Optimized). R-3. | An optimized page already has search and AI traffic, so it reads as ~0 days and drags the medians down, the distortion D-1 removes. The feedback is about *"a newly published page"*. Also aligns cards with the table's published rule (today §C ignores status). | Every published row; today's status-blind set. |
 | D-10 *(design call)* | URL citations stay on today's fixed last-30-days current window in this build; fixing it is a follow-up. | Fixing it changes client numbers and cache entries; one change at a time. Its visible effects are contained by D-8's last-30 gate and stated in the Known issues. | Passing the picker range now. |
-| D-11 | The Competitors block is per-client opt-in on Overview, off by default. | The template is global; appending would show competitor data, including brand-absent competitor URLs, to every Peec client at once. | Appending to the template for all Peec clients. |
-| D-12 *(design call)* | At release, opt in the clients who see Content Impact in production today, **plus Renaissance** (D-14). | §H leaves Content Impact for everyone; this keeps every other client's exposure unchanged. | Starting everyone at off (some clients would lose tables they have now). |
+| D-11 | The Competitors block is part of the default Overview template, placed just above `footer`. F-1. | Tina, 2026-11-19: *"Make this the default for the template, and right now there shouldn't be any other clients that have access to this anyway besides Renaissance."* (Superseded: per-client opt-in.) | Per-client opt-in through `extraParts` (the original D-11). |
+| D-12 | *Superseded by D-11 (F-1).* Because the block is in the template, every Peec client whose Overview isn't frozen gets it. Before release, list every production client with Peec configured; any client besides Renaissance is flagged to Tina before merge (her "only Renaissance" statement is not verifiable from the dev database). | Keeps the exposure check the original D-12 provided. | |
 | D-13 | Movers: label only, no data change. The AI-referral and organic views get the "All site pages" label and explanation. The Citation Share view is labelled for what it is. Whether that view should show only the client's own pages goes to Tina (Q-1). | The feedback asked for a label, not a data change; its "all site pages" description holds for the two GA4 views but not for Citation Share. | Restricting Citation Share to owned hosts now. Labelling all three views "All site pages" (false for Citation Share). |
-| D-14 | Renaissance is opted in to the Competitors block at release. Its clients see the brand-absent competitor page list from day one. R-8. | They asked for the section on Overview, and their Overview isn't hidden. | Leaving Renaissance off with no owner or trigger. |
+| D-14 | Renaissance gets the Competitors block at release (now through the template, D-11; its `peec-ai` override must not be frozen, checked before release). Its clients see the brand-absent competitor page list from day one. R-8. | They asked for the section on Overview, and their Overview isn't hidden. | Leaving Renaissance off with no owner or trigger. |
 | D-15 | In the Overview gap table, clients see only the **count** of prompts citing each page; the prompt text shows only to internal users. R-12. | Prompt text there would hand clients much of what the internal prompt-gap list hides by default. | Showing prompt text to clients. |
 | D-16 *(design call)* | Prompt gaps add a **Declining** state, and all its comparisons (Lost, Declining) are against the previous period whatever the compare toggle says. R-4. | The feedback asks for prompts that *"lack brand citations or are trending down"*; "Lost" alone misses prompts still cited but slipping. Peec's prior positions are always previous-period, so one comparison basis keeps Lost and Declining consistent. | Lost only; following the compare toggle (mixes bases). |
 | D-17 *(design call)* | Merged-table cells are null ("--") when their source is missing or failed (§B's rule, not §F's 0%). Engagement rate is session-weighted across a path's trailing-slash variants (§B takes the first variant, §F the last; neither is right). Pages whose engagement rate moves because of this are listed in the PR. R-9. | §B and §F compute some columns differently today, so "lifted unchanged" can't hold for both. Null is honest; 0% reads as "no coverage". | Keeping both rules per scope. |
-| D-18 *(design call)* | Calendar rows: a bare path (`/blog/x`) is resolved against the client's primary owned domain before linking. Rows are de-duplicated on `urlJoinKey`; the merged row shows the latest publish/update date and a badge of **New**, **Optimized**, or **New · Optimized** when the calendar lists both. Time-to-first uses the New row's publish date. R-13. | Bare paths would link into the reporting app; duplicates would double-count in medians and table. | Linking raw values; no dedupe. |
+| D-18 *(design call)* | Calendar rows: a bare path (`/blog/x`) is resolved against the client's primary owned domain before linking. Rows are de-duplicated on `urlJoinKey` into one page with a badge of **New**, **Optimized**, or **New · Optimized** when the calendar lists both; its dates follow D-19. Time-to-first uses the New row's publish date. R-13. | Bare paths would link into the reporting app; duplicates would double-count in medians and table. | Linking raw values; no dedupe. |
+| D-19 | The table's "Last updated" column becomes **"Last optimized"**: the latest Publish Date among the page's **Optimized** calendar rows. **"Published"** is the earliest Publish Date among its other rows (New or unclassified). Either is "--" when the page has no such row. No new sheet column. F-2. | Danielle, 2026-11-19: the calendar has no last-updated column; Publish Date (column F) *"is typically the last date that we updated or pushed anything live for that page or article."* So an Optimized row's Publish Date is its optimization date. | Dropping the column (loses "when did we last touch this page"); asking the content team for a new column. |
 
 ## Design
 
@@ -167,8 +170,8 @@ One `SortableTable` with a two-option switch above it. Default **Avenue Z conten
 |---|---|---|
 | Page | calendar topic, else Peec title, else path | Title on one line, the **slug as a visible link** under it, opening the live URL in a new tab (bare paths resolved, D-18). |
 | Avenue Z | calendar | Badge **New**, **Optimized** or **New · Optimized** (D-18); blank when the page isn't in the calendar; `other` shows **Avenue Z**. |
-| Published | calendar `publishDate` | |
-| Last updated | calendar `updateDate` | See V2. |
+| Published | calendar Publish Date of the New (or unclassified) row | D-19; "--" for a page only ever optimized (it went live before the calendar) |
+| Last optimized | latest calendar Publish Date of an Optimized row | D-19; "--" when never optimized |
 | Prompt coverage, Δ | Peec coverage (complete, above) | |
 | Citation share, Δ | Peec URL citations (owned, uncapped, above) | current window fixed at last 30 days (D-10) |
 | AI-referred sessions, Δ | GA4 | renamed from "AI Referral Traffic" |
@@ -260,21 +263,15 @@ the new `id`.
 
 ### Overview: Competitors block
 
-Two new Peec parts, **per-client opt-in** (D-11). Registered in `PEEC_PARTS`, **not** added to `PEEC_TEMPLATE` or the
-`section_templates` row, so no client gets them by default.
+Two new Peec parts, in the **default template** (D-11, F-1): appended to `PEEC_TEMPLATE.order` immediately before
+`{ id: 'footer', version: 1 }`, and to the `peec-ai` `section_templates` row by hand at rollout (the row is
+insert-if-absent, so code alone doesn't change it). Template order places them; no per-client mechanism is needed.
 
-**Opt-in mechanics (R-2, R-19):**
-
-- A client opts in by adding both pins to `report_section_config['peec-ai'].extraParts`.
-- Placement: `PartPin` in `extraParts` gains an optional `before: string` anchor, and `resolveSection` inserts an anchored
-  extra immediately before that id (falling back to the end if the anchor is absent). The opt-in uses `before: 'footer'`.
-  This avoids putting the parts in the override's `order`, which would emit them first and partly freeze that client's order.
-  Resolver tests cover anchored, missing-anchor, frozen-base and custom-order cases.
-- The opt-in is a one-off script that reads the client's existing `peec-ai` override and **merges** the pins into
-  `extraParts`, leaving `hidden`, `order`, `versions`, `labels` and `frozen` intact. It never posts a partial body to
-  `saveReportSectionConfig` (which would replace the whole override).
-- `saveReportSectionConfig` rejects a body that adds these two part ids to `extraParts` unless the caller is
-  `INTERNAL_ADMIN`, so a client admin can't opt themselves in.
+- A client whose `peec-ai` override is `frozen` keeps its snapshot and does **not** get the parts; that is the existing
+  freeze behaviour. Rollout checks that Renaissance isn't frozen.
+- A client can still hide them through the existing `hidden` override.
+- *Removed with F-1:* the `extraParts` `before` anchor (R-19), the opt-in script, and the `CLIENT_ADMIN` competitor-pin guard
+  (R-2's opt-in parts). R-2's `clientVisible` guards are unchanged.
 
 **Parts:**
 
@@ -298,19 +295,20 @@ functions so the (disabled) synopsis doesn't break.
 - **V1, published rule.** Confirmed from code: a calendar row shows when its Status cell is exactly "Published"
   (case-insensitive, trimmed). There is no date rule; items "stop at today" only because future items aren't marked Published
   yet. Confirm on staging with Renaissance's sheet; write the rule into the table's tooltip and the empty state.
-- **V2, Last Updated and the badge.** Read-only, service account, every tab of Renaissance's sheet:
-  1. Header row: if the update column exists under an unrecognised header, add the alias.
-  2. Cell formats in that column (R-7): if they're formats `parseCalendarDate` can't read, extend the parser, with tests.
-  3. If no such column exists, the fix is the sheet, not code: say so and leave "--".
-  4. Content Type values vs what they mean (R-20): list each distinct Content Type with the badge `parseContentAction` gives
-     it, and confirm with the content team that New/Optimized is right (e.g. a "Blog" refresh would read as New).
+- **V2, dates and the badge.** Read-only, service account, every tab of Renaissance's sheet. Danielle confirmed (F-2, F-3)
+  there is no last-updated column (D-19 replaces it) and that Content Type in column C is correct.
+  1. Publish Date cell formats (column F, R-7): if any are formats `parseCalendarDate` can't read, extend the parser, with
+     tests. Report how many Avenue Z pages end up with a Published date and a Last optimized date.
+  2. Content Type values (R-20): list each distinct Content Type with the badge `parseContentAction` gives it. Expected: a
+     refresh is "Existing Blog Optimization", which already maps to Optimized (`includes('optim')`/`includes('existing')`).
+     Any value that maps to `other` or to the wrong badge is fixed in `parseContentAction`, not in the sheet.
 
-## Questions for Tina
+## Questions (resolved 2026-11-19)
 
-- **Q-1, Movers Citation Share.** That view ranks every URL AI cites, including competitor, Reddit and media pages, not only
-  the client's site. Should it show only the client's own pages? If yes, a small follow-up: filter to owned hosts (FB-050),
-  then drop the second label.
-- **Q-2, Declining threshold.** How much position slippage should count as "Declining" (D-16)?
+- **Q-1, Movers Citation Share.** Tina confirmed D-13 as written: label only, no data change.
+- **Q-2, Declining threshold.** Danielle: an average drop of **one position** or more. Default `1`, tunable per client.
+- **Q-3, New / Optimized labels.** Danielle: Content Types in column C are correct; refreshes are "Existing Blog
+  Optimization". Nothing for the content team to change (V2 still verifies the mapping).
 
 ## Known issues carried forward (follow-ups)
 
@@ -328,18 +326,31 @@ points (R-18): `agentData.byPath[k].byType` already splits training vs indexing 
 
 ## Rollout
 
-Branch off `dev`, feature PR, review record per CLAUDE.md, then dev → staging. On staging: run the opt-in script for
-Renaissance, check its Content Impact and Overview, then Tina QA (tell her first that Prompt Coverage numbers move with the
-coverage fix).
+Branch off `dev`, feature PR, review record per CLAUDE.md, then dev → staging. On staging: append the two parts to the
+staging `peec-ai` `section_templates` row, check Renaissance's Content Impact and Overview, then Tina and Danielle QA. Give
+them first: the before/after numbers (Prompt Coverage moves with the coverage fix; no client note needed, F-4), and the count
+of "--" cells per merged-table column for Renaissance, so Danielle can decide whether any mostly-blank column should go (F-5).
 
-Production (D-12, D-14): removing §H takes competitor tables off Content Impact for every client whose tab is visible. In the
-same release, run the opt-in script for exactly those clients (`peec-ai` in `enabled_reports`, Peec configured, and
-`content-impact` not in `hidden_reports`) plus Renaissance. List them read-only before the release and put the list in the PR.
-Everyone else stays off until an `INTERNAL_ADMIN` opts them in. Content Impact stays hidden in production for Renaissance until
-someone decides to unhide it.
+Production (D-11, D-12, D-14): before the release, list read-only every production client with Peec configured and
+`peec-ai` enabled, and which of them have a frozen `peec-ai` override. Put the list in the PR. Any client besides
+Renaissance goes to Tina before merge. Then append the two parts to the production `section_templates` row with the
+release. Content Impact stays hidden in production for Renaissance until someone decides to unhide it.
 
 ## Left to the builder
 
 File layout of the extracted blocks; the switch's exact look; humanised page-type labels; how prompt text expands for
-internal users; localStorage for the scope switch; quadrant wording on the bot chart (with Tina); a proposed Declining
-threshold (for Q-2).
+internal users; localStorage for the scope switch; quadrant wording on the bot chart (with Tina).
+
+## Feedback round 1 (2026-11-19)
+
+Source: Tina Fleming's inline (TF) notes and Danielle Lopez's comments on the decisions-for-approval doc
+(`docs/official-feedback/aeo-content-impact-decisions-for-approval.md`). Items 1, 2 and 4–10 approved as written.
+
+| # | Feedback | Effect |
+|---|---|---|
+| F-1 | Tina, item 3: competitors should be the template default; no other client has access besides Renaissance. | D-11 rewritten; D-12 superseded; opt-in machinery removed. Her client claim is checked before release. |
+| F-2 | Danielle: no last-updated column; Publish Date is the last push date. | D-19: "Last optimized" from Optimized rows' Publish Date. V2 rewritten. |
+| F-3 | Danielle: Content Types in column C are correct; refreshes are "Existing Blog Optimization". | Q-3 closed; V2 still verifies the mapping. |
+| F-4 | Tina, item 1: corrected numbers confirmed, no client comms needed. | Rollout note. |
+| F-5 | Danielle, item 9: agrees with "--", but if the table is still mostly blank, a column may be dropped; wants to see it in practice. | Blank counts per column delivered before staging QA; the decision is hers at QA. |
+| F-6 | Danielle: one-position Declining threshold is fine. | Q-2 closed. |

@@ -6,23 +6,45 @@ This covers the changes asked for in the AEO dashboard training: the Content Imp
 
 ---
 
+## ✅ Resolutions — 20 Nov 2026 (all decisions closed)
+
+Every item is answered, from Tina Fleming's inline notes (marked TF below) and Danielle Lopez's comments on the doc, 19 Nov 2026. Two answers change the design; they're marked **Changed**.
+
+| # | Decision | Resolution |
+|---|---|---|
+| 1 | Corrected numbers | **Confirmed.** No client comms needed at this time. |
+| 2 | Renaissance sees the competitor gap list | **Confirmed.** |
+| 3 | Competitors on Overview | **Changed:** part of the default Overview template, not switched on client by client. Tina: no other client has access besides Renaissance. We'll confirm that against production before release and flag any other client. |
+| 4 | Prompt gaps internal; clients see counts only | **Confirmed.** |
+| 5 | First search visit; new content only | **Confirmed.** |
+| 6 | Overview compares with the previous period | **Confirmed.** |
+| 7 | Citation counts stay on 30 days for now | **Confirmed.** Follow-up filed. |
+| 8 | Movers: labels only | **Confirmed.** |
+| 9 | Missing data shows "--" | **Confirmed** (Danielle), with a check: before staging review we'll show how many cells stay "--" in each column. If a column is mostly blank, she may drop it once she sees it in practice. |
+| 10 | Smaller assumptions | **Confirmed.** "This sounds right to me!" |
+| Q | "Declining" threshold | **One position**, confirmed by Danielle. |
+| Q | New / Optimized labels | Content Types in column C are correct; refreshes are "Existing Blog Optimization", which reads as Optimized. Nothing for the content team to change. |
+| Q | "Last updated" column | **Changed:** the calendar has no such column; Publish Date is the last date a page was pushed live. "Last updated" becomes **"Last optimized"**, taken from the Publish Date of the page's Optimized rows. "Published" comes from its New row. No new column needed. |
+
+---
+
 ### ⚠️ 1. Some numbers will go up, because two data pulls were cut short
 
 While designing this we found two Peec pulls that stop early on large accounts, and Renaissance is one. Prompt coverage read only part of its data, so prompts and pages that were cited could look uncited. Cited pages were capped at the 2,000 most-cited URLs across the whole web, so some of Renaissance's own pages fell outside the cap and looked uncited.
 
 Fixing both is the only way to make the new tables trustworthy. The catch: **Prompt Coverage will likely rise, headline tile included**, and some citation shares will shift. We'd send before-and-after figures for Renaissance before staging review.
 
-→ **Confirm we ship the corrected numbers — and say whether the client should get a note about the correction.**
+→ **Confirm we ship the corrected numbers — and say whether the client should get a note about the correction.** (TF) CONFIRMED, no comms needed at this time.
 
 ---
 
-### ⚠️ 2. Renaissance's clients will see where competitors get cited and Renaissance doesn't
+### ⚠️ 2. Renaissance will see where competitors get cited and Renaissance doesn't
 
 The competitor section moves to Overview (item 3), and Renaissance asked for it there, so we'd switch it on for Renaissance at release. That includes the list of competitor pages AI cites for Renaissance's topics that never mention Renaissance. It's useful, and it's also a list of where they're losing, visible to their clients from day one.
 
 Content Impact itself stays hidden for Renaissance until someone decides to turn it back on.
 
-→ **Confirm you're comfortable with Renaissance's clients seeing this list.**
+→ **Confirm you're comfortable with Renaissance's clients seeing this list.** (TF) CONFIRMED
 
 ---
 
@@ -32,7 +54,7 @@ Both competitor tables leave Content Impact and sit together on the AEO Overview
 
 Overview's layout is shared by every client, so adding the tables there would show competitor data to every client at once. We'd switch it on per client instead, starting with Renaissance and with every client who sees Content Impact today, so nobody loses tables they have now. No release is needed to switch a client on later.
 
-→ **Confirm — or say it should appear for every client.**
+→ **Confirm — or say it should appear for every client.** (TF) Make this the default for the template, and right now there shouldn't be any other clients that have access to this anyway besides Renaissance.
 
 ---
 
@@ -42,7 +64,7 @@ A new block lists the prompts that need content: where the brand isn't cited, wh
 
 It starts hidden from clients. An Avenue Z admin can turn "Visible to client" on per client from the internal dashboard; until then clients don't see it in the portal or in PDF exports. For the same reason, the competitor gap table on Overview shows clients only how many prompts cite each page, not the prompt wording.
 
-→ **Confirm — including that clients see prompt counts, not prompt wording, on Overview.**
+→ **Confirm — including that clients see prompt counts, not prompt wording, on Overview.** (TF) CONFIRMED
 
 ---
 
@@ -52,7 +74,7 @@ The old card counted any first visit, so a team member opening a new page on lau
 
 We'd also count new content only. Optimized pages already had traffic before we touched them, so they'd read as "found in 0 days" and drag the average down. They still appear in the table.
 
-→ **Confirm — or ask for a separate figure for optimized pages.**
+→ **Confirm — or ask for a separate figure for optimized pages.** (TF) CONFIRMED
 
 ---
 
@@ -60,7 +82,7 @@ We'd also count new content only. Optimized pages already had traffic before we 
 
 On Content Impact, the competitor change columns only appeared with Compare turned on. Everything on Overview always compares with the previous period, and Compare has no effect there, so the moved tables would follow Overview's rule. The calculations don't change, and change columns stay hidden while you filter to specific AI models, as today.
 
-→ **Confirm — or ask for Compare to work across all of Overview, which is a larger change.**
+→ **Confirm — or ask for Compare to work across all of Overview, which is a larger change.** (TF) CONFIRMED
 
 ---
 
@@ -68,7 +90,7 @@ On Content Impact, the competitor change columns only appeared with Compare turn
 
 This is existing behavior. Citation counts per page always cover the last 30 days, while the rest of the tab follows the date picker, so with another range picked the two can disagree a little. Fixing it changes client numbers, so we'd do it as its own follow-up rather than fold it in here. Until then, the one change column it would distort only shows when "Last 30 days" is selected.
 
-→ **Confirm it can wait for the follow-up.**
+→ **Confirm it can wait for the follow-up.** (TF) CONFIRMED
 
 ---
 
@@ -78,7 +100,7 @@ The training asked for the chart to say it covers all site pages, not only Avenu
 
 The third view, Citation Share, ranks every page AI cites, **including other websites**, so "All site pages" would be wrong there. We'd label it "All cited pages across the web" and leave the data alone.
 
-→ **Confirm — or say the Citation Share view should show only your own pages, which is a small follow-up.**
+→ **Confirm — or say the Citation Share view should show only your own pages, which is a small follow-up.** (TF) CONFIRMED
 
 ---
 
@@ -89,6 +111,8 @@ The two old content tables disagreed when data failed to load: one showed "--", 
 They also measured a page's engagement rate differently when Google Analytics records it under two addresses (/page and /page/). We'd combine the two, weighted by visits, so a few pages' engagement rates will shift slightly. We'd list which ones before staging review.
 
 → **Confirm.**
+
+> *Tina:* I'd like to get your call here. — *Danielle:* I'm good with this, I think! I'm curious how much will populate with these changes, because if it's still a lot of blanks, then we may want to omit it altogether. I think I may just need to see it in practice but in theory, this seems good to me.
 
 ---
 
@@ -102,12 +126,15 @@ They also measured a page's engagement rate differently when Google Analytics re
 - Competitor tables show on the **Peec** view only; their data doesn't exist in Profound.
 - All of this applies to **both the internal view and the client portal**, except where items 2–4 say otherwise.
 
-→ **Any of these not what you'd expect?**
+→ **Any of these not what you'd expect?** (TF) This sounds right to me!
 
 ---
 
-## Questions for Tina and the content team
+## Questions for the content team
 
-1. **How much ranking slippage should count as "declining"?** We'd start at an average drop of one position or more, and it can be tuned per client. This is what item 4's third kind waits on. *(Tina.)*
-1. **Are the New / Optimized labels right?** Renaissance's calendar has no new-or-optimized column, so the label is worked out from Content Type. We'll send the full list of Content Types with the label each gets; for example, is a "Blog" refresh being labelled New? *(Content team.)*
-1. **Does Renaissance's calendar have a last-updated column?** "Last updated" shows blank. If the column exists under a heading or date format we don't read, we'll fix it on our side; if it doesn't exist, it needs adding to the calendar. *(Content team.)*
+1. **How much ranking slippage should count as "declining"?** We'd start at an average drop of one position or more, and it can be tuned per client. This is what item 4's third kind waits on.
+   > *Danielle:* I think this makes sense. I'm fine with this.
+1. **Are the New / Optimized labels right?** Renaissance's calendar has no new-or-optimized column, so the label is worked out from Content Type. We'll send the full list of Content Types with the label each gets; for example, is a "Blog" refresh being labelled New?
+   > *Danielle:* The Content Types are correct in Column C. A refresh is labeled "Existing Blog Optimization". Is there something specific you would need us to change? — *Answer:* No. That maps to Optimized; nothing to change.
+1. **Does Renaissance's calendar have a last-updated column?** "Last updated" shows blank. If the column exists under a heading or date format we don't read, we'll fix it on our side; if it doesn't exist, it needs adding to the calendar.
+   > *Danielle:* We don't have a "last updated" column, but we do have a Publish Date column (column F). That is typically the last date that we updated or pushed anything live for that page or article. — *Answer:* That works; no new column. See the Resolutions table.
