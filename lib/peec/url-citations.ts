@@ -54,7 +54,7 @@ export type UrlCitation = {
   mentionsYourBrand: boolean
 }
 
-function hostOf(url: string): string {
+export function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./i, '').toLowerCase() }
   catch { return (urlJoinKey(url) ?? '').split('/')[0] }
 }
@@ -155,7 +155,7 @@ function getKey(): string {
   return key
 }
 
-async function post<T>(path: string, body: Record<string, unknown>, pid?: string): Promise<T> {
+export async function post<T>(path: string, body: Record<string, unknown>, pid?: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'X-API-Key': getKey(), 'Content-Type': 'application/json' },
@@ -166,7 +166,7 @@ async function post<T>(path: string, body: Record<string, unknown>, pid?: string
   return res.json()
 }
 
-async function get<T>(path: string, params: Record<string, string>, pid?: string): Promise<T> {
+export async function get<T>(path: string, params: Record<string, string>, pid?: string): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`)
   if (pid) url.searchParams.set('project_id', pid)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
@@ -176,7 +176,7 @@ async function get<T>(path: string, params: Record<string, string>, pid?: string
 }
 
 function isoDate(d: Date) { return d.toISOString().slice(0, 10) }
-function last30() {
+export function last30() {
   const end = new Date(); const start = new Date(end); start.setDate(start.getDate() - 29)
   return { start_date: isoDate(start), end_date: isoDate(end) }
 }
@@ -196,45 +196,59 @@ function last30() {
  * sizes (~1.2s at both 2,000 and 10,000 rows), so a large page is strictly
  * cheaper than many small ones.
  */
-export async function fetchAllPages<T>(
+export async function fetchAllPagesChecked<T>(
   fetchPage: (offset: number, limit: number) => Promise<{ rows: T[]; totalCount?: number }>,
-  opts: { pageSize: number; maxPages: number; label?: string },
-): Promise<T[]> {
+  opts: { pageSize: number; maxPages: number; label?: string; rowKey?: (row: T) => string },
+): Promise<{ rows: T[]; complete: boolean; duplicateRows: number }> {
   const out: T[] = []
+  const seen = new Set<string>()
+  let duplicateRows = 0
+  let fetched = 0
   let reportedTotal: number | undefined
-
-  // Review #10: disjoint pages prove `offset` is honoured, they do not prove the
-  // union is the whole set. With a tie-heavy sort and no explicit order_by, a
-  // reorder between requests can carry a row past the page boundary so it is
-  // never returned, and the dedupe added for finding 6 is structurally blind to
-  // that. Peec reports totalCount alongside data, so compare against it. One
-  // assertion also catches an ignored offset, a mid-walk data shift, and a
-  // silently changed page cap.
-  const checkComplete = () => {
-    if (reportedTotal == null || out.length === reportedTotal) return
-    console.warn(
-      `[peec] fetchAllPages${opts.label ? ` (${opts.label})` : ''}: got ${out.length} rows ` +
-      `but the source reported ${reportedTotal} — RESULT IS INCOMPLETE`,
-    )
-  }
+  const tag = opts.label ? ` (${opts.label})` : ''
 
   for (let page = 0; page < opts.maxPages; page++) {
     const { rows, totalCount } = await fetchPage(page * opts.pageSize, opts.pageSize)
     if (page === 0) reportedTotal = totalCount
-    out.push(...rows)
+    fetched += rows.length
+    for (const r of rows) {
+      if (opts.rowKey) {
+        const k = opts.rowKey(r)
+        if (seen.has(k)) { duplicateRows++; continue }
+        seen.add(k)
+      }
+      out.push(r)
+    }
     if (rows.length < opts.pageSize) {   // short page: the source is exhausted
-      checkComplete()
-      return out
+      // Review #10: disjoint pages prove `offset` is honoured, they do not prove
+      // the union is the whole set. Peec reports totalCount on some endpoints, so
+      // compare against it. One assertion also catches an ignored offset, a
+      // mid-walk data shift, and a silently changed page cap.
+      if (reportedTotal != null && fetched !== reportedTotal) {
+        console.warn(
+          `[peec] fetchAllPages${tag}: got ${fetched} rows ` +
+          `but the source reported ${reportedTotal} — RESULT IS INCOMPLETE`,
+        )
+        return { rows: out, complete: false, duplicateRows }
+      }
+      return { rows: out, complete: true, duplicateRows }
     }
   }
   // Ran out of pages with every page full, so the source had more than we read.
   // Silent truncation is the exact failure this whole change exists to remove,
   // so it must not be indistinguishable from "the data ran out".
   console.warn(
-    `[peec] fetchAllPages${opts.label ? ` (${opts.label})` : ''}: hit maxPages=${opts.maxPages} ` +
+    `[peec] fetchAllPages${tag}: hit maxPages=${opts.maxPages} ` +
     `at pageSize=${opts.pageSize}, returning ${out.length} rows — RESULT IS TRUNCATED`,
   )
-  return out
+  return { rows: out, complete: false, duplicateRows }
+}
+
+export async function fetchAllPages<T>(
+  fetchPage: (offset: number, limit: number) => Promise<{ rows: T[]; totalCount?: number }>,
+  opts: { pageSize: number; maxPages: number; label?: string },
+): Promise<T[]> {
+  return fetchAllPagesChecked(fetchPage, opts).then((r) => r.rows)
 }
 
 /**
@@ -354,10 +368,10 @@ export const getUrlCitations = cached('peec', 'getUrlCitations', getUrlCitations
 
 /** Peec accepts 10,000 per page on /reports/urls at flat latency (~1.2s at both
  *  2,000 and 10,000), so a large page is strictly cheaper than many small ones. */
-const CITATION_PAGE_SIZE = 10_000
+export const CITATION_PAGE_SIZE = 10_000
 /** 120,000-row ceiling. Measured today: base query 17,081 rows, engine query
  *  19,005 — about 6x headroom. fetchAllPages warns loudly if it is ever hit. */
-const CITATION_MAX_PAGES = 12
+export const CITATION_MAX_PAGES = 12
 
 async function getPlacementCitationsImpl(
   clientSlug: string | undefined,

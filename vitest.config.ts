@@ -23,6 +23,8 @@ export default defineConfig({
       'lib/peec/models.test.ts',
       'lib/peec/scatter-window.test.ts',
       'lib/peec/url-citations.test.ts',
+      'lib/peec/owned-hosts.test.ts',
+      'lib/peec/coverage-projection.test.ts',
       'lib/ga4/format-speed.test.ts',
       'lib/ga4/order-by.test.ts',
       'lib/ga4/lead-events.test.ts',

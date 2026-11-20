@@ -31,3 +31,24 @@ No mapping fix needed. 3 URLs appear on two tabs (dental-insurance tabs 0,3; emp
 | Full base JSON (reference) | 9,649,925 bytes |
 
 **STOP:** the aggregated coverage JSON (5.75 MB) exceeds the 1.5 MB threshold and the 2 MB Next data-cache limit. The Task 2 cache plan assumes it fits; escalate before Task 2. The owned-host subset (66 KB) fits comfortably, so filtering to owned hosts before caching is a candidate. Also note 3 duplicate keys: completeness of an uncached walk is not guaranteed by the duplicate check.
+
+Note: duplicate keys vary run to run (2-3 across Task 1's runs, 1 in Task 2's), so they are a reorder signal, not a fixed count. `getCoverageProjection` de-duplicates, retries the walk once, and accepts a persistent remainder with a warning (D-21).
+
+## Projection sizes (bytes; 30-day prompt x model walk)
+Full walk: 12.9 s (5 pages). Tracked prompts (`/prompts` totalCount): 100.
+
+| Piece | Bytes |
+|---|---|
+| Full aggregate: promptIdsByDomain | 1,112,583 |
+| Full aggregate: promptIdsByDomainByModel | 1,388,194 |
+| Full aggregate: promptIdsByUrlKey | 3,251,063 |
+| Full aggregate: tagIdsByDomain / tagIdsByUrlKey / tagNameById | 42,241 / 115,594 / 546 |
+| a) owned prompt ids + per engine | 14,798 (97 prompts) |
+| b) promptIdsByUrlKey, owned only | 53,056 (132 keys) |
+| c) domain maps, top 25 competitors + own | 137,597 (Peec has only 26 Competitor domains) |
+| d) per-prompt top 3 non-owned urls + more | 37,456 (100 prompts) |
+| e) brand-absent competitor-naming urls (capped getUrlCitations) | 614,357 (1,146 of 2,000 qualify) |
+| f) a+b+c+d+e (Task 1 estimate) | 857,264 |
+
+### Measured `getCoverageProjection('renaissance', last30)` (Task 2)
+`JSON.stringify(projection).length` = **1,042,670 bytes** (under the 1,500,000 target and Next's 2 MB limit). Walk plus tag/domain/brand/url fetches took ~21 s uncached (includes one retry walk after a duplicate); `complete: true`, `duplicateRows: 1`. Per field: promptIdsByDomain 50,021; promptIdsByDomainByModel 87,842; promptIdsByUrlKey 667,454 (1,278 keys); tagIdsByDomain 42,241; tagIdsByUrlKey 115,594; ownedPromptIds 4,075; ownedPromptIdsByModel 10,703; otherSitesByPrompt 63,973. One transient Peec 429 on `/reports/domains` was seen on the first measurement run; the rerun succeeded.

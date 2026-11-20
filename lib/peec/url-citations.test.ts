@@ -14,6 +14,7 @@ import {
   ownedPromptCoveragePctForModels,
   isPositiveDelta,
   fetchAllPages,
+  fetchAllPagesChecked,
   pickCitationsForUrls,
   countDuplicateUrlKeys,
   type ApiUrlRow,
@@ -473,5 +474,39 @@ describe('countDuplicateUrlKeys', () => {
 
   it('is zero for an empty set', () => {
     expect(countDuplicateUrlKeys([])).toBe(0)
+  })
+})
+
+describe('fetchAllPagesChecked', () => {
+  const paged = <T,>(pages: T[][]) => async (offset: number, limit: number) =>
+    ({ rows: pages[offset / limit] ?? [] })
+
+  it('short final page: complete, no duplicates', async () => {
+    const r = await fetchAllPagesChecked(paged([[1, 2, 3], [4, 5, 6], [7]]), { pageSize: 3, maxPages: 10 })
+    expect(r).toEqual({ rows: [1, 2, 3, 4, 5, 6, 7], complete: true, duplicateRows: 0 })
+  })
+
+  it('maxPages hit with every page full: incomplete', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await fetchAllPagesChecked(async () => ({ rows: [1, 2] }), { pageSize: 2, maxPages: 3 })
+    warn.mockRestore()
+    expect(r.complete).toBe(false)
+    expect(r.rows).toHaveLength(6)
+  })
+
+  it('duplicate rowKey across pages: de-duplicated and counted, still complete', async () => {
+    const r = await fetchAllPagesChecked(paged([['a', 'b'], ['b', 'c'], ['d']]), {
+      pageSize: 2, maxPages: 10, rowKey: (x) => x,
+    })
+    expect(r.rows).toEqual(['a', 'b', 'c', 'd'])
+    expect(r.duplicateRows).toBe(1)
+    expect(r.complete).toBe(true)
+  })
+
+  it('a reported totalCount that disagrees makes it incomplete', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await fetchAllPagesChecked(async () => ({ rows: [1], totalCount: 5 }), { pageSize: 2, maxPages: 5 })
+    warn.mockRestore()
+    expect(r.complete).toBe(false)
   })
 })
