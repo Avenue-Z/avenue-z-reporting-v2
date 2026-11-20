@@ -163,7 +163,9 @@ async function getCoverageProjectionImpl(
     get<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
     post<{ data: ApiDomainClass[] }>('/reports/domains', { ...window, limit: 5000 }, pid),
     post<{ data: { brand: { id: string; name: string } }[] }>('/reports/brands', { ...window, limit: 200 }, pid),
-    getUrlCitations(clientSlug, opts),
+    // D-10: the gap table renders getUrlCitations(clientSlug) (fixed last-30), so its
+    // keys must come from that same call, not the picker window.
+    getUrlCitations(clientSlug),
   ])
 
   const domains = domainsRes.data ?? []

@@ -8,9 +8,10 @@ vi.mock('@/lib/cache', () => ({ cached: (_v: string, _n: string, fn: unknown) =>
 vi.mock('@/lib/db/queries', () => ({
   getClientBySlug: async () => ({ peecCustomerProjectId: 'proj', peecYourBrand: 'Mine' }),
 }))
+const getUrlCitationsMock = vi.hoisted(() => vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []))
 vi.mock('./url-citations', async (orig) => ({
   ...(await orig<typeof import('./url-citations')>()),
-  getUrlCitations: async () => [],
+  getUrlCitations: getUrlCitationsMock,
 }))
 
 import {
@@ -98,6 +99,7 @@ describe('getCoverageProjection', () => {
   let handler: (offset: number, walk: number) => ApiUrlRow[]
 
   beforeEach(() => {
+    getUrlCitationsMock.mockClear()
     process.env.PEEC_AI_CUSTOMER_TOKEN = 't'
     promptWalks = 0
     vi.stubGlobal('fetch', vi.fn(async (input: string, init?: { body?: string }) => {
@@ -155,6 +157,22 @@ describe('getCoverageProjection', () => {
     const p = await getCoverageProjection('s', opts)
     expect(p.complete).toBe(false)
     expect(warn).toHaveBeenCalled()
+  })
+
+  it('gap url keys come from getUrlCitations(clientSlug) with no picker window, and survive into promptIdsByUrlKey', async () => {
+    getUrlCitationsMock.mockResolvedValueOnce([
+      { urlKey: 'other.com/gap', mentionsYourBrand: false, competitorBrandNames: ['Rival'] },
+      { urlKey: 'other.com/mine', mentionsYourBrand: true, competitorBrandNames: ['Rival'] },
+      { urlKey: 'other.com/none', mentionsYourBrand: false, competitorBrandNames: [] },
+    ])
+    handler = () => [
+      row('https://other.com/gap', 'p1', 'openai-0'),
+      row('https://other.com/mine', 'p2', 'openai-0'),
+      row('https://other.com/none', 'p3', 'openai-0'),
+    ]
+    const p = await getCoverageProjection('s', opts)
+    expect(getUrlCitationsMock).toHaveBeenCalledWith('s')
+    expect(Object.keys(p.promptIdsByUrlKey)).toEqual(['other.com/gap'])
   })
 
   it('exports an empty placeholder', () => {
