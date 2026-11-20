@@ -152,6 +152,9 @@ async function ga4QueryImpl(params: GA4QueryParams): Promise<GA4ReportResult> {
   }
 }
 
+/** The uncached runner, for a cached fetcher that stores a derived result instead of raw rows (lib/ga4/first-visit.ts). */
+export const ga4QueryUncached = ga4QueryImpl
+
 /**
  * Convenience: fetch a single set of totals (no dimensions) for a date range.
  * Returns the first (and only) row of metric values.

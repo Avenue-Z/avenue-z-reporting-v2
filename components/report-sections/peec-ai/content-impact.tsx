@@ -5,10 +5,10 @@ import { ContentImpactSynopsis } from './content-impact-synopsis'
 import type { ContentImpactSynopsisContext } from '@/lib/peec/content-impact-synopsis'
 import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
-import type { TopDomain } from '@/lib/peec/client'
+import type { TopDomain, PeecOverview } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
 import { getUrlCitations, getOwnedUrlCitations, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
-import { planOwnedCitations } from '@/lib/peec/owned-citations-plan'
+import { planOwnedCitations, OWNED_UNAVAILABLE } from '@/lib/peec/owned-citations-plan'
 import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION } from '@/lib/peec/coverage-projection'
 import { buildContentPerformanceRows, engagementRateByPath, normPath } from '@/lib/peec/content-performance-rows'
 import { toCalendarPages } from '@/lib/content-calendar/pages'
@@ -19,7 +19,9 @@ import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarRow } from '@/lib/content-calendar/types'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
-import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
+import {
+  timingUniverse, timingAnchors, getFirstVisitDates, summariseTiming, timingStatus, EMPTY_TIMING, TIMING_EMPTY_COPY,
+} from '@/lib/ga4/first-visit'
 import { formatDaysToFirst } from '@/lib/ga4/format-speed'
 import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
 import { resolveScatterWindow } from '@/lib/peec/scatter-window'
@@ -129,12 +131,6 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
 
 // ─── Cross-reference helpers ───────────────────────────────────────────────────
 
-/** Extract path from a URL for agent analytics matching */
-function extractPath(url: string | null): string | null {
-  if (!url) return null
-  try { return new URL(url).pathname } catch { return url.startsWith('/') ? url : null }
-}
-
 /** Derive a recommended next action from available signals */
 function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
   if (row.matchStatus === 'unpublished') return 'Publish and monitor for AI indexing'
@@ -169,6 +165,16 @@ const BOT_TO_MODEL: Record<string, AEOModel> = {
   'Googlebot':      'Google',
   'Bingbot':        'Copilot',
   'Bingbot-Video':  'Copilot',
+}
+
+function ownDomainsOf(p: PeecOverview | null): TopDomain[] {
+  return (p?.topDomains ?? []).filter(d => d.type === 'Own')
+}
+
+/** D-18: the host bare calendar paths resolve against; null when Peec lists no Own domain. */
+function primaryOwnedDomainOf(p: PeecOverview | null): string | null {
+  return (ownDomainsOf(p)[0]?.domain ?? '')
+    .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') || null
 }
 
 /** Section C's four cards. In the PDF export the Fastest and Slowest URLs, which are the answer, print in full (the theme
@@ -256,6 +262,40 @@ export async function ContentImpactReport({
 
   const previousPeriodDates = deriveCompareRange(mainRangeStr, 'previous_period')
 
+  // C1(d): fetches that depend on the Peec overview or the calendar start as soon as
+  // those resolve, not after the whole batch below. Each still settles into the batch,
+  // so a rejection renders --, never an error.
+  const peecP = getPeecOverview(clientSlug, effectiveRange)  // multi-client: uses peecCustomerProjectId from config; honors the page date range
+  const calendarP = getContentCalendarData(clientSlug)        // null when contentCalendarSheetId not configured
+  const clientRowP = getClientBySlug(clientSlug)              // React.cache-memoized; prompt-gaps visibility + decline threshold + GA4 connected
+  const peecOrNullP = peecP.catch(() => null)
+  // Merged content table (D-5): owned hosts only exist once Peec's overview resolves.
+  const ownedCitationsP = peecOrNullP.then((p) => planOwnedCitations({
+    clientSlug,
+    ownedHosts: ownDomainsOf(p).map(d => d.domain),
+    dateRange: mainRangeStr,
+    compareDates,
+    fetcher: getOwnedUrlCitations,
+    onError: (which, reason) => console.error(`[content-impact] Owned URL citations ${which} error:`, reason),
+  }))
+  // D-18: bare calendar paths resolve against the primary owned domain, so pages wait for both.
+  const calendarPagesP = Promise.all([calendarP, peecOrNullP])
+    .then(([cal, p]) => toCalendarPages(cal?.rows ?? [], primaryOwnedDomainOf(p)))
+  // §C (D-1, D-9): first visits for the New published pages, from publish date to today.
+  const today = new Date().toISOString().slice(0, 10)
+  const firstVisitsP = calendarPagesP.then((pages) => {
+    const anchors = timingAnchors(timingUniverse(pages))
+    return anchors.length > 0 ? getFirstVisitDates(clientSlug, anchors, today) : null
+  })
+  // D-16 prompt gaps always compare to the previous period. A client viewer with the block
+  // off never sees gaps, so the extra walk is skipped for them.
+  const gapsPriorP = compareRange !== 'previous_period' && previousPeriodDates
+    ? clientRowP.catch(() => null).then((row) =>
+        audience === 'internal' || isClientVisible(row?.reportSectionConfig, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID)
+          ? getCoverageProjection(clientSlug, previousPeriodDates)
+          : null)
+    : Promise.resolve(null)
+
   const [
     peecResult,
     agentResult,
@@ -277,10 +317,13 @@ export async function ContentImpactReport({
     clientRowResult,
     sessionResult,
     coverageGapsPriorResult,
+    ownedCitationsResult,
+    calendarPagesResult,
+    firstVisitsResult,
   ] = await Promise.allSettled([
-    getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
+    peecP,
     getAgentAnalytics(clientSlug),
-    getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
+    calendarP,
     ga4Query({                          // page-level sessions for Section B -- requires ga4PropertyId
       clientSlug,
       dateRange: effectiveRange,
@@ -389,13 +432,13 @@ export async function ContentImpactReport({
       dimensions: ['pagePath', 'sessionSource'],
       limit: 1000,
     }),
-    getClientBySlug(clientSlug), // React.cache-memoized; prompt-gaps visibility + decline threshold
+    clientRowP,
     auth(),                      // INTERNAL_ADMIN gets the visibility switch
-    // D-16: prompt gaps always compare to the previous period. Reuse the compare-period
-    // projection when that's what the toggle selected, else fetch it here (same batch).
-    compareRange !== 'previous_period' && previousPeriodDates
-      ? getCoverageProjection(clientSlug, previousPeriodDates)
-      : Promise.resolve(null),
+    // D-16: reuse the compare-period projection when that's what the toggle selected.
+    gapsPriorP,
+    ownedCitationsP,
+    calendarPagesP,
+    firstVisitsP,
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -463,22 +506,16 @@ export async function ContentImpactReport({
   if (ga4AiPathPriorResult.status   === 'rejected') console.error('[content-impact] GA4 AI per-path prior error:', ga4AiPathPriorResult.reason)
   if (ga4ChannelMainResult.status   === 'rejected') console.error('[content-impact] GA4 channel-group main error:', ga4ChannelMainResult.reason)
   if (ga4ChannelPriorResult.status  === 'rejected') console.error('[content-impact] GA4 channel-group prior error:', ga4ChannelPriorResult.reason)
+  if (firstVisitsResult.status      === 'rejected') console.error('[content-impact] GA4 §C timing error:', firstVisitsResult.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
-  const ownDomains        = (peecData?.topDomains ?? []).filter(d => d.type === 'Own')
+  const ownDomains        = ownDomainsOf(peecData)
   const competitorDomains = (peecData?.topDomains ?? []).filter(d => d.type === 'Competitor')
 
-  // Merged content table (D-5): owned hosts only exist once Peec's overview
-  // resolves, so this is a second awaited fetch after the main batch. Sorted
-  // because the host list is part of getOwnedUrlCitations's cache key.
-  const { owned: ownedCitations, ownedPrior: ownedCitationsPrior } = await planOwnedCitations({
-    clientSlug,
-    ownedHosts: ownDomains.map(d => d.domain),
-    dateRange: mainRangeStr,
-    compareDates,
-    fetcher: getOwnedUrlCitations,
-    onError: (which, reason) => console.error(`[content-impact] Owned URL citations ${which} error:`, reason),
-  })
+  // planOwnedCitations never rejects (it settles each fetch itself); the fallback is belt and braces.
+  const { owned: ownedCitations, ownedPrior: ownedCitationsPrior } = ownedCitationsResult.status === 'fulfilled'
+    ? ownedCitationsResult.value
+    : { owned: OWNED_UNAVAILABLE, ownedPrior: compareDates ? OWNED_UNAVAILABLE : null }
 
   // ── AI Citations KPI: filtered by selected models when active ───────────────
   // When a model filter is active, sum domainCitationsByModel across selected
@@ -592,81 +629,19 @@ export async function ContentImpactReport({
   }
 
   // ── §C · time-to-first search visit / AI-referred visit (D-1, D-9) ───────────
-  // Universe: published, New (or New · Optimized) Avenue Z pages with a publish
-  // date, measured from publishDate. One date-bucketed GA4 query restricted to
-  // those paths, from the earliest publish date to today. Gated on the content
-  // calendar: without publish dates there is no URL spine to measure.
-  // ── Merged content performance table (D-5, D-17, D-18, D-19) ───────────────
-  const primaryOwnedDomain = (ownDomains[0]?.domain ?? '')
-    .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') || null
-  const calendarPages = toCalendarPages(calendarData?.rows ?? [], primaryOwnedDomain)
-  const plannedTiming = calendarPages
-    .filter(p => p.published && (p.badge === 'new' || p.badge === 'new-optimized') && p.publishDate)
-    .map(p => ({ path: extractPath(p.url), url: p.url, publishDate: p.publishDate as string }))
-    .filter((r): r is { path: string; url: string; publishDate: string } => r.path !== null)
-
-  const daysByPath = new Map<string, Map<string, { aiSessions: number; searchSessions: number }>>()
-  let timingOk = false
-  if (plannedTiming.length > 0) {
-    const today = new Date().toISOString().slice(0, 10)
-    const minPublish = plannedTiming.reduce((m, r) => (r.publishDate < m ? r.publishDate : m), plannedTiming[0].publishDate)
-    // pagePath inListFilter is an exact match, but GA4 may store a path with or
-    // without a trailing slash. Include both variants so neither form is missed;
-    // the client-side join (normPath) collapses them back together.
-    const pathVariants = (p: string) => {
-      const stripped = p.replace(/\/$/, '') || '/'
-      return stripped === '/' ? ['/'] : [stripped, `${stripped}/`]
-    }
-    const filterValues = [...new Set(plannedTiming.flatMap(r => pathVariants(r.path)))]
-    try {
-      const res = await ga4Query({
-        clientSlug,
-        dateRange: `${minPublish},${today}`,
-        metrics: ['sessions'],
-        dimensions: ['pagePath', 'date', 'sessionSource', 'sessionDefaultChannelGroup'],
-        dimensionFilter: { filter: { fieldName: 'pagePath', inListFilter: { values: filterValues } } },
-        limit: 100000,
-      })
-      timingOk = true
-      for (const row of res.rows) {
-        const path = normPath(String(row.pagePath ?? ''))
-        const ds = String(row.date ?? '')
-        const iso = ds.length === 8 ? `${ds.slice(0, 4)}-${ds.slice(4, 6)}-${ds.slice(6, 8)}` : ds
-        const sessions = Number(row.sessions) || 0
-        if (!daysByPath.has(path)) daysByPath.set(path, new Map())
-        const byDate = daysByPath.get(path)!
-        const acc = byDate.get(iso) ?? { aiSessions: 0, searchSessions: 0 }
-        if (isAiSource(row.sessionSource)) acc.aiSessions += sessions
-        if (String(row.sessionDefaultChannelGroup ?? '') === 'Organic Search') acc.searchSessions += sessions
-        byDate.set(iso, acc)
-      }
-    } catch (e) {
-      console.error('[content-impact] GA4 §C timing error:', e)
-    }
-  }
-
-  const daysFor = (path: string) =>
-    [...(daysByPath.get(normPath(path))?.entries() ?? [])].map(([date, v]) => ({ date, ...v }))
-
-  const urlTimings = plannedTiming.map(r => ({
-    url: r.url,
-    ...computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
-  }))
-
-  // §C aggregates (median days-to-first; fastest/slowest AI-referred).
-  const firstSearchDays = urlTimings.map(t => t.daysToFirstSearch).filter((n): n is number => n !== null)
-  const firstAiDays = urlTimings.map(t => t.daysToFirstAi).filter((n): n is number => n !== null)
-  const medFirstSearch = median(firstSearchDays)
-  const medFirstAi = median(firstAiDays)
-  const fastestAi = firstAiDays.length ? Math.min(...firstAiDays) : null
-  const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
-  const fastestAiUrl = fastestAi !== null
-    ? urlTimings.find(t => t.daysToFirstAi === fastestAi)?.url ?? null
-    : null
-  const slowestAiUrl = slowestAi !== null
-    ? urlTimings.find(t => t.daysToFirstAi === slowestAi)?.url ?? null
-    : null
-  const sectionCOk = timingOk
+  // Universe and channel rules live in lib/ga4/first-visit.ts; the fetch started
+  // above, chained off the calendar. Cards are -- unless every input is usable.
+  const calendarPages = calendarPagesResult.status === 'fulfilled' ? calendarPagesResult.value : []
+  const timingPages = timingUniverse(calendarPages)
+  const firstVisits = firstVisitsResult.status === 'fulfilled' ? firstVisitsResult.value : null
+  const timingState = timingStatus({
+    // A failed client lookup isn't "not connected": let the fetch result decide.
+    ga4Connected: clientRowResult.status === 'fulfilled' ? !!clientRowResult.value?.ga4PropertyId : true,
+    calendarFailed: calendarResult.status === 'rejected',
+    universeSize: timingPages.length,
+    result: firstVisits,
+  })
+  const timing = timingState === 'ok' && firstVisits ? summariseTiming(timingPages, firstVisits.byAnchor) : EMPTY_TIMING
 
   // ── §D · Bot vs Human scatter (FB-037, window fix FB-048/CI-3c) ──────────────
   // Build per-path maps. Bot side comes from agentData.byPath, always the last
@@ -1160,15 +1135,10 @@ export async function ContentImpactReport({
         title="How quickly does new content get found?"
         description="For new content: days from publish date to the first visit by a person arriving from search, and from an AI answer (ChatGPT, Perplexity, Gemini…). Crawler visits don't count. Measured from publish date to today, whatever range is selected."
       >
-        <TimeToFirstCards medFirstSearch={medFirstSearch} medFirstAi={medFirstAi} fastestAi={fastestAi} slowestAi={slowestAi}
-          fastestAiUrl={fastestAiUrl} slowestAiUrl={slowestAiUrl} />
-        {!sectionCOk && (
+        <TimeToFirstCards {...timing} />
+        {timingState !== 'ok' && (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
-            <p className="text-xs text-text-muted">
-              {calendarData
-                ? 'Connect GA4 to calculate days-to-first-visit per planned URL'
-                : 'Requires content calendar publish dates + GA4 page-level first-session data'}
-            </p>
+            <p className="text-xs text-text-muted">{TIMING_EMPTY_COPY[timingState]}</p>
           </div>
         )}
       </SectionCard>
