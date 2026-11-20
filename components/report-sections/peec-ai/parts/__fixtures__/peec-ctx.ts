@@ -159,6 +159,8 @@ export const FIXTURE_PEEC_CTX: PeecCtx = {
   clientSlug: 'fixture-client',
   dateRange: 'last_30_days',
   isPeec: true,
+  models: null,
+  audience: 'client',
   you: {
     rank: 1,
     name: 'Acme Corp',

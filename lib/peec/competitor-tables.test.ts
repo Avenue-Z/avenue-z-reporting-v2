@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCompetitorDomainRows, buildBrandAbsentRows } from './competitor-tables'
+import { buildCompetitorDomainRows, buildBrandAbsentRows, humanisePageType, toCompetitorGapRows } from './competitor-tables'
 import { EMPTY_COVERAGE_PROJECTION, type CoverageProjection } from './coverage-projection'
 import type { TopDomain } from './client'
 import type { UrlCitation } from './url-citations'
@@ -83,6 +83,52 @@ describe('buildBrandAbsentRows (H2)', () => {
       const rows = buildBrandAbsentRows({ citations, coverage: urlCov, ...args })
       expect(rows.every((r) => r.citationShareDelta === null)).toBe(true)
       expect(rows[0].citationShare).toBe(25)
+    }
+  })
+})
+
+describe('humanisePageType', () => {
+  it('maps known Peec classifications and title-cases the rest', () => {
+    expect(humanisePageType('ARTICLE')).toBe('Article')
+    expect(humanisePageType('LISTICLE')).toBe('Listicle')
+    expect(humanisePageType('UGC')).toBe('Forum')
+    expect(humanisePageType('FORUM')).toBe('Forum')
+    expect(humanisePageType('PRODUCT_PAGE')).toBe('Product page')
+    expect(humanisePageType('HOW_TO_GUIDE')).toBe('How-to guide')
+    expect(humanisePageType('SOME_NEW_KIND')).toBe('Some New Kind')
+  })
+  it('is null (rendered --) when Peec gave no classification', () => {
+    expect(humanisePageType('')).toBeNull()
+    expect(humanisePageType('  ')).toBeNull()
+  })
+})
+
+describe('toCompetitorGapRows (D-15 data boundary)', () => {
+  const base = buildBrandAbsentRows({ citations, citationsPrior: prior, coverage: urlCov, showDelta: true })
+  const promptTextById = new Map([['p1', 'first prompt text'], ['p2', 'second prompt text']])
+
+  it('client rows carry only the count: no prompt ids, no prompt text', () => {
+    const rows = toCompetitorGapRows(base, { audience: 'client', coverageOk: true, promptTextById })
+    expect(rows[0]).toEqual({
+      domain: 'x.com', articleTitle: 'a', url: 'https://x.com/a', citationShare: 25, citationShareDelta: 5,
+      competitorsMentioned: 'Acme', pageTypeLabel: 'Article', promptCount: 2,
+    })
+    const wire = JSON.stringify(rows)
+    expect(wire).not.toContain('first prompt text')
+    expect(wire).not.toContain('"p1"')
+    expect(wire).not.toContain('promptIds')
+  })
+  it('internal rows also carry the prompt texts, looked up by id', () => {
+    const rows = toCompetitorGapRows(base, { audience: 'internal', coverageOk: true, promptTextById })
+    expect(rows[0].promptCount).toBe(2)
+    expect(rows[0].prompts).toEqual(['first prompt text', 'second prompt text'])
+    expect(rows[1].prompts).toEqual([])
+    expect(JSON.stringify(rows)).not.toContain('promptIds')
+  })
+  it('an unusable coverage walk renders the count as -- (null), never 0, and shows no prompts', () => {
+    for (const audience of ['client', 'internal'] as const) {
+      const rows = toCompetitorGapRows(base, { audience, coverageOk: false, promptTextById })
+      expect(rows.every((r) => r.promptCount === null && r.prompts === undefined)).toBe(true)
     }
   })
 })

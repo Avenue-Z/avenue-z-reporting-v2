@@ -12,6 +12,10 @@ export const PEEC_TEMPLATE: SectionTemplate = {
     { id: 'winners-losers', version: 1 },
     { id: 'brand-rankings', version: 1 },
     { id: 'domains-row', version: 1 },
+    // D-11: the Competitors block sits just above the footer. The peec-ai section_templates
+    // row is insert-if-absent, so production gets these by a manual append at rollout.
+    { id: 'competitor-visibility', version: 1 },
+    { id: 'competitor-gaps', version: 1 },
     { id: 'footer', version: 1 },
   ],
   labels: {

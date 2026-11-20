@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { resolveSection } from '@/lib/report-sections/resolve'
@@ -7,6 +7,17 @@ import { PEEC_PARTS } from './parts/registry'
 import { BESPOKE_PARTS } from './parts/bespoke/registry'
 import { PEEC_TEMPLATE } from './template'
 import { FIXTURE_PEEC_CTX } from './parts/__fixtures__/peec-ctx'
+
+// The competitor parts stream behind <Suspense>; the snapshot holds their skeletons. Their
+// fetchers are stubbed so the pending async children never reach the real cached() calls.
+vi.mock('@/lib/peec/coverage-projection', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/peec/coverage-projection')>()),
+  getCoverageProjection: vi.fn(() => new Promise(() => {})),
+}))
+vi.mock('@/lib/peec/url-citations', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/peec/url-citations')>()),
+  getUrlCitations: vi.fn(() => new Promise(() => {})),
+}))
 
 // overview-synopsis renders via <Suspense> with an async child when SHOW_AI_NARRATIVE=true.
 // Since SHOW_AI_NARRATIVE=false in this codebase, the part returns null synchronously

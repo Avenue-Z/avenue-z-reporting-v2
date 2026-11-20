@@ -36,6 +36,7 @@ function ProviderSection({
   dateRange,
   template,
   override,
+  audience,
 }: {
   data: Overview
   provider: AeoProvider
@@ -45,8 +46,9 @@ function ProviderSection({
   dateRange?: string
   template: typeof PEEC_TEMPLATE
   override: SectionOverride | undefined
+  audience: ReportAudience
 }) {
-  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange })
+  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience })
   const resolved = resolveSection(template, override)
 
   return (
@@ -70,7 +72,7 @@ export async function PeecAIReport({
   clientSlug,
   dateRange,
   models = null,
-  // audience is accepted for the callers now; the Overview parts consume it later (declared in the type only).
+  audience,
 }: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null; audience: ReportAudience }) {
   const config = clientSlug ? await getClientBySlug(clientSlug) : null
   const peecConfigured = !!config?.peecCustomerProjectId
@@ -134,8 +136,8 @@ export async function PeecAIReport({
   const override = config?.reportSectionConfig?.['peec-ai']
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} />
 
   return (
     <>

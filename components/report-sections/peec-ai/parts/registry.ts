@@ -9,6 +9,8 @@ import { llmBreakdownV1 } from './llm-breakdown'
 import { winnersLosersV1 } from './winners-losers'
 import { brandRankingsV1 } from './brand-rankings'
 import { domainsRowV1 } from './domains-row'
+import { competitorVisibilityV1 } from './competitor-visibility'
+import { competitorGapsV1 } from './competitor-gaps'
 import { footerV1 } from './footer'
 
 export const PEEC_PARTS: PartRegistry<PeecCtx> = {
@@ -19,5 +21,7 @@ export const PEEC_PARTS: PartRegistry<PeecCtx> = {
   'winners-losers':    { 1: winnersLosersV1 },
   'brand-rankings':    { 1: brandRankingsV1 },
   'domains-row':       { 1: domainsRowV1 },
+  'competitor-visibility': { 1: competitorVisibilityV1 },
+  'competitor-gaps':   { 1: competitorGapsV1 },
   'footer':            { 1: footerV1 },
 }

@@ -10,8 +10,10 @@ import { domainPromptIds, urlPromptIds } from './url-citations'
 import type { CoverageProjection } from './coverage-projection'
 import type {
   CompetitorDomainsCitedRow,
+  CompetitorGapRow,
   CompetitorUrlsBrandAbsentRow,
 } from '@/components/report-sections/peec-ai/competitor-tables'
+import type { ReportAudience } from '@/components/report-sections/peec-ai/ctx'
 
 export type BrandAbsentRow = CompetitorUrlsBrandAbsentRow & {
   /** Raw Peec `classification`; humanising is the render layer's concern. */
@@ -135,4 +137,44 @@ export function buildBrandAbsentRows(input: {
         promptIds: urlPromptIds(coverage, c.urlKey),
       }
     })
+}
+
+const PAGE_TYPES: Record<string, string> = {
+  ARTICLE: 'Article', LISTICLE: 'Listicle', UGC: 'Forum', FORUM: 'Forum', PRODUCT_PAGE: 'Product page',
+  CATEGORY_PAGE: 'Category page', HOW_TO_GUIDE: 'How-to guide', HOMEPAGE: 'Homepage',
+}
+
+/** Display name for a Peec URL `classification`; unknown values are Title Cased, a blank one is null (`--`). */
+export function humanisePageType(classification: string): string | null {
+  const raw = classification.trim()
+  if (!raw) return null
+  return PAGE_TYPES[raw.toUpperCase()]
+    ?? raw.toLowerCase().split(/[_\s]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')
+}
+
+/**
+ * Overview gap-table rows, the only shape that crosses to the client table (D-15): clients get the
+ * prompt count alone; internal users also get the prompt texts. Prompt ids never cross. When the
+ * coverage walk failed or came back incomplete the count is null (`--`), not a short count (D-21).
+ */
+export function toCompetitorGapRows(
+  rows: BrandAbsentRow[],
+  opts: { audience: ReportAudience; coverageOk: boolean; promptTextById: Map<string, string> },
+): CompetitorGapRow[] {
+  return rows.map((r) => {
+    const row: CompetitorGapRow = {
+      domain: r.domain,
+      articleTitle: r.articleTitle,
+      url: r.url,
+      citationShare: r.citationShare,
+      citationShareDelta: r.citationShareDelta,
+      competitorsMentioned: r.competitorsMentioned,
+      pageTypeLabel: humanisePageType(r.pageType),
+      promptCount: opts.coverageOk ? r.promptIds.length : null,
+    }
+    if (opts.audience === 'internal' && opts.coverageOk) {
+      row.prompts = r.promptIds.map((id) => opts.promptTextById.get(id)).filter((t): t is string => !!t)
+    }
+    return row
+  })
 }

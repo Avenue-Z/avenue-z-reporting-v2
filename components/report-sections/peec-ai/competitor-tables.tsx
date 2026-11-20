@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { SortableTable, type SortableColumn } from './sortable-table'
 import { renderDelta } from './content-impact-tables'
 import { PEEC } from '@/lib/peec/metric-definitions'
@@ -118,40 +119,84 @@ export interface CompetitorUrlsBrandAbsentRow {
   competitorsMentioned: string | null
 }
 
+/** A row of the Overview gap table (D-3). Built on the server by `toCompetitorGapRows`. */
+export interface CompetitorGapRow extends CompetitorUrlsBrandAbsentRow {
+  pageTypeLabel: string | null
+  /** Tracked prompts citing this page; null when coverage was unavailable (`--`). */
+  promptCount: number | null
+  /** Internal audience only. Never set for client viewers (D-15). */
+  prompts?: string[]
+}
+
+/** The URL path shown under the page title, e.g. `/blog/post`. */
+function slugOf(url: string): string {
+  try { return new URL(url).pathname } catch { return url }
+}
+
+function PromptsCitingCell({ count, prompts }: { count: number | null; prompts?: string[] }) {
+  const [open, setOpen] = useState(false)
+  if (count === null) return <span className="text-white/20">--</span>
+  if (!prompts || prompts.length === 0) return <span className="tabular-nums text-white">{count}</span>
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="tabular-nums text-white underline decoration-dotted underline-offset-2"
+      >
+        {`${count} ${count === 1 ? 'prompt' : 'prompts'}`}
+      </button>
+      {open && (
+        <ul className="max-w-[260px] space-y-0.5 text-left text-[11px] text-white/60">
+          {prompts.map((p) => <li key={p}>{p}</li>)}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function CompetitorUrlsBrandAbsentTable({
   rows,
   emptyMessage,
 }: {
-  rows: CompetitorUrlsBrandAbsentRow[]
+  rows: CompetitorGapRow[]
   emptyMessage: string
 }) {
-  const columns: SortableColumn<CompetitorUrlsBrandAbsentRow>[] = [
+  const columns: SortableColumn<CompetitorGapRow>[] = [
+    {
+      key: 'page', label: 'Page',
+      accessor: (r) => r.articleTitle ?? r.url,
+      render: (r) => (
+        <div className="flex max-w-[240px] flex-col">
+          {r.articleTitle && <span className="truncate text-white" title={r.articleTitle}>{r.articleTitle}</span>}
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate text-[11px] text-white/50 underline-offset-2 hover:text-white hover:underline"
+            title={r.url}
+          >
+            {slugOf(r.url)}
+          </a>
+        </div>
+      ),
+    },
+    {
+      key: 'pageType', label: 'Page type',
+      accessor: (r) => r.pageTypeLabel ?? '',
+      render: (r) => r.pageTypeLabel
+        ? <span className="whitespace-nowrap text-white/70">{r.pageTypeLabel}</span>
+        : <span className="text-white/20">--</span>,
+    },
     {
       key: 'domain', label: 'Domain',
       accessor: (r) => r.domain,
       render: (r) => <span className="font-medium text-white">{r.domain}</span>,
     },
     {
-      key: 'article', label: 'Article',
-      accessor: (r) => r.articleTitle ?? r.url,
-      render: (r) => {
-        const text = r.articleTitle ?? r.url
-        return (
-          <a
-            href={r.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block max-w-[220px] truncate text-white/80 underline-offset-2 hover:underline"
-            title={`${text} → ${r.url}`}
-          >
-            {text}
-          </a>
-        )
-      },
-    },
-    {
-      key: 'citationShare', label: 'Citation Share', align: 'right',
-      tooltip: "This URL's share of total citations across all cited URLs in the period. (Avenue Z internal, derived from Peec citation_count.)",
+      key: 'citationShare', label: 'Citation share', align: 'right',
+      tooltip: "This page's share of total citations across all cited URLs in the last 30 days. (Avenue Z internal, derived from Peec citation_count.)",
       accessor: (r) => r.citationShare ?? -1,
       render: (r) => (
         <span className="tabular-nums text-white">
@@ -165,7 +210,13 @@ export function CompetitorUrlsBrandAbsentTable({
       render: (r) => renderDelta(r.citationShareDelta, 'pp') ?? <span className="text-white/20">--</span>,
     },
     {
-      key: 'competitorsMentioned', label: 'Competitors Mentioned',
+      key: 'promptCount', label: 'Prompts citing it', align: 'right',
+      tooltip: 'How many tracked prompts cite this page in the selected period.',
+      accessor: (r) => r.promptCount ?? -1,
+      render: (r) => <PromptsCitingCell count={r.promptCount} prompts={r.prompts} />,
+    },
+    {
+      key: 'competitorsMentioned', label: 'Competitors mentioned',
       accessor: (r) => r.competitorsMentioned ?? '',
       render: (r) => r.competitorsMentioned
         ? <span className="text-white/70">{r.competitorsMentioned}</span>
@@ -179,11 +230,10 @@ export function CompetitorUrlsBrandAbsentTable({
       <SortableTable
         columns={columns}
         rows={rows}
-        rowKey={(r, i) => `${r.domain}-${i}`}
+        rowKey={(r) => r.url}
         initialPageSize={10}
         emptyMessage={emptyMessage}
       />
     </div>
   )
 }
-

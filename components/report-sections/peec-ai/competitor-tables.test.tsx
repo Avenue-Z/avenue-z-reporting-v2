@@ -2,15 +2,15 @@ import { expect, test } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ExportModeProvider } from '@/components/export/export-mode'
-import { CompetitorUrlsBrandAbsentTable, type CompetitorUrlsBrandAbsentRow } from './competitor-tables'
+import { CompetitorUrlsBrandAbsentTable, type CompetitorGapRow } from './competitor-tables'
 
 // Section H.2 table: Citation Share and its period-over-period delta used to share
 // one cell (delta was not independently sortable). It is now split so the delta
 // lives in its own sortable column. These tests lock that split + sortability.
 
-const ROWS: CompetitorUrlsBrandAbsentRow[] = [
-  { domain: 'alpha.com', articleTitle: 'Alpha piece', url: 'https://alpha.com/a', citationShare: 10, citationShareDelta: 5, competitorsMentioned: 'Rival' },
-  { domain: 'bravo.com', articleTitle: 'Bravo piece', url: 'https://bravo.com/b', citationShare: 20, citationShareDelta: -2, competitorsMentioned: 'Rival' },
+const ROWS: CompetitorGapRow[] = [
+  { domain: 'alpha.com', articleTitle: 'Alpha piece', url: 'https://alpha.com/a', citationShare: 10, citationShareDelta: 5, competitorsMentioned: 'Rival', pageTypeLabel: 'Article', promptCount: 1 },
+  { domain: 'bravo.com', articleTitle: 'Bravo piece', url: 'https://bravo.com/b', citationShare: 20, citationShareDelta: -2, competitorsMentioned: 'Rival', pageTypeLabel: 'Article', promptCount: 1 },
 ]
 
 function renderTable() {
@@ -22,21 +22,21 @@ function renderTable() {
 }
 
 function domainOrder(container: HTMLElement): string[] {
-  return Array.from(container.querySelectorAll('tbody tr td:first-child')).map((td) => td.textContent ?? '')
+  return Array.from(container.querySelectorAll('tbody tr td:nth-child(3)')).map((td) => td.textContent ?? '')
 }
 
 test('Citation Share and Delta are two distinct, independently sortable columns', () => {
   renderTable()
   // Both columns present as their own sortable headers (before the split there was
   // no standalone Delta header — the delta rendered inside the Citation Share cell).
-  expect(screen.getByLabelText('Sort by Citation Share')).toBeTruthy()
+  expect(screen.getByLabelText('Sort by Citation share')).toBeTruthy()
   expect(screen.getByLabelText('Sort by Δ')).toBeTruthy() // "Sort by Δ"
 })
 
 test('the delta value renders in the Delta column, not inside the Citation Share cell', () => {
   const { container } = renderTable()
   const headers = Array.from(container.querySelectorAll('thead th')).map((th) => th.textContent ?? '')
-  const shareIdx = headers.findIndex((h) => h.includes('Citation Share'))
+  const shareIdx = headers.findIndex((h) => h.includes('Citation share'))
   const deltaIdx = headers.findIndex((h) => h.includes('Δ'))
   expect(shareIdx).toBeGreaterThanOrEqual(0)
   expect(deltaIdx).toBe(shareIdx + 1) // Delta sits immediately right of Citation Share
