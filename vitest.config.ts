@@ -30,6 +30,7 @@ export default defineConfig({
       'lib/ga4/lead-events.test.ts',
       'lib/concurrency.test.ts',
       'lib/content-calendar/pages.test.ts',
+      'lib/peec/content-performance-rows.test.ts',
       'lib/delta-rounding.test.ts',
       'lib/health/sweep-probe.test.ts',
       'lib/cache.negative.test.ts',
