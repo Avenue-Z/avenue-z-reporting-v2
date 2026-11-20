@@ -105,6 +105,7 @@ export const FIXTURE_PEEC_CTX: PeecCtx = {
     ],
     trackedPrompts: [
       {
+        id: 'p1',
         text: 'best digital marketing agency 2025',
         sources: ['ChatGPT', 'Perplexity'],
         visibility: 65.0,
@@ -116,6 +117,7 @@ export const FIXTURE_PEEC_CTX: PeecCtx = {
         topicSource: 'provider',
       },
       {
+        id: 'p2',
         text: 'top pr firms for tech startups',
         sources: ['ChatGPT', 'Gemini'],
         visibility: 48.0,
@@ -140,6 +142,7 @@ export const FIXTURE_PEEC_CTX: PeecCtx = {
     },
     totalCitationsByModel: { ChatGPT: 450, Perplexity: 280, Gemini: 213 },
     yourBrandCitationsByModel: { ChatGPT: 180, Perplexity: 100, Gemini: 60 },
+    yourBrandResolved: true,
     periodChange: {
       visibilityMover: { label: 'Acme Corp', delta: 3.1 },
       domainMover: { label: 'acme.com', delta: 4.2 },
