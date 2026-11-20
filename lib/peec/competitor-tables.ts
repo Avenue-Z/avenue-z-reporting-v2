@@ -17,7 +17,7 @@ import type { ReportAudience } from '@/components/report-sections/peec-ai/ctx'
 
 export type BrandAbsentRow = CompetitorUrlsBrandAbsentRow & {
   /** Raw Peec `classification`; humanising is the render layer's concern. */
-  pageType: string
+  pageType: string | null
   promptIds: string[]
 }
 
@@ -144,9 +144,9 @@ const PAGE_TYPES: Record<string, string> = {
   CATEGORY_PAGE: 'Category page', HOW_TO_GUIDE: 'How-to guide', HOMEPAGE: 'Homepage',
 }
 
-/** Display name for a Peec URL `classification`; unknown values are Title Cased, a blank one is null (`--`). */
-export function humanisePageType(classification: string): string | null {
-  const raw = classification.trim()
+/** Display name for a Peec URL `classification`; unknown values are Title Cased, a missing or blank one is null (`--`). */
+export function humanisePageType(classification: string | null | undefined): string | null {
+  const raw = (classification ?? '').trim()
   if (!raw) return null
   return PAGE_TYPES[raw.toUpperCase()]
     ?? raw.toLowerCase().split(/[_\s]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')

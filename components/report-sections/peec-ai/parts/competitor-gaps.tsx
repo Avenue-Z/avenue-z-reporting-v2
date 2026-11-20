@@ -8,6 +8,7 @@ import { getUrlCitations } from '@/lib/peec/url-citations'
 import { buildBrandAbsentRows, toCompetitorGapRows } from '@/lib/peec/competitor-tables'
 import { CompetitorUrlsBrandAbsentTable } from '../competitor-tables'
 import { CompetitorCard, CompetitorCardSkeleton } from './competitor-card'
+import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 
 // Spec copy, verbatim. Rendered as-is rather than from resolved.label, which falls back to the
 // part id when the section_templates row carries no label for it.
@@ -79,13 +80,16 @@ export const competitorGapsV1: PartImpl<PeecCtx> = {
     if (!ctx.isPeec) return null
     return (
       <Suspense fallback={<CompetitorCardSkeleton title={TITLE} />}>
-        <CompetitorGapsSection
-          clientSlug={ctx.clientSlug}
-          dateRange={ctx.dateRange}
-          modelActive={ctx.modelActive}
-          audience={ctx.audience}
-          trackedPrompts={(ctx.data as PeecOverview).trackedPrompts}
-        />
+        {/* A failure blanks only this card; the rest of the Overview still renders. */}
+        <ReportErrorBoundary sectionName={TITLE}>
+          <CompetitorGapsSection
+            clientSlug={ctx.clientSlug}
+            dateRange={ctx.dateRange}
+            modelActive={ctx.modelActive}
+            audience={ctx.audience}
+            trackedPrompts={(ctx.data as PeecOverview).trackedPrompts}
+          />
+        </ReportErrorBoundary>
       </Suspense>
     )
   },

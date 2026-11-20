@@ -98,6 +98,8 @@ describe('humanisePageType', () => {
     expect(humanisePageType('SOME_NEW_KIND')).toBe('Some New Kind')
   })
   it('is null (rendered --) when Peec gave no classification', () => {
+    expect(humanisePageType(null)).toBeNull()
+    expect(humanisePageType(undefined)).toBeNull()
     expect(humanisePageType('')).toBeNull()
     expect(humanisePageType('  ')).toBeNull()
   })
@@ -130,5 +132,13 @@ describe('toCompetitorGapRows (D-15 data boundary)', () => {
       const rows = toCompetitorGapRows(base, { audience, coverageOk: false, promptTextById })
       expect(rows.every((r) => r.promptCount === null && r.prompts === undefined)).toBe(true)
     }
+  })
+})
+
+describe('a null Peec classification (vendor JSON) does not throw', () => {
+  it('builds the gap row with page type null', () => {
+    const rows = buildBrandAbsentRows({ citations: [mk('n', { classification: null })], citationsPrior: null, coverage: urlCov, showDelta: false })
+    const [row] = toCompetitorGapRows(rows, { audience: 'client', coverageOk: true, promptTextById: new Map() })
+    expect(row.pageTypeLabel).toBeNull()
   })
 })

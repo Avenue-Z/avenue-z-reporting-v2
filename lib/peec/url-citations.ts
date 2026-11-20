@@ -22,7 +22,7 @@ export function normalizeEngine(id: string): string | null {
 
 export type ApiUrlRow = {
   url: string
-  classification: string
+  classification: string | null  // vendor JSON; nullable per the same endpoint's contract (organic-social/aeo-informed/contract.ts)
   title: string | null
   channel_title: string | null
   model_channel?: { id: string }
@@ -44,7 +44,7 @@ export type UrlCitation = {
   url: string
   urlKey: string
   domain: string
-  classification: string
+  classification: string | null
   title: string | null
   citationCount: number
   citationRate: number

@@ -1,6 +1,8 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import { render } from '@testing-library/react'
+import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import type { CoverageProjection } from '@/lib/peec/coverage-projection'
 
 vi.mock('@/lib/peec/coverage-projection', async (importOriginal) => {
@@ -123,4 +125,37 @@ test("a frozen override keeps its snapshot: no Competitors parts", () => {
   expect(ids).toEqual(frozenOrder.map((p) => p.id))
   expect(ids).not.toContain('competitor-visibility')
   expect(ids).not.toContain('competitor-gaps')
+})
+
+// R10: a failure inside the async child blanks only this card, through ReportErrorBoundary.
+// jsdom's client React never settles an async component, so this uses the closest seam (as
+// shared-parts-header.test does): the part's own boundary element, taken from render(), with
+// its async child swapped for one that throws the error the real child throws on this input.
+test('a throwing child renders the boundary fallback for this part only; sibling parts still render', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const broken: PeecCtx = { ...CTX, data: { ...(CTX.data as PeecOverview), topDomains: null as never } } // .filter on null throws
+  const error = await CompetitorVisibilitySection(sectionProps(broken)).then(() => null, (e: unknown) => e as Error)
+  expect(error).toBeInstanceOf(Error)
+
+  const impl = PEEC_PARTS['competitor-visibility'][1]
+  const part = impl.render(broken, { id: 'competitor-visibility', version: 1, label: impl.defaultLabel })
+  const suspense = part as ReactElement<{ children: ReactNode }>
+  const boundary = Children.toArray(suspense.props.children).find(
+    (c): c is ReactElement<{ children: ReactNode }> => isValidElement(c) && c.type === ReportErrorBoundary,
+  )
+  expect(boundary, 'the async child is wrapped in ReportErrorBoundary inside its Suspense').toBeTruthy()
+  const child = Children.only(boundary!.props.children) as ReactElement
+  expect(child.type).toBe(CompetitorVisibilitySection)
+  const Throws = () => { throw error }
+  const footer = PEEC_PARTS['footer'][1]
+  const { getByText, queryByText } = render(
+    <TooltipProvider>
+      <div>{cloneElement(boundary!, {}, <Throws />)}</div>
+      <div>{footer.render(broken, { id: 'footer', version: 1, label: footer.defaultLabel })}</div>
+    </TooltipProvider>,
+  )
+  expect(getByText(`Failed to load ${impl.defaultLabel}`)).toBeTruthy()
+  expect(getByText('Live data from Peec AI')).toBeTruthy()
+  expect(queryByText('Which competitor domains are winning for our target prompts?')).toBeNull()
+  vi.mocked(console.error).mockRestore()
 })

@@ -1,7 +1,8 @@
 import { beforeEach, expect, test, vi } from 'vitest'
-import { isValidElement, type ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import type { CoverageProjection } from '@/lib/peec/coverage-projection'
 import type { UrlCitation } from '@/lib/peec/url-citations'
 
@@ -168,4 +169,37 @@ test('an incomplete or failed coverage walk renders the count as --, never 0', a
   vi.mocked(getCoverageProjection).mockRejectedValueOnce(new Error('peec down'))
   const failed = await renderSection(ctxFor('internal'))
   expect(column(failed.container, 'Prompts citing it')).toEqual(['--', '--'])
+})
+
+// R10: a failure inside the async child blanks only this card, through ReportErrorBoundary.
+// jsdom's client React never settles an async component, so this uses the closest seam (as
+// shared-parts-header.test does): the part's own boundary element, taken from render(), with
+// its async child swapped for one that throws the error the real child throws on this input.
+test('a throwing child renders the boundary fallback for this part only; sibling parts still render', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.mocked(getUrlCitations).mockResolvedValue(null as never) // buildBrandAbsentRows throws on null
+  const error = await CompetitorGapsSection(sectionProps(ctxFor('client'))).then(() => null, (e: unknown) => e as Error)
+  expect(error).toBeInstanceOf(Error)
+
+  const impl = PEEC_PARTS['competitor-gaps'][1]
+  const part = impl.render(ctxFor('client'), { id: 'competitor-gaps', version: 1, label: impl.defaultLabel })
+  const suspense = part as ReactElement<{ children: ReactNode }>
+  const boundary = Children.toArray(suspense.props.children).find(
+    (c): c is ReactElement<{ children: ReactNode }> => isValidElement(c) && c.type === ReportErrorBoundary,
+  )
+  expect(boundary, 'the async child is wrapped in ReportErrorBoundary inside its Suspense').toBeTruthy()
+  const child = Children.only(boundary!.props.children) as ReactElement
+  expect(child.type).toBe(CompetitorGapsSection)
+  const Throws = () => { throw error }
+  const footer = PEEC_PARTS['footer'][1]
+  const { getByText, queryByText } = render(
+    <TooltipProvider>
+      <div>{cloneElement(boundary!, {}, <Throws />)}</div>
+      <div>{footer.render(ctxFor('client'), { id: 'footer', version: 1, label: footer.defaultLabel })}</div>
+    </TooltipProvider>,
+  )
+  expect(getByText(`Failed to load ${impl.defaultLabel}`)).toBeTruthy()
+  expect(getByText('Live data from Peec AI')).toBeTruthy()
+  expect(queryByText('Where are we absent when competitors are cited or mentioned?')).toBeNull()
+  vi.mocked(console.error).mockRestore()
 })

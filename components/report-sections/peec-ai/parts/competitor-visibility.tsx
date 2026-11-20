@@ -8,6 +8,7 @@ import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION, type CoverageProjecti
 import { buildCompetitorDomainRows } from '@/lib/peec/competitor-tables'
 import { CompetitorDomainsCitedTable } from '../competitor-tables'
 import { CompetitorCard, CompetitorCardSkeleton } from './competitor-card'
+import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 
 // Spec copy, verbatim. Rendered as-is rather than from resolved.label, which falls back to the
 // part id when the section_templates row carries no label for it.
@@ -72,12 +73,15 @@ export const competitorVisibilityV1: PartImpl<PeecCtx> = {
     if (!ctx.isPeec) return null
     return (
       <Suspense fallback={<CompetitorCardSkeleton title={TITLE} />}>
-        <CompetitorVisibilitySection
-          clientSlug={ctx.clientSlug}
-          dateRange={ctx.dateRange}
-          data={ctx.data as PeecOverview}
-          models={ctx.models}
-        />
+        {/* A failure blanks only this card; the rest of the Overview still renders. */}
+        <ReportErrorBoundary sectionName={TITLE}>
+          <CompetitorVisibilitySection
+            clientSlug={ctx.clientSlug}
+            dateRange={ctx.dateRange}
+            data={ctx.data as PeecOverview}
+            models={ctx.models}
+          />
+        </ReportErrorBoundary>
       </Suspense>
     )
   },
