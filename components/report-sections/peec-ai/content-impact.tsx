@@ -57,7 +57,7 @@ function SectionCard({
   children,
 }: {
   title: string
-  description: string
+  description?: string
   /** A card holding a chart: one unbreakable block in the PDF export. */
   chart?: boolean
   children: React.ReactNode
@@ -67,7 +67,7 @@ function SectionCard({
       {/* In the PDF export the title stays on the page of what follows it. */}
       <div data-export-keep-with-next="">
         <h3 className="text-sm font-bold text-white">{title}</h3>
-        <p className="mt-1 text-xs text-text-muted">{description}</p>
+        {description && <p className="mt-1 text-xs text-text-muted">{description}</p>}
       </div>
       {children}
     </div>
@@ -1162,7 +1162,7 @@ export async function ContentImpactReport({
       {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
       <SectionCard
         chart
-        title="AI Bot Traffic vs. Human Traffic"
+        title="AI crawler visits vs. human visits, by page"
         description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data. When your selected date range is within the last 30 days, this chart follows it. Otherwise it shows the last 30 days."
       >
         <BotVsHumanScatter data={scatterData} clientDomain={ownedDomainNames[0] ?? ''} />
@@ -1171,8 +1171,7 @@ export async function ContentImpactReport({
       {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}
       <SectionCard
         chart
-        title="Which pages are gaining momentum and which are losing it?"
-        description="Track the biggest movers over time to see which URLs are compounding, which are decaying, and where content performance is strengthening or slipping."
+        title="Which pages are gaining or losing momentum?"
       >
         <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
       </SectionCard>
