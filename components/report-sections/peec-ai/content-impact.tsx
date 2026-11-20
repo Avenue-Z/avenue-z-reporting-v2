@@ -35,6 +35,11 @@ import {
   type CompetitorUrlsBrandAbsentRow,
 } from './content-impact-tables'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
+import { auth } from '@/auth'
+import { getClientBySlug } from '@/lib/db/queries'
+import { computePromptGaps, DEFAULT_DECLINE_THRESHOLD, type PromptGapsResult } from '@/lib/peec/prompt-gaps'
+import { isClientVisible } from '@/lib/report-sections/mutations'
+import { PromptGapsBlock, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID } from './prompt-gaps'
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -217,12 +222,13 @@ export async function ContentImpactReport({
   dateRange,
   compareRange,
   models,
+  audience,
 }: {
   clientSlug: string
   dateRange?: string
   compareRange?: string
   models?: AEOModel[] | null
-  /** Not read yet: prompt gaps consume it later. Required so every caller states who the report is for. */
+  /** Who the report is for. Required so every caller states it; gates the internal-only prompt gaps block. */
   audience: ReportAudience
 }) {
   const effectiveRange = dateRange ?? 'last_30_days'
@@ -253,6 +259,8 @@ export async function ContentImpactReport({
   const scatterToday = new Date().toISOString().slice(0, 10)
   const scatterWindow = resolveScatterWindow(mainDates, scatterToday)
 
+  const previousPeriodDates = deriveCompareRange(mainRangeStr, 'previous_period')
+
   const [
     peecResult,
     agentResult,
@@ -271,6 +279,9 @@ export async function ContentImpactReport({
     ga4ChannelMainResult,
     ga4ChannelPriorResult,
     ga4ScatterResult,
+    clientRowResult,
+    sessionResult,
+    coverageGapsPriorResult,
   ] = await Promise.allSettled([
     getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
     getAgentAnalytics(clientSlug),
@@ -383,6 +394,13 @@ export async function ContentImpactReport({
       dimensions: ['pagePath', 'sessionSource'],
       limit: 1000,
     }),
+    getClientBySlug(clientSlug), // React.cache-memoized; prompt-gaps visibility + decline threshold
+    auth(),                      // INTERNAL_ADMIN gets the visibility switch
+    // D-16: prompt gaps always compare to the previous period. Reuse the compare-period
+    // projection when that's what the toggle selected, else fetch it here (same batch).
+    compareRange !== 'previous_period' && previousPeriodDates
+      ? getCoverageProjection(clientSlug, previousPeriodDates)
+      : Promise.resolve(null),
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -1037,6 +1055,31 @@ export async function ContentImpactReport({
     brandAbsentCompetitorUrlCount: brandAbsentUrlsForSynopsis.length,
   }
 
+  // ── Prompt gaps (internal by default, D-4) ────────────────────────────────
+  // For a client viewer with the block off, nothing is computed, so no prompt text
+  // can reach the page or any client component.
+  const gapsConfig = clientRowResult.status === 'fulfilled' ? clientRowResult.value?.reportSectionConfig : null
+  const gapsClientVisible = isClientVisible(gapsConfig, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID)
+  const gapsSession = sessionResult.status === 'fulfilled' ? sessionResult.value : null
+  const canToggleGaps = audience === 'internal' && gapsSession?.user?.role === 'INTERNAL_ADMIN'
+  let promptGaps: PromptGapsResult | null = null
+  if (peecData && !(audience === 'client' && !gapsClientVisible)) {
+    const gapsPrevious = compareRange === 'previous_period'
+      ? (coveragePriorResult.status === 'fulfilled' ? coveragePriorResult.value : null)
+      : (coverageGapsPriorResult.status === 'fulfilled' ? coverageGapsPriorResult.value : null)
+    if (coverageResult.status !== 'fulfilled' || !gapsPrevious) {
+      promptGaps = { ok: false, reason: 'unavailable' }
+    } else {
+      promptGaps = computePromptGaps({
+        prompts: peecData.trackedPrompts,
+        coverage: coverageResult.value,
+        coveragePrevious: gapsPrevious,
+        models: models && models.length > 0 ? models : null,
+        declineThreshold: gapsConfig?.[PROMPT_GAPS_VIEW_KEY]?.thresholds?.['prompt-gaps.decline'] ?? DEFAULT_DECLINE_THRESHOLD,
+      })
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -1178,6 +1221,16 @@ export async function ContentImpactReport({
       >
         <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
       </SectionCard>
+
+      {promptGaps && (
+        <PromptGapsBlock
+          result={promptGaps}
+          audience={audience}
+          clientVisible={gapsClientVisible}
+          canToggle={canToggleGaps}
+          clientSlug={clientSlug}
+        />
+      )}
 
       {/* ── Section H: Competitor Analysis (PRD: 2 sub-views) ── */}
       <SectionCard
