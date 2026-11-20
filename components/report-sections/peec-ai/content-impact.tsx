@@ -7,9 +7,12 @@ import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
 import type { TopDomain } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
-import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
-import { urlJoinKey, labelFromPath } from '@/lib/url'
+import { getUrlCitations, getOwnedUrlCitations, domainPromptIds, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
+import type { OwnedUrlCitations } from '@/lib/peec/url-citations'
+import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION } from '@/lib/peec/coverage-projection'
+import { buildContentPerformanceRows, engagementRateByPath, normPath } from '@/lib/peec/content-performance-rows'
+import { toCalendarPages } from '@/lib/content-calendar/pages'
+import { urlJoinKey } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
@@ -23,13 +26,10 @@ import { resolveScatterWindow } from '@/lib/peec/scatter-window'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
 import type { SlopeChartInput } from '@/lib/peec/slope-chart'
 import SlopeChart from '@/components/report-sections/peec-ai/slope-chart'
+import { ContentPerformanceTable } from './content-performance-table'
 import {
-  PlannedContentPerformanceTable,
-  FullsiteContentPerformanceTable,
   CompetitorDomainsCitedTable,
   CompetitorUrlsBrandAbsentTable,
-  type PlannedContentRow,
-  type FullsiteContentPerformanceRow,
   type CompetitorDomainsCitedRow,
   type CompetitorUrlsBrandAbsentRow,
 } from './content-impact-tables'
@@ -132,40 +132,6 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
 function extractPath(url: string | null): string | null {
   if (!url) return null
   try { return new URL(url).pathname } catch { return url.startsWith('/') ? url : null }
-}
-
-/** Check if a content calendar URL has AI bot visits (Section B enrichment) */
-function getAiBotVisits(
-  url: string | null,
-  agentData: AgentAnalyticsData | null
-): number | null {
-  if (!url || !agentData) return null
-  const path = extractPath(url)
-  if (!path) return null
-  const match = agentData.topPaths.find(p => p.path === path || p.path === path.replace(/\/$/, ''))
-  return match?.visits ?? 0
-}
-
-/** Look up GA4 page metrics for a content calendar URL */
-function getGA4Metrics(
-  url: string | null,
-  ga4Rows: import('@/lib/ga4/types').GA4Row[] | null
-): { sessions: number | null; users: number | null; views: number | null; engagementRate: number | null } {
-  const empty = { sessions: null, users: null, views: null, engagementRate: null }
-  if (!url || !ga4Rows) return empty
-  const path = extractPath(url)
-  if (!path) return empty
-  const row = ga4Rows.find(r => {
-    const p = String(r.pagePath ?? '')
-    return p === path || p === path.replace(/\/$/, '') || path === p.replace(/\/$/, '')
-  })
-  if (!row) return empty
-  return {
-    sessions:       row.sessions       !== null ? Number(row.sessions)       : null,
-    users:          row.activeUsers     !== null ? Number(row.activeUsers)    : null,
-    views:          row.screenPageViews !== null ? Number(row.screenPageViews): null,
-    engagementRate: row.engagementRate  !== null ? Number(row.engagementRate) : null,
-  }
 }
 
 /** Derive a recommended next action from available signals */
@@ -317,7 +283,7 @@ export async function ContentImpactReport({
     // CI-1: pass the selected date range (was called bare, hard-locked to a
     // rolling last-30 window) so the Prompt Coverage KPI value itself moves
     // with the page date picker, matching every other date-reactive metric.
-    getDomainCoverage(clientSlug, { startDate: mainDates.startDate, endDate: mainDates.endDate }),  // per-domain prompt/theme coverage (Section H)
+    getCoverageProjection(clientSlug, { startDate: mainDates.startDate, endDate: mainDates.endDate }),  // per-domain prompt/theme coverage (Section H)
     ga4Query({                          // §A totals + §F per-host AI-referred sessions
       clientSlug,
       dateRange: effectiveRange,
@@ -360,8 +326,8 @@ export async function ContentImpactReport({
       : Promise.resolve([] as Awaited<ReturnType<typeof getUrlCitations>>),
     // FB-035 §B prior-period coverage (Prompt Coverage delta)
     compareIso
-      ? getDomainCoverage(clientSlug, { startDate: compareDates!.startDate, endDate: compareDates!.endDate })
-      : Promise.resolve({ promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }),
+      ? getCoverageProjection(clientSlug, { startDate: compareDates!.startDate, endDate: compareDates!.endDate })
+      : Promise.resolve(EMPTY_COVERAGE_PROJECTION),
     // FB-035 §B prior-period per-path full-metrics (Engagement Rate prior)
     clientSlug && compareIso
       ? ga4Query({
@@ -423,7 +389,7 @@ export async function ContentImpactReport({
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let coverage     = coverageResult.status === 'fulfilled'
     ? coverageResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
+    : EMPTY_COVERAGE_PROJECTION
   const citationsOk = urlCitationsResult.status === 'fulfilled'
   // GA4 host×source rows (§A totals + §F per-host AI-referred). null when the
   // query rejected (GA4 unconfigured / property not shared) → callers reserve
@@ -446,7 +412,7 @@ export async function ContentImpactReport({
   // FB-035 §B prior-period coverage. Empty shape = no compareIso.
   const coveragePrior = coveragePriorResult.status === 'fulfilled'
     ? coveragePriorResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
+    : EMPTY_COVERAGE_PROJECTION
   // FB-035 §B prior-period per-path full-metrics (used for Engagement Rate prior).
   const ga4PerPathPriorRows = ga4PerPathPriorResult.status === 'fulfilled' && ga4PerPathPriorResult.value
     ? ga4PerPathPriorResult.value.rows
@@ -486,6 +452,24 @@ export async function ContentImpactReport({
   // ── Derived metrics ────────────────────────────────────────────────────────
   const ownDomains        = (peecData?.topDomains ?? []).filter(d => d.type === 'Own')
   const competitorDomains = (peecData?.topDomains ?? []).filter(d => d.type === 'Competitor')
+
+  // Merged content table (D-5): owned hosts only exist once Peec's overview
+  // resolves, so this is a second awaited fetch after the main batch. Sorted
+  // because the host list is part of getOwnedUrlCitations's cache key.
+  const ownedHostsSorted = ownDomains.map(d => d.domain).sort()
+  const [ownedCurResult, ownedPriorResult] = await Promise.allSettled([
+    getOwnedUrlCitations(clientSlug, ownedHostsSorted),
+    compareDates
+      ? getOwnedUrlCitations(clientSlug, ownedHostsSorted, { startDate: compareDates.startDate, endDate: compareDates.endDate })
+      : Promise.resolve(null),
+  ])
+  const OWNED_UNAVAILABLE: OwnedUrlCitations = { rows: [], totalCitationCount: 0, complete: false }
+  if (ownedCurResult.status === 'rejected') console.error('[content-impact] Owned URL citations error:', ownedCurResult.reason)
+  if (ownedPriorResult.status === 'rejected') console.error('[content-impact] Owned URL citations prior error:', ownedPriorResult.reason)
+  const ownedCitations: OwnedUrlCitations = ownedCurResult.status === 'fulfilled' ? ownedCurResult.value : OWNED_UNAVAILABLE
+  const ownedCitationsPrior: OwnedUrlCitations | null = !compareDates
+    ? null
+    : ownedPriorResult.status === 'fulfilled' && ownedPriorResult.value ? ownedPriorResult.value : OWNED_UNAVAILABLE
 
   // ── AI Citations KPI: filtered by selected models when active ───────────────
   // When a model filter is active, sum domainCitationsByModel across selected
@@ -531,12 +515,6 @@ export async function ContentImpactReport({
       )
     : competitorDomains
 
-  // Enrich content calendar rows with agent analytics data (path matching)
-  const enrichedRows: ContentCalendarRow[] = (calendarData?.rows ?? []).map(row => ({
-    ...row,
-    aiBotVisits: getAiBotVisits(row.url, agentData),
-  }))
-
   const unmatchedPct = calendarData && calendarData.plannedCount > 0
     ? Math.round((calendarData.unmatchedCount / calendarData.plannedCount) * 100)
     : null
@@ -567,8 +545,6 @@ export async function ContentImpactReport({
       ? Math.round(domainPromptIds(coveragePrior, domain).length / totalTrackedPrompts * 100)
       : null
 
-  const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
-
   // Citation-count-weighted avg citations-per-answer per domain (§F owned pages).
   // host key is www-stripped + lowercased to match avgCitationsByDomain()/domainTagNames().
   const hostKey = (s: string) => s.trim().toLowerCase().replace(/^www\./, '')
@@ -577,7 +553,6 @@ export async function ContentImpactReport({
   // ── GA4 derivations (§A glance totals, §F per-host) ──────────────────────────
   // 0-vs-no-data rule (#35): when the query resolved, a 0 is a real 0; -- is
   // reserved for a rejected query (handled by the *Ok booleans below).
-  const normPath = (p: string) => p.replace(/\/$/, '') || '/'
   const aiHostOk = ga4AiHostRows !== null
 
   // §A · Total Sessions — sum across all host×source rows.
@@ -966,32 +941,42 @@ export async function ContentImpactReport({
     return organicByPathPrior.get(np) ?? 0
   }
 
-  // Per-path engagement rate (current) lookup. Built from ga4Rows (same rows used by getGA4Metrics).
-  // Exists so §F can call engagementRateForPath(path) symmetrically with the prior helper.
-  const erByPath = new Map<string, number>()
-  if (ga4Rows) {
-    for (const r of ga4Rows) {
-      const p = normPath(String(r.pagePath ?? ''))
-      if (r.engagementRate !== null) erByPath.set(p, Number(r.engagementRate))
-    }
-  }
-  const engagementRateForPath = (path: string | null): number | null => {
-    if (!ga4Rows || !path) return null
-    return erByPath.get(normPath(path)) ?? null
-  }
+  // Per-path engagement rate, session-weighted across a path's trailing-slash
+  // variants (D-17). null when GA4 was not queried successfully.
+  const erRows = (rows: import('@/lib/ga4/types').GA4Row[]) =>
+    rows.map(r => ({ pagePath: r.pagePath, sessions: r.sessions, engagementRate: r.engagementRate }))
+  const erByPath = ga4Rows ? engagementRateByPath(erRows(ga4Rows)) : null
+  const erByPathPrior = ga4PerPathPriorRows ? engagementRateByPath(erRows(ga4PerPathPriorRows)) : null
 
-  // Per-path engagement rate (prior) lookup. Mirror getGA4Metrics shape but for prior rows.
-  const erByPathPrior = new Map<string, number>()
-  if (ga4PerPathPriorRows) {
-    for (const r of ga4PerPathPriorRows) {
-      const p = normPath(String(r.pagePath ?? ''))
-      if (r.engagementRate !== null) erByPathPrior.set(p, Number(r.engagementRate))
-    }
-  }
-  const engagementRateForPathPrior = (path: string | null): number | null => {
-    if (!path) return null
-    return erByPathPrior.get(normPath(path)) ?? null
-  }
+  // ── Merged content performance table (D-5, D-17, D-18, D-19) ───────────────
+  const primaryOwnedDomain = (ownDomains[0]?.domain ?? '')
+    .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') || null
+  const calendarPages = toCalendarPages(calendarData?.rows ?? [], primaryOwnedDomain)
+  // A rejected coverage walk must render --, not 0%: EMPTY is "complete", so flag it incomplete.
+  const rowsCoverage = coverageResult.status === 'fulfilled'
+    ? coverage
+    : { ...EMPTY_COVERAGE_PROJECTION, complete: false }
+  const rowsCoveragePrior = compareIso && coveragePriorResult.status === 'fulfilled' ? coveragePrior : null
+  const contentPerformanceRows = buildContentPerformanceRows({
+    pages: calendarPages,
+    owned: ownedCitations,
+    ownedPrior: ownedCitationsPrior,
+    coverage: rowsCoverage,
+    coveragePrior: rowsCoveragePrior,
+    totalTrackedPrompts,
+    current: (path) => ({
+      aiReferred: aiReferredForPath(path),
+      organic: organicForPath(path),
+      engagementRate: erByPath ? erByPath.get(normPath(path)) ?? null : null,
+    }),
+    prior: compareIso
+      ? (path) => ({
+          aiReferred: aiReferredForPathPrior(path),
+          organic: organicForPathPrior(path),
+          engagementRate: erByPathPrior ? erByPathPrior.get(normPath(path)) ?? null : null,
+        })
+      : null,
+  })
 
   // ── FB-033 · Build context for the Executive Synopsis card ─────────────────
   // Every value here mirrors the exact expression the §A KPI cards render
@@ -1157,101 +1142,12 @@ export async function ContentImpactReport({
         </div>
       </div>
 
-      {/* ── Section B: Watched Pages (FB-035, Tina's 9-column overhaul) ─────── */}
-      {(() => {
-        // FB-035: Tina's literal ask is "if the status of an article isn't
-        // published, it shouldn't display here". Strict literal filter on the
-        // raw status string (case-insensitive, trimmed). No fuzzy bucket.
-        const publishedRows = enrichedRows.filter(row => row.status.trim().toLowerCase() === 'published')
-
-        const sectionBRows: PlannedContentRow[] = publishedRows.map((row, i) => {
-          const g = getGA4Metrics(row.url, ga4Rows)
-          const path = extractPath(row.url)
-          const urlKey = urlJoinKey(row.url) ?? ''
-
-          // Per-URL citation count (current + prior).
-          const cite     = citeByKey.get(urlKey)?.citationCount ?? null
-          const citePrior = citeByKeyPrior.get(urlKey)?.citationCount ?? null
-
-          // Citation Share % (this URL's citations / sum of all URL citations).
-          const citationShare = (citationsOk && cite !== null && totalCitationsCurrentRows > 0)
-            ? (cite / totalCitationsCurrentRows) * 100
-            : null
-          const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
-            ? (citePrior / totalCitationsPriorRows) * 100
-            : null
-          const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
-            ? citationShare - citationSharePrior
-            : null
-
-          // Prompt Coverage % (distinct prompt IDs citing this URL / totalTrackedPrompts).
-          const promptCov = (coverageAvailable && totalTrackedPrompts > 0)
-            ? (urlPromptIds(coverage, urlKey).length / totalTrackedPrompts) * 100
-            : null
-          // Prior coverage uses prior totalTrackedPrompts; fall back to current denom when prior peec data
-          // is absent, only valid when compareIso is set AND we got prior coverage data.
-          const promptCovPrior = (compareIso && totalTrackedPrompts > 0 && Object.keys(coveragePrior.promptIdsByUrlKey).length > 0)
-            ? (urlPromptIds(coveragePrior, urlKey).length / totalTrackedPrompts) * 100
-            : null
-          const promptCovDelta = (promptCov !== null && promptCovPrior !== null)
-            ? promptCov - promptCovPrior
-            : null
-
-          // AI Referral Traffic (sessions from AI sources to this path) + delta as % change.
-          const aiRef       = aiReferredForPath(path)
-          const aiRefPrior  = compareIso ? aiReferredForPathPrior(path) : null
-          const aiRefDelta  = (aiRef !== null && aiRefPrior !== null && aiRefPrior > 0)
-            ? ((aiRef - aiRefPrior) / aiRefPrior) * 100
-            : null
-
-          // Organic Sessions per page + delta as % change.
-          const organic       = organicForPath(path)
-          const organicPrior  = compareIso ? organicForPathPrior(path) : null
-          const organicDelta  = (organic !== null && organicPrior !== null && organicPrior > 0)
-            ? ((organic - organicPrior) / organicPrior) * 100
-            : null
-
-          // Engagement Rate + delta as percentage points.
-          const er       = g.engagementRate
-          const erPrior  = compareIso ? engagementRateForPathPrior(path) : null
-          const erDelta  = (er !== null && erPrior !== null)
-            ? (er - erPrior) * 100  // both fractions [0,1], pp = (current minus prior) times 100
-            : null
-
-          return {
-            topic: row.topic,
-            url: row.url,
-            contentType: row.contentType,
-            publishDate: row.publishDate ?? null,
-            updateDate:  row.updateDate  ?? null,
-            promptCoverage:        promptCov,
-            promptCoverageDelta:   promptCovDelta,
-            citationShare:         citationShare,
-            citationShareDelta:    citationShareDelta,
-            aiReferralTraffic:     aiRef,
-            aiReferralTrafficDelta:aiRefDelta,
-            organicSessions:       organic,
-            organicSessionsDelta:  organicDelta,
-            engagementRate:        er,
-            engagementRateDelta:   erDelta,
-            _key: `${row.url ?? row.topic}-${i}`,
-          }
-        })
-        const unmatchedCount = sectionBRows.filter(r =>
-          r.aiReferralTraffic === null && r.organicSessions === null && r.engagementRate === null
-        ).length
-        return (
-          <PlannedContentPerformanceTable
-            rows={sectionBRows}
-            ga4Connected={!!ga4Rows}
-            unmatchedCount={unmatchedCount}
-            totalPublishedCount={sectionBRows.length}
-            emptyMessage={calendarData
-              ? 'No published content yet -- table populates once status flips to live/published/complete'
-              : 'Connect content calendar (Google Sheet) + GA4 page-level data to populate'}
-          />
-        )
-      })()}
+      {/* ── Content performance: merged Avenue Z / all-cited table (replaces §B + §F) ── */}
+      <ContentPerformanceTable
+        rows={contentPerformanceRows}
+        ga4Connected={!!ga4Rows}
+        calendarConnected={!!calendarData}
+      />
 
       {/* ── Section C: Time to First Traffic / AI Activity ─────────────────── */}
       <SectionCard
@@ -1288,114 +1184,6 @@ export async function ContentImpactReport({
       >
         <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
       </SectionCard>
-
-      {/* ── Section F: Fullsite Content Performance (FB-039) ────────────────── */}
-      {(() => {
-        // FB-039: row universe = owned-domain cited URLs. Owned hosts derived from
-        // filteredOwnDomains (Peec /reports/domains, already model-filtered upstream).
-        const ownedHostKeys = new Set<string>(
-          filteredOwnDomains
-            .map((d) => urlJoinKey(d.domain))
-            .filter((k): k is string => k !== null),
-        )
-
-        // FB-050: parent-domain suffix match so blog.X.com counts as owned when X.com is Own.
-        // Exact equality handles the root domain; the endsWith check catches all subdomains.
-        // The dot-prefix prevents renaissance.com from matching notrenaissance.com.
-        const isOwnedHost = (citationHost: string | null): boolean => {
-          if (!citationHost) return false
-          for (const ownedKey of ownedHostKeys) {
-            if (citationHost === ownedKey || citationHost.endsWith(`.${ownedKey}`)) {
-              return true
-            }
-          }
-          return false
-        }
-
-        const fullsiteRows: FullsiteContentPerformanceRow[] = urlCitations
-          .filter((c) => {
-            const hostKey = urlJoinKey(c.domain)
-            return isOwnedHost(hostKey) && (c.citationCount ?? 0) > 0
-          })
-          .map((c) => {
-            const path = extractPath(c.url)
-            const urlKey = c.urlKey
-
-            // Prompt Coverage (current + prior, both gated on data presence).
-            const currentPromptIds = urlPromptIds(coverage, urlKey)
-            const priorPromptIds = compareIso ? urlPromptIds(coveragePrior, urlKey) : []
-            const promptCoverage = totalTrackedPrompts > 0
-              ? (currentPromptIds.length / totalTrackedPrompts) * 100
-              : null
-            const promptCoveragePrior = (compareIso && totalTrackedPrompts > 0 && Object.keys(coveragePrior.promptIdsByUrlKey).length > 0)
-              ? (priorPromptIds.length / totalTrackedPrompts) * 100
-              : null
-            const promptCoverageDelta = (promptCoverage !== null && promptCoveragePrior !== null)
-              ? promptCoverage - promptCoveragePrior
-              : null
-
-            // Citation Share (current + prior).
-            const cite = c.citationCount ?? null
-            const citePrior = citeByKeyPrior.get(urlKey)?.citationCount ?? null
-            const citationShare = (cite !== null && totalCitationsCurrentRows > 0)
-              ? (cite / totalCitationsCurrentRows) * 100
-              : null
-            const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
-              ? (citePrior / totalCitationsPriorRows) * 100
-              : null
-            const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
-              ? citationShare - citationSharePrior
-              : null
-
-            // AI Referral Traffic (current + prior).
-            const aiRef = aiReferredForPath(path)
-            const aiRefPrior = compareIso ? aiReferredForPathPrior(path) : null
-            const aiReferralTrafficDelta = (aiRef !== null && aiRefPrior !== null && aiRefPrior > 0)
-              ? ((aiRef - aiRefPrior) / aiRefPrior) * 100
-              : null
-
-            // Organic Sessions (current + prior).
-            const organic = organicForPath(path)
-            const organicPrior = compareIso ? organicForPathPrior(path) : null
-            const organicSessionsDelta = (organic !== null && organicPrior !== null && organicPrior > 0)
-              ? ((organic - organicPrior) / organicPrior) * 100
-              : null
-
-            // Engagement Rate (current + prior, percentage points).
-            const er = engagementRateForPath(path)
-            const erPrior = compareIso ? engagementRateForPathPrior(path) : null
-            const engagementRateDelta = (er !== null && erPrior !== null)
-              ? (er - erPrior) * 100
-              : null
-
-            const pageTitle = (c.title && c.title.trim() !== '')
-              ? c.title
-              : (labelFromPath(c.url) || c.url)
-
-            return {
-              pageTitle,
-              url: c.url,
-              promptCoverage,
-              promptCoverageDelta,
-              citationShare,
-              citationShareDelta,
-              aiReferralTraffic: aiRef,
-              aiReferralTrafficDelta,
-              organicSessions: organic,
-              organicSessionsDelta,
-              engagementRate: er,
-              engagementRateDelta,
-              _key: c.urlKey || c.url,
-            }
-          })
-
-        return (
-          <FullsiteContentPerformanceTable
-            rows={fullsiteRows}
-            ga4Connected={!!ga4Rows}
-          />
-        )
-      })()}
 
       {/* ── Section H: Competitor Analysis (PRD: 2 sub-views) ── */}
       <SectionCard
