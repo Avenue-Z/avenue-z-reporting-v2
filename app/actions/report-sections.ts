@@ -7,7 +7,7 @@ import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { applyClientVisible, INTERNAL_ONLY_BLOCKS, applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { lookup } from '@/lib/report-sections/registry'
 import { resolveSection } from '@/lib/report-sections/resolve'
@@ -78,6 +78,9 @@ export async function unfreezeSection(slug: string, section: string): Promise<Re
 export async function saveReportSectionConfig(slug: string, section: string, raw: unknown): Promise<Result> {
   const a = await authorize(slug)
   if (!a.ok) return a
+  if (raw && typeof raw === 'object' && 'clientVisible' in raw) {
+    return { ok: false, error: 'clientVisible is set with setClientVisible' }
+  }
   const template = await getSectionTemplate(section)
   const templateIds = (template?.order ?? []).map((p) => p.id)
   let parsedSection: ReportSectionConfig[string]
@@ -87,6 +90,24 @@ export async function saveReportSectionConfig(slug: string, section: string, raw
     return { ok: false, error: (e as Error).message }
   }
   return persist(slug, { ...a.cfg!, [section]: mergePreservingSharedParts(a.cfg![section], parsedSection) })
+}
+
+/** Opens or closes an internal-only block for one client's viewers. INTERNAL_ADMIN only. */
+export async function setClientVisible(
+  slug: string,
+  viewKey: string,
+  blockId: string,
+  visible: boolean,
+): Promise<Result> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (session.user.role !== 'INTERNAL_ADMIN') return { ok: false, error: 'forbidden' }
+  if (!(INTERNAL_ONLY_BLOCKS as readonly string[]).includes(blockId)) {
+    return { ok: false, error: `unknown internal-only block ${blockId}` }
+  }
+  const client = await getClientBySlug(slug)
+  if (!client) return { ok: false, error: 'client not found' }
+  return persist(slug, applyClientVisible(client.reportSectionConfig ?? {}, viewKey, blockId, visible))
 }
 
 /**
