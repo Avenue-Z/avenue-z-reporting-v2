@@ -15,6 +15,9 @@ import type { AIReferralKPI } from './index'
 
 type Overview = PeecOverview | ProfoundOverview
 
+/** Who the report is rendered for: the Avenue Z dashboard ('internal') or the client portal and PDF export ('client'). */
+export type ReportAudience = 'internal' | 'client'
+
 export type PeecCtx = {
   data: Overview
   provider: AeoProvider
@@ -22,6 +25,10 @@ export type PeecCtx = {
   clientSlug: string | undefined
   dateRange: string | undefined
   isPeec: boolean
+  /** The model filter (null = all models). The Overview competitor parts filter and hide deltas by it. */
+  models: AEOModel[] | null
+  /** Who this render is for; the competitor gap table shows prompt text only to 'internal' (D-15). */
+  audience: ReportAudience
   you: Overview['brandRankings'][number] | undefined
   modelActive: boolean
   llmFiltered: Overview['llmBreakdown']
@@ -48,6 +55,7 @@ export function buildPeecCtx(args: {
   aiTraffic: AIReferralKPI
   clientSlug?: string
   dateRange?: string
+  audience: ReportAudience
 }): PeecCtx {
   const { data, provider, models, aiTraffic } = args
 
@@ -94,6 +102,8 @@ export function buildPeecCtx(args: {
     clientSlug: args.clientSlug,
     dateRange: args.dateRange,
     isPeec,
+    models,
+    audience: args.audience,
     you,
     modelActive,
     llmFiltered,

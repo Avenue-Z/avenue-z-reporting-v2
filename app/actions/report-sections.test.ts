@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 // Pure cores live in lib/report-sections/mutations.ts, imported by the
 // `'use server'` action file report-sections.ts. Testing them there keeps this
 // unit test free of the DB client / Next.js runtime (a `'use server'` module may
@@ -141,5 +141,84 @@ describe('mergePreservingSharedParts', () => {
   })
   test('no prior and none in payload → no sharedParts key added', () => {
     expect(mergePreservingSharedParts(undefined, { versions: {} }).sharedParts).toBeUndefined()
+  })
+})
+
+// ---- Server-action guards (clientVisible) ----
+const h = vi.hoisted(() => ({
+  session: null as null | { user: { role: string; clientSlug: string | null; email?: string } },
+  cfg: {} as Record<string, unknown>,
+  set: vi.fn(),
+}))
+vi.mock('next/cache', async (orig) => ({ ...(await orig<object>()), updateTag: vi.fn() }))
+vi.mock('@/auth', () => ({ auth: async () => h.session }))
+vi.mock('@/lib/db/client', () => ({
+  db: { update: () => ({ set: (v: unknown) => { h.set(v); return { where: async () => undefined } } }) },
+}))
+vi.mock('@/lib/db/queries', () => ({
+  getClientBySlug: async () => ({ slug: 'acme', reportSectionConfig: h.cfg }),
+  getSectionTemplate: async () => null,
+}))
+
+import { saveReportSectionConfig, setClientVisible } from './report-sections'
+
+const VK = 'peec-ai:content-impact'
+const asRole = (role: string, clientSlug: string | null = null) => {
+  h.session = { user: { role, clientSlug } }
+}
+
+describe('clientVisible guards', () => {
+  beforeEach(() => {
+    h.set.mockClear()
+    h.cfg = {}
+    asRole('INTERNAL_ADMIN')
+  })
+
+  test('saveReportSectionConfig rejects clientVisible in body', async () => {
+    asRole('CLIENT_ADMIN', 'acme')
+    const r = await saveReportSectionConfig('acme', VK, { clientVisible: ['prompt-gaps'] })
+    expect(r).toEqual({ ok: false, error: 'clientVisible is set with setClientVisible' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('a commentary-only save keeps an existing clientVisible', async () => {
+    h.cfg = { [VK]: { clientVisible: ['prompt-gaps'] } }
+    const r = await saveReportSectionConfig('acme', VK, { sharedParts: [] })
+    expect(r.ok).toBe(true)
+    const saved = h.set.mock.calls[0][0].reportSectionConfig
+    expect(saved[VK].clientVisible).toEqual(['prompt-gaps'])
+  })
+
+  test.each(['INTERNAL_ANALYST', 'CLIENT_ADMIN'])('setClientVisible forbidden for %s', async (role) => {
+    asRole(role, 'acme')
+    const r = await setClientVisible('acme', VK, 'prompt-gaps', true)
+    expect(r).toEqual({ ok: false, error: 'forbidden' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setClientVisible rejects unknown blockId', async () => {
+    const r = await setClientVisible('acme', VK, 'nope', true)
+    expect(r.ok).toBe(false)
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setClientVisible rejects a non-boolean visible (H1)', async () => {
+    for (const v of ['true', 1, null, undefined] as unknown[]) {
+      const r = await setClientVisible('acme', VK, 'prompt-gaps', v as boolean)
+      expect(r).toEqual({ ok: false, error: 'invalid' })
+    }
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setClientVisible requires the block\'s own viewKey (H1)', async () => {
+    const r = await setClientVisible('acme', 'peec-ai:pr-influence', 'prompt-gaps', true)
+    expect(r).toEqual({ ok: false, error: 'invalid' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setClientVisible persists for INTERNAL_ADMIN', async () => {
+    const r = await setClientVisible('acme', VK, 'prompt-gaps', true)
+    expect(r.ok).toBe(true)
+    expect(h.set.mock.calls[0][0].reportSectionConfig[VK].clientVisible).toEqual(['prompt-gaps'])
   })
 })

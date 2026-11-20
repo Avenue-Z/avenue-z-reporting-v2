@@ -2771,6 +2771,56 @@ exports[`AEO parity: no override renders the full v1 composition incl. domains-r
     </div>
   </div>
   <div>
+    <div
+      class="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6"
+      data-export-pending=""
+    >
+      <h3
+        class="text-sm font-bold text-white"
+      >
+        Competitor visibility
+      </h3>
+      <div
+        class="space-y-2"
+      >
+        <div
+          class="h-4 w-full animate-pulse rounded bg-white/[0.06]"
+        />
+        <div
+          class="h-4 w-[92%] animate-pulse rounded bg-white/[0.06]"
+        />
+        <div
+          class="h-4 w-[84%] animate-pulse rounded bg-white/[0.06]"
+        />
+      </div>
+    </div>
+  </div>
+  <div>
+    <div
+      class="flex flex-col gap-4 rounded-xl border border-white/[0.06] bg-bg-surface p-6"
+      data-export-pending=""
+    >
+      <h3
+        class="text-sm font-bold text-white"
+      >
+        Where competitors are cited and you aren't
+      </h3>
+      <div
+        class="space-y-2"
+      >
+        <div
+          class="h-4 w-full animate-pulse rounded bg-white/[0.06]"
+        />
+        <div
+          class="h-4 w-[92%] animate-pulse rounded bg-white/[0.06]"
+        />
+        <div
+          class="h-4 w-[84%] animate-pulse rounded bg-white/[0.06]"
+        />
+      </div>
+    </div>
+  </div>
+  <div>
     <p
       class="text-xs text-text-muted"
     >

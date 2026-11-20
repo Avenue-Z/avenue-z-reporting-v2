@@ -69,32 +69,40 @@ assert.equal(daysBetween('2026-02-28', '2026-03-01'), 1) // 2026 not a leap year
 const t1 = computeUrlTiming({
   publishDate: '2026-01-01',
   days: [
-    { date: '2026-01-01', sessions: 0, aiSessions: 0 },
-    { date: '2026-01-05', sessions: 3, aiSessions: 0 }, // first traffic = +4d
-    { date: '2026-01-09', sessions: 7, aiSessions: 2 }, // first AI = +8d
+    { date: '2026-01-01', aiSessions: 0, searchSessions: 0 },
+    { date: '2026-01-05', aiSessions: 0, searchSessions: 3 }, // first search = +4d
+    { date: '2026-01-09', aiSessions: 2, searchSessions: 7 }, // first AI = +8d
   ],
 })
-assert.equal(t1.daysToFirstTraffic, 4)
+assert.equal(t1.daysToFirstSearch, 4)
 assert.equal(t1.daysToFirstAi, 8)
 
-// no AI ever → null AI, traffic still measured
+// no AI ever → null AI, search still measured
 const t2 = computeUrlTiming({
   publishDate: '2026-01-01',
-  days: [{ date: '2026-01-02', sessions: 5, aiSessions: 0 }],
+  days: [{ date: '2026-01-02', aiSessions: 0, searchSessions: 5 }],
 })
-assert.equal(t2.daysToFirstTraffic, 1)
+assert.equal(t2.daysToFirstSearch, 1)
 assert.equal(t2.daysToFirstAi, null)
 
 // days before publish are ignored; same-day event clamps to 0
 const t3 = computeUrlTiming({
   publishDate: '2026-01-10',
   days: [
-    { date: '2026-01-05', sessions: 99, aiSessions: 99 }, // pre-publish, ignored
-    { date: '2026-01-10', sessions: 1, aiSessions: 1 }, // publish day → 0
+    { date: '2026-01-05', aiSessions: 99, searchSessions: 99 }, // pre-publish, ignored
+    { date: '2026-01-10', aiSessions: 1, searchSessions: 1 }, // publish day → 0
   ],
 })
-assert.equal(t3.daysToFirstTraffic, 0)
+assert.equal(t3.daysToFirstSearch, 0)
 assert.equal(t3.daysToFirstAi, 0)
+
+// only AI sessions → no search timing
+const t4 = computeUrlTiming({
+  publishDate: '2026-01-01',
+  days: [{ date: '2026-01-03', aiSessions: 1, searchSessions: 0 }],
+})
+assert.equal(t4.daysToFirstSearch, null)
+assert.equal(t4.daysToFirstAi, 2)
 
 // ── addDays ──
 assert.equal(addDays('2026-01-15', 5), '2026-01-20')

@@ -157,6 +157,8 @@ export type LLMBreakdown = {
 }
 
 export type TrackedPrompt = {
+  /** Peec prompt uuid. Joins prompt text to coverage data (R-10). */
+  id: string
   text: string
   sources: string[]
   visibility: number
@@ -677,6 +679,7 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
       .find((name): name is string => !!name && !FACET_TAGS.has(name.toLowerCase()))
     const m = promptMetricsById.get(uuid)
     return {
+      id: uuid,
       text,
       sources: Array.from(sourcesByUuid.get(uuid) ?? []),
       visibility: m?.visibility ?? 0,
@@ -873,7 +876,8 @@ export const getPeecOverview = cached(
     // v11 = PR 207 CR4: response now carries yourBrandResolved, so a consumer can
     //       tell an all-brands average apart from the client's own visibility.
     //       v10 entries lack the field and would read as resolved.
-    version: 'v11',
+    // v12: TrackedPrompt carries its Peec id (R-10, prompt gaps join coverage on it)
+    version: 'v12',
     tags: ['peec-overview'],
     extractTags: ([clientSlug]) => ({ client: clientSlug }),
   },

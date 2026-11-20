@@ -5,35 +5,38 @@ import { ContentImpactSynopsis } from './content-impact-synopsis'
 import type { ContentImpactSynopsisContext } from '@/lib/peec/content-impact-synopsis'
 import { cn } from '@/lib/utils'
 import { getPeecOverview } from '@/lib/peec/client'
-import type { TopDomain } from '@/lib/peec/client'
+import type { TopDomain, PeecOverview } from '@/lib/peec/client'
 import { getAgentAnalytics } from '@/lib/peec/agent-analytics'
-import type { AgentAnalyticsData } from '@/lib/peec/agent-analytics'
-import { getUrlCitations, getDomainCoverage, domainPromptIds, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain, urlPromptIds } from '@/lib/peec/url-citations'
-import { urlJoinKey, labelFromPath } from '@/lib/url'
+import { getUrlCitations, getOwnedUrlCitations, ownedPromptCoveragePctForModels, domainTagNames, avgCitationsByDomain } from '@/lib/peec/url-citations'
+import { planOwnedCitations, OWNED_UNAVAILABLE } from '@/lib/peec/owned-citations-plan'
+import { getCoverageProjection, EMPTY_COVERAGE_PROJECTION, coverageAvailable as isCoverageUsable } from '@/lib/peec/coverage-projection'
+import { buildContentPerformanceRows, engagementRateByPath, normPath } from '@/lib/peec/content-performance-rows'
+import { toCalendarPages } from '@/lib/content-calendar/pages'
+import { urlJoinKey } from '@/lib/url'
 import { MODEL_DISPLAY_LABELS, type AEOModel } from '@/lib/peec/models'
 import { sumByModel, filterDomainRowsByModel } from '@/lib/peec/by-model'
 import { getContentCalendarData } from '@/lib/content-calendar/client'
 import type { ContentCalendarRow } from '@/lib/content-calendar/types'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { isAiSource, SHOW_AI_NARRATIVE } from '@/lib/constants'
-import { median, computeUrlTiming } from '@/lib/ga4/content-derive'
+import {
+  timingUniverse, timingAnchors, getFirstVisitDates, summariseTiming, timingStatus, EMPTY_TIMING, TIMING_EMPTY_COPY,
+} from '@/lib/ga4/first-visit'
 import { formatDaysToFirst } from '@/lib/ga4/format-speed'
 import { computeBotVsHumanScatter } from '@/lib/peec/bot-vs-human-scatter'
 import { resolveScatterWindow } from '@/lib/peec/scatter-window'
 import BotVsHumanScatter from '@/components/report-sections/peec-ai/bot-vs-human-scatter'
 import type { SlopeChartInput } from '@/lib/peec/slope-chart'
 import SlopeChart from '@/components/report-sections/peec-ai/slope-chart'
-import {
-  PlannedContentPerformanceTable,
-  FullsiteContentPerformanceTable,
-  CompetitorDomainsCitedTable,
-  CompetitorUrlsBrandAbsentTable,
-  type PlannedContentRow,
-  type FullsiteContentPerformanceRow,
-  type CompetitorDomainsCitedRow,
-  type CompetitorUrlsBrandAbsentRow,
-} from './content-impact-tables'
+import type { ReportAudience } from './ctx'
+import { ContentPerformanceTable } from './content-performance-table'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
+import { auth } from '@/auth'
+import { getClientBySlug } from '@/lib/db/queries'
+import { filterCompetitorDomains, isBrandAbsent } from '@/lib/peec/competitor-tables'
+import { computePromptGaps, DEFAULT_DECLINE_THRESHOLD } from '@/lib/peec/prompt-gaps'
+import { isClientVisible } from '@/lib/report-sections/mutations'
+import { PromptGapsBlock, gatedPromptGaps, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID } from './prompt-gaps'
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -57,7 +60,7 @@ function SectionCard({
   children,
 }: {
   title: string
-  description: string
+  description?: string
   /** A card holding a chart: one unbreakable block in the PDF export. */
   chart?: boolean
   children: React.ReactNode
@@ -67,7 +70,7 @@ function SectionCard({
       {/* In the PDF export the title stays on the page of what follows it. */}
       <div data-export-keep-with-next="">
         <h3 className="text-sm font-bold text-white">{title}</h3>
-        <p className="mt-1 text-xs text-text-muted">{description}</p>
+        {description && <p className="mt-1 text-xs text-text-muted">{description}</p>}
       </div>
       {children}
     </div>
@@ -128,46 +131,6 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
 
 // ─── Cross-reference helpers ───────────────────────────────────────────────────
 
-/** Extract path from a URL for agent analytics matching */
-function extractPath(url: string | null): string | null {
-  if (!url) return null
-  try { return new URL(url).pathname } catch { return url.startsWith('/') ? url : null }
-}
-
-/** Check if a content calendar URL has AI bot visits (Section B enrichment) */
-function getAiBotVisits(
-  url: string | null,
-  agentData: AgentAnalyticsData | null
-): number | null {
-  if (!url || !agentData) return null
-  const path = extractPath(url)
-  if (!path) return null
-  const match = agentData.topPaths.find(p => p.path === path || p.path === path.replace(/\/$/, ''))
-  return match?.visits ?? 0
-}
-
-/** Look up GA4 page metrics for a content calendar URL */
-function getGA4Metrics(
-  url: string | null,
-  ga4Rows: import('@/lib/ga4/types').GA4Row[] | null
-): { sessions: number | null; users: number | null; views: number | null; engagementRate: number | null } {
-  const empty = { sessions: null, users: null, views: null, engagementRate: null }
-  if (!url || !ga4Rows) return empty
-  const path = extractPath(url)
-  if (!path) return empty
-  const row = ga4Rows.find(r => {
-    const p = String(r.pagePath ?? '')
-    return p === path || p === path.replace(/\/$/, '') || path === p.replace(/\/$/, '')
-  })
-  if (!row) return empty
-  return {
-    sessions:       row.sessions       !== null ? Number(row.sessions)       : null,
-    users:          row.activeUsers     !== null ? Number(row.activeUsers)    : null,
-    views:          row.screenPageViews !== null ? Number(row.screenPageViews): null,
-    engagementRate: row.engagementRate  !== null ? Number(row.engagementRate) : null,
-  }
-}
-
 /** Derive a recommended next action from available signals */
 function deriveAction(row: ContentCalendarRow, hasBotVisits: boolean): string {
   if (row.matchStatus === 'unpublished') return 'Publish and monitor for AI indexing'
@@ -204,10 +167,20 @@ const BOT_TO_MODEL: Record<string, AEOModel> = {
   'Bingbot-Video':  'Copilot',
 }
 
+function ownDomainsOf(p: PeecOverview | null): TopDomain[] {
+  return (p?.topDomains ?? []).filter(d => d.type === 'Own')
+}
+
+/** D-18: the host bare calendar paths resolve against; null when Peec lists no Own domain. */
+function primaryOwnedDomainOf(p: PeecOverview | null): string | null {
+  return (ownDomainsOf(p)[0]?.domain ?? '')
+    .trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') || null
+}
+
 /** Section C's four cards. In the PDF export the Fastest and Slowest URLs, which are the answer, print in full (the theme
  *  un-truncates inside data-export-wrap) and break anywhere, since a URL has no spaces; live they stay one truncated line. */
-export function TimeToFirstCards({ medFirstTraffic, medFirstAi, fastestAi, slowestAi, fastestAiUrl, slowestAiUrl }: {
-  medFirstTraffic: number | null
+export function TimeToFirstCards({ medFirstSearch, medFirstAi, fastestAi, slowestAi, fastestAiUrl, slowestAiUrl }: {
+  medFirstSearch: number | null
   medFirstAi: number | null
   fastestAi: number | null
   slowestAi: number | null
@@ -217,10 +190,10 @@ export function TimeToFirstCards({ medFirstTraffic, medFirstAi, fastestAi, slowe
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-export-block="" data-export-wrap="">
       {[
-        { icon: Clock, label: 'Median Days to First Traffic',     color: '#39A0FF', val: medFirstTraffic, sourceUrl: null as string | null },
-        { icon: Clock, label: 'Median Days to First AI Activity', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
-        { icon: TrendingUp,   label: 'Fastest AI-Indexed Content',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
-        { icon: TrendingDown, label: 'Slowest AI-Indexed Content',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
+        { icon: Clock, label: 'Median days to first search visit',     color: '#39A0FF', val: medFirstSearch, sourceUrl: null as string | null },
+        { icon: Clock, label: 'Median days to first AI-referred visit', color: '#60FDFF', val: medFirstAi, sourceUrl: null as string | null },
+        { icon: TrendingUp,   label: 'Fastest to first AI-referred visit',  color: '#60FF80', val: fastestAi, sourceUrl: fastestAiUrl },
+        { icon: TrendingDown, label: 'Slowest to first AI-referred visit',  color: '#FF4444', val: slowestAi, sourceUrl: slowestAiUrl },
       ].map(({ icon: Icon, label, color, val, sourceUrl }) => (
         <div key={label} className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
           <Icon className="h-4 w-4" style={{ color }} />
@@ -250,11 +223,14 @@ export async function ContentImpactReport({
   dateRange,
   compareRange,
   models,
+  audience,
 }: {
   clientSlug: string
   dateRange?: string
   compareRange?: string
   models?: AEOModel[] | null
+  /** Who the report is for. Required so every caller states it; gates the internal-only prompt gaps block. */
+  audience: ReportAudience
 }) {
   const effectiveRange = dateRange ?? 'last_30_days'
 
@@ -284,6 +260,42 @@ export async function ContentImpactReport({
   const scatterToday = new Date().toISOString().slice(0, 10)
   const scatterWindow = resolveScatterWindow(mainDates, scatterToday)
 
+  const previousPeriodDates = deriveCompareRange(mainRangeStr, 'previous_period')
+
+  // C1(d): fetches that depend on the Peec overview or the calendar start as soon as
+  // those resolve, not after the whole batch below. Each still settles into the batch,
+  // so a rejection renders --, never an error.
+  const peecP = getPeecOverview(clientSlug, effectiveRange)  // multi-client: uses peecCustomerProjectId from config; honors the page date range
+  const calendarP = getContentCalendarData(clientSlug)        // null when contentCalendarSheetId not configured
+  const clientRowP = getClientBySlug(clientSlug)              // React.cache-memoized; prompt-gaps visibility + decline threshold + GA4 connected
+  const peecOrNullP = peecP.catch(() => null)
+  // Merged content table (D-5): owned hosts only exist once Peec's overview resolves.
+  const ownedCitationsP = peecOrNullP.then((p) => planOwnedCitations({
+    clientSlug,
+    ownedHosts: ownDomainsOf(p).map(d => d.domain),
+    dateRange: mainRangeStr,
+    compareDates,
+    fetcher: getOwnedUrlCitations,
+    onError: (which, reason) => console.error(`[content-impact] Owned URL citations ${which} error:`, reason),
+  }))
+  // D-18: bare calendar paths resolve against the primary owned domain, so pages wait for both.
+  const calendarPagesP = Promise.all([calendarP, peecOrNullP])
+    .then(([cal, p]) => toCalendarPages(cal?.rows ?? [], primaryOwnedDomainOf(p)))
+  // §C (D-1, D-9): first visits for the New published pages, from publish date to today.
+  const today = new Date().toISOString().slice(0, 10)
+  const firstVisitsP = calendarPagesP.then((pages) => {
+    const anchors = timingAnchors(timingUniverse(pages))
+    return anchors.length > 0 ? getFirstVisitDates(clientSlug, anchors, today) : null
+  })
+  // D-16 prompt gaps always compare to the previous period. A client viewer with the block
+  // off never sees gaps, so the extra walk is skipped for them.
+  const gapsPriorP = compareRange !== 'previous_period' && previousPeriodDates
+    ? clientRowP.catch(() => null).then((row) =>
+        audience === 'internal' || isClientVisible(row?.reportSectionConfig, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID)
+          ? getCoverageProjection(clientSlug, previousPeriodDates)
+          : null)
+    : Promise.resolve(null)
+
   const [
     peecResult,
     agentResult,
@@ -302,10 +314,16 @@ export async function ContentImpactReport({
     ga4ChannelMainResult,
     ga4ChannelPriorResult,
     ga4ScatterResult,
+    clientRowResult,
+    sessionResult,
+    coverageGapsPriorResult,
+    ownedCitationsResult,
+    calendarPagesResult,
+    firstVisitsResult,
   ] = await Promise.allSettled([
-    getPeecOverview(clientSlug, effectiveRange),  // multi-client: uses peecCustomerProjectId from config; honors the page date range
+    peecP,
     getAgentAnalytics(clientSlug),
-    getContentCalendarData(clientSlug), // null when contentCalendarSheetId not configured
+    calendarP,
     ga4Query({                          // page-level sessions for Section B -- requires ga4PropertyId
       clientSlug,
       dateRange: effectiveRange,
@@ -317,7 +335,7 @@ export async function ContentImpactReport({
     // CI-1: pass the selected date range (was called bare, hard-locked to a
     // rolling last-30 window) so the Prompt Coverage KPI value itself moves
     // with the page date picker, matching every other date-reactive metric.
-    getDomainCoverage(clientSlug, { startDate: mainDates.startDate, endDate: mainDates.endDate }),  // per-domain prompt/theme coverage (Section H)
+    getCoverageProjection(clientSlug, { startDate: mainDates.startDate, endDate: mainDates.endDate }),  // per-domain prompt/theme coverage (Section H)
     ga4Query({                          // §A totals + §F per-host AI-referred sessions
       clientSlug,
       dateRange: effectiveRange,
@@ -360,8 +378,8 @@ export async function ContentImpactReport({
       : Promise.resolve([] as Awaited<ReturnType<typeof getUrlCitations>>),
     // FB-035 §B prior-period coverage (Prompt Coverage delta)
     compareIso
-      ? getDomainCoverage(clientSlug, { startDate: compareDates!.startDate, endDate: compareDates!.endDate })
-      : Promise.resolve({ promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }),
+      ? getCoverageProjection(clientSlug, { startDate: compareDates!.startDate, endDate: compareDates!.endDate })
+      : Promise.resolve(EMPTY_COVERAGE_PROJECTION),
     // FB-035 §B prior-period per-path full-metrics (Engagement Rate prior)
     clientSlug && compareIso
       ? ga4Query({
@@ -414,6 +432,13 @@ export async function ContentImpactReport({
       dimensions: ['pagePath', 'sessionSource'],
       limit: 1000,
     }),
+    clientRowP,
+    auth(),                      // INTERNAL_ADMIN gets the visibility switch
+    // D-16: reuse the compare-period projection when that's what the toggle selected.
+    gapsPriorP,
+    ownedCitationsP,
+    calendarPagesP,
+    firstVisitsP,
   ])
 
   let peecData     = peecResult.status     === 'fulfilled' ? peecResult.value     : null
@@ -423,8 +448,7 @@ export async function ContentImpactReport({
   let urlCitations = urlCitationsResult.status === 'fulfilled' ? urlCitationsResult.value : []
   let coverage     = coverageResult.status === 'fulfilled'
     ? coverageResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
-  const citationsOk = urlCitationsResult.status === 'fulfilled'
+    : EMPTY_COVERAGE_PROJECTION
   // GA4 host×source rows (§A totals + §F per-host AI-referred). null when the
   // query rejected (GA4 unconfigured / property not shared) → callers reserve
   // -- for that case, 0 stays 0.
@@ -446,7 +470,7 @@ export async function ContentImpactReport({
   // FB-035 §B prior-period coverage. Empty shape = no compareIso.
   const coveragePrior = coveragePriorResult.status === 'fulfilled'
     ? coveragePriorResult.value
-    : { promptIdsByDomain: {}, tagIdsByDomain: {}, tagIdsByUrlKey: {}, promptIdsByUrlKey: {}, tagNameById: {} }
+    : EMPTY_COVERAGE_PROJECTION
   // FB-035 §B prior-period per-path full-metrics (used for Engagement Rate prior).
   const ga4PerPathPriorRows = ga4PerPathPriorResult.status === 'fulfilled' && ga4PerPathPriorResult.value
     ? ga4PerPathPriorResult.value.rows
@@ -482,10 +506,16 @@ export async function ContentImpactReport({
   if (ga4AiPathPriorResult.status   === 'rejected') console.error('[content-impact] GA4 AI per-path prior error:', ga4AiPathPriorResult.reason)
   if (ga4ChannelMainResult.status   === 'rejected') console.error('[content-impact] GA4 channel-group main error:', ga4ChannelMainResult.reason)
   if (ga4ChannelPriorResult.status  === 'rejected') console.error('[content-impact] GA4 channel-group prior error:', ga4ChannelPriorResult.reason)
+  if (firstVisitsResult.status      === 'rejected') console.error('[content-impact] GA4 §C timing error:', firstVisitsResult.reason)
 
   // ── Derived metrics ────────────────────────────────────────────────────────
-  const ownDomains        = (peecData?.topDomains ?? []).filter(d => d.type === 'Own')
+  const ownDomains        = ownDomainsOf(peecData)
   const competitorDomains = (peecData?.topDomains ?? []).filter(d => d.type === 'Competitor')
+
+  // planOwnedCitations never rejects (it settles each fetch itself); the fallback is belt and braces.
+  const { owned: ownedCitations, ownedPrior: ownedCitationsPrior } = ownedCitationsResult.status === 'fulfilled'
+    ? ownedCitationsResult.value
+    : { owned: OWNED_UNAVAILABLE, ownedPrior: compareDates ? OWNED_UNAVAILABLE : null }
 
   // ── AI Citations KPI: filtered by selected models when active ───────────────
   // When a model filter is active, sum domainCitationsByModel across selected
@@ -523,19 +553,9 @@ export async function ContentImpactReport({
       )
     : ownDomains
 
-  const filteredCompetitorDomains: TopDomain[] = peecData?.domainCitationsByModel
-    ? filterDomainRowsByModel(
-        competitorDomains,
-        peecData.domainCitationsByModel,
-        models ?? null,
-      )
-    : competitorDomains
-
-  // Enrich content calendar rows with agent analytics data (path matching)
-  const enrichedRows: ContentCalendarRow[] = (calendarData?.rows ?? []).map(row => ({
-    ...row,
-    aiBotVisits: getAiBotVisits(row.url, agentData),
-  }))
+  const filteredCompetitorDomains: TopDomain[] = filterCompetitorDomains(
+    competitorDomains, peecData?.domainCitationsByModel, models ?? null,
+  )
 
   const unmatchedPct = calendarData && calendarData.plannedCount > 0
     ? Math.round((calendarData.unmatchedCount / calendarData.plannedCount) * 100)
@@ -546,28 +566,10 @@ export async function ContentImpactReport({
   // host — not trackedPrompts[].sources, which are AI-engine ids, never domains.
   // coverageAvailable distinguishes a known 0 (domain cited by no prompt/theme)
   // from missing data (fetch failed / unconfigured / demo) → only the former
-  // shows 0; the latter stays --.
+  // shows 0; the latter stays --. An incomplete walk (D-21) is missing data too (M3).
   const totalTrackedPrompts = peecData?.trackedPrompts.length ?? 0
-  const coverageAvailable =
-    Object.keys(coverage.promptIdsByDomain).length > 0 ||
-    Object.keys(coverage.tagIdsByDomain).length > 0
-  const coveragePriorAvailable =
-    Object.keys(coveragePrior.promptIdsByDomain).length > 0 ||
-    Object.keys(coveragePrior.tagIdsByDomain).length > 0
-  const getPromptCoverage = (domain: string): number | null =>
-    coverageAvailable && totalTrackedPrompts > 0
-      ? Math.round(domainPromptIds(coverage, domain).length / totalTrackedPrompts * 100)
-      : null
-  // FB-040: prior-period mirror of getPromptCoverage. Uses the same
-  // totalTrackedPrompts denominator (tracked-prompt list is configuration,
-  // not period-dependent). Returns null when prior coverage is unavailable
-  // so the delta in §H.1 stays null and renders nothing.
-  const getPromptCoveragePrior = (domain: string): number | null =>
-    coveragePriorAvailable && totalTrackedPrompts > 0
-      ? Math.round(domainPromptIds(coveragePrior, domain).length / totalTrackedPrompts * 100)
-      : null
-
-  const citeByKey = new Map(urlCitations.map((c) => [c.urlKey, c]))
+  const coverageAvailable = isCoverageUsable(coverage)
+  const coveragePriorAvailable = isCoverageUsable(coveragePrior)
 
   // Citation-count-weighted avg citations-per-answer per domain (§F owned pages).
   // host key is www-stripped + lowercased to match avgCitationsByDomain()/domainTagNames().
@@ -577,7 +579,6 @@ export async function ContentImpactReport({
   // ── GA4 derivations (§A glance totals, §F per-host) ──────────────────────────
   // 0-vs-no-data rule (#35): when the query resolved, a 0 is a real 0; -- is
   // reserved for a rejected query (handled by the *Ok booleans below).
-  const normPath = (p: string) => p.replace(/\/$/, '') || '/'
   const aiHostOk = ga4AiHostRows !== null
 
   // §A · Total Sessions — sum across all host×source rows.
@@ -623,80 +624,20 @@ export async function ContentImpactReport({
     return aiRefByPath.get(np) ?? 0
   }
 
-  // ── §C · time-to-first-traffic / first-AI-activity (GA4-4) ───────────────────
-  // Keys off planned content (URL + publish date). One date-bucketed GA4 query,
-  // restricted to the planned paths over the window from the earliest publish
-  // date to today, feeds §C: days-to-first across URLs. Gated on the content
-  // calendar — without publish dates there is no URL spine to measure.
-  const isoDate = (s: string | null): string | null =>
-    s && /^\d{4}-\d{2}-\d{2}/.test(s.trim()) ? s.trim().slice(0, 10) : null
-  const plannedTiming = (calendarData?.rows ?? [])
-    .map(r => ({ path: extractPath(r.url), url: r.url ?? null, publishDate: isoDate(r.publishDate) }))
-    .filter((r): r is { path: string; url: string | null; publishDate: string } =>
-      r.path !== null && r.publishDate !== null)
-
-  const daysByPath = new Map<string, Map<string, { sessions: number; aiSessions: number }>>()
-  let timingOk = false
-  if (plannedTiming.length > 0) {
-    const today = new Date().toISOString().slice(0, 10)
-    const minPublish = plannedTiming.reduce((m, r) => (r.publishDate < m ? r.publishDate : m), plannedTiming[0].publishDate)
-    // pagePath inListFilter is an exact match, but GA4 may store a path with or
-    // without a trailing slash. Include both variants so neither form is missed;
-    // the client-side join (normPath) collapses them back together.
-    const pathVariants = (p: string) => {
-      const stripped = p.replace(/\/$/, '') || '/'
-      return stripped === '/' ? ['/'] : [stripped, `${stripped}/`]
-    }
-    const filterValues = [...new Set(plannedTiming.flatMap(r => pathVariants(r.path)))]
-    try {
-      const res = await ga4Query({
-        clientSlug,
-        dateRange: `${minPublish},${today}`,
-        metrics: ['sessions'],
-        dimensions: ['pagePath', 'date', 'sessionSource'],
-        dimensionFilter: { filter: { fieldName: 'pagePath', inListFilter: { values: filterValues } } },
-        limit: 100000,
-      })
-      timingOk = true
-      for (const row of res.rows) {
-        const path = normPath(String(row.pagePath ?? ''))
-        const ds = String(row.date ?? '')
-        const iso = ds.length === 8 ? `${ds.slice(0, 4)}-${ds.slice(4, 6)}-${ds.slice(6, 8)}` : ds
-        const sessions = Number(row.sessions) || 0
-        if (!daysByPath.has(path)) daysByPath.set(path, new Map())
-        const byDate = daysByPath.get(path)!
-        const acc = byDate.get(iso) ?? { sessions: 0, aiSessions: 0 }
-        acc.sessions += sessions
-        if (isAiSource(row.sessionSource)) acc.aiSessions += sessions
-        byDate.set(iso, acc)
-      }
-    } catch (e) {
-      console.error('[content-impact] GA4 §C timing error:', e)
-    }
-  }
-
-  const daysFor = (path: string) =>
-    [...(daysByPath.get(normPath(path))?.entries() ?? [])].map(([date, v]) => ({ date, ...v }))
-
-  const urlTimings = plannedTiming.map(r => ({
-    url: r.url,
-    ...computeUrlTiming({ publishDate: r.publishDate, days: daysFor(r.path) }),
-  }))
-
-  // §C aggregates (median days-to-first; fastest/slowest AI-indexed).
-  const firstTrafficDays = urlTimings.map(t => t.daysToFirstTraffic).filter((n): n is number => n !== null)
-  const firstAiDays = urlTimings.map(t => t.daysToFirstAi).filter((n): n is number => n !== null)
-  const medFirstTraffic = median(firstTrafficDays)
-  const medFirstAi = median(firstAiDays)
-  const fastestAi = firstAiDays.length ? Math.min(...firstAiDays) : null
-  const slowestAi = firstAiDays.length ? Math.max(...firstAiDays) : null
-  const fastestAiUrl = fastestAi !== null
-    ? urlTimings.find(t => t.daysToFirstAi === fastestAi)?.url ?? null
-    : null
-  const slowestAiUrl = slowestAi !== null
-    ? urlTimings.find(t => t.daysToFirstAi === slowestAi)?.url ?? null
-    : null
-  const sectionCOk = timingOk
+  // ── §C · time-to-first search visit / AI-referred visit (D-1, D-9) ───────────
+  // Universe and channel rules live in lib/ga4/first-visit.ts; the fetch started
+  // above, chained off the calendar. Cards are -- unless every input is usable.
+  const calendarPages = calendarPagesResult.status === 'fulfilled' ? calendarPagesResult.value : []
+  const timingPages = timingUniverse(calendarPages)
+  const firstVisits = firstVisitsResult.status === 'fulfilled' ? firstVisitsResult.value : null
+  const timingState = timingStatus({
+    // A failed client lookup isn't "not connected": let the fetch result decide.
+    ga4Connected: clientRowResult.status === 'fulfilled' ? !!clientRowResult.value?.ga4PropertyId : true,
+    calendarFailed: calendarResult.status === 'rejected',
+    universeSize: timingPages.length,
+    result: firstVisits,
+  })
+  const timing = timingState === 'ok' && firstVisits ? summariseTiming(timingPages, firstVisits.byAnchor) : EMPTY_TIMING
 
   // ── §D · Bot vs Human scatter (FB-037, window fix FB-048/CI-3c) ──────────────
   // Build per-path maps. Bot side comes from agentData.byPath, always the last
@@ -900,12 +841,6 @@ export async function ContentImpactReport({
 
   // ── FB-035 · §B Watched Pages: per-row metrics × current/prior + deltas ─────
 
-  // Total AI citations across all URLs in this period; denominator for Citation Share %.
-  const sumCitations = (rows: typeof urlCitations) =>
-    rows.reduce((s, c) => s + (c.citationCount || 0), 0)
-  const totalCitationsCurrentRows = sumCitations(urlCitations)
-  const totalCitationsPriorRows = sumCitations(urlCitationsPrior)
-  const citeByKeyPrior = new Map(urlCitationsPrior.map((c) => [c.urlKey, c]))
 
   // Per-path AI sessions (prior). Mirror the current-period builder ga4AiPathRows
   // logic (content-impact.tsx around line 459-467) but against prior rows.
@@ -966,32 +901,38 @@ export async function ContentImpactReport({
     return organicByPathPrior.get(np) ?? 0
   }
 
-  // Per-path engagement rate (current) lookup. Built from ga4Rows (same rows used by getGA4Metrics).
-  // Exists so §F can call engagementRateForPath(path) symmetrically with the prior helper.
-  const erByPath = new Map<string, number>()
-  if (ga4Rows) {
-    for (const r of ga4Rows) {
-      const p = normPath(String(r.pagePath ?? ''))
-      if (r.engagementRate !== null) erByPath.set(p, Number(r.engagementRate))
-    }
-  }
-  const engagementRateForPath = (path: string | null): number | null => {
-    if (!ga4Rows || !path) return null
-    return erByPath.get(normPath(path)) ?? null
-  }
+  // Per-path engagement rate, session-weighted across a path's trailing-slash
+  // variants (D-17). null when GA4 was not queried successfully.
+  const erRows = (rows: import('@/lib/ga4/types').GA4Row[]) =>
+    rows.map(r => ({ pagePath: r.pagePath, sessions: r.sessions, engagementRate: r.engagementRate }))
+  const erByPath = ga4Rows ? engagementRateByPath(erRows(ga4Rows)) : null
+  const erByPathPrior = ga4PerPathPriorRows ? engagementRateByPath(erRows(ga4PerPathPriorRows)) : null
 
-  // Per-path engagement rate (prior) lookup. Mirror getGA4Metrics shape but for prior rows.
-  const erByPathPrior = new Map<string, number>()
-  if (ga4PerPathPriorRows) {
-    for (const r of ga4PerPathPriorRows) {
-      const p = normPath(String(r.pagePath ?? ''))
-      if (r.engagementRate !== null) erByPathPrior.set(p, Number(r.engagementRate))
-    }
-  }
-  const engagementRateForPathPrior = (path: string | null): number | null => {
-    if (!path) return null
-    return erByPathPrior.get(normPath(path)) ?? null
-  }
+  // A rejected coverage walk must render --, not 0%: EMPTY is "complete", so flag it incomplete.
+  const rowsCoverage = coverageResult.status === 'fulfilled'
+    ? coverage
+    : { ...EMPTY_COVERAGE_PROJECTION, complete: false }
+  const rowsCoveragePrior = compareIso && coveragePriorResult.status === 'fulfilled' ? coveragePrior : null
+  const contentPerformanceRows = buildContentPerformanceRows({
+    pages: calendarPages,
+    owned: ownedCitations,
+    ownedPrior: ownedCitationsPrior,
+    coverage: rowsCoverage,
+    coveragePrior: rowsCoveragePrior,
+    totalTrackedPrompts,
+    current: (path) => ({
+      aiReferred: aiReferredForPath(path),
+      organic: organicForPath(path),
+      engagementRate: erByPath ? erByPath.get(normPath(path)) ?? null : null,
+    }),
+    prior: compareIso
+      ? (path) => ({
+          aiReferred: aiReferredForPathPrior(path),
+          organic: organicForPathPrior(path),
+          engagementRate: erByPathPrior ? erByPathPrior.get(normPath(path)) ?? null : null,
+        })
+      : null,
+  })
 
   // ── FB-033 · Build context for the Executive Synopsis card ─────────────────
   // Every value here mirrors the exact expression the §A KPI cards render
@@ -1020,9 +961,7 @@ export async function ContentImpactReport({
     .map(d => ({ domain: d.domain, citationCount: d.citationCount ?? 0 }))
 
   // Brand-absent URLs, mirror §H.2 live filter exactly.
-  const brandAbsentUrlsForSynopsis = urlCitations.filter(
-    c => !c.mentionsYourBrand && c.competitorBrandNames.length > 0,
-  )
+  const brandAbsentUrlsForSynopsis = urlCitations.filter(isBrandAbsent)
   const topBrandAbsentForSynopsis = brandAbsentUrlsForSynopsis
     .slice()
     .sort((a, b) => b.citationCount - a.citationCount)
@@ -1056,6 +995,29 @@ export async function ContentImpactReport({
     topBrandAbsentCompetitorUrls: topBrandAbsentForSynopsis,
     brandAbsentCompetitorUrlCount: brandAbsentUrlsForSynopsis.length,
   }
+
+  // ── Prompt gaps (internal by default, D-4) ────────────────────────────────
+  // For a client viewer with the block off, nothing is computed, so no prompt text
+  // can reach the page or any client component.
+  const gapsConfig = clientRowResult.status === 'fulfilled' ? clientRowResult.value?.reportSectionConfig : null
+  const gapsClientVisible = isClientVisible(gapsConfig, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID)
+  const gapsSession = sessionResult.status === 'fulfilled' ? sessionResult.value : null
+  const canToggleGaps = audience === 'internal' && gapsSession?.user?.role === 'INTERNAL_ADMIN'
+  const promptGaps = gatedPromptGaps({ audience, clientVisible: gapsClientVisible, hasPeecData: !!peecData }, () => {
+    const gapsPrevious = compareRange === 'previous_period'
+      ? (coveragePriorResult.status === 'fulfilled' ? coveragePriorResult.value : null)
+      : (coverageGapsPriorResult.status === 'fulfilled' ? coverageGapsPriorResult.value : null)
+    if (coverageResult.status !== 'fulfilled' || !gapsPrevious || !peecData) {
+      return { ok: false, reason: 'unavailable' }
+    }
+    return computePromptGaps({
+      prompts: peecData.trackedPrompts,
+      coverage: coverageResult.value,
+      coveragePrevious: gapsPrevious,
+      models: models && models.length > 0 ? models : null,
+      declineThreshold: gapsConfig?.[PROMPT_GAPS_VIEW_KEY]?.thresholds?.['prompt-gaps.decline'] ?? DEFAULT_DECLINE_THRESHOLD,
+    })
+  })
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1157,359 +1119,52 @@ export async function ContentImpactReport({
         </div>
       </div>
 
-      {/* ── Section B: Watched Pages (FB-035, Tina's 9-column overhaul) ─────── */}
-      {(() => {
-        // FB-035: Tina's literal ask is "if the status of an article isn't
-        // published, it shouldn't display here". Strict literal filter on the
-        // raw status string (case-insensitive, trimmed). No fuzzy bucket.
-        const publishedRows = enrichedRows.filter(row => row.status.trim().toLowerCase() === 'published')
+      {/* ── Content performance: merged Avenue Z / all-cited table (replaces §B + §F) ── */}
+      <ContentPerformanceTable
+        rows={contentPerformanceRows}
+        ga4Connected={!!ga4Rows}
+        calendarConnected={!!calendarData}
+      />
 
-        const sectionBRows: PlannedContentRow[] = publishedRows.map((row, i) => {
-          const g = getGA4Metrics(row.url, ga4Rows)
-          const path = extractPath(row.url)
-          const urlKey = urlJoinKey(row.url) ?? ''
-
-          // Per-URL citation count (current + prior).
-          const cite     = citeByKey.get(urlKey)?.citationCount ?? null
-          const citePrior = citeByKeyPrior.get(urlKey)?.citationCount ?? null
-
-          // Citation Share % (this URL's citations / sum of all URL citations).
-          const citationShare = (citationsOk && cite !== null && totalCitationsCurrentRows > 0)
-            ? (cite / totalCitationsCurrentRows) * 100
-            : null
-          const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
-            ? (citePrior / totalCitationsPriorRows) * 100
-            : null
-          const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
-            ? citationShare - citationSharePrior
-            : null
-
-          // Prompt Coverage % (distinct prompt IDs citing this URL / totalTrackedPrompts).
-          const promptCov = (coverageAvailable && totalTrackedPrompts > 0)
-            ? (urlPromptIds(coverage, urlKey).length / totalTrackedPrompts) * 100
-            : null
-          // Prior coverage uses prior totalTrackedPrompts; fall back to current denom when prior peec data
-          // is absent, only valid when compareIso is set AND we got prior coverage data.
-          const promptCovPrior = (compareIso && totalTrackedPrompts > 0 && Object.keys(coveragePrior.promptIdsByUrlKey).length > 0)
-            ? (urlPromptIds(coveragePrior, urlKey).length / totalTrackedPrompts) * 100
-            : null
-          const promptCovDelta = (promptCov !== null && promptCovPrior !== null)
-            ? promptCov - promptCovPrior
-            : null
-
-          // AI Referral Traffic (sessions from AI sources to this path) + delta as % change.
-          const aiRef       = aiReferredForPath(path)
-          const aiRefPrior  = compareIso ? aiReferredForPathPrior(path) : null
-          const aiRefDelta  = (aiRef !== null && aiRefPrior !== null && aiRefPrior > 0)
-            ? ((aiRef - aiRefPrior) / aiRefPrior) * 100
-            : null
-
-          // Organic Sessions per page + delta as % change.
-          const organic       = organicForPath(path)
-          const organicPrior  = compareIso ? organicForPathPrior(path) : null
-          const organicDelta  = (organic !== null && organicPrior !== null && organicPrior > 0)
-            ? ((organic - organicPrior) / organicPrior) * 100
-            : null
-
-          // Engagement Rate + delta as percentage points.
-          const er       = g.engagementRate
-          const erPrior  = compareIso ? engagementRateForPathPrior(path) : null
-          const erDelta  = (er !== null && erPrior !== null)
-            ? (er - erPrior) * 100  // both fractions [0,1], pp = (current minus prior) times 100
-            : null
-
-          return {
-            topic: row.topic,
-            url: row.url,
-            contentType: row.contentType,
-            publishDate: row.publishDate ?? null,
-            updateDate:  row.updateDate  ?? null,
-            promptCoverage:        promptCov,
-            promptCoverageDelta:   promptCovDelta,
-            citationShare:         citationShare,
-            citationShareDelta:    citationShareDelta,
-            aiReferralTraffic:     aiRef,
-            aiReferralTrafficDelta:aiRefDelta,
-            organicSessions:       organic,
-            organicSessionsDelta:  organicDelta,
-            engagementRate:        er,
-            engagementRateDelta:   erDelta,
-            _key: `${row.url ?? row.topic}-${i}`,
-          }
-        })
-        const unmatchedCount = sectionBRows.filter(r =>
-          r.aiReferralTraffic === null && r.organicSessions === null && r.engagementRate === null
-        ).length
-        return (
-          <PlannedContentPerformanceTable
-            rows={sectionBRows}
-            ga4Connected={!!ga4Rows}
-            unmatchedCount={unmatchedCount}
-            totalPublishedCount={sectionBRows.length}
-            emptyMessage={calendarData
-              ? 'No published content yet -- table populates once status flips to live/published/complete'
-              : 'Connect content calendar (Google Sheet) + GA4 page-level data to populate'}
-          />
-        )
-      })()}
-
-      {/* ── Section C: Time to First Traffic / AI Activity ─────────────────── */}
+      {/* ── Section C: Time to first search / AI-referred visit ─────────────────── */}
       <SectionCard
-        title="How quickly does new content earn traffic and AI citations?"
-        description="For each published URL, measures days from publish date to first GA4 session and first GA4 session referred by an AI assistant (ChatGPT, Claude, Perplexity, Gemini, etc.). Always measures publish date through today, independent of the page date range."
+        title="How quickly does new content get found?"
+        description="For new content: days from publish date to the first visit by a person arriving from search, and from an AI answer (ChatGPT, Perplexity, Gemini…). Crawler visits don't count. Measured from publish date to today, whatever range is selected."
       >
-        <TimeToFirstCards medFirstTraffic={medFirstTraffic} medFirstAi={medFirstAi} fastestAi={fastestAi} slowestAi={slowestAi}
-          fastestAiUrl={fastestAiUrl} slowestAiUrl={slowestAiUrl} />
-        {!sectionCOk && (
+        <TimeToFirstCards {...timing} />
+        {timingState !== 'ok' && (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/[0.08]">
-            <p className="text-xs text-text-muted">
-              {calendarData
-                ? 'Connect GA4 to calculate days-to-first-traffic per planned URL'
-                : 'Requires content calendar publish dates + GA4 page-level first-session data'}
-            </p>
+            <p className="text-xs text-text-muted">{TIMING_EMPTY_COPY[timingState]}</p>
           </div>
         )}
-      </SectionCard>
-
-      {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
-      <SectionCard
-        chart
-        title="AI Bot Traffic vs. Human Traffic"
-        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data. When your selected date range is within the last 30 days, this chart follows it. Otherwise it shows the last 30 days."
-      >
-        <BotVsHumanScatter data={scatterData} clientDomain={ownedDomainNames[0] ?? ''} />
       </SectionCard>
 
       {/* ── Section E: Ranked slope chart (FB-038) ─────────────────────────── */}
       <SectionCard
         chart
-        title="Which pages are gaining momentum and which are losing it?"
-        description="Track the biggest movers over time to see which URLs are compounding, which are decaying, and where content performance is strengthening or slipping."
+        title="Which pages are gaining or losing momentum?"
       >
         <SlopeChart input={slopeInput} compareActive={slopeCompareActive} />
       </SectionCard>
 
-      {/* ── Section F: Fullsite Content Performance (FB-039) ────────────────── */}
-      {(() => {
-        // FB-039: row universe = owned-domain cited URLs. Owned hosts derived from
-        // filteredOwnDomains (Peec /reports/domains, already model-filtered upstream).
-        const ownedHostKeys = new Set<string>(
-          filteredOwnDomains
-            .map((d) => urlJoinKey(d.domain))
-            .filter((k): k is string => k !== null),
-        )
-
-        // FB-050: parent-domain suffix match so blog.X.com counts as owned when X.com is Own.
-        // Exact equality handles the root domain; the endsWith check catches all subdomains.
-        // The dot-prefix prevents renaissance.com from matching notrenaissance.com.
-        const isOwnedHost = (citationHost: string | null): boolean => {
-          if (!citationHost) return false
-          for (const ownedKey of ownedHostKeys) {
-            if (citationHost === ownedKey || citationHost.endsWith(`.${ownedKey}`)) {
-              return true
-            }
-          }
-          return false
-        }
-
-        const fullsiteRows: FullsiteContentPerformanceRow[] = urlCitations
-          .filter((c) => {
-            const hostKey = urlJoinKey(c.domain)
-            return isOwnedHost(hostKey) && (c.citationCount ?? 0) > 0
-          })
-          .map((c) => {
-            const path = extractPath(c.url)
-            const urlKey = c.urlKey
-
-            // Prompt Coverage (current + prior, both gated on data presence).
-            const currentPromptIds = urlPromptIds(coverage, urlKey)
-            const priorPromptIds = compareIso ? urlPromptIds(coveragePrior, urlKey) : []
-            const promptCoverage = totalTrackedPrompts > 0
-              ? (currentPromptIds.length / totalTrackedPrompts) * 100
-              : null
-            const promptCoveragePrior = (compareIso && totalTrackedPrompts > 0 && Object.keys(coveragePrior.promptIdsByUrlKey).length > 0)
-              ? (priorPromptIds.length / totalTrackedPrompts) * 100
-              : null
-            const promptCoverageDelta = (promptCoverage !== null && promptCoveragePrior !== null)
-              ? promptCoverage - promptCoveragePrior
-              : null
-
-            // Citation Share (current + prior).
-            const cite = c.citationCount ?? null
-            const citePrior = citeByKeyPrior.get(urlKey)?.citationCount ?? null
-            const citationShare = (cite !== null && totalCitationsCurrentRows > 0)
-              ? (cite / totalCitationsCurrentRows) * 100
-              : null
-            const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
-              ? (citePrior / totalCitationsPriorRows) * 100
-              : null
-            const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
-              ? citationShare - citationSharePrior
-              : null
-
-            // AI Referral Traffic (current + prior).
-            const aiRef = aiReferredForPath(path)
-            const aiRefPrior = compareIso ? aiReferredForPathPrior(path) : null
-            const aiReferralTrafficDelta = (aiRef !== null && aiRefPrior !== null && aiRefPrior > 0)
-              ? ((aiRef - aiRefPrior) / aiRefPrior) * 100
-              : null
-
-            // Organic Sessions (current + prior).
-            const organic = organicForPath(path)
-            const organicPrior = compareIso ? organicForPathPrior(path) : null
-            const organicSessionsDelta = (organic !== null && organicPrior !== null && organicPrior > 0)
-              ? ((organic - organicPrior) / organicPrior) * 100
-              : null
-
-            // Engagement Rate (current + prior, percentage points).
-            const er = engagementRateForPath(path)
-            const erPrior = compareIso ? engagementRateForPathPrior(path) : null
-            const engagementRateDelta = (er !== null && erPrior !== null)
-              ? (er - erPrior) * 100
-              : null
-
-            const pageTitle = (c.title && c.title.trim() !== '')
-              ? c.title
-              : (labelFromPath(c.url) || c.url)
-
-            return {
-              pageTitle,
-              url: c.url,
-              promptCoverage,
-              promptCoverageDelta,
-              citationShare,
-              citationShareDelta,
-              aiReferralTraffic: aiRef,
-              aiReferralTrafficDelta,
-              organicSessions: organic,
-              organicSessionsDelta,
-              engagementRate: er,
-              engagementRateDelta,
-              _key: c.urlKey || c.url,
-            }
-          })
-
-        return (
-          <FullsiteContentPerformanceTable
-            rows={fullsiteRows}
-            ga4Connected={!!ga4Rows}
-          />
-        )
-      })()}
-
-      {/* ── Section H: Competitor Analysis (PRD: 2 sub-views) ── */}
+      {/* ── Section D: Bot vs Human scatter (FB-037) ───────────────────────── */}
       <SectionCard
-        title="Competitor Analysis"
-        description="See which competitor domains are gaining or losing ground across Source Visibility, Citation Share, and Prompt Coverage for your target prompts."
+        chart
+        title="AI crawler visits vs. human visits, by page"
+        description="See which pages are being crawled most by AI systems and how that compares with the human traffic those pages generate. Peec only retains the last 30 days of bot crawl data. When your selected date range is within the last 30 days, this chart follows it. Otherwise it shows the last 30 days."
       >
-        {/* Sub-view 1: Top Competitor Domains - Source Visibility / Citation Share / Prompt Coverage */}
-        {(() => {
-          // FB-051: Citation Share = (domain.citationCount / sumOfAllCompetitorCitationCounts) * 100.
-          // Mirrors §B and §H.2 share-of-period math. Replaces the broken
-          // d.citationRate path that produced 199.9% values (citation_rate is
-          // an avg count, not a fraction).
-          //
-          // FB-058: Citation Share delta is now computed truthfully. Each competitor
-          // domain carries priorCitationCount (from buildTopDomains' priorData), so we
-          // build a prior-period competitor denominator the same way as the current one
-          // and take currentShare - priorShare. Both periods use the competitor-only
-          // denominator so the math is consistent. Gated on compareIso, like every other
-          // delta. A competitor with zero prior citations yields priorShare 0, so its
-          // delta is the full current share (a clean period-over-period gain).
-          // FB-063: when a model filter is active, prior-period values used
-          // by these deltas are stale. filterDomainRowsByModel only rewrites
-          // citationCount for the current period; priorCitationCount stays
-          // populated from all-model prior data (see by-model.ts:25-27).
-          // d.retrievedDelta and the per-domain prior coverage are likewise
-          // computed without model scoping. Mixing model-filtered current
-          // with all-model prior produces nonsense deltas (live audit:
-          // nogood.io showed ↑48.7 pp Citation Share Δ under ChatGPT-only).
-          // Fix: when models is set, render every Δ as -- (null) so the
-          // numbers shown are at least internally consistent.
-          const modelFilterActive = models != null && models.length > 0
-          const totalCompetitorCitations = filteredCompetitorDomains
-            .reduce((s, d) => s + (d.citationCount ?? 0), 0)
-          const totalCompetitorCitationsPrior = filteredCompetitorDomains
-            .reduce((s, d) => s + (d.priorCitationCount ?? 0), 0)
-          const h1Rows: CompetitorDomainsCitedRow[] = filteredCompetitorDomains.slice(0, 25).map((d) => {
-            const promptCovCurrent = getPromptCoverage(d.domain)
-            const promptCovPrior   = compareIso && !modelFilterActive ? getPromptCoveragePrior(d.domain) : null
-            const promptCovDelta   = compareIso && !modelFilterActive && promptCovCurrent !== null && promptCovPrior !== null
-              ? promptCovCurrent - promptCovPrior
-              : null
-            const citationShareValue = totalCompetitorCitations > 0
-              ? (d.citationCount / totalCompetitorCitations) * 100
-              : 0
-            const citationSharePrior = compareIso && !modelFilterActive && totalCompetitorCitationsPrior > 0
-              ? (d.priorCitationCount / totalCompetitorCitationsPrior) * 100
-              : null
-            const citationShareDelta = compareIso && !modelFilterActive && citationSharePrior !== null
-              ? citationShareValue - citationSharePrior
-              : null
-            return {
-              domain: d.domain,
-              aiVisibility:        d.retrieved,
-              aiVisibilityDelta:   compareIso && !modelFilterActive ? d.retrievedDelta : null,
-              citationShare:       citationShareValue,
-              citationShareDelta:  citationShareDelta,
-              promptCoverage:      promptCovCurrent,
-              promptCoverageDelta: promptCovDelta,
-            }
-          })
-          return (
-            <CompetitorDomainsCitedTable
-              rows={h1Rows}
-              emptyMessage="No competitor domain data available from Peec AI"
-            />
-          )
-        })()}
-
-        <div className="border-t border-white/[0.06]" />
-
-        {/* Sub-view 2: Brand-Absent Competitor URLs */}
-        {(() => {
-          // Live source only. Citation Share math mirrors §B
-          // Watched Pages: (urlCitationCount / periodTotalCitations) * 100,
-          // delta = current pp - prior pp, gated on compareIso !== null AND
-          // the row appearing in citeByKeyPrior with a non-zero prior total.
-          const competitorCitedUrls = urlCitations
-            .filter((c) => !c.mentionsYourBrand && c.competitorBrandNames.length > 0)
-            .sort((a, b) => b.citationCount - a.citationCount)
-            .slice(0, 10)
-
-          const h2Rows: CompetitorUrlsBrandAbsentRow[] = competitorCitedUrls.map((c) => {
-            const cite = c.citationCount
-            const citePrior = citeByKeyPrior.get(c.urlKey)?.citationCount ?? null
-            const citationShare = (citationsOk && totalCitationsCurrentRows > 0)
-              ? (cite / totalCitationsCurrentRows) * 100
-              : null
-            const citationSharePrior = (compareIso && citePrior !== null && totalCitationsPriorRows > 0)
-              ? (citePrior / totalCitationsPriorRows) * 100
-              : null
-            const citationShareDelta = (citationShare !== null && citationSharePrior !== null)
-              ? citationShare - citationSharePrior
-              : null
-            return {
-              domain: c.domain,
-              articleTitle: c.title,
-              url: c.url,
-              citationShare,
-              citationShareDelta,
-              competitorsMentioned: c.competitorBrandNames.join(', ') || null,
-            }
-          })
-
-          return (
-            <div className="flex flex-col gap-3">
-              <CompetitorUrlsBrandAbsentTable
-                rows={h2Rows}
-                emptyMessage="No competitor citation data available from Peec AI"
-              />
-            </div>
-          )
-        })()}
-
+        <BotVsHumanScatter data={scatterData} clientDomain={ownedDomainNames[0] ?? ''} />
       </SectionCard>
+
+      {promptGaps && (
+        <PromptGapsBlock
+          result={promptGaps}
+          audience={audience}
+          clientVisible={gapsClientVisible}
+          canToggle={canToggleGaps}
+          clientSlug={clientSlug}
+        />
+      )}
 
     </div>
   )
