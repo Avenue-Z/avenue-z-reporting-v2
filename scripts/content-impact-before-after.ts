@@ -89,6 +89,8 @@ async function main() {
   console.log(`After:  totalCitationCount ${owned.totalCitationCount} (owned walk complete=${owned.complete}), owned cited rows ${owned.rows.length}`)
   const ownedNum = owned.rows.reduce((s, c) => s + c.citationCount, 0)
   console.log(`Owned citations: before (exact-host match in capped rows) ${oldOwnedNum} -> after ${ownedNum}`)
+  console.log(`Denominator change: ${oldDen} -> ${owned.totalCitationCount} (${owned.totalCitationCount - oldDen >= 0 ? '+' : ''}${owned.totalCitationCount - oldDen})`)
+  console.log('Note: the "before" share counted only exact-host matches within the 2,000 most-cited URLs, while "after" uses the full citation total and includes the client\'s subdomains, so the change mixes a denominator fix with a slightly wider definition of "own page".')
   console.log(`Owned citation share: before ${pct(oldDen > 0 ? (oldOwnedNum / oldDen) * 100 : null, 2)} -> after ${pct(owned.totalCitationCount > 0 ? (ownedNum / owned.totalCitationCount) * 100 : null, 2)}`)
 
   // ── Rows ──
@@ -97,9 +99,9 @@ async function main() {
   const [er, aiMain, chMain, aiPri, chPri, erPri] = await Promise.all([
     ga4Query({ clientSlug: slug, dateRange: range, metrics: ['sessions', 'activeUsers', 'screenPageViews', 'engagementRate'], dimensions: ['pagePath'], limit: 1000 }),
     ga4Query({ clientSlug: slug, dateRange: range, metrics: ['sessions'], dimensions: ['pagePath', 'sessionSource'], limit: 2000 }),
-    ga4Query({ clientSlug: slug, dateRange: iso(main), metrics: ['sessions'], dimensions: ['pagePath', 'sessionDefaultChannelGroup'], limit: 5000 }),
+    ga4Query({ clientSlug: slug, dateRange: iso(main), metrics: ['sessions'], dimensions: ['pagePath', 'sessionDefaultChannelGroup'], limit: 2000 }),
     ga4Query({ clientSlug: slug, dateRange: iso(cmp), metrics: ['sessions'], dimensions: ['pagePath', 'sessionSource'], limit: 2000 }),
-    ga4Query({ clientSlug: slug, dateRange: iso(cmp), metrics: ['sessions'], dimensions: ['pagePath', 'sessionDefaultChannelGroup'], limit: 5000 }),
+    ga4Query({ clientSlug: slug, dateRange: iso(cmp), metrics: ['sessions'], dimensions: ['pagePath', 'sessionDefaultChannelGroup'], limit: 2000 }),
     ga4Query({ clientSlug: slug, dateRange: iso(cmp), metrics: ['sessions', 'activeUsers', 'screenPageViews', 'engagementRate'], dimensions: ['pagePath'], limit: 1000 }),
   ])
   const erRows = er.rows as GRow[]
