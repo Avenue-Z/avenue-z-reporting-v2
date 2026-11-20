@@ -1,6 +1,7 @@
 // lib/peec/url-citations.ts
 import { cached } from '@/lib/cache'
 import { urlJoinKey } from '@/lib/url'
+import { ownedHostKeys, isOwnedHost } from '@/lib/peec/owned-hosts'
 
 const BASE_URL = 'https://api.peec.ai/customer/v1'
 
@@ -436,6 +437,110 @@ async function getPlacementCitationsImpl(
 
 export const getPlacementCitations = cached('peec', 'getPlacementCitations', getPlacementCitationsImpl, {
   version: 'v1',
+  extractTags: ([slug]) => ({ client: slug ?? 'default' }),
+})
+
+// ── Owned cited pages, uncapped (R-6) ───────────────────────────────────────
+// The client's own AI-cited pages with no top-N cap, plus the all-sites citation
+// total (the share denominator). Only the owned rows and the total are cached;
+// the full walk (17k+ rows) would blow past the 2 MB data-cache limit (FB-069).
+
+export type OwnedUrlCitations = {
+  rows: UrlCitation[]
+  /** Sum of citation_count over every walked base row, all sites, before filtering. */
+  totalCitationCount: number
+  /** Both walks ended on a short page within maxPages (D-21). */
+  complete: boolean
+}
+
+async function getOwnedUrlCitationsImpl(
+  clientSlug: string | undefined,
+  ownedHosts: string[],
+  opts: { startDate?: string; endDate?: string } = {},
+): Promise<OwnedUrlCitations> {
+  let pid: string | undefined
+  let yourBrand = ''
+  if (clientSlug) {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    const config = await getClientBySlug(clientSlug)
+    pid = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
+    yourBrand = config?.peecYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
+  }
+  if (!pid && !process.env.PEEC_AI_PROJECT_ID) return { rows: [], totalCitationCount: 0, complete: true }
+
+  const d = last30()
+  const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
+
+  // D-21: duplicate row keys mean Peec reordered mid-walk. Walk once more and keep
+  // the second result; a walk that hit maxPages is incomplete either way, so it is
+  // not retried. Persistent duplicates are accepted (de-duplicated) with a warning.
+  const walkWithRetry = async (
+    walk: () => ReturnType<typeof fetchAllPagesChecked<ApiUrlRow>>,
+    label: string,
+  ) => {
+    let result = await walk()
+    if (result.duplicateRows > 0 && result.complete) {
+      result = await walk()
+      if (result.duplicateRows > 0) {
+        console.warn(
+          `[peec] getOwnedUrlCitations(${clientSlug ?? 'default'}) ${label}: ${result.duplicateRows} duplicate ` +
+          `row key(s) persisted after a retry — accepting the de-duplicated result`,
+        )
+      }
+    }
+    return result
+  }
+
+  const [baseWalk, engineWalk, brandsRes] = await Promise.all([
+    walkWithRetry(
+      () => fetchAllPagesChecked<ApiUrlRow>(
+        (offset, limit) =>
+          post<{ data: ApiUrlRow[]; totalCount?: number }>('/reports/urls', { ...window, limit, offset }, pid)
+            .then((r) => ({ rows: r.data ?? [], totalCount: r.totalCount })),
+        {
+          pageSize: CITATION_PAGE_SIZE,
+          maxPages: CITATION_MAX_PAGES,
+          label: 'owned citations (base)',
+          rowKey: (r) => r.url,
+        },
+      ),
+      'base',
+    ),
+    walkWithRetry(
+      () => fetchAllPagesChecked<ApiUrlRow>(
+        (offset, limit) =>
+          post<{ data: ApiUrlRow[]; totalCount?: number }>(
+            '/reports/urls',
+            { ...window, dimensions: ['model_channel_id', 'model_id'], limit, offset },
+            pid,
+          ).then((r) => ({ rows: r.data ?? [], totalCount: r.totalCount })),
+        {
+          pageSize: CITATION_PAGE_SIZE,
+          maxPages: CITATION_MAX_PAGES,
+          label: 'owned citations (engines)',
+          rowKey: (r) => `${r.url}|${r.model_channel?.id}|${r.model?.id}`,
+        },
+      ),
+      'engines',
+    ),
+    post<{ data: ApiBrandNameRow[] }>('/reports/brands', { ...window, limit: 200 }, pid),
+  ])
+
+  const brandRows = brandsRes.data ?? []
+  const yourBrandIds = resolveYourBrandIds(brandRows, yourBrand)
+  const brandNameById = new Map(brandRows.map((b) => [b.brand.id, b.brand.name]))
+  const merged = mergeUrlCitations(baseWalk.rows, engineWalk.rows, yourBrandIds, brandNameById)
+
+  const owned = ownedHostKeys(ownedHosts.map((domain) => ({ domain })))
+  return {
+    rows: merged.filter((c) => isOwnedHost(urlJoinKey(c.domain), owned)),
+    totalCitationCount: baseWalk.rows.reduce((sum, r) => sum + r.citation_count, 0),
+    complete: baseWalk.complete && engineWalk.complete,
+  }
+}
+
+export const getOwnedUrlCitations = cached('peec', 'getOwnedUrlCitations', getOwnedUrlCitationsImpl, {
+  version: 'v1', // new fetcher: owned rows + all-sites citation total, uncapped
   extractTags: ([slug]) => ({ client: slug ?? 'default' }),
 })
 

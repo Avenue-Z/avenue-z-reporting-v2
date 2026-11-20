@@ -1,5 +1,5 @@
 // lib/peec/url-citations.test.ts
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   resolveYourBrandIds,
   mergeUrlCitations,
@@ -17,10 +17,13 @@ import {
   fetchAllPagesChecked,
   pickCitationsForUrls,
   countDuplicateUrlKeys,
+  getOwnedUrlCitations,
   type ApiUrlRow,
   type DomainCoverage,
 } from './url-citations'
 import { urlJoinKey } from '@/lib/url'
+
+vi.mock('@/lib/cache', () => ({ cached: (_v: string, _n: string, fn: unknown) => fn }))
 
 const row = (url: string, extra: Partial<ApiUrlRow>): ApiUrlRow => ({
   url, classification: 'LISTICLE', title: null, channel_title: null,
@@ -508,5 +511,39 @@ describe('fetchAllPagesChecked', () => {
     const r = await fetchAllPagesChecked(async () => ({ rows: [1], totalCount: 5 }), { pageSize: 2, maxPages: 5 })
     warn.mockRestore()
     expect(r.complete).toBe(false)
+  })
+})
+
+// ── Owned cited pages, uncapped (R-6) ────────────────────────────────────────
+describe('getOwnedUrlCitations', () => {
+  const stubPeec = (basePages: ApiUrlRow[][]) => {
+    let baseCall = 0
+    vi.stubEnv('PEEC_AI_CUSTOMER_TOKEN', 'test-token')
+    vi.stubEnv('PEEC_AI_PROJECT_ID', 'proj_test')
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body)
+      let data: unknown[] = []
+      if (String(_url).endsWith('/reports/brands')) data = []
+      else if (body.dimensions) data = []          // engine walk: empty is a valid short page
+      else data = basePages[baseCall++] ?? []
+      return { ok: true, json: async () => ({ data }) }
+    }))
+  }
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
+
+  it('keeps only owned rows and sums all rows', async () => {
+    const mixed: ApiUrlRow[] = Array.from({ length: 10_000 }, (_, i) =>
+      row(i % 2 === 0 ? `https://blog.owned.com/p${i}` : `https://other.com/p${i}`, { citation_count: 2 }))
+    const tail: ApiUrlRow[] = [
+      row('https://owned.com/a', { citation_count: 5 }),
+      row('https://notowned.com/b', { citation_count: 7 }),
+      row('https://third.com/c', { citation_count: 1 }),
+    ]
+    stubPeec([mixed, tail])
+    const out = await getOwnedUrlCitations(undefined, ['owned.com'], { startDate: '2026-01-01', endDate: '2026-01-30' })
+    expect(out.complete).toBe(true)
+    expect(out.rows.length).toBe(5_001)
+    expect(out.rows.every((r) => r.domain.endsWith('owned.com'))).toBe(true)
+    expect(out.totalCitationCount).toBe(10_000 * 2 + 5 + 7 + 1)
   })
 })
