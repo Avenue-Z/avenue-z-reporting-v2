@@ -8,8 +8,8 @@ setting changes in this PR.
 The team asked for the rest of Organic Social to get the look the Social Listening tab has.
 
 - **The 11-19 call with Jasmine and Savannah.** On seeing the Social Listening mockup, Jasmine asked "why does this look
-  nicer than our organic social performance dashboards?" (06:20), said the boxes and the shading look "really premium" (07:29),
-  and asked "that we do the same for performance" (07:46). She also said the analysis boxes
+  nicer than our organic social performance dashboards?" (06:20), said the boxes and the shading look "really premium"
+  (07:29), and asked "that we do the same for performance" (07:46). She also said the analysis boxes
   "throughout would be more helpful than the insights in the top" (19:05), and agreed Organic Social goes first as the
   test case ("guinea pig us first", 21:56).
 - **Slack, 2026-11-20, 12:08 PM**, after she reviewed staging: "when are u going to make the performance reports look
@@ -97,7 +97,7 @@ a guess.
 
 | Part | Draws through today | Closest artifact element |
 |---|---|---|
-| Insights and Recommendations (top of each tab) | `CommentarySection` via the shared parts registry, then `CommentaryPanel` | `renderComm`, the analysis box (`SlAnalysis`) |
+| Insights and Recommendations (top of each tab) | `CommentarySection` via the shared parts registry, then `monthlyCommentary`, which draws `CommentaryPanel` | `renderComm`, the analysis box (`SlAnalysis`) |
 | Data tiles (`outline-tiles.tsx`, `platform-headlines.tsx`, `parts/outline-data.tsx`, `parts/engagement-breakdown.tsx`) | `components/charts/kpi-card` | `kpi` and `change` |
 | Followers and engagement graphs (`parts/follower-graph.tsx`, `parts/engagement-trend.tsx`, `trends.tsx`) | `ChannelTrendChart` in `trends.tsx`, on `components/charts/line-chart` (Recharts) | `lineChart`. **No artifact equivalent** for the annotations, chart notes and channel toggles these graphs carry |
 | YTD Review (`parts/ytd-review*.tsx`) | `components/charts/bar-chart`, `line-chart`, `chart-card` | `ytdColumns` and `pointLines` (shape only: the artifact's are sentiment shares, these are counts) |
@@ -139,7 +139,7 @@ version stays in the approver history. The Insights box and the Recommendations 
 
 | | Free range | Month mode |
 |---|---|---|
-| Used by | Every box outside Organic Social (Renaissance's AEO, PR Influence, Paid Search, Meta, LinkedIn) | Every Organic Social box for a client on locked months (`components/report-sections/commentary/index.tsx:21-23`), which is all six Organic Social clients in production |
+| Used by | Every box outside Organic Social (Renaissance's AEO, PR Influence, Paid Search, Meta, LinkedIn), and any Organic Social box for a client without locked months (none in production) | Every Organic Social box for a client on locked months (`components/report-sections/commentary/index.tsx:21-23`), which is all six Organic Social clients in production |
 | Drawn by | `CommentaryPanel` (`index.tsx:25-62`) | `monthlyCommentary` (`components/report-sections/commentary/monthly.tsx`), which renders `CommentaryPanel` by default |
 | The period | Staff type any start and end date (`commentary-editor.tsx:106-111`) | The editor starts on the month on screen (`lib/commentary/initial-period.ts`); the dates can still be changed |
 | The dropdown in the screenshot | Every period ever written; "latest" is the newest period (`pickDefaultEntry`, `lib/commentary/select.ts:75`) | Only entries whose period starts in the month on screen (`lib/commentary/month.ts:12-14`); a whole-month entry wins (`:17-20`) |
@@ -175,8 +175,8 @@ decision (section 8).
   every entry in production.
 - **Other service lines do not change.** Renaissance's AEO and paid boxes keep the free-range panel. The change sits
   behind the Organic Social and locked-months check (`index.tsx:21`), as month mode already does.
-- **More to write each month.** Today a tab has two boxes a month; per chart it is one box per chart on the tab. That changes the
-  team's routine, which is why the call said Matty and Nick hear about it first (20:30).
+- **More to write each month.** Today a tab has two boxes a month; with per-chart boxes it has one more for every chart.
+  That changes the team's routine, which is why the call said Matty and Nick hear about it first (20:30).
 
 ## 6. Proposed approach
 
@@ -195,8 +195,8 @@ decision (section 8).
    (`components/report-sections/commentary/index.tsx:15-22`), which other reports share, so the new look is passed for
    Organic Social views only and every other report keeps `CommentaryPanel`. Same rows, same approvals, same history; only
    the box looks different.
-4. **Phase 3, analysis inside each chart (a decision, not assumed; storage in section 5).** Jasmine wants analysis next to each chart instead
-   of one panel at the top (19:05). That adds new boxes per chart, which changes how the team writes up a month, and per
+4. **Phase 3, analysis inside each chart (a decision, not assumed; storage in section 5).** Jasmine wants analysis
+   next to each chart instead of one panel at the top (19:05). That adds new boxes per chart, which changes how the team writes up a month, and per
    the call it needs Matty and Nick told first (20:30). Proposed for Organic Social only, as the test case she agreed to.
 
 **Rollout, per client.** A setting per client (for example `dashSocialConfig.design: "v2"`), off by default, so today's
@@ -204,7 +204,7 @@ look stays until a client is switched on. Order: APFM on staging, Jasmine's revi
 clients, Renaissance last.
 
 **Renaissance.** In scope, as asked, but last, and only with a proof that every number and every request is unchanged
-(the existing Renaissance fingerprint and golden tests), plus my explicit go. Nothing ships to production without
+(a read-only before and after capture of Renaissance's numbers on each tab, plus the existing golden tests), plus my explicit go. Nothing ships to production without
 Jasmine's approval on staging.
 
 **How it ships.** One deliverable branch off `dev` for the overhaul, each phase and tab a standalone PR into it, Paul
