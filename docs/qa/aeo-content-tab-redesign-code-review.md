@@ -134,8 +134,8 @@ immediately before `footer` (`components/report-sections/peec-ai/template.ts:17-
 
 ## 2. Verification method
 
-**Gates, local** (at `ea87c50c`, re-run after Thomas's fixes at `445cfa0f`):
-- `npx vitest run`: **438 files, 5,423 tests passed** (at `445cfa0f`). `npm run typecheck` clean.
+**Gates, local** (at `ea87c50c`, re-run after Thomas's fixes at `a43dce0c`):
+- `npx vitest run`: **438 files, 5,424 tests passed** (at `a43dce0c`). `npm run typecheck` clean.
 - **RSC boundary.** `npm run check:rsc` skips any path containing `/.claude/` (`scripts/check-rsc-props.ts:74`),
   so inside a `.claude/worktrees` checkout it scans nothing. It was run as a copy with that line
   removed: passed. A real violation it would have caught is Finding 1.
