@@ -63,7 +63,7 @@ First pick was **upload every source by hand in v1**, because automating looked 
 | Technical Audit Log | A Google Sheet written by `Avenue-Z/monthly-technical-audit`. Its workflow is `workflow_dispatch` only ("add cron once schedule is confirmed"); last run 2026-06-02. It holds X-Point summary counts, not SF Issues / Ahrefs / GSC. Not shared with our service account. | **Not used.** The Drive run folders are the live run history. |
 | Ahrefs | API v3 has Site Audit endpoints: `/site-audit/projects` (free; `health_score`, crawl `date`, status) and `/site-audit/issues` (50 units; name, importance, affected-URL count, `date` / `date_compared`). Workspace is on **Advanced** (2M API units/mo; Site Audit endpoints already in use via the Glean MCP key). 24 Site Audit projects exist, crawled weekly, incl. Renaissance (`9371114`) — IDs in `docs/qa/technical-audit-source-probes.md`. **No Ahrefs key in this app's env yet.** | **Automate.** Needs a dedicated API v3 key (`AHREFS_API_KEY`). |
 | GSC Page Indexing | No API or BigQuery export returns the report. URL Inspection API: 2,000 calls/day and 600/min per property, returns `verdict`, `coverageState` (free text, e.g. "Crawled - currently not indexed"), `pageFetchState`, etc. Renaissance's sitemaps hold ≈925 URLs. | **Automate as an estimate** over sitemap URLs; optional GSC export upload replaces it with exact numbers. |
-| GSC Core Web Vitals | No API returns the report. CrUX API gives origin-level good / needs-improvement / poor distributions per device (weekly, 28-day windows); no URL-group counts. | **Automate as an estimate** (share of page loads, per device); optional upload replaces it. |
+| GSC Core Web Vitals | No API returns the report. CrUX API returns origin **and per-URL** records per device (28-day window; History API weekly, 25 periods back to May). Renaissance's homepage has its own record on both devices. Origin histograms are per metric and can't be combined into one "good page loads" share. | **Automate as an estimate of URL counts:** classify each sitemap URL that has a CrUX record by its worst p75 metric, per device. Optional upload replaces it. |
 | GSC access | The delegated account (`GSC_IMPERSONATE_EMAIL` = nick@) sees only `sc-domain:avenuez.com`; Renaissance returns 403. The shared `google@avenuez.com` account sees 49 properties incl. avenuez.com and Renaissance; impersonating it, Sitemaps and URL Inspection both return 200 for Renaissance. | Switch `GSC_IMPERSONATE_EMAIL` to `google@avenuez.com` (local + Vercel). |
 
 Rejected: all-upload (manual toil, Paul wants automation); GSC upload-only (no numbers until someone uploads);
@@ -112,8 +112,8 @@ Top to bottom (new sections first, existing AI-crawler sections kept below):
      indexed counts. Estimate basis: "% of sitemap URLs indexed", with "Estimate · URL Inspection of N
      sitemap URLs".
    - Core Web Vitals — Mobile/Desktop toggle, default Mobile. Export basis: Poor / NI / Good **URL counts**.
-     Estimate basis: Poor / NI / Good **share of page loads** (CrUX, origin), labeled "Estimate · Chrome UX
-     Report, share of page loads".
+     Estimate basis: Poor / NI / Good **URL counts** from per-URL CrUX records, labeled "Estimate · Chrome UX
+     Report, N sitemap URLs with data", plus the count of sitemap URLs without CrUX data.
    Each tile shows "No data for this snapshot" when its source is missing.
 4. **02 · Change over time** — delta strip of six KPI tiles with value, good/bad-colored delta, sparkline;
    clicking one selects it in the **trend chart** (one KPI, own axis, all snapshots, selected and previous
@@ -151,12 +151,15 @@ nothing reads it, then is dropped in a later cleanup.
   `finished_at`, `raw` (bytea ≤ 2 MB: the SF CSV, the Ahrefs JSON, the uploaded GSC file) so parsers can
   re-derive.
 - `tech_audit_metrics` — per snapshot and basis (`estimate` | `export`): SF issue-type counts + URL totals per
-  category; Ahrefs health score; indexed / not indexed (/ inspected); CWV poor / NI / good per device (counts
-  for export, shares for estimate).
+  category; Ahrefs health score; indexed / not indexed (/ inspected); CWV poor / NI / good URL counts per
+  device (+ URLs without data, for the estimate).
 - `tech_audit_source_issues` — `snapshot_id`, `source`, `native_issue_name`, `native_severity`, `url_count`,
   `device` (CWV), `basis`.
 - `tech_audit_gsc_inspections` — `snapshot_id`, `url`, `verdict`, `coverage_state`, `page_fetch_state`,
   `inspected_at`; the work queue for the resumable estimate and the URL list behind GSC issue rows.
+- `tech_audit_crux_urls` — `snapshot_id`, `url`, `device`, `status` (`pending` | `has_data` | `no_data`),
+  `lcp_p75`, `inp_p75`, `cls_p75`, `category` (good / ni / poor, worst metric), `failing_metrics`,
+  `queried_at`; the CWV work queue and the URL list behind CWV issue rows.
 
 ### 6.3 Monthly pipeline (Vercel cron, daily)
 
@@ -176,8 +179,12 @@ idempotent and resumable; one brand or source failing never blocks another.
    child sitemaps) into the inspection queue, then
    inspect up to a per-run budget (stay under 2,000/day and 600/min per property). Done when the queue
    drains; a large site may take several days.
-5. **GSC CWV estimate.** CrUX `queryRecord` for the origin, PHONE and DESKTOP; classify into good / NI / poor
-   shares per Core Web Vital thresholds, worst metric wins, per device.
+5. **GSC CWV estimate.** Reuse the sitemap URL list from step 4; for each URL, CrUX `queryRecord` with
+   `url`, PHONE and DESKTOP (~2 × URLs queries; quota 150/min per GCP project, shared by all brands, so
+   budget per run and resume). A 404 from CrUX means "no data" for that URL, not a failure. Classify each URL
+   with data by its p75 values against the Core Web Vitals thresholds (LCP 2.5 s / 4 s, INP 200 / 500 ms,
+   CLS 0.1 / 0.25); the worst metric sets the category, as GSC does. Also store the origin record per device
+   for the ⓘ context line.
 6. **Publish.** Auto-publish when every source is `complete`, or 7 days after the snapshot date with
    whatever arrived (missing tiles marked). `hold` blocks auto-publish; staff can publish or unpublish any
    time.
@@ -193,14 +200,18 @@ the team-view health line. No secrets in logs.
 - Deltas compare **like with like**: export vs export when both snapshots have one, else estimate vs estimate
   (labeled "change vs estimate"). Never export vs estimate.
 - Delta-strip KPIs and the trend chart use the **estimate** series (complete history, one measure). GSC KPIs
-  in the strip are therefore: "% sitemap URLs indexed" (↑), "Not-indexed sitemap URLs" (↓), "Poor page
-  loads % (mobile)" (↓), "Good page loads % (mobile)" (↑).
+  in the strip are therefore: "% sitemap URLs indexed" (↑), "Not-indexed sitemap URLs" (↓), "Poor CWV URLs
+  (mobile)" (↓), "Good CWV URLs % (mobile)" (↑) — the last two as the brief names them, measured over sitemap
+  URLs with CrUX data.
 - Brief §6 "totals match GSC Indexing and CWV" holds only for snapshots with an uploaded export. For QA, the
   indexing estimate is compared with GSC's **sitemap-filtered** view (Renaissance 2026-11-15: 601 indexed /
   321 not indexed of 922), which measures the same URLs; reference values in
   `docs/qa/technical-audit-source-probes.md`.
 - Issue table: GSC indexing rows come from the inspections (estimate) or from the export's reason table when
-  uploaded. "Why URLs aren't considered good" CWV rows exist **only** with an export — CrUX has no URL groups.
+  uploaded. CWV rows ("LCP issue: longer than 2.5s (mobile)" etc.) come from the per-URL classification
+  (estimate) or from the export's "Why URLs aren't considered good" table. Counts are of URLs, not GSC's URL
+  groups, so detail can differ from GSC (e.g. Renaissance desktop: GSC shows 8 NI URLs for CLS, while CrUX
+  rates the homepage NI for LCP).
 
 ### 6.5 Merge, severity, ranking, status
 
@@ -293,8 +304,8 @@ See the decisions doc. From the brief's §7: #1 (anchor = SF monthly run, Ahrefs
 | Issues (issue types) | Screaming Frog | Lower |
 | % sitemap URLs indexed *(brief: Indexed pages)* | GSC estimate | Higher |
 | Not-indexed sitemap URLs *(brief: Not indexed pages)* | GSC estimate | Lower |
-| Poor page loads % (mobile) *(brief: Poor CWV URLs)* | CrUX estimate | Lower |
-| Good page loads % (mobile) *(brief: Good CWV URLs %)* | CrUX estimate | Higher |
+| Poor CWV URLs (mobile) | CrUX per-URL estimate | Lower |
+| Good CWV URLs % (mobile) | CrUX per-URL estimate | Higher |
 
 ### A.2 Severity normalization
 
@@ -305,7 +316,7 @@ See the decisions doc. From the brief's §7: #1 (anchor = SF monthly run, Ahrefs
 | GSC Indexing | Server error (5xx), Not found (404), Soft 404, Redirect error, Blocked by robots.txt, Blocked due to unauthorized request (401) | High |
 | GSC Indexing | Crawled – currently not indexed, Discovered – currently not indexed, Duplicate without user-selected canonical, Google chose different canonical than user | Medium |
 | GSC Indexing | Alternate page with proper canonical tag, Page with redirect, Excluded by 'noindex' tag | Low; High when in the XML sitemap (all estimate rows) |
-| GSC CWV (export only) | Poor / Needs improvement | High / Medium |
+| GSC CWV (export) / CrUX per-URL (estimate) | Poor / Needs improvement | High / Medium |
 
 Unlisted GSC reasons: Medium, flagged "Needs mapping".
 
@@ -338,6 +349,7 @@ Unlisted GSC reasons: Medium, flagged "Needs mapping".
 - Ahrefs matched within 7 days on or before the SF run (brief's rule), via API.
 - GSC estimates always computed; exports optional and additive; deltas like-with-like; KPIs/trend on
   estimates.
+- CWV estimate = per-URL CrUX classification of sitemap URLs (URL counts), not origin page-load shares.
 - Auto-publish when complete or after 7 days; staff hold / publish / unpublish.
 - URLs affected = max across sources.
 - Sitemap severity raise applied to estimate rows.
