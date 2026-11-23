@@ -211,6 +211,11 @@ export function last30() {
  * as "not cited". Bristol's dig-in.com placement was already being dropped this
  * way before the match rule changed.
  *
+ * `complete: true` means the walk ran out of pages (a short page, and the
+ * reported totalCount if any matched), NOT that every row was seen: a mid-walk
+ * reorder can drop up to `duplicateRows` rows (D-21 / F-8, see
+ * walkReportingDuplicates).
+ *
  * Bounded by maxPages so an unusually large account cannot spin unbounded
  * requests. Measured against Peec: per-request latency is flat across page
  * sizes (~1.2s at both 2,000 and 10,000 rows), so a large page is strictly
@@ -265,23 +270,30 @@ export async function fetchAllPagesChecked<T>(
 }
 
 /**
- * D-21: duplicate row keys mean Peec reordered mid-walk. Walk once more and keep
- * the second result; a walk that hit maxPages is incomplete either way, so it is
- * not retried. Persistent duplicates are accepted (de-duplicated) with one warning.
+ * D-21, as amended by F-8: report duplicate row keys; do NOT re-walk.
+ *
+ * Duplicate keys mean Peec reordered mid-walk. D-21 used to walk once more and
+ * keep the second result. Measured live (Renaissance, 6 walks each): the
+ * prompt x model coverage walk had 1-2 duplicates on every walk and the retry
+ * came back clean 0 of 5 times, so it only doubled the cost. rows + duplicates
+ * was constant, i.e. each duplicate displaces a distinct row: a walk with N
+ * duplicates may be missing up to N rows.
+ *
+ * So run the walk once, warn once when it saw duplicates, and return it
+ * unchanged (already de-duplicated by fetchAllPagesChecked). `complete: true`
+ * means "the walk ran out of pages" (a short page, matching any reported
+ * totalCount), NOT "saw every row"; `duplicateRows` is the signal for the latter.
  */
-export async function walkWithD21Retry<T>(
+export async function walkReportingDuplicates<T>(
   walk: () => Promise<{ rows: T[]; complete: boolean; duplicateRows: number }>,
   label: string,
 ): Promise<{ rows: T[]; complete: boolean; duplicateRows: number }> {
-  let result = await walk()
-  if (result.duplicateRows > 0 && result.complete) {
-    result = await walk()
-    if (result.duplicateRows > 0) {
-      console.warn(
-        `[peec] ${label}: ${result.duplicateRows} duplicate ` +
-        `row key(s) persisted after a retry — accepting the de-duplicated result`,
-      )
-    }
+  const result = await walk()
+  if (result.duplicateRows > 0) {
+    console.warn(
+      `[peec] ${label}: ${result.duplicateRows} duplicate row key(s) — ` +
+      `using the de-duplicated result; up to ${result.duplicateRows} row(s) may be missing`,
+    )
   }
   return result
 }
@@ -513,7 +525,7 @@ async function getOwnedUrlCitationsImpl(
   const window = { start_date: opts.startDate ?? d.start_date, end_date: opts.endDate ?? d.end_date }
 
   const [baseWalk, engineWalk, brandsRes] = await Promise.all([
-    walkWithD21Retry(
+    walkReportingDuplicates(
       () => fetchAllPagesChecked<ApiUrlRow>(
         (offset, limit) =>
           post<{ data: ApiUrlRow[]; totalCount?: number }>('/reports/urls', { ...window, limit, offset }, pid)
@@ -527,7 +539,7 @@ async function getOwnedUrlCitationsImpl(
       ),
       `getOwnedUrlCitations(${clientSlug ?? 'default'}) base`,
     ),
-    walkWithD21Retry(
+    walkReportingDuplicates(
       () => fetchAllPagesChecked<ApiUrlRow>(
         (offset, limit) =>
           post<{ data: ApiUrlRow[]; totalCount?: number }>(

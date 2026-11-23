@@ -136,21 +136,23 @@ describe('getCoverageProjection', () => {
     expect(p.ownedPromptIds).toContain('p-late')
   })
 
-  it('a duplicate on the first walk triggers exactly one retry, keeping the second result', async () => {
+  it('a duplicate on the first walk is NOT retried: one walk, the de-duplicated first result is kept', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     handler = (_o, walk) => walk === 1
       ? [row('https://x.com/a', 'p1', 'openai-0'), row('https://x.com/a', 'p1', 'openai-0')]
       : [row('https://x.com/a', 'p2', 'openai-0')]
     const p = await getCoverageProjection('s', opts)
-    expect(promptWalks).toBe(2)
-    expect(p.duplicateRows).toBe(0)
-    expect(p.ownedPromptIds).toEqual(['p2'])
+    expect(promptWalks).toBe(1)
+    expect(p.duplicateRows).toBe(1)
+    expect(p.ownedPromptIds).toEqual(['p1'])
+    expect(warn).toHaveBeenCalledTimes(1)
   })
 
-  it('persistent duplicates: retried once, accepted as complete, one warning', async () => {
+  it('persistent duplicates: one walk, accepted as complete, one warning', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     handler = () => [row('https://x.com/a', 'p1', 'openai-0'), row('https://x.com/a', 'p1', 'openai-0')]
     const p = await getCoverageProjection('s', opts)
-    expect(promptWalks).toBe(2)
+    expect(promptWalks).toBe(1)
     expect(p.complete).toBe(true)
     expect(p.duplicateRows).toBe(1)
     expect(warn).toHaveBeenCalledTimes(1)

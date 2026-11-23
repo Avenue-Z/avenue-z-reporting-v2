@@ -18,7 +18,7 @@ import {
   pickCitationsForUrls,
   countDuplicateUrlKeys,
   getOwnedUrlCitations,
-  walkWithD21Retry,
+  walkReportingDuplicates,
   post,
   get,
   type ApiUrlRow,
@@ -551,44 +551,37 @@ describe('getOwnedUrlCitations', () => {
   })
 })
 
-describe('walkWithD21Retry', () => {
-  const mk = (...results: { complete: boolean; duplicateRows: number }[]) => {
-    const walk = vi.fn(async () => ({ rows: [1], ...results[Math.min(walk.mock.calls.length - 1, results.length - 1)] }))
-    return walk
-  }
-  it('no duplicates: one walk', async () => {
+describe('walkReportingDuplicates (D-21 as amended by F-8: no retry)', () => {
+  const mk = (r: { complete: boolean; duplicateRows: number }) => vi.fn(async () => ({ rows: [1], ...r }))
+  it('no duplicates: one walk, no warn', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const walk = mk({ complete: true, duplicateRows: 0 })
-    await walkWithD21Retry(walk, 'x')
+    const out = await walkReportingDuplicates(walk, 'x')
     expect(walk).toHaveBeenCalledTimes(1)
+    expect(out).toEqual({ rows: [1], complete: true, duplicateRows: 0 })
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
   })
-  it('duplicates then clean: two walks, no warn', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const walk = mk({ complete: true, duplicateRows: 2 }, { complete: true, duplicateRows: 0 })
-    const out = await walkWithD21Retry(walk, 'x')
-    expect(walk).toHaveBeenCalledTimes(2)
-    expect(out.duplicateRows).toBe(0)
-    expect(warn).not.toHaveBeenCalled()
-    warn.mockRestore()
-  })
-  it('persistent duplicates: two walks, one warn, accepted', async () => {
+  it('duplicates: still exactly one walk, one warn with label and count, result unchanged', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const walk = mk({ complete: true, duplicateRows: 2 })
-    const out = await walkWithD21Retry(walk, 'lbl')
-    expect(walk).toHaveBeenCalledTimes(2)
-    expect(out.duplicateRows).toBeGreaterThan(0)
-    expect(out.complete).toBe(true)
+    const out = await walkReportingDuplicates(walk, 'lbl')
+    expect(walk).toHaveBeenCalledTimes(1)
+    expect(out).toEqual({ rows: [1], complete: true, duplicateRows: 2 })
     expect(warn).toHaveBeenCalledTimes(1)
-    expect(String(warn.mock.calls[0][0])).toContain('lbl')
+    const msg = String(warn.mock.calls[0][0])
+    expect(msg).toContain('lbl')
+    expect(msg).toContain('2')
+    expect(msg).toMatch(/missing/)
     warn.mockRestore()
   })
-  it('incomplete first walk: one walk', async () => {
+  it('incomplete walk: one walk, returned as-is', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const walk = mk({ complete: false, duplicateRows: 3 })
-    const out = await walkWithD21Retry(walk, 'x')
+    const out = await walkReportingDuplicates(walk, 'x')
     expect(walk).toHaveBeenCalledTimes(1)
     expect(out.complete).toBe(false)
+    warn.mockRestore()
   })
 })
 

@@ -9,7 +9,7 @@ import { urlJoinKey } from '@/lib/url'
 import { isOwnedHost, ownedHostKeys } from './owned-hosts'
 import { isBrandAbsent } from './competitor-tables'
 import {
-  aggregateDomainCoverage, fetchAllPagesChecked, walkWithD21Retry, get, getUrlCitations, hostOf, last30,
+  aggregateDomainCoverage, fetchAllPagesChecked, walkReportingDuplicates, get, getUrlCitations, hostOf, last30,
   normalizeEngine, post, resolveYourBrandIds, CITATION_MAX_PAGES, CITATION_PAGE_SIZE,
   type ApiUrlRow, type DomainCoverage, type UrlCitation,
 } from './url-citations'
@@ -172,7 +172,7 @@ async function getCoverageProjectionImpl(
   )
 
   const [promptWalk, tagRes, tagsRes, domainsRes, brandsRes, citations] = await Promise.all([
-    walkWithD21Retry(walk, `getCoverageProjection(${clientSlug ?? 'default'})`),
+    walkReportingDuplicates(walk, `getCoverageProjection(${clientSlug ?? 'default'})`),
     post<{ data: ApiUrlRow[] }>('/reports/urls', { ...window, dimensions: ['tag_id'], limit: 2000 }, pid),
     get<{ data: { id: string; name: string }[] }>('/tags', { limit: '500' }, pid),
     post<{ data: ApiDomainClass[] }>('/reports/domains', { ...window, limit: 5000 }, pid),
