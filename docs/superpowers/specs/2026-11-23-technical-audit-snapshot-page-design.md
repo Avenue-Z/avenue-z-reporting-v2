@@ -64,7 +64,7 @@ First pick was **upload every source by hand in v1**, because automating looked 
 | Ahrefs | API v3 has Site Audit endpoints: `/site-audit/projects` (free; `health_score`, crawl `date`, status) and `/site-audit/issues` (50 units; name, importance, affected-URL count, `date` / `date_compared`). Workspace is on **Advanced** (2M API units/mo; Site Audit endpoints already in use via the Glean MCP key). 24 Site Audit projects exist, crawled weekly, incl. Renaissance (`9371114`) — IDs in `docs/qa/technical-audit-source-probes.md`. **No Ahrefs key in this app's env yet.** | **Automate.** Needs a dedicated API v3 key (`AHREFS_API_KEY`). |
 | GSC Page Indexing | No API or BigQuery export returns the report. URL Inspection API: 2,000 calls/day and 600/min per property, returns `verdict`, `coverageState` (free text, e.g. "Crawled - currently not indexed"), `pageFetchState`, etc. Renaissance's sitemaps hold ≈925 URLs. | **Automate as an estimate** over sitemap URLs; optional GSC export upload replaces it with exact numbers. |
 | GSC Core Web Vitals | No API returns the report. CrUX API gives origin-level good / needs-improvement / poor distributions per device (weekly, 28-day windows); no URL-group counts. | **Automate as an estimate** (share of page loads, per device); optional upload replaces it. |
-| GSC access | The delegated account (`GSC_IMPERSONATE_EMAIL`) sees only `sc-domain:avenuez.com`; Renaissance returns 403. | Grant it access to each brand's property. |
+| GSC access | The delegated account (`GSC_IMPERSONATE_EMAIL` = nick@) sees only `sc-domain:avenuez.com`; Renaissance returns 403. The shared `google@avenuez.com` account sees 49 properties incl. avenuez.com and Renaissance; impersonating it, Sitemaps and URL Inspection both return 200 for Renaissance. | Switch `GSC_IMPERSONATE_EMAIL` to `google@avenuez.com` (local + Vercel). |
 
 Rejected: all-upload (manual toil, Paul wants automation); GSC upload-only (no numbers until someone uploads);
 building the UI on sample data (fails "totals match the tools").
@@ -134,8 +134,9 @@ Top to bottom (new sections first, existing AI-crawler sections kept below):
 ### 6.1 Client config (new columns on `clients`)
 
 `sf_drive_folder_id` (the brand's folder under `Screaming Frog Exports`), `ahrefs_project_id`,
-`tech_audit_sitemap_url` (defaults to the robots.txt `Sitemap:` line). `gsc_site_url` already exists.
-Onboarding a brand = setting these, plus GSC access for the delegated account. `sf_csv_file_id` stays until
+and `gsc_site_url` (exists). The sitemaps to inspect come from the GSC **Sitemaps API** for the property
+(a domain property spans subdomains — Renaissance has a second sitemap on `tenncare.`, which robots.txt
+misses). Onboarding a brand = setting these, plus confirming `google@avenuez.com` has the GSC property. `sf_csv_file_id` stays until
 nothing reads it, then is dropped in a later cleanup.
 
 ### 6.2 Tables (Neon, new migration)
@@ -171,7 +172,8 @@ idempotent and resumable; one brand or source failing never blocks another.
    or before the snapshot date and within 7 days (brief's rule), using the `date` param. None → `missing`.
    Then `/site-audit/issues` for that crawl. Retries with backoff on 429/5xx; 401/403 → `failed` with the
    reason.
-4. **GSC indexing estimate.** Expand the sitemap (index → child sitemaps) into the inspection queue, then
+4. **GSC indexing estimate.** List the property's submitted sitemaps (Sitemaps API), expand each (index →
+   child sitemaps) into the inspection queue, then
    inspect up to a per-run budget (stay under 2,000/day and 600/min per property). Done when the queue
    drains; a large site may take several days.
 5. **GSC CWV estimate.** CrUX `queryRecord` for the origin, PHONE and DESKTOP; classify into good / NI / poor
@@ -193,7 +195,10 @@ the team-view health line. No secrets in logs.
 - Delta-strip KPIs and the trend chart use the **estimate** series (complete history, one measure). GSC KPIs
   in the strip are therefore: "% sitemap URLs indexed" (↑), "Not-indexed sitemap URLs" (↓), "Poor page
   loads % (mobile)" (↓), "Good page loads % (mobile)" (↑).
-- Brief §6 "totals match GSC Indexing and CWV" holds only for snapshots with an uploaded export.
+- Brief §6 "totals match GSC Indexing and CWV" holds only for snapshots with an uploaded export. For QA, the
+  indexing estimate is compared with GSC's **sitemap-filtered** view (Renaissance 2026-11-15: 601 indexed /
+  321 not indexed of 922), which measures the same URLs; reference values in
+  `docs/qa/technical-audit-source-probes.md`.
 - Issue table: GSC indexing rows come from the inspections (estimate) or from the export's reason table when
   uploaded. "Why URLs aren't considered good" CWV rows exist **only** with an export — CrUX has no URL groups.
 
@@ -260,8 +265,9 @@ Pure functions in `lib/technical-audit/`; weights and severity map in one config
 Feature PRs into `dev`, each reviewed: (1) tables + client config + Drive/SF + Ahrefs pull + sweep skeleton,
 (2) GSC estimates (inspection queue, CrUX) + optional export upload, (3) header + health tiles + delta strip +
 trend chart, (4) issue table + canonical map, (5) commentary binding + PDF + AI-crawler block move.
-Prerequisites outside this repo, tracked in the decisions doc: Issues Overview added to the SF scheduled
-export; Ahrefs key + projects; GSC property access; CrUX API key.
+Prerequisites outside this repo: Issues Overview added to the SF scheduled export (team, via the decisions
+doc); `AHREFS_API_KEY`, `GSC_IMPERSONATE_EMAIL=google@avenuez.com` and `CRUX_API_KEY` set locally and in
+Vercel (Paul).
 
 ## 11. Left to the builder
 

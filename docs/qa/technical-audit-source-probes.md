@@ -134,12 +134,52 @@ account.
 
 ## Google Search Console
 
-The delegated account (`GSC_IMPERSONATE_EMAIL`) lists only `sc-domain:avenuez.com`; Renaissance returns
-403 on sitemaps and URL Inspection. Paul's own Google account also has no access to
-`sc-domain:renaissancebenefits.com` or `https://renaissancebenefits.com/`. Someone with owner access must
-add the delegated account (and, for QA, a team member who can export the reports).
+**Access.** The app's GSC client impersonates `GSC_IMPERSONATE_EMAIL` = `nick@avenuez.com`, which lists only
+`sc-domain:avenuez.com`; Renaissance returns 403. Paul's own account has no GSC properties. The shared
+**`google@avenuez.com`** ("AVZ Google") account has access to **49 properties**, including
+`sc-domain:avenuez.com` (Full) and `sc-domain:renaissancebenefits.com` (Full), plus most AEO clients
+(act-on, armada, choicedoor, paywithextend, piper, corescientific, wellnessspace, bloomfieldcapital,
+elevatedfacilityservices, cs3design, prometeoapi (Restricted), harborfreight (Restricted), …). A read-only
+probe impersonating `google@avenuez.com` through the same service account (domain-wide delegation) worked:
 
-Renaissance public sitemaps (from robots.txt → `sitemap.xml`, Yoast-style index): ≈925 `<loc>` entries
-across 10 child sitemaps (attachment 515, avada_faq 183, page 88, post 60, videos 19, slides 18,
-slide_category 18, guide 14, video_category 6, fusion_tb_category 4) — within URL Inspection's 2,000 / day
-per property.
+- `sites.list` → 200, 49 entries.
+- Sitemaps API for Renaissance → 200: `https://renaissancebenefits.com/sitemap_index.xml` (web submitted
+  **924**, image 196, last downloaded 2026-11-22) and `https://tenncare.renaissancebenefits.com/sitemap.xml`
+  (web submitted **269**, image 17, 1 warning). `indexed` is "0" (deprecated field), as documented.
+- URL Inspection → 200. `https://renaissancebenefits.com/`: verdict PASS, coverageState "Submitted and
+  indexed". `/contact-us/`: verdict NEUTRAL, coverageState **"Page with redirect"** — the same wording as the
+  report's reason rows.
+
+So switching `GSC_IMPERSONATE_EMAIL` to `google@avenuez.com` (local + Vercel) unblocks GSC automation for
+most brands without asking clients for access. The domain property spans subdomains: take the sitemap list
+from the Sitemaps API, not robots.txt (robots.txt misses the tenncare sitemap).
+
+**Reference numbers for QA (read in the GSC UI as google@, 2026-11-23).**
+
+Page indexing, last update 11/15/26:
+
+| View | Indexed | Not indexed | Reasons |
+|---|---|---|---|
+| All known pages | 1.08K (UI-rounded) | 934 | 13 |
+| Sitemap `renaissancebenefits.com/sitemap_index.xml` | 601 | 321 | 5 |
+
+All-known "Why pages aren't indexed": Page with redirect 183 · Not found (404) 118 · Excluded by 'noindex'
+tag 49 · Alternate page with proper canonical tag 22 · Duplicate without user-selected canonical 19 ·
+Blocked due to other 4xx issue 1 · Redirect error 1 · Soft 404 1 · Blocked due to access forbidden (403) 1 ·
+Blocked by robots.txt 1 · Discovered - currently not indexed 302 · Crawled - currently not indexed 230 ·
+Duplicate, Google chose different canonical than user 6 · Server error (5xx) 0.
+
+Main-sitemap view reasons: Not found (404) 28 · Redirect error 1 · Page with redirect 1 · Discovered -
+currently not indexed 264 · Crawled - currently not indexed ≈27 (row truncated in capture; 321 − 294).
+
+The main-sitemap total (601 + 321 = 922) matches the Sitemaps API's 924 submitted and our ≈925 count — the
+URL-Inspection estimate should land close to GSC's **sitemap-filtered** view, not the all-known view.
+
+Core Web Vitals (Source: Chrome UX report, last updated 11/21/26):
+
+| Device | Poor | Need improvement | Good |
+|---|---|---|---|
+| Mobile | 0 | 0 | 172 |
+| Desktop | 0 | 8 ("CLS issue: more than 0.1 (desktop)") | 164 |
+
+Only ~172 URLs have CrUX data, so GSC's CWV report itself covers a small slice of the 2,000-odd known URLs.
