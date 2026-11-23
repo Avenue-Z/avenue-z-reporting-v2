@@ -17,7 +17,8 @@ snapshots must not change.
 ## Global Constraints
 
 - No visual change. No other tab, report or client changes; Social Listening is the only user of these files today.
-- Files change only under `components/report-sections/organic-social/`, plus this plan.
+- Files change only under `components/report-sections/organic-social/`, plus this plan and the one CLAUDE.md line that
+  names the old paths (the resolved Social Listening look entry).
 - `analysis.tsx`, `posts.tsx`, `pills.tsx`, `trends.tsx`, `upload.tsx`, `brand.tsx`, `industry.tsx` and `section.tsx`
   stay in `social-listening/`; they only change their import paths. The analysis box stays Social Listening's own
   (spec decision (a): the other tabs keep the Tiptap editor).
@@ -78,10 +79,11 @@ snapshots must not change.
 - Move: `social-listening/artifact-charts.tsx` to `design/charts.tsx`
 - Move: `social-listening/cards.tsx` to `design/frames.tsx`
 - Modify (imports only): `social-listening/{analysis,brand,industry,pills,posts,section,trends,upload}.tsx`
+- Modify: `CLAUDE.md`, the resolved Social Listening look entry, to name the new paths
 
 **Interfaces:**
 - Produces: `design/charts.tsx` exports `Change`, `Kpi`, `Key`, `LineChart`, `Donut`, `Legend`, `HBars`, `MediaShare`,
-  `YtdColumns`, `PointLines`, `DailyStack`, `Cloud`, unchanged. `design/frames.tsx` exports `SlSection`, `SlCard`,
+  `YtdColumns`, `PointLines`, `DailyStack`, `Cloud`, `CLOUD_MAX`, `decoColor`, unchanged. `design/frames.tsx` exports `SlSection`, `SlCard`,
   `StaffNote`, unchanged. `design/kit.module.css` keeps every class name.
 
 - [ ] **Step 1: Move with `git mv`** so history follows. Inside the moved files, change only the self-imports

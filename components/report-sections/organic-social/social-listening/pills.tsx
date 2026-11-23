@@ -5,7 +5,7 @@
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 function useSetParam() {
   const router = useRouter()

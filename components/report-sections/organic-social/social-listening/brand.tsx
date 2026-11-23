@@ -5,11 +5,11 @@ import type { ReactNode } from 'react'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import type { SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import type { SlTile, SlTopicView } from '@/lib/organic-social/social-listening/view-model'
-import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, YtdColumns } from './artifact-charts'
-import { SlCard, SlSection } from './cards'
+import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, YtdColumns } from '../design/charts'
+import { SlCard, SlSection } from '../design/frames'
 import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 export type TopicPageProps = {
   view: SlTopicView

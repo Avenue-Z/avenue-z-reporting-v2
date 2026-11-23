@@ -1,6 +1,7 @@
-/* The Social Listening tab's look, ported from the mockup the team approved on 2026-11-19
-   (docs/social-listening/mock.template.html, the page-content rules). Scoped to this tab by the module: nothing here can
-   reach another page. Values are the mockup's own. */
+/* The shared Organic Social design kit's stylesheet, first used by the Social Listening tab. Ported from the mockup the
+   team approved on 2026-11-19 (docs/social-listening/mock.template.html, the page-content rules). A CSS module, so its
+   classes reach only the components that import it, and its colours come from the variables on `.root`, which a page
+   puts on its wrapper. Values are the mockup's own. */
 
 .root {
   --fg: #FFFFFF;

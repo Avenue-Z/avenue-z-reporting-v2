@@ -1,8 +1,8 @@
-// The Social Listening tab's frames, in the approved mockup's markup (docs/social-listening/mock.template.html: .section,
-// .sec-head, .card, .card-head, .note, .notice). A card's analysis box sits inside the card under its chart, as the team
-// asked on 2026-11-19. Server-safe.
+// The shared Organic Social design kit's frames, first used by the Social Listening tab, in the approved mockup's markup
+// (docs/social-listening/mock.template.html: .section, .sec-head, .card, .card-head, .note, .notice). A card's analysis
+// box sits inside the card under its chart, as the team asked on 2026-11-19. Server-safe.
 import type { ReactNode } from 'react'
-import s from './sl.module.css'
+import s from './kit.module.css'
 
 export function SlSection({ title, line, children }: { title?: string; line?: string | null; children: ReactNode }) {
   return (

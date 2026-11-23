@@ -1,6 +1,7 @@
-// The Social Listening charts, ported from the mockup the team approved on 2026-11-19 (docs/social-listening/
-// mock.template.html: change, kpi, lineChart, donut, legend, hbars, ytdColumns, pointLines, dailyStack, cloud). Plain SVG
-// and HTML with the mockup's geometry and classes, so the page, the PDF and the mockup draw the same thing. Server-safe.
+// The shared Organic Social design kit's charts, first used by the Social Listening tab. Ported from the mockup the team
+// approved on 2026-11-19 (docs/social-listening/mock.template.html: change, kpi, lineChart, donut, legend, hbars, ytdColumns,
+// pointLines, dailyStack, cloud). Plain SVG and HTML with the mockup's geometry and classes, so the page, the PDF and the
+// mockup draw the same thing. Server-safe.
 // The one change from the mockup: a year to date month with no data is a gap (no column, a break in the line), never a 0.
 import type { ReactNode } from 'react'
 import { roundDelta } from '@/lib/delta-rounding'
@@ -8,7 +9,7 @@ import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import type { SlPct, YtdPoint } from '@/lib/organic-social/social-listening/compare'
 import type { SlDay } from '@/lib/organic-social/social-listening/types'
 import type { SlCrossRow, SlMediaRow } from '@/lib/organic-social/social-listening/view-model'
-import s from './sl.module.css'
+import s from './kit.module.css'
 
 type K = 'pos' | 'neu' | 'neg'
 const KEYS: K[] = ['pos', 'neu', 'neg']

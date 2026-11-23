@@ -1150,8 +1150,9 @@ none on staging or production.
   topic is for me and Savannah to align on (team call, 2026-11-19).
 - [ ] **Colours.** Media type colours by name are my choice (unknown types get a grey fallback). The brand cloud maps
   the five theme colours the October brand export uses to sentiment; any other colour shows unlabelled.
-- [x] **RESOLVED: the tab looks like the approved mockup.** Its stylesheet (`sl.module.css`, scoped to this tab), its
-  charts (`artifact-charts.tsx`, the same SVG), its analysis box (`analysis.tsx`, a drop-in for CommentaryPanel through
+- [x] **RESOLVED: the tab looks like the approved mockup.** Its stylesheet and its
+  charts (the same SVG), now the shared Organic Social design kit in `components/report-sections/organic-social/design/`
+  (`kit.module.css`, `charts.tsx`, `frames.tsx`; Phase 0 of the design overhaul), its analysis box (`analysis.tsx`, a drop-in for CommentaryPanel through
   `monthlyCommentary`'s `Panel`), its post cards and its trends are ported from `docs/social-listening/mock.template.html`.
   Every other tab keeps the standard look.
 - [ ] **Still to check in a browser: a real client login and a PDF export.** Checked on dev, 2026-11-19, with the real

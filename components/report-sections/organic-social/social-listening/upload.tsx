@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
 import { uploadSocialListeningExport } from '@/app/actions/social-listening'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 export function UploadControl({ clientSlug, topic, range, label }: { clientSlug: string; topic: SlTopic; range: string; label: string }) {
   const exportMode = useExportMode()

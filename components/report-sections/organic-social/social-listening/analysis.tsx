@@ -11,7 +11,7 @@ import { addText, INSIGHTS_LABELS, type CommentaryLabels } from '@/lib/commentar
 import type { CommentaryCapabilities, CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { analysisHtmlToText, analysisTextToHtml, editorName } from '@/lib/organic-social/social-listening/analysis-text'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 type Props = {
   clientSlug: string
