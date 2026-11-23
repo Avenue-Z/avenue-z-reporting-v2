@@ -40,6 +40,31 @@ describe('parseAeoInformedSetting', () => {
   })
 })
 
+describe('the design key (Organic Social design overhaul: accepted before any config gets it)', () => {
+  it('design "kit" gives ok, with design set and every other field as before', () => {
+    expect(parseAeoInformedSetting({ ...valid, design: 'kit' })).toEqual({
+      kind: 'ok', setting: { allTimeFrom: '2026-01-22', selector: 'Organic Social', fourthGraph: 'instagram', design: 'kit' },
+    })
+  })
+  it('without design, the parsed setting has no design field at all, so today\'s results are unchanged', () => {
+    const r = parseAeoInformedSetting(valid)
+    expect(r.kind).toBe('ok')
+    expect('design' in (r as { setting: object }).setting).toBe(false)
+  })
+  it('any other design value is malformed, naming the key and never the value', () => {
+    for (const design of ['v2', 'Kit', '', true, 1, null]) {
+      const r = parseAeoInformedSetting({ ...valid, design })
+      expect(r.kind, JSON.stringify(design)).toBe('malformed')
+      const reason = (r as { reason: string }).reason
+      expect(reason).toContain('design')
+      if (typeof design === 'string' && design) expect(reason).not.toContain(`"${design}"`)
+    }
+  })
+  it('a client with design "kit" and a Peec project still gets the tab', () => {
+    expect(hasAeoInformedTab({ dashSocialConfig: { aeoInformedSocial: { ...valid, design: 'kit' } }, peecCustomerProjectId: 'p-1' })).toBe(true)
+  })
+})
+
 describe('hasAeoInformedTab', () => {
   const dsc = (s: unknown) => ({ aeoInformedSocial: s })
   it('is true only with a valid setting and a non-empty Peec project id', () => {

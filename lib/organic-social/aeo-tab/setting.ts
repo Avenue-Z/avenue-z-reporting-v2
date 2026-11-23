@@ -15,11 +15,16 @@ export type AeoInformedSetting = {
   selector: string
   /** The fourth graph. Default instagram. */
   fourthGraph: FourthGraph
+  /** "kit": the tab takes the Organic Social design kit's look (design overhaul, spec
+   *  docs/superpowers/specs/2026-11-23-organic-social-design-overhaul.md, section 6). Absent: today's look, and the field is left
+   *  out of the parsed setting so every existing result is unchanged. Accepted here before any client's config gets it, because
+   *  an unknown key would make the setting malformed and hide the tab. Nothing reads it yet. */
+  design?: 'kit'
 }
 
 export type AeoSettingParse = { kind: 'off' } | { kind: 'ok'; setting: AeoInformedSetting } | { kind: 'malformed'; reason: string }
 
-const KEYS = new Set(['enabled', 'allTimeFrom', 'selector', 'fourthGraph'])
+const KEYS = new Set(['enabled', 'allTimeFrom', 'selector', 'fourthGraph', 'design'])
 const isDay = (v: unknown): v is string => {
   if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
   const t = new Date(`${v}T00:00:00Z`)
@@ -27,7 +32,7 @@ const isDay = (v: unknown): v is string => {
 }
 
 /**
- * `{ enabled: true, allTimeFrom: "YYYY-MM-DD", selector?: string, fourthGraph?: "instagram" | "tiktok" }`. Absent, or `enabled` anything but
+ * `{ enabled: true, allTimeFrom: "YYYY-MM-DD", selector?: string, fourthGraph?: "instagram" | "tiktok", design?: "kit" }`. Absent, or `enabled` anything but
  * exactly true, is off: today's behaviour. Anything else wrong, including an unknown key (a typo would otherwise fall back to a default
  * silently), is malformed. A reason names the key, never the value.
  */
@@ -41,9 +46,13 @@ export function parseAeoInformedSetting(raw: unknown): AeoSettingParse {
   if (!isDay(o.allTimeFrom)) return { kind: 'malformed', reason: 'allTimeFrom is not a real YYYY-MM-DD date' }
   if (o.selector !== undefined && (typeof o.selector !== 'string' || o.selector.trim() === '')) return { kind: 'malformed', reason: 'selector is not a non-empty string' }
   if (o.fourthGraph !== undefined && !FOURTH_GRAPHS.includes(o.fourthGraph as FourthGraph)) return { kind: 'malformed', reason: `fourthGraph must be ${FOURTH_GRAPHS.join(' or ')}` }
+  if (o.design !== undefined && o.design !== 'kit') return { kind: 'malformed', reason: 'design must be kit' }
   return {
     kind: 'ok',
-    setting: { allTimeFrom: o.allTimeFrom, selector: (o.selector as string | undefined) ?? 'Organic Social', fourthGraph: (o.fourthGraph as FourthGraph | undefined) ?? 'instagram' },
+    setting: {
+      allTimeFrom: o.allTimeFrom, selector: (o.selector as string | undefined) ?? 'Organic Social', fourthGraph: (o.fourthGraph as FourthGraph | undefined) ?? 'instagram',
+      ...(o.design === 'kit' ? { design: 'kit' as const } : {}),
+    },
   }
 }
 
