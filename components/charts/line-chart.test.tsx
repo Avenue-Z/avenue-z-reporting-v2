@@ -701,10 +701,14 @@ describe('shaded and frameless: the Organic Social design kit look, opt-in (desi
   })
 
   test('shaded areas stay out of the hover box and the legend, so no value is listed twice', () => {
-    render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />)
+    const { container } = render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />)
     expect(areaProps.map((p) => [p.dataKey, p.tooltipType, p.legendType, p.stroke, p.activeDot])).toEqual([
       ['a', 'none', 'none', 'none', false], ['b', 'none', 'none', 'none', false],
     ])
+    // And as rendered (#493): the legend lists each series once, exactly as the plain chart does.
+    const legend = (c: HTMLElement) => [...c.querySelectorAll('.recharts-legend-item')].map((e) => e.textContent)
+    expect(legend(container)).toEqual(['A', 'B'])
+    expect(legend(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container)).toEqual(legend(container))
   })
 
   test('shaded keeps the lines exactly as they were', () => {
@@ -714,6 +718,14 @@ describe('shaded and frameless: the Organic Social design kit look, opt-in (desi
     lineProps.length = 0
     render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />)
     expect(lineProps.map(({ dataKey, stroke, strokeWidth, type, dot }) => ({ dataKey, stroke, strokeWidth, type, dot }))).toEqual(plain)
+  })
+
+  test('shaded draws every line on exactly the same path as the plain chart (#493: the ComposedChart swap keeps the scale)', () => {
+    const paths = (c: HTMLElement) => [...c.querySelectorAll('.recharts-line-curve')].map((e) => e.getAttribute('d'))
+    const plain = paths(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container)
+    expect(plain).toHaveLength(2)
+    expect(plain.every((d) => !!d && d.length > 10)).toBe(true)
+    expect(paths(render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />).container)).toEqual(plain)
   })
 
   test('frameless drops the bordered box; the default keeps it', () => {
