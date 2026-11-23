@@ -3,10 +3,10 @@
 // to date, sentiment over time, sentiment by media type, keyword themes, top conversation themes, key takeaways, keyword
 // appendix. Server component.
 import { AnalysisOnly, SourceLine, fmt, fromFirst, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
-import { Cloud, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from './artifact-charts'
-import { SlCard, SlSection } from './cards'
+import { Cloud, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from '../design/charts'
+import { SlCard, SlSection } from '../design/frames'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps) {
   const r = view.ready

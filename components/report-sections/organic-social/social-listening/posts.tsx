@@ -13,7 +13,7 @@ import {
 import { MAX_IMAGES } from '@/lib/organic-social/social-listening/posts'
 import type { SlPost, SlPostGroup, SlSentiment } from '@/lib/organic-social/social-listening/types'
 import { shrinkScreenshot } from './image-shrink'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 // The mockup's three groups, worded without the client's name (this repo is public).
 const GROUPS: { group: SlPostGroup; title: string; sub: string }[] = [

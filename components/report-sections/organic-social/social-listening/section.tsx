@@ -18,12 +18,12 @@ import { buildTopicView, NOT_READY_TEXT, servedMonths, topicPills } from '@/lib/
 import { monthlyCommentary } from '@/components/report-sections/commentary/monthly'
 import { Fallback } from '../parts/shared'
 import { BrandPage } from './brand'
-import { StaffNote } from './cards'
+import { StaffNote } from '../design/frames'
 import { IndustryPage } from './industry'
 import { PreviewToggle, TopicPills } from './pills'
 import { UploadControl } from './upload'
 import { SlAnalysis } from './analysis'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
 
