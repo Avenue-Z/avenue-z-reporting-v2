@@ -11,6 +11,11 @@ export function shouldComputePromptGaps({ audience, clientVisible }: { audience:
   return audience === 'internal' || clientVisible
 }
 
+/** The "Visible to client" switch is shown only to an INTERNAL_ADMIN on the internal view (the server action enforces it too). */
+export function canToggleClientVisibility(audience: ReportAudience, role: string | null | undefined): boolean {
+  return audience === 'internal' && role === 'INTERNAL_ADMIN'
+}
+
 /** Gaps result for the caller, or null when they must not be computed. `compute` is not called when gated off. */
 export function gatedPromptGaps(
   input: { audience: ReportAudience; clientVisible: boolean; hasPeecData: boolean },

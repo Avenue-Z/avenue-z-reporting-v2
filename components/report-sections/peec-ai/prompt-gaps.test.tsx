@@ -4,7 +4,7 @@ import { expect, test, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { PromptGapsResult } from '@/lib/peec/prompt-gaps'
-import { PromptGapsBlock, gatedPromptGaps } from './prompt-gaps'
+import { PromptGapsBlock, gatedPromptGaps, canToggleClientVisibility } from './prompt-gaps'
 import { isClientVisible } from '@/lib/report-sections/mutations'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
@@ -96,4 +96,11 @@ test('client + visible + incomplete or unavailable renders nothing, no error cop
     expect(container.innerHTML).toBe('')
     unmount()
   }
+})
+
+test('canToggleClientVisibility: only an INTERNAL_ADMIN on the internal view', () => {
+  expect(canToggleClientVisibility('internal', 'INTERNAL_ADMIN')).toBe(true)
+  expect(canToggleClientVisibility('internal', 'INTERNAL_ANALYST')).toBe(false)
+  expect(canToggleClientVisibility('client', 'INTERNAL_ADMIN')).toBe(false)
+  expect(canToggleClientVisibility('internal', undefined)).toBe(false)
 })

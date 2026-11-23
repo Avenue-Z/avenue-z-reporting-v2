@@ -36,7 +36,7 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { filterCompetitorDomains, isBrandAbsent } from '@/lib/peec/competitor-tables'
 import { computePromptGaps, DEFAULT_DECLINE_THRESHOLD } from '@/lib/peec/prompt-gaps'
 import { isClientVisible } from '@/lib/report-sections/mutations'
-import { PromptGapsBlock, gatedPromptGaps, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID } from './prompt-gaps'
+import { PromptGapsBlock, gatedPromptGaps, canToggleClientVisibility, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID } from './prompt-gaps'
 
 // ---------------------------------------------------------------------------
 // Content Impact Tracker
@@ -1002,7 +1002,7 @@ export async function ContentImpactReport({
   const gapsConfig = clientRowResult.status === 'fulfilled' ? clientRowResult.value?.reportSectionConfig : null
   const gapsClientVisible = isClientVisible(gapsConfig, PROMPT_GAPS_VIEW_KEY, PROMPT_GAPS_BLOCK_ID)
   const gapsSession = sessionResult.status === 'fulfilled' ? sessionResult.value : null
-  const canToggleGaps = audience === 'internal' && gapsSession?.user?.role === 'INTERNAL_ADMIN'
+  const canToggleGaps = canToggleClientVisibility(audience, gapsSession?.user?.role)
   const promptGaps = gatedPromptGaps({ audience, clientVisible: gapsClientVisible, hasPeecData: !!peecData }, () => {
     const gapsPrevious = compareRange === 'previous_period'
       ? (coveragePriorResult.status === 'fulfilled' ? coveragePriorResult.value : null)
