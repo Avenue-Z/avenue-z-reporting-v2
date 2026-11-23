@@ -6,6 +6,8 @@ import type { ReactNode } from 'react'
 import { expectSameValues, visibleValues } from './version-parity'
 import { Fallback, YTD_TIMEOUT_TEXT } from './shared'
 import { NoData } from '../no-data'
+import { AeoTable } from '../aeo-informed/aeo-table'
+import { NO_DATA_FOR_WINDOW, NO_SOURCE_DATA, TABLE_EMPTY, TIMEOUT_TEXT, notStartedText } from '../aeo-informed/copy'
 
 const el = (node: ReactNode) => render(<>{node}</>).container
 
@@ -42,25 +44,47 @@ describe('expectSameValues', () => {
     expect(() => expectSameValues(el(<div />), el(<div />))).toThrow(/nothing/)
     expect(() => expectSameValues(el(<p>42</p>), el(<div />))).toThrow(/nothing/)
   })
-  test('fails when either side is only a fallback card, which would otherwise compare equal (the trial on #490 hit this)', () => {
-    for (const text of ["Couldn't load this section.", 'No data for this period.', 'Taking longer than usual. Try again in a minute.']) {
-      expect(() => expectSameValues(el(<div>{text}</div>), el(<div>{text}</div>)), text).toThrow(/fallback/)
-    }
-    expect(() => expectSameValues(el(<p>42</p>), el(<div>No data for this period.</div>))).toThrow(/fallback/)
+  // A fallback card is recognised by the card style the error and empty cards share, not by its wording, so a custom
+  // message is caught too (Paul, #494 / issue #495). Every card below is the real component, so a restyle that stopped
+  // the helper recognising one fails here instead of silently letting a parity test pass on nothing.
+  const cards: [string, React.ReactElement][] = [
+    ['the error card', <Fallback key="e" kind="error" />],
+    ['the timeout card', <Fallback key="t" kind="timeout" />],
+    ['the YTD timeout card', <Fallback key="y" kind="timeout" timeoutText={YTD_TIMEOUT_TEXT} />],
+    ['the empty card', <NoData key="n" />],
+    ['an empty card with a message nobody has written yet', <NoData key="c" message="Something new went missing." />],
+    ['AEO: not started (copy.ts:56)', <NoData key="a1" message={notStartedText('November 2026')} />],
+    ['AEO: no data for this window (copy.ts:57)', <NoData key="a2" message={NO_DATA_FOR_WINDOW} />],
+    ['AEO: the Peec timeout (copy.ts:58)', <Fallback key="a3" kind="timeout" timeoutText={TIMEOUT_TEXT} />],
+    ['AEO: no source data (copy.ts:21, graphs.tsx:52)', <NoData key="a4" message={NO_SOURCE_DATA} />],
+  ]
+  test.each(cards)('fails when either side is only %s, which would otherwise compare equal', (_name, card) => {
+    expect(() => expectSameValues(el(card), el(card))).toThrow(/only a fallback card/)
+    expect(() => expectSameValues(el(card), el(card), { allowFallback: true })).toThrow(/only a fallback card/)
+    expect(() => expectSameValues(el(<p>42</p>), el(card))).toThrow(/fallback/)
   })
-  test('recognises every card the real Fallback and NoData components draw, so the list cannot drift from them', () => {
-    const cards = [
-      <Fallback key="e" kind="error" />,
-      <Fallback key="t" kind="timeout" />,
-      <Fallback key="y" kind="timeout" timeoutText={YTD_TIMEOUT_TEXT} />,
-      <NoData key="n" />,
-    ]
-    for (const card of cards) expect(() => expectSameValues(el(card), el(card))).toThrow(/fallback/)
+  test("fails on AEO's empty table card (aeo-table.tsx:110), drawn by the real table with no rows", () => {
+    const table = () => el(<AeoTable kind="socials" rows={[]} brands={[]} showChange={false} />)
+    expect(visibleValues(table())).toContain(TABLE_EMPTY)
+    expect(() => expectSameValues(table(), table())).toThrow(/fallback card/)
   })
-  test('a fallback beside real values is not fallback-only, so a part that shows one error card among its tiles still compares', () => {
-    expect(() => expectSameValues(
-      el(<div><p>42</p><Fallback kind="error" /></div>),
-      el(<div><p>42</p><Fallback kind="error" /></div>),
-    )).not.toThrow()
+  test('fails on a fallback card beside other text unless the test opts in: the AEO error shape, controls then the card (section.tsx:74)', () => {
+    const controls = <div><button type="button">This month</button><p>Oct 1 to Oct 31, vs the prior 31 days</p></div>
+    const aeoError = () => el(<div>{controls}<Fallback kind="error" /></div>)
+    expect(() => expectSameValues(aeoError(), aeoError())).toThrow(/allowFallback/)
+    expect(() => expectSameValues(aeoError(), aeoError(), { allowFallback: true })).not.toThrow()
+  })
+  test('with the opt-in, one error card among real tiles still compares, and a changed tile still fails', () => {
+    const tiles = (n: string) => el(<div><p>{n}</p><Fallback kind="error" /></div>)
+    expect(() => expectSameValues(tiles('42'), tiles('42'), { allowFallback: true })).not.toThrow()
+    expect(() => expectSameValues(tiles('42'), tiles('43'), { allowFallback: true })).toThrow(/43/)
+  })
+  test('text nested inside a card is the card, and the classes may come in any order', () => {
+    // No card does this today (each holds its text directly), so this pins the rule for one that wraps its message.
+    const nested = () => el(<div className="text-text-muted p-6 rounded-lg text-sm border bg-bg-surface border-white/[0.06]"><span>Still loading.</span></div>)
+    expect(() => expectSameValues(nested(), nested())).toThrow(/only a fallback card/)
+  })
+  test('the same words outside a card are a value, not a fallback: the rule is the card, never the wording', () => {
+    expect(() => expectSameValues(el(<p>No data for this period.</p>), el(<p>No data for this period.</p>))).not.toThrow()
   })
 })
