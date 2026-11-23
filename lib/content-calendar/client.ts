@@ -53,7 +53,7 @@ function getAuth(): GoogleAuth {
  * hide the published-content tab. Each grid carries its own header row, so the
  * caller must parse each tab against its own column map before merging.
  */
-async function fetchAllTabValues(sheetId: string): Promise<string[][][]> {
+export async function fetchAllTabValues(sheetId: string): Promise<string[][][]> {
   const auth = getAuth()
   const token = await auth.getAccessToken()
 
@@ -102,7 +102,7 @@ async function fetchAllTabValues(sheetId: string): Promise<string[][][]> {
  * Maps semantic field names to ordered lists of accepted header aliases.
  * Headers are matched case-insensitively. First match wins.
  */
-const COLUMN_ALIASES: Record<string, string[]> = {
+export const COLUMN_ALIASES: Record<string, string[]> = {
   topic: [
     'topic', 'content topic', 'title', 'page title', 'content title',
     'subject', 'article', 'piece', 'content piece',
@@ -144,7 +144,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   ],
 }
 
-function buildColumnMap(headers: string[]): Map<string, number> {
+export function buildColumnMap(headers: string[]): Map<string, number> {
   const map = new Map<string, number>()
   const lower = headers.map(h => (h ?? '').trim().toLowerCase())
   for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
@@ -165,7 +165,7 @@ function buildColumnMap(headers: string[]): Map<string, number> {
  * Classify raw content action string into canonical values (PRD FR5).
  * Falls through to contentType-based heuristic when explicit action is absent.
  */
-function parseContentAction(raw: string, contentTypeFallback = ''): ContentAction {
+export function parseContentAction(raw: string, contentTypeFallback = ''): ContentAction {
   const s = raw.trim().toLowerCase()
   if (s) {
     if (s === 'new' || s === 'net-new' || s === 'net new' || s.startsWith('new ')) return 'new'

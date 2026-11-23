@@ -41,9 +41,9 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
         {...(view.view === 'social-listening' ? { exporting: true } : {})} />
     case 'peec-ai':
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
-      if (view.subsectionId === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
+      if (view.subsectionId === 'content-impact')  return <ContentImpactReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
       if (view.subsectionId === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
-      return <PeecAIReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
+      return <PeecAIReport audience="client" clientSlug={clientSlug} dateRange={dateRange} models={models} />
     case 'paid-media':
       if (view.subsectionId === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       if (view.subsectionId === 'linkedin')    return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />

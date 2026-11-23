@@ -112,14 +112,14 @@ export default function BotVsHumanScatter({ data, clientDomain }: Props) {
             dataKey="bots"
             name="AI Bot Visits"
             tick={{ fill: '#9CA3AF', fontSize: 11 }}
-            label={{ value: 'AI Bot Visits (last 30 days)', position: 'insideBottom', offset: -10, fill: '#9CA3AF', fontSize: 11 }}
+            label={{ value: 'AI crawler visits (last 30 days)', position: 'insideBottom', offset: -10, fill: '#9CA3AF', fontSize: 11 }}
           />
           <YAxis
             type="number"
             dataKey="humans"
             name="Human Sessions"
             tick={{ fill: '#9CA3AF', fontSize: 11 }}
-            label={{ value: 'Human Sessions (last 30 days)', angle: -90, position: 'insideLeft', fill: '#9CA3AF', fontSize: 11 }}
+            label={{ value: 'Human sessions (GA4, excluding AI-referred)', angle: -90, position: 'insideLeft', fill: '#9CA3AF', fontSize: 11 }}
           />
           <Tooltip
             cursor={{ strokeDasharray: '3 3' }}
@@ -149,6 +149,10 @@ export default function BotVsHumanScatter({ data, clientDomain }: Props) {
           />
         </ScatterChart>
       </ResponsiveContainer>
+      {/* Draft wording, to be confirmed with Tina at staging QA. */}
+      <p className="mt-2 text-xs text-text-muted">
+        How to read it: top right is crawled a lot and visited a lot; top left is visited by people but rarely crawled; bottom right is crawled a lot but few people arrive (AI is reading it, not sending traffic); bottom left gets little of either.
+      </p>
     </div>
   )
 }

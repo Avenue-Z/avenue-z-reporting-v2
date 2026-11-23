@@ -56,7 +56,7 @@ test("the sentiment footer doesn't ask the reader to open a theme or describe th
 // title), and the URL is the answer. In a wrap box, breaking anywhere, since a URL has no spaces to wrap at.
 test('the Fastest and Slowest cards print their URLs in full, wrapping inside the card', () => {
   const url = 'https://example.com/blog/a-very-long-article-slug-that-would-be-truncated-on-the-live-card'
-  const { container } = inExport(<TimeToFirstCards medFirstTraffic={3} medFirstAi={5} fastestAi={1} slowestAi={20} fastestAiUrl={url} slowestAiUrl={url} />)
+  const { container } = inExport(<TimeToFirstCards medFirstSearch={3} medFirstAi={5} fastestAi={1} slowestAi={20} fastestAiUrl={url} slowestAiUrl={url} />)
   const links = [...container.querySelectorAll('a.truncate')]
   expect(links).toHaveLength(2)
   expect(links.every((a) => a.closest('[data-export-wrap]') && a.classList.contains('wrap-anywhere'))).toBe(true)
