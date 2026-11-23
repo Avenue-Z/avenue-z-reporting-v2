@@ -193,3 +193,31 @@ Core Web Vitals (Source: Chrome UX report, last updated 11/21/26):
 | Desktop | 0 | 8 ("CLS issue: more than 0.1 (desktop)") | 164 |
 
 Only ~172 URLs have CrUX data, so GSC's CWV report itself covers a small slice of the 2,000-odd known URLs.
+
+## Chrome UX Report (CrUX) API
+
+Key: `CRUX_API_KEY` in `.env.local` (2026-11-23), created in the `avenue-z-reporting` GCP project and
+restricted to the Chrome UX Report API; no application restriction (server-side calls). Still to add in
+Vercel.
+
+Live check, collection period 2026-10-25 → 11-21 (28-day window), histogram shares good / NI / poor and p75:
+
+| Target | Device | LCP | INP | CLS |
+|---|---|---|---|---|
+| origin `https://renaissancebenefits.com` | Phone | 87.7 / 8.6 / 3.7 % · p75 1804 ms | 95.5 / 3.8 / 0.7 % · p75 104 ms | 79.7 / 19.0 / 1.3 % · p75 0.08 |
+| origin | Desktop | 81.8 / 10.8 / 7.4 % · p75 1781 ms | 97.7 / 1.5 / 0.8 % · p75 52 ms | 92.7 / 6.5 / 0.8 % · p75 0.04 |
+| URL `https://renaissancebenefits.com/` | Phone | 86.9 / 9.0 / 4.1 % · p75 1888 ms | 95.7 / 3.6 / 0.7 % · p75 107 ms | 72.4 / 26.7 / 0.8 % · p75 0.10 |
+| URL `https://renaissancebenefits.com/` | Desktop | 39.4 / 38.6 / 22.0 % · p75 **3850 ms** | 98.0 / 1.0 / 1.0 % · p75 52 ms | 99.3 / 0.7 / 0.0 % · p75 0.03 |
+
+History API (origin, phone, LCP): 200, 25 weekly periods, first window starting 2026-05-10.
+
+Observations:
+- **Per-URL records exist** for popular pages (the homepage returned data on both devices). Classifying each
+  sitemap URL by its worst p75 metric gives Good / NI / Poor **URL counts** — the same shape as GSC's report
+  (which itself only covers ~172 Renaissance URLs with CrUX data). Cost: ~925 URLs × 2 devices at 150
+  queries/min per project ≈ 12–13 min, so it must run resumably like the URL Inspection queue.
+- **Origin data can't be turned into one "share of good page loads"**: the histograms are per metric and
+  independent, so "worst metric wins" only works on p75 values (origin status), not on shares.
+- The homepage on desktop has LCP p75 3.85 s (needs improvement), while GSC's desktop report shows its 8 NI
+  URLs as a CLS issue — GSC groups URLs and reports the group's status, so per-URL CrUX and GSC will differ
+  in detail even when the totals are close.
