@@ -2,6 +2,13 @@
 // 'own': the part marks its own unbreakable blocks (it is taller than a page, so it must split between them).
 // 'block': the part has no export form of its own, so the report wraps the whole part as one unbreakable block.
 // export-layout.test.ts holds this map to the registry: a new part cannot be registered without a decision here.
+// The design kit's versions keep their decisions in `kit/<name>.layout.ts`, beside their registration (kit/slots.test.ts).
+import { KIT_TILES_LAYOUT } from './kit/tiles.layout'
+import { KIT_TRENDS_LAYOUT } from './kit/trends.layout'
+import { KIT_YTD_LAYOUT } from './kit/ytd.layout'
+import { KIT_POSTS_LAYOUT } from './kit/posts.layout'
+import { KIT_KPI_CHECK_IN_LAYOUT } from './kit/kpi-check-in.layout'
+
 export const EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'platform-headlines@1': 'own',   // each platform's label + KPI row (platform-headlines.tsx)
   'platform-headlines@2': 'own',   // the outline Data block (outline-tiles.tsx)
@@ -20,6 +27,11 @@ export const EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'engagement-breakdown@1': 'block', // one row of tiles
   'influencer-posts@1': 'own',     // heading and totals with the first row, rows of two cards (influencer-grid.tsx)
   'kpi-check-in@1': 'own',         // each platform card a block, the heading in the first (kpi-check-in.tsx)
+  ...KIT_TILES_LAYOUT,
+  ...KIT_TRENDS_LAYOUT,
+  ...KIT_YTD_LAYOUT,
+  ...KIT_POSTS_LAYOUT,
+  ...KIT_KPI_CHECK_IN_LAYOUT,
 }
 
 /** Whether the report wraps this part as one unbreakable block in the export. An unknown part is wrapped (fail safe). */
