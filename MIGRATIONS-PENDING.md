@@ -13,14 +13,14 @@ to drop it:
     npm run db:generate   # produces the DROP COLUMN migration
     npm run db:migrate
 
-## Add client access columns (delivered, awaiting apply)
+## Add client access columns (applied on dev, staging and production, verified 2026-11-20)
 
 `drizzle/0011_*.sql` adds `clients.shared_password_hash` and
 `clients.max_seats` (additive). Delivered on `repo-admin-panel`; apply per
 `docs/runbooks/2026-06-25-admin-panel-launch.md`. The `users.demo_mode` drop
 above is intentionally still separate and unapplied.
 
-## Add clients.salesforce_config (delivered, awaiting apply)
+## Add clients.salesforce_config (applied on dev, staging and production, verified 2026-11-20)
 
 - Migration: `drizzle/0021_old_silver_centurion.sql`
   (`ALTER TABLE "clients" ADD COLUMN "salesforce_config" jsonb;`). One
@@ -93,7 +93,7 @@ Apply the migration in this order, every environment:
    both directions and would clobber real client rows. That is the reason
    not to run it, not a lack of the field.
 
-## Add clients.ga4_config, clients.hidden_journey_stages (delivered; applied to dev + staging, awaiting production)
+## Add clients.ga4_config, clients.hidden_journey_stages (applied on dev, staging and production, verified 2026-11-20)
 
 - Migrations: `drizzle/0022_military_the_santerians.sql` (`ga4_config`,
   nullable jsonb) and `drizzle/0023_clever_nightcrawler.sql`
@@ -238,7 +238,7 @@ Apply per environment, before merge, the same way as `0021`:
    which doesn't either) — double-check `--env-file` before running either
    one against production.
 
-## Add the October Organic Social tables (staging applied 2026-09-24; production pending)
+## Add the October Organic Social tables (staging applied 2026-09-24; production applied, verified 2026-11-20)
 
 `drizzle/0024_*.sql` adds two tables, both additive and both read only by clients that
 opt in:
@@ -259,7 +259,7 @@ file gives for staging above, not `npm run db:migrate:staging` (that runs the ti
 a direct read of the tables and the migration ledger. Production goes the same way, before the
 production merge, per the usual flow.
 
-## Add chart notes (annotations Phase 2; staging applied 2026-09-25; production pending)
+## Add chart notes (annotations Phase 2; staging applied 2026-09-25; production applied, verified 2026-11-20)
 
 `drizzle/0025_chart_notes.sql` adds one table, `chart_notes`: the team's written notes on the v2
 Organic Social graphs, with Commentary's draft and approve lifecycle. Additive: no existing table,
@@ -288,7 +288,7 @@ with its 16 columns, both indexes (the partial one's `WHERE` intact), the foreig
 check; the ledger up by one with nothing pending; the table list changed by `chart_notes` only;
 no rows; Renaissance's row unchanged. Production: not applied.
 
-## Add aeo_outbound_reports (applied on dev and staging, awaiting production)
+## Add aeo_outbound_reports (applied on dev, staging and production, verified 2026-11-20)
 
 `drizzle/0026_aeo_outbound_reports.sql` creates the `aeo_outbound_status` enum and the standalone
 `aeo_outbound_reports` table (AEO Outbound Snapshot). Additive: no existing table, column or row
@@ -318,7 +318,7 @@ than `ep-still-tree-aqs8ui6d`), then a read-only dry run: exactly `0026_aeo_outb
 `share_token` unique constraint; both indexes, with `aeo_outbound_one_generating`'s `WHERE status = 'generating'` intact; no
 rows; the ledger at 32 with nothing pending; `aeo_outbound_reports` the only table added. Staging: applied 2026-10-14 with `0026` to `0029` together (see the `0029` entry). Production: not applied.
 
-## Add the AEO Outbound v1.1 tables and columns (applied on dev and staging, awaiting production)
+## Add the AEO Outbound v1.1 tables and columns (applied on dev, staging and production, verified 2026-11-20)
 
 `drizzle/0027_aeo_outbound_v1_1.sql` creates `aeo_outbound_opens` (one row per counted open of a live link: `report_id`
 with a foreign key to `aeo_outbound_reports`, `opened_at`, `ua_family`, `likely_automated`, `reason`; no IP address and no
@@ -347,7 +347,7 @@ foreign key to `aeo_outbound_reports`, the `(report_id, opened_at)` index), `aeo
 `aeo_outbound_reports.progress_step` `integer not null default 0` (0 on both existing rows) and `error_code text` (null on both);
 the ledger at 33 with nothing pending; those three tables the only ones added. Staging: applied 2026-10-14 with `0026` to `0029` together (see the `0029` entry). Production: not applied.
 
-## Add `series` to aeo_outbound_settings (applied on dev and staging, awaiting production)
+## Add `series` to aeo_outbound_settings (applied on dev, staging and production, verified 2026-11-20)
 
 `drizzle/0028_aeo_outbound_settings_series.sql` is one statement: `ALTER TABLE "aeo_outbound_settings" ADD COLUMN "series"
 text DEFAULT 'AI Visibility Snapshot' NOT NULL;`. It makes the report name a team setting (the default of `page.series` on
@@ -379,7 +379,7 @@ Until this change merges to `dev`, keep the top-left name on dev to `AIVx` or `A
 dev database still check it against the old two-value list, and a row outside it fails their settings contract, which
 drops Settings-only users and admins there.
 
-## Add `last_writer` and `last_seq` to aeo_outbound_reports (applied on dev and staging, awaiting production)
+## Add `last_writer` and `last_seq` to aeo_outbound_reports (applied on dev, staging and production, verified 2026-11-20)
 
 `drizzle/0029_aeo_outbound_save_writer.sql` is two statements: `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_writer"
 uuid;` and `ALTER TABLE "aeo_outbound_reports" ADD COLUMN "last_seq" integer;`. They record which editor queue (`writer`, a
@@ -436,6 +436,48 @@ those four were pending, then ran `scripts/migrate-http.ts` (`skip` for `0000` t
 nothing pending; `aeo_outbound_reports` (32 columns, including `progress_step`, `error_code`, `last_writer` and
 `last_seq`), `aeo_outbound_opens` (6), `aeo_outbound_settings` (12, including `series`) and `aeo_outbound_settings_log` (6),
 all empty; the `aeo_outbound_status` type present. Production: not applied (needs `0025` first).
+
+## Add the Social Listening tables (dev applied 2026-11-19, staging applied 2026-11-20; production pending)
+
+`drizzle/0030_social_listening.sql` creates five tables for the Social Listening tab: `social_listening_uploads`,
+`social_listening_history`, `social_listening_posts`, `social_listening_post_images` and `social_listening_trends`, with
+their checks, four indexes (one a partial unique index, one open draft per replaced post) and six foreign keys (to `clients`,
+and from posts and images to `social_listening_posts`). Additive: five `CREATE TABLE`, the indexes and the foreign keys
+from the new tables, and nothing else. No existing table, column or row changes. Only
+`lib/organic-social/social-listening/store.ts` reads or writes these tables, so the `clients` 42703 risk above does not
+apply.
+
+Dev: applied 2026-11-19, on my written go, with a guarded script that runs the file in one transaction and records it in
+`drizzle.__drizzle_migrations` the way Drizzle does (the file's sha256 and the journal's `when`). It refuses any database
+but the one named, refuses if a `social_listening` table already exists or `0030` is already recorded, and dry runs by
+default. Staging: applied 2026-11-20 the same way, on my written go, as the first step of the staging rollout.
+
+Read back 2026-11-20 (read-only): staging and dev hold the same 69 columns, 26 constraints and 11 indexes on these five
+tables, and `npx drizzle-kit generate` against `lib/db/schema.ts` reports no schema changes.
+
+Production: not applied. The five tables are absent and `0030` is the only migration production lacks. Apply it on my
+written go, before the `staging` to `main` promotion that carries the Social Listening code, then switch the tab on per
+client.
+
+## Status of every entry (verified 2026-11-20)
+
+A read-only check of each database on 2026-11-20: the tables and columns each entry adds, and the hashes in
+`drizzle.__drizzle_migrations` against the migration files on `origin/staging`. Production records 30 migrations (every
+file but `0030`), staging 31 (all of them), dev 36 (all of them, plus five rows from old branches, noted in the `0022`
+entry above). The "production pending" and "Production: not applied" lines inside the entries above were true when
+written; this table replaces them.
+
+| Entry | Dev | Staging | Production |
+|---|---|---|---|
+| Drop `users.demo_mode` | not done (column present) | not done (column present) | not done (column present) |
+| `0011` client access columns | applied | applied | applied |
+| `0021` `salesforce_config` | applied | applied | applied |
+| `0022`, `0023` `ga4_config`, `hidden_journey_stages` | applied | applied | applied |
+| `0024` October Organic Social tables | applied | applied | applied |
+| `0025` chart notes | applied | applied | applied |
+| `0026` to `0029` AEO Outbound | applied | applied | applied |
+| `0030` Social Listening tables | applied | applied | **pending** |
+| `owned_linkedin_handle` (no migration) | present | absent | absent |
 
 ## No migration: the AEO Outbound audit fixes (spec v1.1 section 19), rollback note
 
