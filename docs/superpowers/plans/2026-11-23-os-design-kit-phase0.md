@@ -31,7 +31,7 @@ snapshots must not change.
    (`/_([A-Za-z][A-Za-z0-9]*)_[0-9a-f]{6}\b/g` becomes `$1`). Without that, Task 2 would fail its own proof for a reason
    that changes nothing on screen.
 2. **The stylesheet moves whole.** It has rules that combine a kit class with a Social Listening class, such as `.card .comm`
-   (`sl.module.css:149`), and two CSS modules can't reference each other's classes. Splitting it would break
+   (`sl.module.css:149` on `dev`, `design/kit.module.css:150` after the move), and two CSS modules can't reference each other's classes. Splitting it would break
    those rules silently. Separating kit rules from tab rules is a Phase 1 decision.
 
 ## Review Focus
@@ -40,9 +40,9 @@ snapshots must not change.
 - **The client view.** A client must see no staff control (upload slot, staff notes, edit buttons). Pinned by the
   client snapshot.
 - **The industry topic.** It renders a different set of sections. Pinned by its own snapshot.
-- **The CSS variables.** The kit's colours come from variables on `.root` (`sl.module.css` lines 5-27), which
+- **The CSS variables.** The kit's colours come from variables on `.root` (`sl.module.css` lines 5-27 on `dev`, `design/kit.module.css` lines 6-28 after the move), which
   `section.tsx` puts on the tab's wrapper. The move keeps that; Phase 1 must wrap any other tab the same way.
-- **Empty data.** `LineChart` renders nothing on empty data (`artifact-charts.tsx:67`). Unchanged here and noted for
+- **Empty data.** `LineChart` renders nothing on empty data (`artifact-charts.tsx:67` on `dev`, `design/charts.tsx:68` after the move). Unchanged here and noted for
   Phase 1 (spec section 7).
 
 ---
@@ -87,7 +87,7 @@ snapshots must not change.
   `StaffNote`, unchanged. `design/kit.module.css` keeps every class name.
 
 - [ ] **Step 1: Move with `git mv`** so history follows. Inside the moved files, change only the self-imports
-  (`./sl.module.css` to `./kit.module.css`) and the header comment's first line to name the new path and say it is the
+  (`./sl.module.css` to `./kit.module.css`) and the header comment, rewritten to name the new path and say it is the
   shared Organic Social kit, first used by Social Listening.
 - [ ] **Step 2: Update every import** in the eight Social Listening files to `../design/...`. No other change.
 - [ ] **Step 3: Prove nothing moved on screen.** `npx vitest run components/report-sections/organic-social` passes
