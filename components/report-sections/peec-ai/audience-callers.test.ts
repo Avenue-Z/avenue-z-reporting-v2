@@ -6,16 +6,20 @@ import { join } from 'node:path'
 
 const ROOT = process.cwd()
 
-function tsxFiles(dir: string): string[] {
+const CALLER_DIRS = ['app/portal', 'components/export', 'app/dashboard']
+
+/** Non-test source files under `dir` whose names end in one of `exts`. */
+function sourceFiles(dir: string, exts: string[] = ['.tsx']): string[] {
   const abs = join(ROOT, dir)
   const out: string[] = []
   for (const name of readdirSync(abs)) {
     const p = join(abs, name)
-    if (statSync(p).isDirectory()) out.push(...tsxFiles(join(dir, name)))
-    else if (name.endsWith('.tsx') && !name.endsWith('.test.tsx')) out.push(join(dir, name))
+    if (statSync(p).isDirectory()) out.push(...sourceFiles(join(dir, name), exts))
+    else if (exts.some((e) => name.endsWith(e)) && !/\.test\.tsx?$/.test(name)) out.push(join(dir, name))
   }
   return out
 }
+const tsxFiles = (dir: string) => sourceFiles(dir)
 
 /** Every `<PeecAIReport ...>` / `<ContentImpactReport ...>` opening tag, with its audience prop. */
 function uses(dirs: string[]): { file: string; tag: string; audience: string | null }[] {
@@ -43,5 +47,14 @@ describe('report audience is pinned at every caller', () => {
   })
   test('app/dashboard passes audience="internal"', () => {
     expect(internal.filter((u) => u.audience !== 'internal')).toEqual([])
+  })
+  // A caller added anywhere else would escape the checks above, so a fourth place
+  // has to be added to CALLER_DIRS with an audience decided (review #482, round 2).
+  test('no caller lives outside the checked folders', () => {
+    const outside = ['app', 'components', 'lib']
+      .flatMap((d) => sourceFiles(d, ['.ts', '.tsx']))
+      .filter((f) => !CALLER_DIRS.some((d) => f.startsWith(`${d}/`)))
+      .filter((f) => /<(PeecAIReport|ContentImpactReport)\b|createElement\(\s*(PeecAIReport|ContentImpactReport)\b/.test(readFileSync(join(ROOT, f), 'utf8')))
+    expect(outside).toEqual([])
   })
 })
