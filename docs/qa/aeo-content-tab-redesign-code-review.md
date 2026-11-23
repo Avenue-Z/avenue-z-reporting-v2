@@ -1,7 +1,7 @@
 # AEO Content Impact Redesign and Competitors on Overview: Code Review Record
 
-**Scope.** PR #482, branch `feat/aeo-content-tab-redesign`. Feature diff `dc633812..ea87c50c`
-(`git diff origin/dev...ea87c50c`): 26 commits, 71 files, +6,523 / -1,151, under
+**Scope.** PR #482, branch `feat/aeo-content-tab-redesign`. Feature diff `dc633812..445cfa0f`
+(`git diff origin/dev...445cfa0f`): 29 commits, 72 files, +6,663 / -1,151, under
 `lib/peec/`, `lib/ga4/`, `lib/content-calendar/`, `lib/report-sections/`, `app/actions/report-sections.ts`,
 `components/report-sections/peec-ai/` (Content Impact, the Overview parts, the template), the four
 report callers (`app/dashboard/…/reports/page.tsx`, both `app/portal/…` report pages,
@@ -9,9 +9,9 @@ report callers (`app/dashboard/…/reports/page.tsx`, both `app/portal/…` repo
 (`scripts/v2-calendar-audit.ts`, `scripts/measure-coverage-walk.ts`, `scripts/list-peec-clients.ts`,
 `scripts/content-impact-before-after.ts`) and `docs/qa/aeo-content-impact-verifications.md`. No unrelated code.
 
-**This document changes no code.** Every finding the per-task reviews and the whole-branch review
-raised as Critical or Important was fixed on the feature branch before this record. What is left
-is in §5.
+**This document changes no code.** Every finding the per-task reviews, the whole-branch review and
+Thomas's review of #482 (2026-11-23) raised as Critical or Important was fixed on the feature branch.
+What is left is in §5.
 
 Context: the Renaissance AEO dashboard training produced a list of changes. Spec and plan:
 `docs/superpowers/specs/2026-11-17-aeo-content-tab-redesign-design.md` and
@@ -38,7 +38,7 @@ Both were silently cut short for large accounts. That is why the client-visible 
     (`topGapUrlKeys`, `:50`; the Overview gap table shows the top 10 of the same ranking);
   - per-domain prompt ids for owned and Competitor-classified domains;
   - the top 3 other sites per prompt, competitor-naming first (`otherSitesByPrompt`);
-  - the tag maps as before.
+  - the tag maps as before (still one 2,000-row request; Finding 23).
 
   `getDomainCoverage` is unchanged, because PR Influence reads it for arbitrary domains (§5).
 - **Owned cited pages.** `getUrlCitations` stays capped at 2,000 URLs across the whole web (FB-069).
@@ -46,11 +46,15 @@ Both were silently cut short for large accounts. That is why the client-visible 
   (FB-050 subdomain rule, `lib/peec/owned-hosts.ts`), and sums `citation_count` over every walked row
   as the citation-share denominator. Measured: 135 owned rows, 66 KB.
 
-**Walk completeness (D-21).** Peec only sorts `/reports/urls` by `citation_count`, so pages can reorder
-mid-walk. Every measured Renaissance walk had 2–3 duplicate rows. `walkWithD21Retry`
-(`url-citations.ts:272`) de-duplicates, walks once more, and if duplicates persist accepts the result
-and logs it. Only a walk that runs out of pages (or fails) is incomplete, and an incomplete walk shows
-`--`, never "not cited". Concurrent requests for the same window share one walk (in-flight map,
+**Walk completeness (D-21, as amended by F-8).** Peec only sorts `/reports/urls` by `citation_count`, so pages
+can reorder mid-walk. Measured on 2026-11-23 (Renaissance, last 30 days, 6 walks of each kind): the prompt × model
+walk returned 1–2 duplicate rows every time, while rows + duplicates stayed at 48,699, so **each duplicate displaces a
+distinct row**: a walk with N duplicates may be missing up to N rows. A second walk came back clean 0 of 5 times; the two
+owned-citation walks never had duplicates. So there is no retry: `walkReportingDuplicates` (`url-citations.ts:287`)
+de-duplicates, logs the count, and accepts the result. `complete: true` means the walk ran out of pages, not that it
+saw every row. Only a walk that runs out of pages (or fails) is incomplete, and an incomplete walk shows `--`, never
+"not cited". A missed row matters only if it was a prompt's sole citation of the client's site.
+Concurrent requests for the same window share one walk (in-flight map,
 `coverage-projection.ts:222`), and a Peec 429 is retried once, honouring `Retry-After` capped at 10 s
 (`with429Retry`, `url-citations.ts:167`).
 
@@ -128,8 +132,8 @@ immediately before `footer` (`components/report-sections/peec-ai/template.ts:17-
 
 ## 2. Verification method
 
-**Gates, local, at `ea87c50c`:**
-- `npx vitest run`: **437 files, 5,414 tests passed**. `npm run typecheck` clean.
+**Gates, local** (at `ea87c50c`, re-run after Thomas's fixes at `445cfa0f`):
+- `npx vitest run`: **438 files, 5,423 tests passed** (at `445cfa0f`). `npm run typecheck` clean.
 - **RSC boundary.** `npm run check:rsc` skips any path containing `/.claude/` (`scripts/check-rsc-props.ts:74`),
   so inside a `.claude/worktrees` checkout it scans nothing. It was run as a copy with that line
   removed: passed. A real violation it would have caught is Finding 1.
@@ -148,7 +152,7 @@ immediately before `footer` (`components/report-sections/peec-ai/template.ts:17-
 - Unchanged formulas: `competitor-tables.test.ts` (characterization numbers, checked by hand against the
   old inline expressions in review).
 
-**Live, read-only, against the dev database** (`.env.local`, `ep-still-tree`):
+**Live, read-only, against the dev database** (`.env.local`):
 - `scripts/measure-coverage-walk.ts`: the row counts and payload sizes in §1.1.
 - `scripts/v2-calendar-audit.ts` on Renaissance's sheet: Publish Date is column F on all 4 tabs; every
   real date parses ("TBD" and blanks are null); Content Types map correctly ("Existing Blog
@@ -178,6 +182,11 @@ from a temporary page deleted after use):
 review; 6 needed one fix round, none a second.
 A whole-branch review (given the diff, not these conclusions) returned "ready with fixes"; one fix wave
 followed and its re-review was clean.
+
+**Thomas's review of #482** (2026-11-23, separate clone at `ea87c50c`): typecheck, the full suite and `check:rsc`
+from a normal path all pass; a 17-mutant pass on the data boundary killed 13, two survivors were equivalent and two were
+real test gaps (Finding 21). Findings 20–23 come from that review. Fixes are in `4d298228`, `1a47677d`, `445cfa0f`,
+reviewed before push.
 
 **Read, not triggered:** a Peec 429 during a walk (one was seen on `/reports/domains` during
 measurement; the retry is tested with a mocked fetch), GA4 truncation in the first-visit queries, and
@@ -211,6 +220,10 @@ Sev: **●** correctness · **○** cleanup/convention. Status: CONFIRMED (prove
 | 17 | ○ | CONFIRMED | `lib/peec/competitor-tables.ts:53` | `buildCompetitorDomainRows`'s own availability check ignores `.complete`. Masked today: the Overview part passes coverage through `usable()`, so H1 already shows `--`. |
 | 18 | ○ | CONFIRMED | `parts/competitor-gaps.tsx:15`, `parts/competitor-visibility.tsx` | Card titles are constants, so a per-client label override can't rename these two parts (other parts honour `resolved.label`). |
 | 19 | ○ | CONFIRMED | `content-impact.tsx` | `ContentImpactReport` has no render test; the fetch chaining added by Finding 3's fix is covered only through its pure helpers. |
+| 20 | ● | CONFIRMED | `lib/content-calendar/pages.ts:95` | Finding 7 fixed the dates but the New/Optimized badge (and topic) still read every row: a Published New row plus an in-progress Optimized row showed "New · Optimized" with `--` under Last optimized; clients see it. **Fixed on the branch** (`4d298228`): badge and topic follow Published rows; Thomas's two cases are tests. |
+| 21 | ● | CONFIRMED | `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:90` | The one client-facing report caller had no test behind its `audience="client"` (flipping it passed all tests), and nothing tested that a non-admin internal user doesn't see the switch. **Fixed on the branch** (`1a47677d`): a source test pins the audience at every portal, export and dashboard caller (with call-site floors), and `canToggleClientVisibility` is tested. |
+| 22 | ○ | CONFIRMED | `lib/peec/url-citations.ts:287` | The duplicate-row retry ran a second full walk (~50 s cold) and never came back clean (0 of 5 measured). **Fixed on the branch** (`445cfa0f`, F-8): no retry; `complete` documented as "ran out of pages". |
+| 23 | ○ | CONFIRMED | `lib/peec/coverage-projection.ts` | The theme (tag) maps still come from one 2,000-row request, unwalked (as before), so `complete: true` covers the prompt walk only. Known issue in the spec. |
 
 ---
 
@@ -285,7 +298,8 @@ page-level source) or be dropped from the prompt-gaps column.
   `{"id":"footer","version":1}` in the `peec-ai` `section_templates` row: staging after promotion, then
   production at release. Read the row first. Until then the code template is overridden and Overview
   shows no Competitors parts.
-- View the Competitors parts on staging before Tina's QA; they have not rendered anywhere yet.
+- View the Competitors parts on staging before Tina's QA; they have not rendered anywhere yet. On the client Overview,
+  check that no prompt text appears anywhere in the HTML or RSC payload (the check already run on Content Impact).
 
 **Decide together (does not block the merge):**
 - Finding 16: what the competitor marker in prompt gaps should mean.
@@ -307,4 +321,4 @@ page-level source) or be dropped from the prompt-gaps column.
 `role="alert"` on its error); edge-case tests for the competitor builders (row caps, zero denominators);
 stale "§H" comments in `content-impact.tsx`.
 
-**Closed on the branch:** Findings 1–12.
+**Closed on the branch:** Findings 1–12 and 20–22.
