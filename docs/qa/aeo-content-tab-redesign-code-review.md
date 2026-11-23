@@ -1,7 +1,7 @@
 # AEO Content Impact Redesign and Competitors on Overview: Code Review Record
 
-**Scope.** PR #482, branch `feat/aeo-content-tab-redesign`. Feature diff `dc633812..445cfa0f`
-(`git diff origin/dev...445cfa0f`): 29 commits, 72 files, +6,663 / -1,151, under
+**Scope.** PR #482, branch `feat/aeo-content-tab-redesign`. Feature diff `dc633812..beb5d25d`
+(`git diff origin/dev...beb5d25d`): 30 commits, 72 files, +6,663 / -1,151, under
 `lib/peec/`, `lib/ga4/`, `lib/content-calendar/`, `lib/report-sections/`, `app/actions/report-sections.ts`,
 `components/report-sections/peec-ai/` (Content Impact, the Overview parts, the template), the four
 report callers (`app/dashboard/…/reports/page.tsx`, both `app/portal/…` report pages,
