@@ -1,12 +1,13 @@
-# Organic Social design overhaul, Phase 1: implementation plan
+# Organic Social design overhaul, Phases 1 and 2: implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps
 > use checkbox (`- [ ]`) syntax for tracking.
 
 Author: Thomas Chang. "I", "me" and "my" in this doc mean me.
 
-**Goal:** Give the Organic Social tabs the Social Listening look, one new part version at a time, with every number
-unchanged and no client seeing it until they are pinned.
+**Goal:** Give the Organic Social tabs the Social Listening look, one new part version at a time (Phase 1), and give
+their Insights and Recommendations boxes the same look (Phase 2, Task 11), with every number and every word unchanged
+and no client seeing it until they are pinned.
 
 **Architecture:** Each task is a new version of one part (for example `top-content@4`), added beside the old version in
 `components/report-sections/organic-social/parts/registry.ts`, with the old version's file left untouched
@@ -23,35 +24,47 @@ decisions 2, 5, (b), (d) and (f) as recommended there and in the #484 decisions 
 
 - Every task is its own feature branch off `dev` and its own PR. No PR is built on another open PR (no stacking): a task
   starts only once everything it needs has merged to `dev`, then branches from the updated `dev`.
-- **The order** (a task waits for every task named before its arrow):
-  - #486 (the kit) before every task. #488 (line chart options) before Tasks 3, 4 and 6. #489 (the AEO `design` key,
-    merged) before Task 10.
-  - Task 1 (the parity helper) before Tasks 2 to 10: they all use it.
+- **The order** (a task waits until every task it needs has merged):
+  - Already merged to `dev` (2026-11-23): #486 (the kit, every task needs it), #488 (the line chart options, Tasks 3,
+    4 and 6) and #489 (the AEO `design` key, Task 10).
+  - Task 1 (the parity helper) before Tasks 2 to 11: they all use it.
   - Task 2 (kit tiles) before Tasks 5, 8 and 10: their tiles need its options. Task 10's tiles use the tooltip and the
     "vs prior period" change line (`aeo-informed/tiles.tsx:31-36`).
   - Task 3 before Task 4: both draw through `ChannelTrendChart` (`trends.tsx:46`), and Task 3 adds its options.
   - Task 7 (the kit post card) before Task 8: the influencer cards are built on `post-card.tsx`.
-  - Tasks 6 and 9 need only Task 1 (and #488 for Task 6).
-- A new version only. The old version's file and golden stay untouched. Two shared tests change by one line or entry per
+  - Tasks 6, 9 and 11 need only Task 1 (and #488 for Task 6). Task 11 touches no Organic Social part, so it can run
+    alongside the others.
+- A new version only, and every new version is `published: false`, like the outline versions today
+  (`parts/outline-data.tsx`, `parts/ytd-review-sheet.tsx`). An unpublished version can't be frozen into a client's
+  snapshot or promoted into the shared template (`lib/report-sections/registry.ts:30`, `lib/report-sections/validate.ts:11`),
+  so the template every other client and Renaissance read can never pick it up by accident.
+- The old version's file and golden stay untouched. Two shared tests change by one line or entry per
   new version, as they must: the `platform-headlines` version list (`parts/outline-parts.test.tsx:53`) and the export
   layout, where every registered `id@version` needs an entry, `own` or `block` (`parts/export-layout.ts:5-22`,
   checked by `parts/export-layout.test.ts:10`). Each task names both.
 - Numbers unchanged: same getters, same requests, same locked months, same strings, proven by a value-equality test
-  (Task 1) for every new version.
+  (Task 1) for every new version. Same requests also means the request-shape pins stay untouched
+  (`lib/organic-social/lock-key-pin.test.ts`, `lib/organic-social/aeo-tab/aeo-lock-key-pin.test.ts`): a new version that
+  changed a request would orphan every locked month stored under the old key.
 - Empty and error states kept: `NoData`, `ytd-failure`, the per-part `Suspense` fallback and `safe()`.
-- Files only under `components/report-sections/organic-social/`, except the line chart options (#488, already open).
+- Files only under `components/report-sections/organic-social/`, except Task 11's commentary files (named there). The
+  line chart options (#488) and the AEO key (#489) are already merged.
 - Standard gates on each PR: `npx tsc --noEmit`, `npm test`, `npm run lint` on changed files, `npm run check:rsc`, and the
   per-PR review record (`docs/qa/<feature>-code-review.md`, spec section 6).
+- **A local look before review.** Each PR that changes something visible is run on the local app against the dev
+  database and checked in the browser before it goes to Paul: the applied styles against the kit stylesheet, no console
+  or server errors, and a screenshot. I see it there before staging.
 - Controls the artifact has no equivalent for (KPI rings, annotations and chart notes, channel toggles, the Top Content
   sort toolbar, the owned or influencer designation) keep how they work and take only the kit's colours, borders and
   pill and button styles (decision (d)).
 
 ## Pinning (spec section 6)
 
-- **Staging:** APFM is pinned to each new version as its PR lands, by a guarded script on my go, so Jasmine sees the work
-  as it goes.
-- **Production:** a client is pinned only once every part on the tabs it shows has a new version, all at once, so no
-  tab is half old and half new. Read-only check (2026-11-23): Akara Living, Joy of Life, PIMCO and Piper Aircraft hide
+- **Staging:** APFM is pinned to each new version as its PR lands, by a guarded script on my go, so we can check it on
+  staging as it goes. Jasmine is asked to review once every part and both boxes are pinned for APFM, so she sees the
+  finished tab, not a half-done one.
+- **Production:** a client is pinned only once every part on the tabs it shows has a new version **and** Task 11's two
+  boxes are done, all at once, so no tab is half old and half new (new cards under an old Insights box would be). Read-only check (2026-11-23): Akara Living, Joy of Life, PIMCO and Piper Aircraft hide
   Overview, so this batch covers every part on their tabs. APFM shows Overview, so Overview's three template parts are in
   this batch too (Tasks 2, 4 and 7). Renaissance shows Overview and also pins `ytd-review@4`, so it waits for the
   Renaissance step.
@@ -198,6 +211,55 @@ Not on the parts system (`organic-social/index.tsx:107`), so it is gated by the 
 the same fill and no inner box. Without it, the tab renders exactly as today (a byte-for-byte test, like Phase 0's).
 With it, `expectSameValues` between today's tab and `design: "kit"`, written as Task 1 says (with the
 `ResponsiveContainer` mock and the chart-data recorder).
+
+### Task 11 (Phase 2): the Insights and Recommendations boxes
+
+The boxes keep today's editor and behaviour, per decision (a), which Paul settled as Tiptap: all 69 live Organic Social
+entries use formatting the Social Listening plain-text box would drop (spec section 5). Only their look changes.
+
+**How it works today (traced):** both boxes are shared parts, `commentary@1` and `recommendations@1`
+(`components/report-sections/shared/parts/registry.tsx:13-42`). Each renders `CommentarySection`
+(`components/report-sections/commentary/index.tsx:15-62`). For an Organic Social view of a locked-months client, that
+calls `monthlyCommentary`, which renders its `Panel` prop, `CommentaryPanel` by default
+(`components/report-sections/commentary/monthly.tsx:21-26`). Otherwise it renders `CommentaryPanel` directly (`:52`).
+`CommentaryPanel` (`components/report-sections/commentary/commentary-panel.tsx`, 243 lines, a client component) is
+shared by every report that has commentary.
+
+**The change:**
+- `CommentaryPanel` gains one additive, default-off prop, `look?: 'kit'`. With it, the panel takes the kit's frame,
+  label, button and badge styles. Every behaviour is unchanged: the Tiptap editor and its outline starter, the entry
+  dropdown, the attribution line, approve, revoke, delete and the history. Without it, it renders exactly as today, so
+  every other report is unchanged.
+- `CommentarySection` gains the same optional `look`, passed to `CommentaryPanel` on both paths (`monthlyCommentary`
+  passes it through to its `Panel`). Its server-side redactions (`index.tsx:34-45`) don't change; `look` is a string, so
+  no function crosses the server to client boundary (`check:rsc`).
+- New shared part versions `commentary@2` and `recommendations@2` (`published: false`) render `CommentarySection` with
+  `look: 'kit'`, otherwise identical to `@1`, with Recommendations still at the bottom (`SHARED_PART_PLACEMENT`, `:45-48`).
+- A client gets them by pinning both in its `organic-social` config's `sharedParts`, which today holds
+  `commentary@1` and `recommendations@1` for all six clients (read-only, 2026-11-23). Pinning them changes every
+  Organic Social tab for that client at once (`organic-social/index.tsx:80`, `:85`); Social Listening renders neither box
+  (`:53-61`). Every other report keeps `@1`.
+
+**Files:** `commentary-panel.tsx`, `commentary/index.tsx`, `commentary/monthly.tsx` (pass-through only),
+`shared/parts/registry.tsx`, their tests.
+
+- [ ] **Step 1:** Failing tests: `CommentaryPanel` without `look` renders byte for byte as before (a snapshot taken first,
+  on today's code, like Phase 0's); with `look: 'kit'`, `expectSameValues` against today's panel for staff (editor
+  closed), an approver (history open) and a client, with formatted entries (a list, a link, bold); the kit classes are
+  applied; `commentary@2` and `recommendations@2` render through `CommentarySection` with `look`, and their placement is
+  unchanged.
+- [ ] **Step 2:** Implement, gates, the local look, commit.
+
+### Known differences from the artifact after Phases 1 and 2
+
+Said plainly, so nobody expects them in this batch:
+- **Analysis inside each chart** (Phase 3) is not in this plan. It needs decision 3 and Kyleah's sign-off first (spec
+  section 8).
+- **The page glow** behind every report is broken app-wide and filed as #487. The staging Social Listening page doesn't
+  have it either.
+- **Spacing between parts** stays at the tabs' 32px (`space-y-8`, `organic-social/index.tsx:55`, `:79`). The Social
+  Listening page uses 40px between its sections (`.view`, `design/kit.module.css`). Changing it would change every
+  client's tabs, Renaissance's included, so it isn't in this batch.
 
 ### Later, in the Renaissance step (not in this plan's batch)
 
