@@ -83,7 +83,9 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
       // Known drift, named rather than hidden: the dashboard route drops Paid Media Overview's compareRange; the
       // portal passes it, and the export follows the portal. Recorded in PR 1's review record.
       const drift = routeName === 'dashboard' && nameOf(report.type) === 'PaidMediaOverviewReport'
-      expect(element.props).toEqual(drift ? { ...report.props, compareRange: Q.compareRange } : report.props)
+      // The export always renders the client audience, whoever exports, so the dashboard's internal audience differs by design (spec R-14).
+      const audience = routeName === 'dashboard' && ['PeecAIReport', 'ContentImpactReport'].includes(nameOf(report.type)) ? { audience: 'client' } : {}
+      expect(element.props).toEqual({ ...(drift ? { ...report.props, compareRange: Q.compareRange } : report.props), ...audience })
       expect(view.pageTitle).toBe(button.props.pageTitle)
       // Every resolved tab of these sections uses the page range, so the export always stamps a period.
       // Named drift (PR 1 review record #3): on AEO an unknown tab shows no period on the page (its date-picker rule), while

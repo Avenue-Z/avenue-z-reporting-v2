@@ -37,6 +37,21 @@ const TOGGLES: { value: SlopeMetric; label: string }[] = [
   { value: 'citation-share', label: 'Citation Share' },
 ]
 
+const SITE_PAGES_SCOPE = {
+  chip: 'All site pages',
+  description: 'Every page on the site, not only content Avenue Z created or optimized. Use it to spot pages worth revisiting and untouched pages that are picking up momentum.',
+}
+
+// D-13: label only. The chip and description follow the selected view.
+export const SLOPE_SCOPE: Record<SlopeMetric, { chip: string; description: string }> = {
+  'ai-referral': SITE_PAGES_SCOPE,
+  organic: SITE_PAGES_SCOPE,
+  'citation-share': {
+    chip: 'All cited pages across the web',
+    description: "Every page AI engines cite for your tracked prompts, including other sites. Use it to see which pages, yours or others', are gaining or losing AI citations.",
+  },
+}
+
 const DIRECTION_COLOR: Record<string, string> = {
   gainer: '#60FF80',
   loser:  '#FF4444',
@@ -48,9 +63,18 @@ export default function SlopeChart({ input, compareActive }: Props) {
   const [hoveredUrl, setHoveredUrl] = useState<string | null>(null)
   // The PDF export prints the default metric, named as a label rather than buttons, with lines drawn complete.
   const exportMode = useExportMode()
-  const toggles = exportMode
-    ? <p data-export-toggle-label="" className="text-xs font-semibold text-white">{TOGGLES.find((t) => t.value === metric)!.label}</p>
-    : <ToggleRow active={metric} onChange={setMetric} />
+  const scope = SLOPE_SCOPE[metric]
+  const toggles = (
+    <>
+      {exportMode
+        ? <p data-export-toggle-label="" className="text-xs font-semibold text-white">{TOGGLES.find((t) => t.value === metric)!.label}</p>
+        : <ToggleRow active={metric} onChange={setMetric} />}
+      <div className="space-y-1">
+        <span className="inline-block rounded-full border border-white/20 bg-white/[0.06] px-2.5 py-0.5 text-[11px] font-semibold text-white">{scope.chip}</span>
+        <p className="text-xs text-text-muted">{scope.description}</p>
+      </div>
+    </>
+  )
 
   if (!compareActive) {
     return (

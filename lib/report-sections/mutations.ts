@@ -8,15 +8,47 @@ import { resolveSection } from './resolve'
 import { assertReferencedPinsPublished } from './registry'
 import type { PartRegistry, ReportSectionConfig, ResolvedPart, SectionOverride, SectionSnapshot, SectionTemplate } from './types'
 
+/** Blocks hidden from clients unless an admin opens them per client (clientVisible). */
+export const INTERNAL_ONLY_BLOCKS = ['prompt-gaps'] as const
+
+/** The one viewKey each internal-only block lives under; setClientVisible writes nowhere else. */
+export const INTERNAL_ONLY_BLOCK_VIEW_KEYS: Record<(typeof INTERNAL_ONLY_BLOCKS)[number], string> = {
+  'prompt-gaps': 'peec-ai:content-impact',
+}
+
 /** When re-saving a section override, preserve a prior sharedParts opt-in if the new
  *  payload doesn't set one. An explicit sharedParts in `next` wins. Keeps a body-only
- *  edit from dropping a client's commentary (shared-part) opt-in. */
+ *  edit from dropping a client's commentary (shared-part) opt-in.
+ *  clientVisible is always carried from `prev` and never taken from `next`: only
+ *  setClientVisible may change it. */
 export function mergePreservingSharedParts(
   prev: SectionOverride | undefined,
   next: SectionOverride,
 ): SectionOverride {
   const sharedParts = next.sharedParts ?? prev?.sharedParts
-  return sharedParts === undefined ? next : { ...next, sharedParts }
+  const { clientVisible: _ignored, ...rest } = next
+  const merged: SectionOverride = sharedParts === undefined ? rest : { ...rest, sharedParts }
+  return prev?.clientVisible === undefined ? merged : { ...merged, clientVisible: prev.clientVisible }
+}
+
+export function applyClientVisible(
+  cfg: ReportSectionConfig,
+  viewKey: string,
+  blockId: string,
+  visible: boolean,
+): ReportSectionConfig {
+  const prev = cfg[viewKey] ?? {}
+  const others = (prev.clientVisible ?? []).filter((id) => id !== blockId)
+  const clientVisible = visible ? [...others, blockId] : others
+  return { ...cfg, [viewKey]: { ...prev, clientVisible } }
+}
+
+export function isClientVisible(
+  cfg: ReportSectionConfig | null | undefined,
+  viewKey: string,
+  blockId: string,
+): boolean {
+  return cfg?.[viewKey]?.clientVisible?.includes(blockId) ?? false
 }
 
 export function applyPinVersion(

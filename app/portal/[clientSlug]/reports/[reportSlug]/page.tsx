@@ -87,7 +87,7 @@ function getReportSection(
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'peec-ai':
-      return <PeecAIReport clientSlug={clientSlug} />
+      return <PeecAIReport audience="client" clientSlug={clientSlug} />
     case 'inbound-funnel':
       return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'request-a-report':

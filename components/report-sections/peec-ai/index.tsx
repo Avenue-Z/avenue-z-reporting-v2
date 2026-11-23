@@ -6,6 +6,7 @@ import { ProviderTabs, type AeoProvider } from './provider-tabs'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
 import { isAiSource, aiSourceModel } from '@/lib/constants'
+import type { ReportAudience } from './ctx'
 import type { AEOModel } from '@/lib/peec/models'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { Sparkles } from 'lucide-react'
@@ -35,6 +36,7 @@ function ProviderSection({
   dateRange,
   template,
   override,
+  audience,
 }: {
   data: Overview
   provider: AeoProvider
@@ -44,8 +46,9 @@ function ProviderSection({
   dateRange?: string
   template: typeof PEEC_TEMPLATE
   override: SectionOverride | undefined
+  audience: ReportAudience
 }) {
-  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange })
+  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience })
   const resolved = resolveSection(template, override)
 
   return (
@@ -69,7 +72,8 @@ export async function PeecAIReport({
   clientSlug,
   dateRange,
   models = null,
-}: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null } = {}) {
+  audience,
+}: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null; audience: ReportAudience }) {
   const config = clientSlug ? await getClientBySlug(clientSlug) : null
   const peecConfigured = !!config?.peecCustomerProjectId
   const profoundConfigured = !!config?.profoundCategoryId
@@ -132,8 +136,8 @@ export async function PeecAIReport({
   const override = config?.reportSectionConfig?.['peec-ai']
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} />
 
   return (
     <>

@@ -9,6 +9,7 @@ import type { TrackedPrompt } from './client'
 
 function makePrompt(over: Partial<TrackedPrompt>): TrackedPrompt {
   return {
+    id: 'p',
     text: 'p',
     sources: [],
     visibility: 0,

@@ -88,7 +88,7 @@ export function tallyTrajectories(items: TrajectoryInput[]): Record<Trajectory, 
   return counts
 }
 
-// ── §C: time-to-first-traffic / first-AI-activity ──────────────────────────────
+// ── §C: time-to-first-search-visit / first-AI-referred-visit ──────────────────────────────
 
 /** Median of a numeric list, or null when empty. */
 export function median(nums: number[]): number | null {
@@ -113,32 +113,33 @@ export function addDays(iso: string, n: number): string {
 export interface UrlTimingInput {
   /** Publish date (YYYY-MM-DD). */
   publishDate: string
-  /** Per-day rows for this URL (YYYY-MM-DD). */
-  days: { date: string; sessions: number; aiSessions: number }[]
+  /** Per-day rows for this URL (YYYY-MM-DD). `searchSessions` = Organic Search channel group. */
+  days: { date: string; aiSessions: number; searchSessions: number }[]
 }
 
 export interface UrlTiming {
-  /** Days from publish to first day with any session; null if none. */
-  daysToFirstTraffic: number | null
+  /** Days from publish to first day with an Organic Search session; null if none. */
+  daysToFirstSearch: number | null
   /** Days from publish to first day with an AI-referred session; null if none. */
   daysToFirstAi: number | null
 }
 
 /**
- * Per-URL days-to-first-traffic and days-to-first-AI-activity. Only days on or
- * after the publish date count; a first event before publish clamps to 0.
- * "AI activity" = first AI-referred GA4 session (bot-crawl first-seen is not
- * exposed by the Peec aggregation, so it is not used here).
+ * Per-URL days-to-first-search-visit and days-to-first-AI-referred-visit. Only
+ * days on or after the publish date count; a first event before publish clamps
+ * to 0. Any-visit timing is deliberately not measured: the team's own launch-day
+ * visits would make a page look fast (D-1). Bot-crawl first-seen is not exposed
+ * by the Peec aggregation, so it is not used here.
  */
 export function computeUrlTiming({ publishDate, days }: UrlTimingInput): UrlTiming {
   const onOrAfter = days.filter((d) => d.date >= publishDate)
-  const firstWith = (pred: (d: { sessions: number; aiSessions: number }) => boolean): number | null => {
+  const firstWith = (pred: (d: { aiSessions: number; searchSessions: number }) => boolean): number | null => {
     const dates = onOrAfter.filter(pred).map((d) => d.date).sort()
     if (dates.length === 0) return null
     return Math.max(0, daysBetween(publishDate, dates[0]))
   }
   return {
-    daysToFirstTraffic: firstWith((d) => d.sessions > 0),
+    daysToFirstSearch: firstWith((d) => d.searchSessions > 0),
     daysToFirstAi: firstWith((d) => d.aiSessions > 0),
   }
 }

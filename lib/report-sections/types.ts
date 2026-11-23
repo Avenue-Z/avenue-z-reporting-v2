@@ -24,6 +24,8 @@ export type SectionOverride = {
   sharedParts?: PartPin[]   // cross-section shared parts (commentary, …); validated against SHARED_PARTS
   labels?: Record<string, string>
   thresholds?: Record<string, number>
+  /** Internal-only block ids (INTERNAL_ONLY_BLOCKS) opened to this client's viewers. Written only by setClientVisible. */
+  clientVisible?: string[]
 }
 
 /** Per-client report config. A key is EITHER a section slug (body composition,
