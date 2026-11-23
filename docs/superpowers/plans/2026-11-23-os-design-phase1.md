@@ -27,7 +27,7 @@ decisions 2, 5, (b), (d) and (f) as recommended there and in the #484 decisions 
   stacking): a PR starts only once everything it needs has merged to `dev`, then branches from the updated `dev`.
   Already merged (2026-11-23): #486 (the kit), #488 (the line chart options) and #489 (the AEO `design` key).
   - **Round 1, one PR, the foundation:** Task 1 (the parity helper), the kit tile options from Task 2 (`tooltip`,
-    `noPrior`, `zeroDash`, `noChange`, used by four round 2 PRs), and the registration slots below. Nothing on screen
+    `noPrior`, `zeroDash`, `noChange`, `oneDecimal`, used by four round 2 PRs), and the registration slots below. Nothing on screen
     changes.
   - **Round 2, seven PRs in parallel**, once round 1 has merged:
 
@@ -67,10 +67,12 @@ decisions 2, 5, (b), (d) and (f) as recommended there and in the #484 decisions 
   merge-clean proof.
 - **Review records.** CLAUDE.md asks for one review record per feature. To keep Paul's load sane I'm proposing one
   combined record per round, with a section per PR. That's Paul's call; until he agrees, it's one per PR.
-- A new version only, and every new version is `published: false`, like the outline versions today
-  (`parts/outline-data.tsx`, `parts/ytd-review-sheet.tsx`). An unpublished version can't be frozen into a client's
-  snapshot or promoted into the shared template (`lib/report-sections/registry.ts:30`, `lib/report-sections/validate.ts:11`),
-  so the template every other client and Renaissance read can never pick it up by accident.
+- A new version only, and every new **Organic Social part** version is `published: false`, like the outline versions
+  today (`parts/outline-data.tsx`, `parts/ytd-review-sheet.tsx`). An unpublished version can't be frozen into a
+  client's snapshot or promoted into the shared template (`lib/report-sections/registry.ts:30`,
+  `lib/report-sections/validate.ts:11`), so the template every other client and Renaissance read can never pick it up by
+  accident. A client still pins them through `versions` or `extraParts`, which accept unpublished parts
+  (`validate.ts:78`). The two **shared** parts in Task 11 are the exception and are `published: true` (see Task 11).
 - The old version's file and golden stay untouched. Every new `id@version` still needs an export layout entry, `own` or
   `block` (checked by `parts/export-layout.test.ts:10`), now in its PR's own `parts/kit/<name>.layout.ts`. Each task
   names its choice.
@@ -109,13 +111,19 @@ decisions 2, 5, (b), (d) and (f) as recommended there and in the #484 decisions 
 
 - **The kit's colour variables.** The kit reads its colours from `.root` (`design/kit.module.css`, the variables block at
   the top). Every new version wraps its own output in an element carrying `.root`, so it never depends on a page wrapper.
-- **Visible strings the kit changes.** Four differences, all closed by Task 2 so no tile's text changes:
+- **Visible strings the kit changes.** Five differences, all closed by the round 1 tile options so no tile's text
+  changes:
   - the shared tile has a hover tooltip (`components/charts/kpi-card.tsx:49`);
   - with no prior it shows a greyed dash and "vs prior period" (`:73`), where the kit's `Change` shows "n/a";
   - a zero change reads "0% vs prior period" after a dash glyph (`:67`), where the kit's has no dash;
   - a tile with no change line today (an unavailable tile, `outline-tiles.tsx:23`; the Influencer totals,
     `parts/influencer-posts.tsx:51-54`) would gain one, because the kit's `Kpi` always renders `Change`
-    (`design/charts.tsx`).
+    (`design/charts.tsx`);
+  - precision: the kit's `Change` always rounds whole from 1% (`design/charts.tsx:37-39`), like `KpiCard` with
+    `wholeDelta`, while `KpiCard` without it shows one decimal (`kpi-card.tsx:41`, `:68`). `platform-headlines@1`
+    uses one decimal (`headlinesV1(ctx)`, `parts/platform-headlines.tsx:35`), so on `@6` "↑ 12.3%" would become
+    "↑ 12%" and a zero would lose its ".0". The Data block's fallback is whole (`headlinesV1(ctx, true)`,
+    `outline-data.tsx:51`), so this is an option per call.
 - **The PDF export.** Each card stays one `data-export-block`; the line chart's fill does not animate in the export
   (#488).
 - **The client view.** No staff control (chart note forms, designation toggles, hide buttons) renders for a client,
@@ -141,7 +149,9 @@ decisions 2, 5, (b), (d) and (f) as recommended there and in the #484 decisions 
 - **Render the real section, awaited, with non-empty data**, as `parts/outline-parts.test.tsx:62` does, never the part's
   Suspense fallback. Feed every getter the section calls: the Instagram Data block also reads the media request, and
   without it the block shows its error card (`selectOutlineRows`, `lib/organic-social/outline-headlines.ts`).
-- **Vary the data:** a normal change, a zero change, a missing prior and an unavailable tile.
+- **Vary the data:** a normal change, a change of 1% or more with a non-zero tenth (such as 12.3%, which shows the
+  precision difference), a zero change, a missing prior and an unavailable tile. The trial ran on `@2`, which is already
+  whole, so it could not have shown a precision difference.
 - **Three viewers:** staff (`INTERNAL_ADMIN`), client (`CLIENT_VIEWER`, the shared fixture's role,
   `parts/__fixtures__/organic-social-ctx.ts:9`) and the PDF export (`ExportModeProvider`).
 - **Charts:** mock `ResponsiveContainer` to a fixed size (as `v1-render.golden.test.tsx:12`), or Recharts draws nothing in
@@ -168,17 +178,21 @@ updates `parts/outline-parts.test.tsx:53`, and adds tests
 **Interfaces:**
 - Produces: `Kpi` gains optional `tooltip?: string` (rendered with `HoverHint`, `components/charts/hover-hint.tsx`),
   `noPrior?: string` (the text shown instead of "n/a" when the change is null), `zeroDash?: boolean` (a zero change gets the same
-  dash glyph before "0%" that `kpi-card.tsx:67` draws) and `noChange?: boolean` (no change line at all). All absent: Social Listening
-  renders exactly as before, and its Phase 0 snapshots must not change.
-- `platform-headlines@6` draws what `@1` draws (`parts/platform-headlines.tsx`, `headlinesV1`) with the kit's tiles: the
-  Overview tiles, and Renaissance's platform tiles.
+  dash glyph before "0%" that `kpi-card.tsx:67` draws), `noChange?: boolean` (no change line at all) and
+  `oneDecimal?: boolean` (always one decimal, as `KpiCard` without `wholeDelta`; absent: today's kit rounding, whole
+  from 1%). These ship in round 1. All absent: Social Listening renders exactly as before, and its Phase 0 snapshots
+  must not change.
+- `platform-headlines@6` draws what `@1` draws (`parts/platform-headlines.tsx`, `headlinesV1`) with the kit's tiles,
+  using `oneDecimal` as `@1` does: the Overview tiles, and Renaissance's platform tiles. The `@4`/`@5` fallback to these
+  tiles stays whole, as `headlinesV1(ctx, true)` is today.
 - `platform-headlines@4` draws what `@2` draws (`parts/outline-data.tsx`), `@5` what `@3` draws. Where `@2` and `@3` fall
   back to the v1 tiles, on Overview and on a channel no outline covers such as Piper's X (`outline-data.tsx:50-51`),
   `@4` and `@5` fall back to `@6`'s kit tiles, so no tab shows old-look tiles.
 
 - [ ] **Step 1:** Failing tests: `expectSameValues` between `@1` and `@6`, `@2` and `@4`, `@3` and `@5`, written as
   Task 1 says, covering the fallback branch (Overview and an uncovered channel); the tooltip, no-prior, zero and
-  unavailable texts equal the old tiles'.
+  unavailable texts equal the old tiles'; a 12.3% change keeps its one decimal on `@6` and stays whole on the `@4`/`@5`
+  fallback.
 - [ ] **Step 2:** Implement, run, confirm the Social Listening snapshots are unchanged, gates, commit.
 
 ### Task 3: `follower-graph@3`
@@ -260,27 +274,41 @@ shared by every report that has commentary.
 
 **The change:**
 - `CommentaryPanel` gains one additive, default-off prop, `look?: 'kit'`. With it, the panel takes the kit's frame,
-  label, button and badge styles. Every behaviour is unchanged: the Tiptap editor and its outline starter, the entry
-  dropdown, the attribution line, approve, revoke, delete and the history. Without it, it renders exactly as today, so
-  every other report is unchanged.
+  label, button and badge styles, inside its own element carrying the kit's `.root`, so its colours never depend on
+  the page around it. Every behaviour is unchanged: the Tiptap editor and its outline starter, the entry dropdown, the
+  attribution line, approve, revoke, delete and the history. Without it, it renders exactly as today, so every other
+  report is unchanged.
+- **The PDF:** in export mode the panel returns `ExportCommentary` before anything else (`commentary-panel.tsx:75`,
+  defined at `:231`), so `look` is passed to it too, and the printed box takes the kit look.
+- **A guard:** the kit look applies only on an Organic Social view (`isOrganicSocialViewKey`, `lib/commentary/month.ts:6`).
+  If `commentary@2` were ever pinned on another report, that report would keep today's panel.
 - `CommentarySection` gains the same optional `look`, passed to `CommentaryPanel` on both paths (`monthlyCommentary`
   passes it through to its `Panel`). Its server-side redactions (`index.tsx:34-45`) don't change; `look` is a string, so
   no function crosses the server to client boundary (`check:rsc`).
-- New shared part versions `commentary@2` and `recommendations@2` (`published: false`) render `CommentarySection` with
-  `look: 'kit'`, otherwise identical to `@1`, with Recommendations still at the bottom (`SHARED_PART_PLACEMENT`, `:45-48`).
+- New shared part versions `commentary@2` and `recommendations@2` render `CommentarySection` with `look: 'kit'`,
+  otherwise identical to `@1`, with Recommendations still at the bottom (`SHARED_PART_PLACEMENT`, `:45-48`).
+- **Both are `published: true`.** Shared-part pins are validated as "shared parts must be published"
+  (`lib/report-sections/validate.ts:85`, enforced at `:11`) on every save of a client's section config
+  (`app/actions/report-sections.ts:88`, via `validateSectionOverride`, `lib/report-sections/mutations.ts:122-129`), so an
+  unpublished pin would make the next save of that client's config fail. The reason Organic Social parts stay
+  unpublished doesn't apply: shared parts have no template to be promoted into and no snapshot to be frozen into, and
+  `resolveSharedParts` renders only the version a client pins (`components/report-sections/shared/parts/resolve.ts:6-16`).
+  No screen offers shared-part versions to pick.
 - A client gets them by pinning both in its `organic-social` config's `sharedParts`, which today holds
   `commentary@1` and `recommendations@1` for all six clients (read-only, 2026-11-23). Pinning them changes every
   Organic Social tab for that client at once (`organic-social/index.tsx:80`, `:85`); Social Listening renders neither box
   (`:53-61`). Every other report keeps `@1`.
 
-**Files:** `commentary-panel.tsx`, `commentary/index.tsx`, `commentary/monthly.tsx` (pass-through only),
-`shared/parts/registry.tsx`, their tests.
+**Files:** `commentary-panel.tsx` (including `ExportCommentary`), `commentary/index.tsx`, `commentary/monthly.tsx`
+(pass-through only), `shared/parts/registry.tsx`, their tests.
 
 - [ ] **Step 1:** Failing tests: `CommentaryPanel` without `look` renders byte for byte as before (a snapshot taken first,
   on today's code, like Phase 0's); with `look: 'kit'`, `expectSameValues` against today's panel for staff (editor
   closed), an approver (history open) and a client, with formatted entries (a list, a link, bold); the kit classes are
   applied; `commentary@2` and `recommendations@2` render through `CommentarySection` with `look`, and their placement is
-  unchanged.
+  unchanged; the export view (`ExportCommentary`) is in the parity views too, with the kit look; on a non-Organic-Social
+  view key, `look` is ignored; `validateSectionOverride` accepts a `sharedParts` pin of `commentary@2` and of
+  `recommendations@2`.
 - [ ] **Step 2:** Implement, gates, the local look, commit.
 
 ### Known differences from the artifact after Phases 1 and 2
