@@ -3,7 +3,9 @@
 // pointLines, dailyStack, cloud). Plain SVG and HTML with the mockup's geometry and classes, so the page, the PDF and the
 // mockup draw the same thing. Server-safe.
 // The one change from the mockup: a year to date month with no data is a gap (no column, a break in the line), never a 0.
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
+import type { KpiCard } from '@/components/charts/kpi-card'
+import { HoverHint } from '@/components/charts/hover-hint'
 import { roundDelta } from '@/lib/delta-rounding'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import type { SlPct, YtdPoint } from '@/lib/organic-social/social-listening/compare'
@@ -15,6 +17,8 @@ type K = 'pos' | 'neu' | 'neg'
 const KEYS: K[] = ['pos', 'neu', 'neg']
 const NAME: Record<K, string> = { pos: 'Positive', neu: 'Neutral', neg: 'Negative' }
 const SC = SENTIMENT_COLORS
+/** The dash glyph KpiCard draws before a zero change and as its no-prior placeholder (kpi-card.tsx:67, :73). */
+const DASH = '\u2014'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US')
@@ -31,28 +35,76 @@ function niceStep(raw: number): number {
 }
 
 /** A change line: the arrow from the number, the colour from whether up is good. `%` changes round as the tiles do
- *  (roundDelta: whole from 1%, one decimal under); points keep one decimal. Missing: "n/a". */
-export function Change({ v, unit, label, invert, neutral }: { v: number | null | undefined; unit: '%' | 'pts'; label: string; invert?: boolean; neutral?: boolean }) {
-  if (v === null || v === undefined) return <span className={s.flat}>n/a {label}</span>
-  const r = unit === '%' ? roundDelta(v) : Math.round(Math.abs(v) * 10) / 10 * Math.sign(v)
+ *  (roundDelta: whole from 1%, one decimal under); points keep one decimal. Missing: "n/a".
+ *  Three options let a kit tile read exactly as the shared KpiCard (components/charts/kpi-card.tsx), which every Organic
+ *  Social tile uses today; absent, the line is as before, so Social Listening is unchanged:
+ *  - `noPrior` replaces "n/a" (KpiCard's `comparisonExpected` placeholder is the dash glyph, kpi-card.tsx:73);
+ *  - `zeroDash` puts that dash before a zero change (kpi-card.tsx:67);
+ *  - `oneDecimal` shows a `%` change unrounded at one decimal, as KpiCard does without `wholeDelta` (kpi-card.tsx:41, :68),
+ *    so 12.34 reads 12.3 and 0.04 reads 0.0 with an up arrow. Points already keep one decimal. */
+export function Change({ v, unit, label, invert, neutral, noPrior, zeroDash, oneDecimal }: {
+  v: number | null | undefined; unit: '%' | 'pts'; label: string; invert?: boolean; neutral?: boolean
+  noPrior?: string; zeroDash?: boolean; oneDecimal?: boolean
+}) {
+  if (v === null || v === undefined) {
+    if (noPrior !== undefined) return <span className={s.flat}>{`${noPrior} ${label}`}</span>
+    return <span className={s.flat}>n/a {label}</span>
+  }
+  const exact = unit === '%' && oneDecimal === true
+  const r = exact ? v : unit === '%' ? roundDelta(v) : Math.round(Math.abs(v) * 10) / 10 * Math.sign(v)
   const size = Math.abs(r)
-  const shown = unit === '%' ? (size >= 1 ? size.toFixed(0) : size.toFixed(1)) : size.toFixed(1)
-  if (size === 0) return <span className={s.flat}>0{unit === '%' ? '%' : ' pts'} {label}</span>
+  const shown = exact ? size.toFixed(1) : unit === '%' ? (size >= 1 ? size.toFixed(0) : size.toFixed(1)) : size.toFixed(1)
+  if (size === 0) {
+    if (zeroDash || exact) return <span className={s.flat}>{`${zeroDash ? `${DASH} ` : ''}${exact ? '0.0' : '0'}${unit === '%' ? '%' : ' pts'} ${label}`}</span>
+    return <span className={s.flat}>0{unit === '%' ? '%' : ' pts'} {label}</span>
+  }
   const up = r > 0
   const good = neutral ? null : invert ? !up : up
   return <span className={good === null ? s.flat : good ? s.up : s.down}>{up ? '↑' : '↓'} {shown}{unit === '%' ? '%' : ' pts'} {label}</span>
 }
 
-export function Kpi({ title, value, delta, unit = '%', label, sub, invert, neutral }: {
+/** A tile. `tooltip` draws the shared hover hint beside the title, as KpiCard does (kpi-card.tsx:49); `noChange` drops
+ *  the change line, as KpiCard does when there is no delta and no comparison is expected; `noPrior`, `zeroDash` and
+ *  `oneDecimal` are passed to `Change`. All absent: the tile is as before. */
+export function Kpi({ title, value, delta, unit = '%', label, sub, invert, neutral, tooltip, noPrior, zeroDash, noChange, oneDecimal }: {
   title: string; value: string; delta: number | null | undefined; unit?: '%' | 'pts'; label: string; sub?: string; invert?: boolean; neutral?: boolean
+  tooltip?: string; noPrior?: string; zeroDash?: boolean; noChange?: boolean; oneDecimal?: boolean
 }) {
   return (
     <div className={s.kpi} data-export-block="">
-      <p className={s.t}>{title}</p>
+      {tooltip ? (
+        <div className={s.th}><p className={s.t}>{title}</p><HoverHint text={tooltip} /></div>
+      ) : (
+        <p className={s.t}>{title}</p>
+      )}
       <p className={s.v}>{value}</p>
-      <p className={s.d}><Change v={delta} unit={unit} label={label} invert={invert} neutral={neutral} /></p>
+      {!noChange && (
+        <p className={s.d}><Change v={delta} unit={unit} label={label} invert={invert} neutral={neutral} noPrior={noPrior} zeroDash={zeroDash} oneDecimal={oneDecimal} /></p>
+      )}
       {sub && <p className={s.s}>{sub}</p>}
     </div>
+  )
+}
+
+/** The kit tile for a part that draws KpiCard today: it takes KpiCard's props and reads exactly as KpiCard does, the
+ *  same title, hint, value, change line (arrow, precision, dash, label) and note, with the change coloured the same way.
+ *  `kpi-tile.test.tsx` proves that across every combination of KpiCard's props. So a new part version swaps KpiCard for
+ *  KpiTile and changes the look only. */
+export function KpiTile({ title, value, delta, invertDelta, prefix, suffix, tooltip, deltaLabel = 'vs prior period', comparisonExpected, subValue, wholeDelta }: ComponentProps<typeof KpiCard>) {
+  return (
+    <Kpi
+      title={title}
+      value={`${prefix ?? ''}${typeof value === 'number' ? value.toLocaleString() : value}${suffix ?? ''}`}
+      delta={delta}
+      label={deltaLabel}
+      invert={invertDelta}
+      tooltip={tooltip}
+      noPrior={DASH}
+      zeroDash
+      oneDecimal={!wholeDelta}
+      noChange={delta === undefined && !comparisonExpected}
+      sub={subValue}
+    />
   )
 }
 
