@@ -1,7 +1,7 @@
 # AEO Content Impact Redesign and Competitors on Overview: Code Review Record
 
-**Scope.** PR #482, branch `feat/aeo-content-tab-redesign`. Feature diff `dc633812..beb5d25d`
-(`git diff origin/dev...beb5d25d`): 30 commits, 72 files, +6,663 / -1,151, under
+**Scope.** PR #482, branch `feat/aeo-content-tab-redesign`. Feature diff `dc633812..a43dce0c`
+(`git diff origin/dev...a43dce0c`): 31 commits, 72 files, +6,676 / -1,151, under
 `lib/peec/`, `lib/ga4/`, `lib/content-calendar/`, `lib/report-sections/`, `app/actions/report-sections.ts`,
 `components/report-sections/peec-ai/` (Content Impact, the Overview parts, the template), the four
 report callers (`app/dashboard/…/reports/page.tsx`, both `app/portal/…` report pages,
@@ -53,7 +53,9 @@ distinct row**: a walk with N duplicates may be missing up to N rows. A second w
 owned-citation walks never had duplicates. So there is no retry: `walkReportingDuplicates` (`url-citations.ts:287`)
 de-duplicates, logs the count, and accepts the result. `complete: true` means the walk ran out of pages, not that it
 saw every row. Only a walk that runs out of pages (or fails) is incomplete, and an incomplete walk shows `--`, never
-"not cited". A missed row matters only if it was a prompt's sole citation of the client's site.
+"not cited". A missed row is one prompt × model × URL row. It can flip a prompt's status (when it was that prompt's
+only citation of the client's site), and it can lower a page's or a domain's prompt coverage by one prompt (when it
+was the only row linking that prompt to that page or domain). At 1–2 rows in 48,699 the effect is small.
 Concurrent requests for the same window share one walk (in-flight map,
 `coverage-projection.ts:222`), and a Peec 429 is retried once, honouring `Retry-After` capped at 10 s
 (`with429Retry`, `url-citations.ts:167`).
@@ -221,7 +223,7 @@ Sev: **●** correctness · **○** cleanup/convention. Status: CONFIRMED (prove
 | 18 | ○ | CONFIRMED | `parts/competitor-gaps.tsx:15`, `parts/competitor-visibility.tsx` | Card titles are constants, so a per-client label override can't rename these two parts (other parts honour `resolved.label`). |
 | 19 | ○ | CONFIRMED | `content-impact.tsx` | `ContentImpactReport` has no render test; the fetch chaining added by Finding 3's fix is covered only through its pure helpers. |
 | 20 | ● | CONFIRMED | `lib/content-calendar/pages.ts:95` | Finding 7 fixed the dates but the New/Optimized badge (and topic) still read every row: a Published New row plus an in-progress Optimized row showed "New · Optimized" with `--` under Last optimized; clients see it. **Fixed on the branch** (`4d298228`): badge and topic follow Published rows; Thomas's two cases are tests. |
-| 21 | ● | CONFIRMED | `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:90` | The one client-facing report caller had no test behind its `audience="client"` (flipping it passed all tests), and nothing tested that a non-admin internal user doesn't see the switch. **Fixed on the branch** (`1a47677d`): a source test pins the audience at every portal, export and dashboard caller (with call-site floors), and `canToggleClientVisibility` is tested. |
+| 21 | ● | CONFIRMED | `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:90` | The one client-facing report caller had no test behind its `audience="client"` (flipping it passed all tests), and nothing tested that a non-admin internal user doesn't see the switch. **Fixed on the branch** (`1a47677d`): a source test pins the audience at every portal, export and dashboard caller (with call-site floors), and `canToggleClientVisibility` is tested. A fourth test (`a43dce0c`, Thomas's round 2) fails if either report is rendered in any file outside those three folders. |
 | 22 | ○ | CONFIRMED | `lib/peec/url-citations.ts:287` | The duplicate-row retry ran a second full walk (~50 s cold) and never came back clean (0 of 5 measured). **Fixed on the branch** (`445cfa0f`, F-8): no retry; `complete` documented as "ran out of pages". |
 | 23 | ○ | CONFIRMED | `lib/peec/coverage-projection.ts` | The theme (tag) maps still come from one 2,000-row request, unwalked (as before), so `complete: true` covers the prompt walk only. Known issue in the spec. |
 
