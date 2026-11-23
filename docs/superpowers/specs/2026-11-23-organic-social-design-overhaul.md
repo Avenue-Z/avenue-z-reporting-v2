@@ -1,5 +1,7 @@
 # Organic Social design overhaul: design and decisions
 
+Author: Thomas Chang. "I", "me" and "my" in this doc mean me.
+
 Date: 2026-11-23. Status: design and decisions, for Paul's review before any work starts. The step-by-step plan is written
 only after section 8 is settled. No code, no data, no setting changes in this PR. Revised after Paul's review on #484
 (2026-11-23).
@@ -25,7 +27,7 @@ call (06:20). Today that is Overview, Influencer, Instagram, Facebook, LinkedIn,
 1. **The mockup.** `docs/social-listening/mock.template.html`, filled by `docs/social-listening/build.py` and published
    as the private artifact the team reviewed: claude.ai/artifact/Wa1yh2FgKLLjabYVXRRuw1. The live version was published
    2026-11-19 at 10:52 and is byte for byte the local build of that minute (checked 2026-11-23). It is the only version
-   the artifact serves. An earlier local build (10:46) exists in my private folder; which of the two was on screen during
+   the artifact serves. An earlier local build (10:46) exists in my private folder (outside the repo, on my machine); which of the two was on screen during
    the 11-19 call is not recorded, so the 10:52 version is the reference here. Its colours, font and card sizes were copied
    from the app itself (`app/globals.css`, `components/charts/kpi-card.tsx`, `components/charts/chart-card.tsx`, per
    `docs/social-listening/README.md` and the artifact's own comments), so it is the app's palette, treated differently.
@@ -91,7 +93,7 @@ a guess.
   small buttons. Other tabs: one large Insights panel at the top of the tab with solid cyan Edit, Approve and Delete
   buttons.
 - **Line charts.** Social Listening: shaded fill under the line, dashed grid, peak labelled, no inner frame. Other tabs:
-  Recharts `Line` with no fill (`components/charts/line-chart.tsx:404`), drawn inside its own bordered box (`:440`,
+  Recharts `Line` with no fill (`components/charts/line-chart.tsx:402`), drawn inside its own bordered box (`:440`,
   `:482`), so inside a chart card it is a box within a box (`components/charts/chart-card.tsx:19`).
 
 **Every part, under `components/report-sections/organic-social/`:**
@@ -223,7 +225,15 @@ Insights outline starter (`INSIGHTS_OUTLINE`, `lib/commentary/labels.ts:12-22`),
    like Social Listening. The boxes reach `monthlyCommentary` through the shared parts registry
    (`components/report-sections/shared/parts/registry.tsx:19-35`) and `CommentarySection`
    (`components/report-sections/commentary/index.tsx:15-22`), which other reports share. The cleanest route Paul names is
-   a `commentary@2` shared part, pinned per client through `sharedParts`, so every other report keeps `CommentaryPanel`.
+   new shared part versions pinned per client through `sharedParts`, so every other report keeps `CommentaryPanel`. Both
+   boxes need one: Recommendations is its own shared part (`recommendationsPart`,
+   `components/report-sections/shared/parts/registry.tsx:25-37`, registered at `:41`) that also renders
+   `CommentarySection`, so Phase 2 is `commentary@2` and `recommendations@2`; with only the first, Insights and
+   Recommendations on one tab would look different. Both opt-ins are read from the base `organic-social` config on every
+   tab (`configKey="organic-social"`, `components/report-sections/organic-social/index.tsx:80`, `:85`), so pinning them
+   changes Overview, every platform tab, Influencer and AEO Informed Social for that client at once (Social Listening
+   renders neither box, `index.tsx:53-61`). Phase 2 cannot be tried on one tab first. Read-only check (2026-11-23): all
+   six Organic Social clients pin `commentary@1` and `recommendations@1`, on staging and in production.
 4. **Phase 3, analysis inside each chart (a decision, not assumed; storage in section 5).** Jasmine wants analysis
    next to each chart instead of one panel at the top (19:05). That adds new boxes per chart, which changes how the team
    writes up a month: per the call Matty and Nick hear about it first (20:30), and Kyleah signs off (decision 3).
@@ -232,10 +242,20 @@ Insights outline starter (`INSIGHTS_OUTLINE`, `lib/commentary/labels.ts:12-22`),
 **Rollout, per client: part versions, not a new flag.** A client gets the new look by pinning the new part versions in
 its `report_section_config[<key>].versions` (`lib/report-sections/resolve.ts:44`), the mechanism Organic Social already
 uses. A separate `design` flag would add branches inside existing versions and break "a client not pinned to a new
-version renders byte for byte as today" (section 7). A setting is needed only for AEO Informed Social, which is not on the parts system. A frozen
+version renders byte for byte as today" (section 7). A setting is needed only for AEO Informed Social, which is not on the parts system. Its per-client setting
+`dash_social_config.aeoInformedSocial` is parsed strictly: an unknown key makes an enabled setting malformed
+(`lib/organic-social/aeo-tab/setting.ts:22`, `:39-40`), and a malformed setting hides the tab (`hasAeoInformedTab`,
+`:63-67`). So the parser change that accepts the new key reaches an environment before any client's config there gets
+the key. Read-only check (2026-11-23): Renaissance has the setting on staging; no production client has it yet. A frozen
 snapshot ignores `versions` (`resolve.ts:9-11`, `:44`); read-only check of production (2026-11-23): no client's Organic
 Social config is frozen. Order: APFM on staging, Jasmine's review, then the other Organic Social clients, Renaissance
 last.
+
+**When a client is pinned.** On staging, APFM is pinned to each new version as it lands, so Jasmine sees the work as it
+goes. In production, a client is pinned only once every part on its tabs (the list in decision (f)) has a new version,
+and then all at once, so no tab shows old and new parts side by side. The Phase 2 boxes are pinned together the same
+way. Each production config write is a guarded script I run on my written go: dry run first, a check that it touches
+only that client's keys, a rollback, and a read-back.
 
 **Renaissance.** In scope, as asked, but last, and only with a proof that every number and every request is unchanged
 (a read-only before and after capture of Renaissance's numbers on each tab, plus the value tests in section 7), plus
@@ -256,6 +276,8 @@ From `dev`, the work walks `staging` (Jasmine's QA) and `main` as usual.
   `components/charts/line-chart.tsx` only if decision (b) picks an additive prop, which must be default-off and leave
   every other user's tests and goldens unchanged; `components/report-sections/commentary/index.tsx` or
   `components/report-sections/shared/parts/registry.tsx` for Phase 2; `lib/commentary/views.ts` for Phase 3;
+  `lib/organic-social/aeo-tab/setting.ts` for the AEO Informed Social setting (section 6: it ships before any config
+  gets the key);
   `app/dashboard/[clientSlug]/reports/page.tsx` and `app/portal/[clientSlug]/reports/page.tsx` only if decision (e)
   extends "Preview as client" (`slPreview`, `slview=client`, `:145` and `:180`).
 - **Standard gates.** `npx tsc --noEmit`, `npm test`, `npm run lint` and `npm run check:rsc` (it scans test files too).
@@ -274,10 +296,18 @@ From `dev`, the work walks `staging` (Jasmine's QA) and `main` as usual.
 
 ## 8. Decisions before any work starts
 
-Each decision lists Paul's recommendation from his #484 review. Decisions 1, 3, 6 and 7 are product calls: they are
-settled from what Jasmine has already said where she has said it (the 11-19 call, cited in section 1), not by sending
-her new questions, and Kyleah is brought in before Phase 3 because the Organic Social boxes list "Jasmine / Kyleah" as
-owners (`lib/commentary/views.ts:94-126`).
+Each decision lists Paul's recommendation from his #484 review. Decisions 1, 3, 6 and 7 are product calls, and the
+Organic Social boxes list "Jasmine / Kyleah" as owners (`lib/commentary/views.ts:94-126`). Each one either cites what
+Jasmine has already said or is marked for Jasmine and Kyleah:
+
+| # | Covered by what Jasmine said? | Next |
+|---|---|---|
+| 1 | Yes: "Asking that we do the same for performance" (call, 07:46) and "when are u going to make the performance reports look this elevated" (Slack, 2026-11-20) | Settled: go now |
+| 3 | Partly: "those analysis boxes, like throughout would be more helpful than the insights in the top" (19:05) and "Guinea pig us first" (21:56). Kyleah was not on the call | Kyleah signs off before Phase 3 |
+| 6 | Partly: the same 19:05 line covers Insights at the top. Recommendations was not discussed | Put to Jasmine and Kyleah |
+| 7 | No: carry-over was not discussed | Put to Jasmine and Kyleah |
+
+6 and 7, and Kyleah's sign-off for 3, go in one short message, sent by me once its exact text is approved.
 
 1. **Timing versus the design team.** Paul said on the call the dashboards get design passes from Serge and the design
    team when they become a Q1 focus (06:58). *Paul's recommendation:* go now on Phases 0 to 2; the look reuses our own
