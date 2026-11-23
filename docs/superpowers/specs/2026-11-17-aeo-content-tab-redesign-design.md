@@ -130,7 +130,7 @@ Decisions without a tag were made by Paul. *(design call)* = the author's call, 
 | D-17 *(design call)* | Merged-table cells are null ("--") when their source is missing or failed (§B's rule, not §F's 0%). Engagement rate is session-weighted across a path's trailing-slash variants (§B takes the first variant, §F the last; neither is right). Pages whose engagement rate moves because of this are listed in the PR. R-9. | §B and §F compute some columns differently today, so "lifted unchanged" can't hold for both. Null is honest; 0% reads as "no coverage". | Keeping both rules per scope. |
 | D-18 *(design call)* | Calendar rows: a bare path (`/blog/x`) is resolved against the client's primary owned domain before linking. Rows are de-duplicated on `urlJoinKey` into one page with a badge of **New**, **Optimized**, or **New · Optimized** when the calendar lists both; its dates follow D-19. Time-to-first uses the New row's publish date. R-13. | Bare paths would link into the reporting app; duplicates would double-count in medians and table. | Linking raw values; no dedupe. |
 | D-20 | Complete prompt coverage is cached as a ~0.86 MB **projection** (`getCoverageProjection`), not the full 5.75 MB aggregate; `getDomainCoverage` is untouched. F-7. | The full aggregate exceeds Next's 2 MB data-cache limit, which would silently disable caching (FB-069). PR Influence needs coverage for arbitrary domains, so the shared fetcher can't be projected. | Caching the full aggregate; storing it outside Next's cache (new storage); projecting `getDomainCoverage` (breaks PR Influence). |
-| D-21 | A coverage walk with duplicate rows is retried once; persistent duplicates are accepted and logged, not treated as incomplete. Only a walk that exhausts `maxPages` or fails is incomplete. F-7. | Every measured run had 2–3 duplicates out of ~48k rows, so "any duplicate = incomplete" would show prompt gaps' error card every time. A shifted row only matters if it was a prompt's sole owned citation. | Treating any duplicate as incomplete (block always errors). |
+| D-21 | A walk with duplicate rows is de-duplicated, logged with the count, and accepted — **no retry** (amended by F-8). `complete: true` means the walk ran out of pages, not that it saw every row: a walk with N duplicates may be missing up to N rows. Only a walk that exhausts `maxPages` or fails is incomplete. F-7, F-8. | Measured 2026-11-23 (Renaissance, 6 walks each): the prompt × model walk had 1–2 duplicates every time and a second walk came back clean 0 of 5 times, while rows + duplicates stayed at 48,699, so each duplicate displaces a distinct row. The owned-citation walks never had duplicates. A retry doubled the cold cost (~50 s) and bought nothing. A missed row only matters if it was a prompt's sole owned citation. | Retrying once (the original D-21; dropped by F-8). Treating any duplicate as incomplete (block always errors). |
 | D-19 | The table's "Last updated" column becomes **"Last optimized"**: the latest Publish Date among the page's **Optimized** calendar rows. **"Published"** is the earliest Publish Date among its other rows (New or unclassified). Either is "--" when the page has no such row. No new sheet column. F-2. | Danielle, 2026-11-19: the calendar has no last-updated column; Publish Date (column F) *"is typically the last date that we updated or pushed anything live for that page or article."* So an Optimized row's Publish Date is its optimization date. | Dropping the column (loses "when did we last touch this page"); asking the content team for a new column. |
 
 ## Design
@@ -157,8 +157,8 @@ These land first; the blocks below are wrong without them.
   measured): owned prompt ids (overall and per engine), per-URL prompt ids for owned pages and for the gap table's pages,
   per-domain prompt ids for owned and Competitor-classified domains, the top 3 other sites per prompt, and the tag maps as
   today. Content Impact and the Overview competitor parts read the projection. `getDomainCoverage` is left unchanged because
-  PR Influence reads it for arbitrary domains (Known issues). Every run shows 2–3 duplicate rows (Peec reorders mid-walk):
-  the walk is retried once and, if duplicates persist, accepted and logged (D-21). Only a walk that runs out of pages, or
+  PR Influence reads it for arbitrary domains (Known issues). Every run shows 1–2 duplicate rows (Peec reorders mid-walk):
+  the de-duplicated walk is accepted and logged, with no retry (D-21, F-8). Only a walk that runs out of pages, or
   fails, renders prompt gaps' error card.
   **This changes client numbers:** the Prompt Coverage KPI, per-URL prompt coverage and H1's coverage were computed on
   truncated data and will rise (97 of 100 tracked prompts cite Renaissance's own site in the complete data). The PR lists
@@ -319,6 +319,11 @@ functions so the (disabled) synopsis doesn't break.
 
 ## Known issues carried forward (follow-ups)
 
+- **Theme (tag) coverage is still one 2,000-row request.** The projection's tag maps come from the same single
+  `tag_id`-dimensioned request `getDomainCoverage` makes, so `complete: true` on the projection means the prompt walk
+  finished, not that theme coverage is whole (Thomas, review of #482). Walk it like the prompt walk if theme coverage
+  becomes client-facing.
+
 - **PR Influence still reads truncated coverage.** `getDomainCoverage` keeps its single 10,000-row prompt × model request
   (D-20), so PR Influence's prompt coverage for placement domains is computed on part of the data for large accounts.
   File as its own issue: it needs its own projection or a narrower fetch.
@@ -338,7 +343,9 @@ points (R-18): `agentData.byPath[k].byType` already splits training vs indexing 
 ## Rollout
 
 Branch off `dev`, feature PR, review record per CLAUDE.md, then dev → staging. On staging: append the two parts to the
-staging `peec-ai` `section_templates` row, check Renaissance's Content Impact and Overview, then Tina and Danielle QA. Give
+staging `peec-ai` `section_templates` row, check Renaissance's Content Impact and Overview — including, on the client
+Overview, that no prompt text appears anywhere in the HTML or RSC payload (the check already run on Content Impact) —
+then Tina and Danielle QA. Give
 them first: the before/after numbers (Prompt Coverage moves with the coverage fix; no client note needed, F-4), and the count
 of "--" cells per merged-table column for Renaissance, so Danielle can decide whether any mostly-blank column should go (F-5).
 
@@ -366,3 +373,4 @@ Source: Tina Fleming's inline (TF) notes and Danielle Lopez's comments on the de
 | F-5 | Danielle, item 9: agrees with "--", but if the table is still mostly blank, a column may be dropped; wants to see it in practice. | Blank counts per column delivered before staging QA; the decision is hers at QA. |
 | F-6 | Danielle: one-position Declining threshold is fine. | Q-2 closed. |
 | F-7 | Paul, 2026-11-20, after Task 1's measurement: cache only the needed pieces; accept the rare shifted row. | D-20, D-21. Plan Task 2 rewritten. |
+| F-8 | Thomas (review of #482) asked how often the retry helps; measured 0 of 5. Paul, 2026-11-23: drop it. | D-21 amended: no retry; `complete` documented as "ran out of pages". |
