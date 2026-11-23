@@ -6,6 +6,7 @@ vi.mock('@/lib/cache', () => ({ cached: (_v: string, _n: string, fn: unknown) =>
 const ga4 = vi.hoisted(() => ({ run: vi.fn() }))
 vi.mock('./client', () => ({ ga4QueryUncached: ga4.run }))
 
+import { toCalendarPages } from '@/lib/content-calendar/pages'
 import {
   timingUniverse, timingAnchors, firstVisitFilters, firstVisitsFromRows, getFirstVisitDates,
   summariseTiming, timingStatus, TIMING_EMPTY_COPY, anchorKey,
@@ -166,5 +167,18 @@ describe('timingStatus + copy (C1f)', () => {
       'no-new-content': 'No new published content to measure yet.',
       unavailable: "Visit timing couldn't be loaded.",
     })
+  })
+})
+
+describe('timingUniverse over calendar rows (review #482)', () => {
+  const calRow = (over: Record<string, unknown>) => ({
+    topic: 'T', url: 'https://x.com/a', contentType: 'Blog', status: 'Published', contentAction: 'new',
+    publishDate: '2026-02-01', updateDate: null, matchStatus: 'unknown', aiCitations: null, aiBotVisits: null, ...over,
+  }) as never
+  test('Published New + unpublished Optimized stays in the universe; Planned New + Published Optimized is out', () => {
+    const inU = toCalendarPages([calRow({}), calRow({ contentAction: 'optimized', status: 'In progress', publishDate: '2026-09-01' })], 'x.com')
+    expect(timingUniverse(inU)).toHaveLength(1)
+    const out = toCalendarPages([calRow({ status: 'Planned' }), calRow({ contentAction: 'optimized', publishDate: '2026-05-01' })], 'x.com')
+    expect(timingUniverse(out)).toHaveLength(0)
   })
 })

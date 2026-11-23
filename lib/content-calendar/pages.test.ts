@@ -149,3 +149,60 @@ describe('toCalendarPages dates come from Published rows only (M1)', () => {
     expect(p.lastOptimizedDate).toBeNull()
   })
 })
+
+describe('toCalendarPages badge and topic follow Published rows (review #482)', () => {
+  it('Published New + In progress Optimized: badge new, no optimized date', () => {
+    const [p] = toCalendarPages(
+      [
+        row({ contentAction: 'new', publishDate: '2026-02-01', status: 'Published' }),
+        row({ contentAction: 'optimized', publishDate: '2026-09-01', status: 'In progress' }),
+      ],
+      DOMAIN,
+    )
+    expect(p.badge).toBe('new')
+    expect(p.publishDate).toBe('2026-02-01')
+    expect(p.lastOptimizedDate).toBeNull()
+  })
+  it('Planned New + Published Optimized: badge optimized, no Published date', () => {
+    const [p] = toCalendarPages(
+      [
+        row({ contentAction: 'new', publishDate: '2026-01-01', status: 'Planned' }),
+        row({ contentAction: 'optimized', publishDate: '2026-05-01', status: 'Published' }),
+      ],
+      DOMAIN,
+    )
+    expect(p.badge).toBe('optimized')
+    expect(p.publishDate).toBeNull()
+    expect(p.lastOptimizedDate).toBe('2026-05-01')
+  })
+  it('both Published: new-optimized', () => {
+    const [p] = toCalendarPages(
+      [
+        row({ contentAction: 'new', publishDate: '2026-02-01' }),
+        row({ contentAction: 'optimized', publishDate: '2026-05-01' }),
+      ],
+      DOMAIN,
+    )
+    expect(p.badge).toBe('new-optimized')
+  })
+  it('topic/contentType come from the latest Published row, not a later unpublished one', () => {
+    const [p] = toCalendarPages(
+      [
+        row({ topic: 'Live', contentType: 'Blog', publishDate: '2026-02-01', status: 'Published' }),
+        row({ topic: 'Draft', contentType: 'Guide', publishDate: '2026-09-01', status: 'Planned' }),
+      ],
+      DOMAIN,
+    )
+    expect(p).toMatchObject({ topic: 'Live', contentType: 'Blog' })
+  })
+  it('with no Published row, topic falls back to the latest row of any status', () => {
+    const [p] = toCalendarPages(
+      [
+        row({ topic: 'A', publishDate: '2026-01-01', status: 'Planned' }),
+        row({ topic: 'B', publishDate: '2026-03-01', status: 'In progress' }),
+      ],
+      DOMAIN,
+    )
+    expect(p).toMatchObject({ topic: 'B', published: false })
+  })
+})

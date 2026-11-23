@@ -73,23 +73,26 @@ export function toCalendarPages(
   }
 
   return [...groups.entries()].map(([urlKey, { url, rows: rs }]) => {
+    // M1: only a Published row's date is a publish or optimize date; a planned row's isn't.
+    const live = rs.filter((r) => isPublished(r.status))
+    // Descriptors (and the badge) follow the Published rows when there are any, so the
+    // badge says what the dates say; an unpublished page falls back to every row.
+    const basis = live.length ? live : rs
     // Latest Publish Date wins; ties (and undated rows) go to the later row in
     // original order, so iterate in order and replace on >=.
-    let latestRow = rs[0]
-    for (const r of rs) {
+    let latestRow = basis[0]
+    for (const r of basis) {
       if (!latestRow.publishDate || (r.publishDate ?? '') >= latestRow.publishDate) {
         latestRow = r
       }
     }
-    // M1: only a Published row's date is a publish or optimize date; a planned row's isn't.
-    const live = rs.filter((r) => isPublished(r.status))
     return {
       urlKey,
       url,
       topic: latestRow.topic,
       contentType: latestRow.contentType,
       published: live.length > 0,
-      badge: badgeFor(rs),
+      badge: badgeFor(live),
       // D-19: Publish Date is the only calendar date; updateDate is not used.
       publishDate: earliest(
         live.filter((r) => r.contentAction !== 'optimized').map((r) => r.publishDate),
