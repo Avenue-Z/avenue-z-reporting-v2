@@ -9,8 +9,9 @@ Author: Thomas Chang. "I", "me" and "my" in this doc mean me.
 their Insights and Recommendations boxes the same look (Phase 2, Task 11), with every number and every word unchanged
 and no client seeing it until they are pinned.
 
-**Architecture:** Each task is a new version of one part (for example `top-content@4`), added beside the old version in
-`components/report-sections/organic-social/parts/registry.ts`, with the old version's file left untouched
+**Architecture:** Each task is a new version of one part (for example `top-content@4`), added beside the old version
+(registered in its PR's own `parts/kit/` file, which `components/report-sections/organic-social/parts/registry.ts`
+merges in), with the old version's file left untouched
 (`components/report-sections/peec-ai/MAINTAINING.md`). A new version draws with the design kit
 (`components/report-sections/organic-social/design/`, from Phase 0) and the shared line chart's `shaded` and `frameless`
 options. A client gets it only when its `report_section_config[<key>].versions` pins it (`lib/report-sections/resolve.ts:44`).
@@ -22,26 +23,57 @@ decisions 2, 5, (b), (d) and (f) as recommended there and in the #484 decisions 
 
 ## Global Constraints
 
-- Every task is its own feature branch off `dev` and its own PR. No PR is built on another open PR (no stacking): a task
-  starts only once everything it needs has merged to `dev`, then branches from the updated `dev`.
-- **The order** (a task waits until every task it needs has merged):
-  - Already merged to `dev` (2026-11-23): #486 (the kit, every task needs it), #488 (the line chart options, Tasks 3,
-    4 and 6) and #489 (the AEO `design` key, Task 10).
-  - Task 1 (the parity helper) before Tasks 2 to 11: they all use it.
-  - Task 2 (kit tiles) before Tasks 5, 8 and 10: their tiles need its options. Task 10's tiles use the tooltip and the
-    "vs prior period" change line (`aeo-informed/tiles.tsx:31-36`).
-  - Task 3 before Task 4: both draw through `ChannelTrendChart` (`trends.tsx:46`), and Task 3 adds its options.
-  - Task 7 (the kit post card) before Task 8: the influencer cards are built on `post-card.tsx`.
-  - Tasks 6, 9 and 11 need only Task 1 (and #488 for Task 6). Task 11 touches no Organic Social part, so it can run
-    alongside the others.
+- **Two review rounds, eight PRs.** Every PR is its own feature branch off `dev`. No PR is built on another open PR (no
+  stacking): a PR starts only once everything it needs has merged to `dev`, then branches from the updated `dev`.
+  Already merged (2026-11-23): #486 (the kit), #488 (the line chart options) and #489 (the AEO `design` key).
+  - **Round 1, one PR, the foundation:** Task 1 (the parity helper), the kit tile options from Task 2 (`tooltip`,
+    `noPrior`, `zeroDash`, `noChange`, used by four round 2 PRs), and the registration slots below. Nothing on screen
+    changes.
+  - **Round 2, seven PRs in parallel**, once round 1 has merged:
+
+    | PR | Tasks | Covers |
+    |---|---|---|
+    | Tiles | 2 (the versions), 5 | `platform-headlines@4`, `@5`, `@6`; `engagement-breakdown@2` |
+    | Trend graphs | 3, 4 | `follower-graph@3`; `engagement-trend@3`, `@4`; `ChannelTrendChart`'s two props |
+    | Year to date | 6 | `ytd-review@5` and the kit's count column chart |
+    | Posts | 7, 8 | `top-content@4`, `@5`; `influencer-posts@2` |
+    | KPI Check-In | 9 | `kpi-check-in@2` |
+    | AEO Informed Social | 10 | the tab with `design: "kit"` |
+    | Boxes | 11 | `CommentaryPanel`'s `look`, `commentary@2`, `recommendations@2` |
+
+    Tasks that depended on each other (3 and 4, 7 and 8, 2 and 5) now share a PR, so no round 2 PR waits on another.
+- **Zero-conflict registration (round 1 sets it up).** Today every new version would add lines to the same two shared
+  files: the registry, whose entries sit on neighbouring lines (`parts/registry.ts:18-37`), and the export layout, one
+  object (`parts/export-layout.ts:5-22`). Seven PRs editing them would conflict as each one merged. So round 1 adds one
+  pair of files per parts PR under `parts/kit/`: `tiles`, `trends`, `ytd`, `posts`, `kpi-check-in`, each
+  `<name>.parts.ts` (exporting an empty `PartRegistry`) and `<name>.layout.ts` (exporting an empty layout map).
+  - `registry.ts` adds them to its `mergeRegistries(...)` call. `mergeRegistries` merges versions per part id
+    (`lib/report-sections/registry.ts:4-11`), so a kit file can add `top-content@4` beside the existing versions.
+  - `export-layout.ts` spreads each layout map into `EXPORT_LAYOUT`. The layout files hold plain values only.
+    `export-layout.ts` is imported only by `organic-social/index.tsx:12`, and no part file imports it, so no import loop
+    can form.
+  - A round 2 PR then edits only its own two `parts/kit/` files plus its own new files. The Tiles PR also changes the
+    one version-list line in `parts/outline-parts.test.tsx:53`. The AEO and Boxes PRs touch no registry. So no two round
+    2 PRs share a file, and they merge in any order. Before round 2 is sent, every pair is proven to merge cleanly into
+    `dev`.
+  - **Trial (2026-11-23, throwaway, deleted):** with two empty slots wired into `registry.ts` and `export-layout.ts`
+    on `dev`, all 304 parts tests passed. Two branches, each filling a different slot with a version, merged cleanly in
+    both orders, and the export layout test passed with both in. The only test that failed was the version-list line,
+    `outline-parts.test.tsx:53`, which is why the Tiles PR, and only it, changes that line.
+  - Styles: each round 2 PR puts its new styles in its own CSS module beside its files. The kit's colours are CSS
+    variables on `.root` and inherit through the page, so no PR edits `design/kit.module.css` after round 1.
+- **Finished before Paul sees it.** A round is sent to Paul in one Slack message, only when every PR in it has passing
+  tests and gates, the local look (below) with screenshots in the PR, my self-review and label, green CI, and the
+  merge-clean proof.
+- **Review records.** CLAUDE.md asks for one review record per feature. To keep Paul's load sane I'm proposing one
+  combined record per round, with a section per PR. That's Paul's call; until he agrees, it's one per PR.
 - A new version only, and every new version is `published: false`, like the outline versions today
   (`parts/outline-data.tsx`, `parts/ytd-review-sheet.tsx`). An unpublished version can't be frozen into a client's
   snapshot or promoted into the shared template (`lib/report-sections/registry.ts:30`, `lib/report-sections/validate.ts:11`),
   so the template every other client and Renaissance read can never pick it up by accident.
-- The old version's file and golden stay untouched. Two shared tests change by one line or entry per
-  new version, as they must: the `platform-headlines` version list (`parts/outline-parts.test.tsx:53`) and the export
-  layout, where every registered `id@version` needs an entry, `own` or `block` (`parts/export-layout.ts:5-22`,
-  checked by `parts/export-layout.test.ts:10`). Each task names both.
+- The old version's file and golden stay untouched. Every new `id@version` still needs an export layout entry, `own` or
+  `block` (checked by `parts/export-layout.test.ts:10`), now in its PR's own `parts/kit/<name>.layout.ts`. Each task
+  names its choice.
 - Numbers unchanged: same getters, same requests, same locked months, same strings, proven by a value-equality test
   (Task 1) for every new version. Same requests also means the request-shape pins stay untouched
   (`lib/organic-social/lock-key-pin.test.ts`, `lib/organic-social/aeo-tab/aeo-lock-key-pin.test.ts`): a new version that
@@ -60,9 +92,9 @@ decisions 2, 5, (b), (d) and (f) as recommended there and in the #484 decisions 
 
 ## Pinning (spec section 6)
 
-- **Staging:** APFM is pinned to each new version as its PR lands, by a guarded script on my go, so we can check it on
-  staging as it goes. Jasmine is asked to review once every part and both boxes are pinned for APFM, so she sees the
-  finished tab, not a half-done one.
+- **Staging:** once round 2 has merged, `dev` is promoted to `staging` once, and APFM is pinned to every new version
+  and both boxes in one guarded write on my go. Jasmine is then asked to review the finished tab once, not piece by
+  piece.
 - **Production:** a client is pinned only once every part on the tabs it shows has a new version **and** Task 11's two
   boxes are done, all at once, so no tab is half old and half new (new cards under an old Insights box would be). Read-only check (2026-11-23): Akara Living, Joy of Life, PIMCO and Piper Aircraft hide
   Overview, so this batch covers every part on their tabs. APFM shows Overview, so Overview's three template parts are in
@@ -127,9 +159,10 @@ view gave only "Couldn't load this section.", which a plain equality check would
 
 ### Task 2: Kit tile options, and `platform-headlines@4`, `@5` and `@6`
 
-**Files:** Modify `design/charts.tsx` (`Kpi`, `Change`) and `design/kit.module.css`; create `parts/outline-data-kit.tsx`
-and `parts/platform-headlines-kit.tsx`; register the three versions in `parts/registry.ts`; update
-`parts/outline-parts.test.tsx:53` and `parts/export-layout.ts` (all three `own`, like `@1` to `@3`); tests
+**Files:** the kit tile options in `design/charts.tsx` (`Kpi`, `Change`) ship in round 1. This PR creates
+`parts/outline-data-kit.tsx` and `parts/platform-headlines-kit.tsx`, registers the three versions in
+`parts/kit/tiles.parts.ts` with their layouts in `parts/kit/tiles.layout.ts` (all three `own`, like `@1` to `@3`),
+updates `parts/outline-parts.test.tsx:53`, and adds tests
 `parts/outline-data-kit.test.tsx`, `parts/platform-headlines-kit.test.tsx`.
 
 **Interfaces:**
@@ -159,8 +192,8 @@ the shared `LineChart` without them (`:229`, `:277`) and is shared with `@1`, `@
 `frameless`, passed through to `LineChart`. Not a fork. Every existing caller passes neither, and
 `v1-render.golden.test.tsx` and the trends tests must stay byte-identical.
 
-**Files:** `trends.tsx` (the two props), `parts/follower-graph.tsx` (the new version beside `@2`), `parts/registry.ts`,
-`parts/export-layout.ts` (`follower-graph@3`: `own`), tests.
+**Files:** `trends.tsx` (the two props), `parts/follower-graph.tsx` (the new version beside `@2`),
+`parts/kit/trends.parts.ts` and `parts/kit/trends.layout.ts` (`follower-graph@3`: `own`), tests.
 
 - [ ] Failing tests: `expectSameValues` against `@2`, written as Task 1 says, with annotations and notes on the fixture;
   the chart is shaded and frameless; the client view has no note controls; `ChannelTrendChart` without the props renders
