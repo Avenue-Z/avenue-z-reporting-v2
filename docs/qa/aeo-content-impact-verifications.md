@@ -32,7 +32,7 @@ No mapping fix needed. 3 URLs appear on two tabs (dental-insurance tabs 0,3; emp
 
 **STOP:** the aggregated coverage JSON (5.75 MB) exceeds the 1.5 MB threshold and the 2 MB Next data-cache limit. The Task 2 cache plan assumes it fits; escalate before Task 2. The owned-host subset (66 KB) fits comfortably, so filtering to owned hosts before caching is a candidate. Also note 3 duplicate keys: completeness of an uncached walk is not guaranteed by the duplicate check.
 
-Note: duplicate keys vary run to run (2-3 across Task 1's runs, 1 in Task 2's), so they are a reorder signal, not a fixed count. `getCoverageProjection` de-duplicates, retries the walk once, and accepts a persistent remainder with a warning (D-21).
+Note: duplicate keys vary run to run (2-3 across Task 1's runs, 1 in Task 2's), so they are a reorder signal, not a fixed count. `getCoverageProjection` walks once, de-duplicates, and accepts the result with a warning (D-21 as amended by F-8: a measured retry came back clean 0 of 5 times, and each duplicate displaces a distinct row, so up to that many rows may be missing).
 
 ## Projection sizes (bytes; 30-day prompt x model walk)
 Full walk: 12.9 s (5 pages). Tracked prompts (`/prompts` totalCount): 100.
