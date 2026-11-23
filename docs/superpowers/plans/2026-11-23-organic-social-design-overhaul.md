@@ -22,44 +22,90 @@ call (06:20). Today that is Overview, Influencer, Instagram, Facebook, LinkedIn,
 ## 2. Where the look comes from (verified 2026-11-23)
 
 1. **The mockup.** `docs/social-listening/mock.template.html`, filled by `docs/social-listening/build.py` and published
-   as the private artifact the team reviewed (claude.ai/artifact/Wa1yh2FgKLLjabYVXRRuw1, version 1795103557, the latest).
-   Its colours, font and card sizes were copied from the app itself (`app/globals.css`,
-   `components/charts/kpi-card.tsx`, `components/charts/chart-card.tsx`), so it is the app's own palette, treated
-   differently.
-2. **The port into the app (PR #468).** Scoped to the Social Listening tab only:
-   - `components/report-sections/organic-social/social-listening/sl.module.css`: the mockup's page rules, as a CSS module,
-     so nothing can reach another page.
-   - `.../social-listening/artifact-charts.tsx`: the mockup's charts as plain SVG (line with a shaded fill, donut and
-     legend, stacked bars, year-to-date columns, word cloud). Same markup on screen and in the PDF.
-   - `.../social-listening/cards.tsx`: the section, card and staff-note frames. A card's analysis box sits inside the card,
-     under its chart.
-   - `.../social-listening/analysis.tsx` (`SlAnalysis`): the analysis box. A drop-in for `CommentaryPanel` (same props,
-     same commentary actions), passed through the `Panel` prop of `monthlyCommentary`
-     (`components/report-sections/commentary/monthly.tsx:21-26`). Drafts, approval and history work exactly as on every
-     other box.
-3. **Staging matches the artifact.** I compared the artifact's stylesheet to `sl.module.css` rule by rule: 105 rules are
-   identical. 12 differ in small, deliberate ways: real buttons get a pointer cursor, spacing the mockup set on two rules is
-   set by the page instead, the word cloud uses the mockup's wide variant, fonts inherit the same font instead of naming
-   it, the analysis button uses `!important` to beat the shared button style, wide tables get a thin scrollbar, post notes
-   keep their line breaks and post links are underlined. The rest of the artifact's rules are its fake sidebar and header, which the app draws itself. Clicked through the APFM
-   Social Listening tab on staging the same day: cards, shaded line chart, "+ Add analysis" inside each card, all as in
-   the artifact.
+   as the private artifact the team reviewed: claude.ai/artifact/Wa1yh2FgKLLjabYVXRRuw1. The live version was published
+   2026-11-19 at 10:52 and is byte for byte the local build of that minute (checked 2026-11-23). It is the only version
+   the artifact serves. An earlier local build (10:46) exists in my private folder; which of the two was on screen during
+   the 11-19 call is not recorded, so the 10:52 version is the reference here. Its colours, font and card sizes were copied
+   from the app itself (`app/globals.css`, `components/charts/kpi-card.tsx`, `components/charts/chart-card.tsx`, per
+   `docs/social-listening/README.md` and the artifact's own comments), so it is the app's palette, treated differently.
+2. **The port into the app (PR #468), scoped to the Social Listening tab only.** All under
+   `components/report-sections/organic-social/social-listening/`:
+   - `sl.module.css`: the mockup's page rules as a CSS module, so nothing can reach another page.
+   - `artifact-charts.tsx`: the mockup's chart functions as server components.
+   - `cards.tsx`: the section, card and staff-note frames. A card's analysis box sits inside the card, under its chart.
+   - `analysis.tsx` (`SlAnalysis`): the analysis box, a drop-in for `CommentaryPanel` (same props, same commentary
+     actions), passed through the `Panel` prop of `monthlyCommentary` (`components/report-sections/commentary/monthly.tsx:21-26`).
+   - `posts.tsx`, `pills.tsx`, `trends.tsx`, `upload.tsx`: the posts, topic pills and preview toggle, theme trends and
+     upload slot.
+3. **Staging matches the artifact, element by element (checked 2026-11-23).**
+
+   **Styles.** The artifact's stylesheet against `sl.module.css`, rule by rule: 105 rules identical. 12 differ in small,
+   deliberate ways: real buttons get a pointer cursor, two rules leave their top spacing to the page, the word cloud uses
+   the mockup's wide variant, form fonts inherit the same font instead of naming it, the analysis button uses `!important`
+   to beat the shared button style, wide tables get a thin scrollbar, post notes keep their line breaks and post links
+   are underlined. The artifact's other rules draw its stand-in sidebar, header and month picker (the app draws its own),
+   or were renamed for the module (`.chip.Positive` is `.chipPositive`, `.tbtn.primary` is `.primary`, the preview rules
+   under `body.preview` are the client view's `.commClient`).
+
+   **Charts.** Every chart function in the artifact has a counterpart in `artifact-charts.tsx`, and every number in each
+   one (sizes, padding, opacities, the gradient stops) is the same. The only difference is the year, written as "2026" in
+   the mockup and taken from the data on staging.
+
+   | Artifact function | Staging | What it draws |
+   |---|---|---|
+   | `kpi`, `change` | `Kpi`, `Change` | Data tile with its change line |
+   | `lineChart` | `LineChart` | Line with the shaded fill (gradient 0.35 to 0), dashed grid, peak label |
+   | `donut`, `legend` | `Donut`, `Legend` | Sentiment donut and its legend |
+   | `hbars` (with its colour key) | `HBars`, `Key` | Horizontal stacked bars (sentiment by media type) and the colour key also used under the year-to-date and daily charts |
+   | `ytdColumns` | `YtdColumns` | Year-to-date stacked columns |
+   | `pointLines` | `PointLines` | Year-to-date lines with points |
+   | `dailyStack` | `DailyStack` | Sentiment over time, stacked by day |
+   | `cloud` | `Cloud` | Keyword cloud |
+   | `renderComm`, `openEditor` | `SlAnalysis` (`analysis.tsx`) | Analysis box: tinted card, small label, dashed "+ Add analysis", plain text editor |
+   | `postCard`, `postForm`, `renderGroup` | `posts.tsx` | Post cards with screenshots, the add-post form, grouped scrolling rows |
+   | preview toggle (`body.preview`) | `PreviewToggle` (`pills.tsx`) | "Preview as client" |
+
+   **Sections and cards.** All 31 headings in the artifact (brand and industry) are on staging in the same order. Three
+   differences, all deliberate: "Without APFM's own channels" is "Without brand-owned channels" (no client name in code);
+   two titles are built from the data ("Sentiment, January to October" from the year-to-date span, "Top 5 authors" from the
+   number of authors); and staging adds the Keyword appendix section Jasmine asked for on the call (08:22).
+
+   **On screen.** Clicked through the APFM Social Listening tab on staging: the cards, the shaded line chart and
+   "+ Add analysis" inside each card, as in the artifact.
 4. **One gap, and it is app-wide.** The artifact has a soft teal and purple glow behind the page. The app means to have
    the same glow (`.bg-glow`, `app/globals.css:234-240`, on `<body>` in `app/layout.tsx:31`), but that rule is invalid
    CSS (no commas between the layers, and the colour is listed first instead of last), so browsers drop it. On staging
    the body's computed `background-image` is `none` on every page. Fixing it changes every page of every report, so it is
    a decision of its own (section 7).
 
-## 3. What differs on the other Organic Social tabs today
+## 3. What the other Organic Social tabs draw today, and the artifact element each would take
 
-Seen on staging (APFM Instagram, 2026-11-23) and confirmed in code:
+Seen on staging (APFM Instagram, 2026-11-23) and read from the code. The right-hand column is a proposal: the artifact
+element closest to each part. Where the artifact has nothing like the part, it says so; those need a design decision, not
+a guess.
 
-| Piece | Social Listening (the look we want) | Other Organic Social tabs today |
+**The two differences you can see at a glance:**
+
+- **Analysis.** Social Listening: a small, softly tinted box inside each chart card, dashed "+ Add analysis" when empty,
+  small buttons. Other tabs: one large Insights panel at the top of the tab with solid cyan Edit, Approve and Delete
+  buttons.
+- **Line charts.** Social Listening: shaded fill under the line, dashed grid, peak labelled, no inner frame. Other tabs:
+  Recharts `Line` with no fill (`components/charts/line-chart.tsx:404`), drawn inside its own bordered box (`:440`,
+  `:482`), so inside a chart card it is a box within a box (`components/charts/chart-card.tsx:19`).
+
+**Every part, under `components/report-sections/organic-social/`:**
+
+| Part | Draws through today | Closest artifact element |
 |---|---|---|
-| Analysis | A small, softly tinted box inside each chart card, dashed "+ Add analysis" when empty, small Edit and Approve buttons | One large Insights panel at the top of the tab, solid cyan Edit, Approve and Delete buttons |
-| Line charts | SVG, shaded fill under the line, dashed grid, the peak labelled, no inner frame | Recharts `Line` with no fill (`components/charts/line-chart.tsx:404`), and the chart draws its own bordered box (`:440`, `:482`), so inside a chart card it is a box within a box (`components/charts/chart-card.tsx:19`) |
-| Cards, tiles, section headings | The mockup's sizes and spacing | Close already (the mockup copied them), but drawn by the shared chart kit |
-| Page background | Glow | None (broken, section 2.4) |
+| Insights and Recommendations (top of each tab) | `CommentarySection` via the shared parts registry, then `CommentaryPanel` | `renderComm`, the analysis box (`SlAnalysis`) |
+| Data tiles (`outline-tiles.tsx`, `platform-headlines.tsx`, `parts/outline-data.tsx`, `parts/engagement-breakdown.tsx`) | `components/charts/kpi-card` | `kpi` and `change` |
+| Followers and engagement graphs (`parts/follower-graph.tsx`, `parts/engagement-trend.tsx`, `trends.tsx`) | `ChannelTrendChart` in `trends.tsx`, on `components/charts/line-chart` (Recharts) | `lineChart`. **No artifact equivalent** for the annotations, chart notes and channel toggles these graphs carry |
+| YTD Review (`parts/ytd-review*.tsx`) | `components/charts/bar-chart`, `line-chart`, `chart-card` | `ytdColumns` and `pointLines` (shape only: the artifact's are sentiment shares, these are counts) |
+| Top Content (`parts/top-content*.tsx`, `sortable-top-content.tsx`, `post-card.tsx`, `top-content.tsx`) | Post cards; `components/charts/data-table` on the table view | The artifact's post card (`postCard`) and table styles for the frame. **No artifact equivalent** for the sort toolbar, the owned and influencer designation, or post metrics |
+| Influencer tab (`parts/influencer-posts.tsx`, `influencer-grid.tsx`, `influencer-card.tsx`) | `kpi-card`, influencer cards built on `post-card.tsx` | `kpi` for the tiles, post card frame for the cards. Same gaps as Top Content |
+| KPI Check-In (`parts/kpi-check-in.tsx`) | `components/charts/progress-ring` | **No artifact equivalent** (the artifact has no rings). Card frame only |
+| AEO Informed Social (`aeo-informed/*.tsx`) | `kpi-card`, `line-chart` via `trends.tsx`, its own table | `kpi`, `lineChart`, the artifact's table styles |
+| Month picker, range control, sort toolbar | Their own buttons and selects | The artifact's pill and button styles (`.pill`, `.btn`) |
 
 ## 4. The constraint that shapes the plan
 
