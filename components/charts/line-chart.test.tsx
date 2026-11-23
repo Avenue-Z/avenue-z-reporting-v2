@@ -644,3 +644,22 @@ describe('dates as month/day (xFormat="month-day")', () => {
   })
 })
 
+
+describe('the default chart, pinned before the shaded and frameless options (design overhaul decision (b))', () => {
+  // Recharts numbers each chart's clip path (recharts1-clip) and React numbers its ids (_r_0_); both depend on render
+  // order, so they are normalised. Everything else is the markup as rendered.
+  const norm = (h: string) => h.replace(/recharts\d+-/g, 'recharts-').replace(/_r_[0-9a-z]+_/g, '_r_')
+  const D = [{ d: '2026-08-01', a: 3, b: 5 }, { d: '2026-08-02', a: 6, b: 4 }, { d: '2026-08-03', a: 4, b: 7 }]
+  const KEYS = [{ key: 'a', color: '#60FDFF', label: 'A' }, { key: 'b', color: '#39A0FF', label: 'B' }]
+  test('norm makes two renders of the same chart identical', () => {
+    const one = norm(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container.innerHTML)
+    const two = norm(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container.innerHTML)
+    expect(one).toBe(two)
+  })
+  test('two series, no marks or callouts', () => {
+    expect(norm(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container.innerHTML)).toMatchSnapshot()
+  })
+  test('one series with marks and month-day dates', () => {
+    expect(norm(render(<LineChart data={D} xKey="d" yKeys={[KEYS[0]]} marks={[{ x: '2026-08-02' }]} xFormat="month-day" />).container.innerHTML)).toMatchSnapshot()
+  })
+})
