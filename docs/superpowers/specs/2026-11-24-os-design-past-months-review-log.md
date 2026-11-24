@@ -89,3 +89,10 @@ the plan: #504 (1: B, 2: agree), round 2's reviews, #506, #507, and his reviews 
 (#494). Three gaps against rules he set on #490, each with one fix, edited in: the review record gate
 (`2026-11-23-os-design-phase1.md:86-87`), `npm run check:rsc` in the gates (same lines), and the production script's
 `aeoInformedSocial.design` write (`:105-107`). N4 (screenshots) and N5 are still unanswered.
+
+## After Paul's review of the plan (2026-11-24, #504)
+
+- **MINOR 6** (the admin save accepts kit pins without `designFrom`) is resolved by Paul's call: a missing
+  `designFrom` is the old look. Spec section 3's first row, section 5, edges 9 to 12 and test 7 changed with it.
+- **MINOR 11 to 20** are applied in the plan's task steps (Paul: the tasks are what a builder reads). 14's refusal
+  of an existing `designFrom` is the plan's Decision 7.

@@ -73,8 +73,8 @@ The tabs in scope: Overview, Influencer, Instagram, Facebook, LinkedIn, X, TikTo
 
 | # | Decision | Status | Who |
 |---|---|---|---|
-| N1 | **Past months: A (by client) or B (by month)** | **Open. Needs Paul's answer before anything is pinned** | Paul and me. Spec: `2026-11-24-os-design-past-months.md` |
-| N2 | Per-chart analysis (Phase 3) is by month: past months keep the one Insights box; Recommendations stays on new months | **Open: confirm** (it is Paul's item 6) | Paul and me |
+| N1 | **Past months: A (by client) or B (by month)** | **Settled: B** (Paul on #504, "1: B"). A missing `designFrom` is the old look (Paul's #504 review) | Paul and me. Spec: `2026-11-24-os-design-past-months.md` |
+| N2 | Per-chart analysis (Phase 3) is by month: past months keep the one Insights box; Recommendations stays on new months | **Settled** (Paul on #504, "2: agree") | Paul and me |
 | N3 | The month picker, the AEO tab's controls and table on the kit | **Open**, not in the plan | Me, then Paul |
 | N4 | Screenshots: the plan asks for them in each PR (plan, Global Constraints); I withheld them because the test client shows a real client's data and this repo is public | **Open: Paul OKs the deviation** | Paul |
 | N5 | Round 1 (#494) merged without a review record; round 2 has one combined record (Paul's "one combined record per round" on #490) | **Open**: a fallback record for round 1, if Paul wants one | Paul |
@@ -97,7 +97,7 @@ Nothing the team saves changes in round 2: same tables, same editors, same save 
 
 ## 5. What Paul is asked for, in order
 
-1. **On this PR:** answer N1 ("1: A or B") and N2 ("agree or not"). Nothing is pinned until he does.
+1. **On this PR:** N1 and N2, answered ("1: B", "2: agree"). Option B's plan is on this PR too.
 2. **Review round 2**, #497 to #503, with the combined review record (its own docs PR).
 3. **OK or not:** N4 (screenshots withheld) and N5 (a round 1 record).
 4. Nothing else here needs him now. Items 6, 7 and Kyleah's sign-off for 3 go to Jasmine and Kyleah in one message, sent

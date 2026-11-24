@@ -17,7 +17,7 @@ so it can be reviewed before anything is pinned. Every line reference is to the 
 | Code | None beyond round 2 | One more PR (section 4), cut after round 2 merges |
 | What a client sees during the switch | One design | For one month, two designs: the last old month and the first new one (clients see two months) |
 | PDF of a past month | New look | The look it was delivered in |
-| Undo | Remove the pins | Remove one setting (back to A), or the pins (back to today) |
+| Undo | Remove the pins | Remove `designFrom` or the pins (either is back to today) |
 
 **I lean B.** The team reported and the clients approved August to October in today's look, and the way the team
 writes up a month is about to change (decision 2). A past month should read the way it was delivered.
@@ -54,11 +54,17 @@ One new per-client setting, `dash_social_config.designFrom`, a reporting month s
 
 | `designFrom` | Served month | Look |
 |---|---|---|
-| Absent | Any, or none | New (exactly A; a client without kit pins is unaffected, Renaissance included) |
+| Absent | Any, or none | Old (a kit pin alone never redraws a month; a client without kit pins is unaffected, Renaissance included) |
 | Malformed | Any, or none | Old |
 | Valid | On or after it | New |
 | Valid | Before it | Old |
 | Valid | None (the client has no reporting months, `locked-range.ts:11`: only if they were removed after the pin, since the pin script refuses otherwise) | Old |
+
+**Why absent is old (Paul, #504).** The admin save accepts kit versions in `versions` and `extraParts`
+(`lib/report-sections/validate.ts:52-53`, `:78`), so with absent as new a kit pin saved without `designFrom` would
+redraw every delivered month. So a client gets the kit only from a valid `designFrom`, written with its pins by the
+pin script. That includes the AEO tab: `design: "kit"` alone draws the old look. A client without reporting months
+never gets the kit (every row above gives it the old look, and the pin script refuses `designFrom` for it).
 
 The client row itself failing to load is not a row of this table. The body then applies no override at all and draws
 the code template, which has no kit versions, so it is the old look by construction (`index.tsx:147-157`); the boxes
@@ -128,6 +134,7 @@ It cannot be a standalone PR before round 2 merges: its table names versions tha
 
 ## 5. Failure behaviour
 
+- **Absent `designFrom`:** the old look on every month, not logged (every client not yet moved has none).
 - **Malformed `designFrom`** (not `YYYY-MM`): the client draws the old look on every month, and the page logs the client
   and the bad value once per render. Old look is the safe side: it never shows a delivered month in a look it was not
   delivered in.
@@ -153,8 +160,10 @@ It cannot be a standalone PR before round 2 merges: its table names versions tha
 | 6 | Overview, platform tabs, AEO Informed Social | Same served month, same rule |
 | 7 | PDF export | Same render path, so the same look as the screen for that month |
 | 8 | Client row cache | A changed setting shows within 5 minutes (`lib/db/queries.ts:34`) |
-| 9 | Renaissance | No setting, no kit pins: byte-identical. Renaissance proof on the PR, as for any change on its path |
-| 10 | Undo | Remove `designFrom`: A. Remove the pins as well: today |
+| 9 | Renaissance | No setting, no kit pins (the rule changes only kit versions): byte-identical. Renaissance proof on the PR, as for any change on its path |
+| 10 | Undo | Remove `designFrom` (old look on every month) or remove the pins: both are today |
+| 11 | A kit pin saved without `designFrom` (the admin save allows it) | Old look on every month |
+| 12 | A client without reporting months | Never the kit: the boxes' branch for it (`commentary/index.tsx:66`) and the body never draw it |
 
 ## 7. Tests (written before the code)
 
@@ -165,7 +174,8 @@ It cannot be a standalone PR before round 2 merges: its table names versions tha
 4. Boxes: before, markup identical to `@1`; from, the kit look.
 5. AEO tab: kit only from `designFrom`.
 6. PDF: a past month's export is byte-identical to today's.
-7. No setting: every snapshot from round 2's "without the kit" tests unchanged.
+7. No setting: a client without kit pins renders every snapshot from round 2's "without the kit" tests unchanged; a
+   client with kit pins and no `designFrom` draws the wrapped versions on every month.
 8. Reads: the same requests and lock keys before and after, for both a past and a new month.
 9. The rule table in section 3, row by row, for the body, both box branches and the AEO tab (they must agree).
 10. Pin script: refuses a kit version over any old version other than the one it wraps (for example `ytd-review@4`
