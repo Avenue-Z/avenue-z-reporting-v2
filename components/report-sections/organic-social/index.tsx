@@ -15,6 +15,8 @@ import { buildOrganicSocialCtx, type OrganicSocialCtx } from './ctx'
 import { OverviewSkeleton } from './skeletons'
 import { lockedRangeFor, logHiddenMonthAttempt, logMalformedConfig, requestClock } from '@/lib/organic-social/locked-range'
 import { noMonthsText, viewerForRole } from '@/lib/organic-social/reporting-months'
+import { drawnVersion } from '@/lib/organic-social/kit-wraps'
+import { kitActive, logMalformedDesignFrom, parseDesignFrom } from '@/lib/organic-social/design-from'
 import { NoMonths } from './no-months'
 import { AeoInformedSection } from './aeo-informed/section'
 import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
@@ -169,14 +171,21 @@ export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCt
   try { lockClient = await getClientBySlug(rctx.clientSlug) } catch { lockReadFailed = true }
   const locked = lockReadFailed ? null : lockedRangeFor(lockClient, role, rctx.dateRange, requestClock())
   if (locked?.reason === 'malformed-config') logMalformedConfig(rctx.clientSlug, locked.malformedKey)
+  // Option B (spec 2026-11-24-os-design-past-months section 3): a bad designFrom is logged once per render, before the
+  // no-months return so a client with no months still logs it. It then draws the old look, like an absent one.
+  const designFrom = lockReadFailed ? null : parseDesignFrom(lockClient)
+  if (designFrom?.kind === 'malformed') logMalformedDesignFrom(rctx.clientSlug, designFrom.value)
   if (locked && !locked.month) return <NoMonths text={noMonthsText(locked, viewerForRole(role))} />
+  // The kit only on a served month on or after designFrom; before it, each kit part draws the version it wraps, which is
+  // exactly what the client drew before its pin. A failed client read means no kit.
+  const kit = !lockReadFailed && kitActive(lockClient, locked?.month?.key ?? null)
   if (locked?.month && locked.outcome === 'replaced' && locked.hiddenMonthAttempt) {
     logHiddenMonthAttempt(rctx.clientSlug, rctx.dateRange, locked.month.dateRange)
   }
   const pctx: OrganicSocialCtx = locked?.month
     ? { ...rctx, dateRange: locked.month.dateRange, compareRange: locked.month.compareRange }
     : rctx
-  const resolved = resolveSection(template, override)
+  const resolved = resolveSection(template, override).map((r) => ({ ...r, version: drawnVersion(r.id, r.version, kit) }))
   return (
     <>
       {resolved.map((r) => {
