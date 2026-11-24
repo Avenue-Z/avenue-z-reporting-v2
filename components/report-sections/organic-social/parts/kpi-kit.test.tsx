@@ -169,7 +169,13 @@ describe('kpi-check-in@2', () => {
         // client's empty answer are exactly @1's (#507: the staff-note markup was not checked before).
         const withNote = staffNote && role === 'INTERNAL_ADMIN'
         expect(old.includes('<p'), `${role} note`).toBe(withNote)
-        expect(kitted.innerHTML).toBe(withNote ? `<div class="${kit.root}">${old}</div>` : old)
+        // The wrapper is checked by its tag, its kit class and its exact contents, so another kit class on it (round 3's
+        // line height) does not read as a change to @1's note.
+        if (withNote) {
+          expect(kitted.children).toHaveLength(1)
+          const wrap = kitted.firstElementChild!
+          expect([wrap.tagName, wrap.classList.contains(kit.root), wrap.innerHTML]).toEqual(['DIV', true, old])
+        } else expect(kitted.innerHTML).toBe(old)
       }
     }
     err.mockRestore(); warn.mockRestore()
