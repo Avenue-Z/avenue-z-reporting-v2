@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { SORT_METRICS, type SortDir, type SortKey } from '@/lib/organic-social/sort-content'
+import kit from './design/kit.module.css'
 
 type Metric = (typeof SORT_METRICS)[number]
 
@@ -24,9 +25,10 @@ export function useSort(sortKeys?: readonly [SortKey, ...SortKey[]]) {
   return { metrics, sortKey, dir, onMetric }
 }
 
-/** The "Sort by" buttons: the active one is pressed and shows its direction. */
-export function SortToolbar({ metrics, sortKey, dir, onMetric }: {
-  metrics: readonly Metric[]; sortKey: SortKey; dir: SortDir; onMetric: (key: SortKey) => void
+/** The "Sort by" buttons: the active one is pressed and shows its direction. `look="kit"` draws them as the design kit's
+ *  pills (design/kit.module.css `.pill`, pressed by aria-pressed); absent, exactly as before. */
+export function SortToolbar({ metrics, sortKey, dir, onMetric, look }: {
+  metrics: readonly Metric[]; sortKey: SortKey; dir: SortDir; onMetric: (key: SortKey) => void; look?: 'kit'
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -39,7 +41,7 @@ export function SortToolbar({ metrics, sortKey, dir, onMetric }: {
             type="button"
             onClick={() => onMetric(m.key)}
             aria-pressed={active}
-            className={cn(
+            className={look === 'kit' ? kit.pill : cn(
               'rounded-full border px-3 py-1 text-xs font-bold transition-colors',
               active
                 ? 'border-white/20 bg-white/[0.06] text-white'

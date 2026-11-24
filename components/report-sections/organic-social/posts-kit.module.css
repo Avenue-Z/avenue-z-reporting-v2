@@ -1,0 +1,5 @@
+/* The design kit's post card frame for the shared post cards (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md,
+   Tasks 7 and 8): the frame of the kit's `.post` (design/kit.module.css), without its column layout, because the
+   Influencer card lays its post out in a row. Its colours come from the kit's variables on `.root`, which every kit
+   part version's block carries. Used only when a card is drawn with `look="kit"`. */
+.frame { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); overflow: hidden; }
