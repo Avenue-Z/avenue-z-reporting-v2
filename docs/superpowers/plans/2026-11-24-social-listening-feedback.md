@@ -2,8 +2,7 @@
 
 Builds the items in `docs/superpowers/specs/2026-11-24-social-listening-feedback.md` (F1 to F15). That file holds the
 map from each point to the code, with line citations, and my decisions. This plan holds only the build: what changes,
-in what order, how each part is tested and what guards stay on. Status: **decided except the questions in section 3**. Nothing here is built yet. Review rounds (at most two, fresh-eyed, foreground, never Fable) run on this plan before
-the first unit.
+in what order, how each part is tested and what guards stay on. Status: **decided except the questions in section 3**. Nothing here is built yet. Two fresh-eyed review rounds ran on 2026-11-24 (round 1: 1 BLOCKER, 8 MAJOR fixed; round 2, changed lines only: 3 MAJOR, each with one fix and no choice, fixed; MINORs listed in section 5). No round 3.
 
 Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 
@@ -21,7 +20,7 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 - **Renaissance byte-identical.** The Organic Social golden and parity tests (`parts/*.golden.test.tsx`,
   `parts/version-parity.test.tsx`) pass unchanged. Any test change outside Social Listening stops the unit, with one
   exception: Units C and F add Social Listening cases to the export and report route tests (`lib/export/request.test.ts`,
-  `lib/export/bulk.test.ts`, and the two report routes' tests). Every existing assertion there stays as it is, and new
+  `lib/export/bulk.test.ts`, and the new `lib/organic-social/social-listening/routes.test.tsx`). Every existing assertion there stays as it is, and new
   tests prove every non-Social Listening page and request is unchanged.
 - **No conflicts with the open PRs.** #516 and #517 both edit `parts/ytd-kit.tsx`, and #517 edits
   `KIT/kit.module.css`, `ytd-notes-panel.tsx`, `note-form.tsx` and `note-actions.tsx`. No unit edits those. New styles
@@ -116,9 +115,12 @@ Files: `KIT/charts.tsx` (two new charts: sentiment shares by month as three line
 sentiment as three lines), a new client component `SL/chart-toggle.tsx`, `SL/brand.tsx`, `SL/industry.tsx`,
 `SL/section.tsx`, `LIB/params.ts`, and the path the AEO tab's settings already take: the two report routes
 (`app/dashboard/[clientSlug]/reports/page.tsx`, `app/portal/[clientSlug]/reports/page.tsx`: they read the params, pass
-them to the section, and build `serverExport`, dashboard `:140-143`, `:296-310`), `components/export-pdf-button.tsx`,
-`lib/export/request.ts`, `lib/export/bulk.ts` (bulk export forwards the AEO values at `:44-45`), and
-`app/export/[clientSlug]/[section]/page.tsx`.
+them to the section, and build `serverExport`, dashboard `:140-145`, `:296-310`; they also rebuild the URL on every
+redirect and keep `aeo`, `aeomin`, `sl` and `slview` there, dashboard `:238-250`, portal `:208-219` and `:242-251`, so
+the new params are kept at those lines too; and they pass the `bulk` prop, dashboard `:324`, portal `:338`),
+`components/export-pdf-button.tsx`, `lib/export/request.ts`, `lib/export/bulk.ts` (the `BulkRanges` fields, `:15-27`,
+and the forwarding of the AEO values, `:44-45`), and `app/export/[clientSlug]/[section]/page.tsx`. The route tests go
+in a new `lib/organic-social/social-listening/routes.test.tsx`, on the pattern of `lib/organic-social/aeo-tab/routes.test.tsx`.
 
 - Mechanism: the toggle writes a page URL param, `slcols`, listing the charts set to columns, with `router.push`, the
   same way the topic pills change `sl` (`SL/pills.tsx:11-19`). The server re-renders, so the route has the value and
@@ -139,7 +141,7 @@ Tests: the line charts break at a gap month and label each point; the toggle sta
 view is today's chart unchanged; the export page draws columns only for the charts the param names; a bulk export of
 the Social Listening page carries the param and every other page's body is unchanged (`lib/export/bulk.test.ts`); every
 export request without the param is byte-identical to today (`lib/export/request.test.ts`); both routes pass the param
-only on the Social Listening view.
+only on the Social Listening view; `slcols` (and Unit F's `slsort`) survive each of the three redirects.
 
 ### Unit D: media types (F9, F10)
 
@@ -179,8 +181,9 @@ Values: channel `SOCIAL_LISTENING`; charts `sl-b-daily` and `sl-i-daily` (day no
 and `sl-b-reddit` (month notes, stored on the month's 1st, as the YTD notes are, `lib/db/schema.ts:431`).
 
 Files: a new `LIB/notes.ts` (the values above and their own key check), `app/actions/chart-notes.ts` (when the channel
-is `SOCIAL_LISTENING`, check with the new Social Listening check and gate on the client having the Social Listening tab,
-read from `LIB/capabilities.ts` before building; every other channel takes today's path unchanged), a Social Listening
+is `SOCIAL_LISTENING`, the action branches **first**, before `validateNoteInput` (`:46`) and `notesOn` (`:51`): it
+checks the input with the new Social Listening check and gates on `hasSocialListeningTab` (`LIB/setting.ts:67`) in
+place of `notesOn`; every other channel takes today's path unchanged), a Social Listening
 notes reader, the new line charts and Results over time (marks and hover). `CHANNELS` (`lib/organic-social/metrics.ts`),
 `checkAnnotationChannel` (`lib/organic-social/annotation-hides/mutations.ts:15-16`), `ANNOTATION_CHARTS` and
 `YTD_NOTE_CHARTS` (`lib/organic-social/annotations.ts:47`, `:52`) stay exactly as they are, so Renaissance's notes and
@@ -240,12 +243,17 @@ it keeps only the served month's entries (`monthly.tsx:51`), so it can't carry a
   as its only entry. Staff see a "From <month>" note and an Edit that opens a **new draft for this month** prefilled with
   the carried text (a save with no id and this month's period, so last month's row is never changed); Approve and
   Revoke are not offered on a carried entry. A client and the PDF see the carried text.
+- "An entry of its own" depends on the viewer. For a client and the PDF it is an approved entry a client would open on
+  (`clientMonthEntry`, `lib/commentary/month.ts:25-29`), so a staff draft never hides the carried appendix from the
+  client before it is approved. For staff it is any entry they can see, so their draft shows in place of the carried
+  text, with the carried text still what the client sees until the draft is approved.
 - The box's id goes into `approvedBoxes` when it carries over (`SL/section.tsx:80-82`), so `show.keywords` holds for a
   client (`LIB/view-model.ts:193`).
 
 Tests: a month with its own entry shows it, through `monthlyCommentary` as today; a month without one shows the newest
 earlier approved appendix, to the client too; the client sees the section; other boxes never carry over; nothing is
-written on read; Edit on a carried appendix saves a new draft for this month and last month's row is unchanged.
+written on read; Edit on a carried appendix saves a new draft for this month and last month's row is unchanged; a
+client viewing a month that holds only a staff draft still sees the carried appendix, and staff see their draft.
 
 ### Unit H: industry themes by sentiment (F15)
 
@@ -267,6 +275,16 @@ stays as is unless the check finds a fault, which then gets debugged on its own.
 - Unit B: the tooltip table is keyed by box id for charts and by a fixed tile id for tiles, never by title text.
 - Unit C's two bad-value rules (drop on the page, refuse in the export request) are on purpose; section 4 says so.
 - The map's influencer slice citation is corrected to `LIB/export-parse.ts:353`.
+
+From review round 2 (no round 3; these are handled in the build):
+- Unit E: the three Social Listening month charts use January of the first reporting month's year as their earliest
+  month, as the YTD notes do (`app/actions/chart-notes.ts:59-62`); the day charts use the first reporting month.
+- Unit E: a Social Listening note's `postIds` must be `[]` and is refused otherwise (`lib/db/schema.ts:434`).
+- Unit F: "the newest row wins" breaks a tie on the row id.
+- Unit D: the history values are entered by a script in `scripts/` that refuses any media name or author not in that
+  month's upload, names each one it refuses, writes nothing then, and runs only on my go.
+- Section 1's "two report routes' tests" are the new `lib/organic-social/social-listening/routes.test.tsx` (Unit C).
+- Unit C's dashboard citation is `:140-145` (corrected above).
 
 ## 6. Done means
 
