@@ -19,7 +19,7 @@ No BLOCKER. Every citation in the spec checked out.
 5. "Logs once per render" cannot hold with three or four callers; log once per caller or memoise the parser.
 6. The admin save accepts unpublished kit pins (`validate.ts:53`, `report-sections.ts:88`), which gives a client A
    with no `designFrom`. Accept as A, or block kit pins there.
-7. Decision 2 cites Paul's item 6 but leaves out its second half: Recommendations stays on new months.
+7. Decision 2 cites Paul's item 6 but leaves out its second half: Recommendations stays on new months. Fixed 2026-11-24 (one line added to decision 2).
 8. Test 6 cannot be byte-identical: the export header stamps the export time
    (`app/export/[clientSlug]/[section]/page.tsx`, `exportStamp`). Compare the report markup without the stamp.
 9. Untested outputs: the malformed-setting log, the pin script's no-reporting-months refusal, the one-write of

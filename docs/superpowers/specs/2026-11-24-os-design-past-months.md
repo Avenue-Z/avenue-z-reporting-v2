@@ -23,8 +23,9 @@ so it can be reviewed before anything is pinned. Every line reference is to the 
 writes up a month is about to change (decision 2). A past month should read the way it was delivered.
 
 **Decision 2: per-chart analysis (Phase 3) is by month.** Not built in round 2. When it ships, months before it keep the
-one Insights box at the top with their text, and new months get a box per chart. This matches Paul's recommendation in
-the overhaul spec (section 8, item 6). Confirming it here so the two decisions are made together.
+one Insights box at the top with their text, and new months get a box per chart. Recommendations stays on new months
+(it looks forward, and already sits at the bottom). This matches Paul's recommendation in the overhaul spec (section 8,
+item 6), both halves. Confirming it here so the two decisions are made together.
 
 ## 2. What round 2 does today (read from the code)
 
