@@ -250,6 +250,27 @@ export function YtdColumns({ points, aria }: { points: YtdPoint[]; aria: string 
   )
 }
 
+/** Year-to-date counts as columns, one per month, each labelled with its value: the shape of YtdColumns for a count
+ *  (followers, views) rather than sentiment shares (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md, Task 6).
+ *  Scaled to the largest value. A month with no data is a gap (no column, its month still labelled), never a 0. */
+export function CountColumns({ points, aria }: { points: { label: string; value: number | null }[]; aria: string }) {
+  const W = 960, H = 250, L = 8, R = 8, T = 24, B = 28
+  const n = Math.max(points.length, 1)
+  const slot = (W - L - R) / n, bw = Math.min(64, slot * 0.62)
+  const max = Math.max(0, ...points.map((p) => p.value ?? 0)) || 1
+  const out: ReactNode[] = []
+  points.forEach((p, i) => {
+    const cx = L + slot * i + slot / 2
+    if (p.value !== null) {
+      const h = ((H - B - T) * Math.max(p.value, 0)) / max
+      out.push(<rect key={`r${i}`} x={cx - bw / 2} y={H - B - h} width={bw} height={h} rx={3} style={{ fill: 'var(--cyan)' }} />)
+      out.push(<text key={`v${i}`} className={s.tFg} x={cx} y={H - B - h - 6} fontSize={12} fontWeight={700} textAnchor="middle">{p.value.toLocaleString('en-US')}</text>)
+    }
+    out.push(<text key={`m${i}`} className={s.tMuted} x={cx} y={H - 8} fontSize={12} textAnchor="middle" fontWeight={i === points.length - 1 ? 800 : 400}>{p.label}</text>)
+  })
+  return <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{out}</svg>
+}
+
 /** Two lines with every point labelled (positive + neutral above, negative below); a month with no data breaks the line. */
 export function PointLines({ months, series }: { months: string[]; series: { name: string; vals: (number | null)[]; color: string; below?: boolean }[] }) {
   const W = 480, H = 240, L = 34, R = 16, T = 22, B = 28
