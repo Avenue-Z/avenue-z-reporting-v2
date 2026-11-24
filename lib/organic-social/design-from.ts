@@ -37,14 +37,17 @@ export function logMalformedDesignFrom(slug: string, value: unknown): void {
 
 /** Why the pin script must not write `designFrom` into this dash_social_config, or null when it may. Refuses a value
  *  that is not `YYYY-MM`, a config that already has designFrom (moving a start month is its own change), a config whose
- *  reportingMonths is missing or does not parse, and a month at or before the newest month a client can already see
+ *  reportingMonths is missing, does not parse or has a bad optional key, and a month at or before the newest month a client can already see
  *  (that would redraw a delivered month in the kit). */
 export function designFromWriteProblem(dashSocialConfig: unknown, designFrom: string, clock: Clock): string | null {
   if (typeof designFrom !== 'string' || !MONTH_RE.test(designFrom)) return `designFrom must be YYYY-MM, got ${JSON.stringify(designFrom)}`
   if (!isPlainObject(dashSocialConfig)) return 'dash_social_config is not an object'
   if (hasOwn(dashSocialConfig, 'designFrom')) return `dash_social_config already has designFrom (${JSON.stringify(dashSocialConfig.designFrom)}); moving it is its own change`
   if (!hasOwn(dashSocialConfig, 'reportingMonths')) return 'dash_social_config has no reportingMonths, so the client would never get the kit'
-  if (!parseReportingMonths(dashSocialConfig.reportingMonths).ok) return 'dash_social_config.reportingMonths does not parse'
+  const parsed = parseReportingMonths(dashSocialConfig.reportingMonths)
+  if (!parsed.ok) return 'dash_social_config.reportingMonths does not parse'
+  // A bad optional key shows a client no months at all (monthsFor), which would pass the delivered-month check below.
+  if (parsed.badKey !== null) return `dash_social_config.reportingMonths.${parsed.badKey} is invalid; fix it before choosing designFrom`
   const seen = resolveLockedRange(dashSocialConfig.reportingMonths, 'client', clock, undefined).months
   const newest = seen[0]?.key
   if (newest !== undefined && newest >= designFrom) return `a client can already see ${newest}, so designFrom ${designFrom} would redraw a delivered month`

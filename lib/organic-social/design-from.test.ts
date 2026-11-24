@@ -72,6 +72,10 @@ describe('designFromWriteProblem (the pin script refuses, Decisions 6 and 7)', (
     expect(designFromWriteProblem({ brandId: 1, reportingMonths: { firstMonth: 'x' } }, '2026-11', clock)).toMatch(/reportingMonths/)
     expect(designFromWriteProblem(null, '2026-11', clock)).toMatch(/dash_social_config/)
   })
+  test('reportingMonths with a bad optional key is refused, naming the key (a client is then shown no months, which would pass the delivered-month check)', () => {
+    expect(designFromWriteProblem({ brandId: 1, reportingMonths: { firstMonth: '2026-08', opensOnDay: 99 } }, '2026-09', clock)).toMatch(/opensOnDay/)
+    expect(designFromWriteProblem({ brandId: 1, reportingMonths: { firstMonth: '2026-08', clientMonths: 0 } }, '2026-12', clock)).toMatch(/clientMonths/)
+  })
   test('a config that already has designFrom is refused, naming it', () => {
     expect(designFromWriteProblem({ ...cfg, designFrom: '2026-12' }, '2026-11', clock)).toMatch(/already.*designFrom/)
   })
