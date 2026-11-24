@@ -38,7 +38,7 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 | D1 | F3 | It was on Share of sentiment and is gone. Try to reproduce on October data; if it doesn't come back, close it |
 | D2 | F8 | Positive + neutral: no toggle, full width |
 | D3 | F8, F14 | Clients get the toggle; the PDF prints whichever view is on screen |
-| D4 | F9 | Baseline is the September export the September deck was built from; changes must match the October deck's media slide |
+| D4 | F9 | Baseline is the September deck's media numbers (past months always come from the deck); changes must match the October deck's media slide |
 | D5 | F10 | The chart is slide 10 of the October deck (screenshot kept privately) |
 | D6 | F11 | The team picks which authors show, per month; clients see only those |
 | D7 | F11 | Sort by posts (default), reach or engagement, for every viewer |
@@ -50,9 +50,9 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 | D13 | Phase 3 | Parked |
 | D14 | Shape | Deliverable branch, one PR per unit |
 
-Waiting on other people: tooltip text (Savannah's doc, F2), the industry keyword appendix (Paul, F5), the original
-September and October exports (Savannah, F9), the industry widget change and re-export (F15), the team's YTD data sheet
-(list, F8, purpose to confirm).
+Waiting on other people: tooltip text (Savannah's doc, F2), the industry keyword appendix (Paul, F5), the September
+deck's media types slide (F9), Savannah's original October export if Q1 is yes (F9), the industry widget change and
+re-export (F15), the team's YTD data sheet (list, F8, purpose to confirm).
 
 ## 3. Two questions left (both about matching the deck)
 
@@ -122,18 +122,26 @@ request without the param is byte-identical to today (`lib/export/request.test.t
 
 ### Unit D: media types (F9, F10)
 
-Files: `KIT/charts.tsx` (`MediaShare`, and a new sentiment-by-media chart), `LIB/compare.ts` (Q2's rule), `LIB/boxes.ts`
+Files: `KIT/charts.tsx` (`MediaShare`, and a new sentiment-by-media chart), `LIB/compare.ts` (the deck baseline and
+Q2's rule), `lib/db/schema.ts` and a migration (media type numbers on `social_listening_history`), `LIB/boxes.ts`
 (one new box id at the end), `LIB/view-model.ts`, `SL/brand.tsx`.
 
 1. Colour: drop `neutral` at `KIT/charts.tsx:215`, so a rise reads up and green with its sign, a drop down and red.
-2. Q2's rule for Other, if I say yes.
-3. Slide 10's chart: one 100% bar per sentiment with its count, split by media type in the tab's media colours
+2. Deck baseline: a nullable media types column on the history row (each type's result count as the deck shows it);
+   `mediaChanges` reads last month's history row first and falls back to last month's presented upload, as
+   `presentedValues` does (`LIB/compare.ts:111-138`). A history row without media types behaves as today. What goes in
+   the column depends on what the September deck's media slide shows: counts give exact changes; shares only would
+   need the month's results to rebuild counts, and rounding could move a change by a point, which comes back to me
+   before anything is entered. Entering September's numbers is a database write, on my go.
+3. Q2's rule for Other, if I say yes.
+4. Slide 10's chart: one 100% bar per sentiment with its count, split by media type in the tab's media colours
    (`LIB/colors.ts:10-29`), shares printed in segments wide enough, a legend. Full width, its own analysis box.
-4. The numbers check, once Savannah's original September (and per Q1, October) exports are uploaded on my go: on
-   staging, every change in Share of media types equals slide 10's, and every segment of the new chart equals the
-   slide's. Checked privately. Any difference comes back to me before the unit ships.
+5. The numbers check, once September's deck numbers are entered (and per Q1, Savannah's October export uploaded), each
+   on my go: on staging, every change in Share of media types equals slide 10's, and every segment of the new chart
+   equals the slide's. Checked privately. Any difference comes back to me before the unit ships.
 
-Tests: rise, drop, zero and missing baseline render as the tiles do; Q2's rule; the new chart's shares sum to 100 per
+Tests: rise, drop, zero and missing baseline render as the tiles do; a history row's media numbers win over last
+month's upload, and a history row without them falls back to the upload; the migration on PGlite; Q2's rule; the new chart's shares sum to 100 per
 sentiment, an empty sentiment draws an empty bar, a media type absent from one sentiment has no segment there.
 
 ### Unit E: annotations (F6)

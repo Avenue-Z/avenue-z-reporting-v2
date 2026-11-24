@@ -120,8 +120,14 @@ September values, keep MoM % changes only; colour code them and adjust with +/-"
 - There is no September values column today. If the list means something on screen, it needs naming.
 - Change: up arrows green, down red, with the sign, through the tiles' existing change line (Paul: "we already have
   this mechanism").
-- Baseline (my call): the September export the September deck was built from, uploaded as September's export. The
-  changes must match the October deck's media slide (slide 10), which itself says "Change vs September (export)".
+- Baseline (my call, corrected later on 2026-11-24): **the September deck's media numbers**, not an export. I told
+  Savannah we use her deck for past months, because Talkwalker keeps adding data after she checks a month, so the deck
+  holds the numbers the client was actually shown. The changes must match the October deck's media slide (slide 10).
+- The deck numbers live in `social_listening_history` (`lib/db/schema.ts:655-675`): results, the tiles, the sentiment
+  split and Reddit's, with a source of history sheet or delivered deck. It has no media types, which is why
+  `mediaChanges` reads only uploads (`LIB/compare.ts:167-169`). So this needs media type numbers added to the history
+  (a migration), September's typed in from its deck (a database write, on my go), and `mediaChanges` reading the history
+  first, the same order `presentedValues` already follows (`LIB/compare.ts:111-138`).
 - Two things stand between that and an exact match:
   1. **October's export on the tab is not the deck's.** I pulled it later than Savannah (my Slack, 2026-11-20), and the
      dashboard on the call shows shares a tenth or so off the deck's (read from a low-resolution screenshot, to be
