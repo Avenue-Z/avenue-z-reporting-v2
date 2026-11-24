@@ -57,12 +57,20 @@ One new per-client setting, `dash_social_config.designFrom`, a reporting month s
 | Malformed | Any, or none | Old |
 | Valid | On or after it | New |
 | Valid | Before it | Old |
-| Valid | None (no reporting months, or the lock config could not be read, `locked-range.ts:11`, `index.tsx:170`) | Old |
+| Valid | None (the client has no reporting months, `locked-range.ts:11`: only if they were removed after the pin, since the pin script refuses otherwise) | Old |
+
+The client row itself failing to load is not a row of this table. The body then applies no override at all and draws
+the code template, which has no kit versions, so it is the old look by construction (`index.tsx:147-157`); the boxes
+keep today's error path (`commentary/index.tsx:23` reads the client with no catch, inside the section's error
+boundary).
 
 - **"Old" means what the client drew before its kit pin.** That holds only if every kit pin replaced exactly the
   version that kit version wraps. Not every old version has a kit form: `ytd-review` has `@1` to `@4`
   (`parts/registry.ts:34`), and `@5` wraps only `@2`. So the pin script refuses to pin a kit version over any version
-  other than the one it wraps (a client on `ytd-review@4`, as Renaissance is, waits for a kit form of `@4`).
+  other than the one it wraps (a client on `ytd-review@4`, as Renaissance is, waits for a kit form of `@4`). The
+  version it compares against is the one the client resolves today in the target environment: that environment's
+  `section_templates` row (or the code template when there is none) plus the client's override, through
+  `resolveSection` (`index.tsx:152-155`, `:179`), never the override alone.
 - **The kit pins stay as round 2 writes them.** For a month before `designFrom`, each kit version on the page is drawn
   as the version it wraps (table below), which is exactly today's output: every kit version is the old version's own
   render with the frame swapped (round 2 parity tests).
@@ -106,6 +114,9 @@ rebuilds the section from the parser's known fields, `app/actions/report-section
 4. `components/report-sections/commentary/monthly.tsx`: drop `look` when the served month (`:35`) is before
    `designFrom`. The gate stays inside the Organic Social and locked-months branch (`commentary/index.tsx:22-26`);
    other reports are untouched.
+4b. `components/report-sections/commentary/index.tsx`: the branch for a client without reporting months (`:66`) takes
+   its look from `kitLook`, computed at `:22` before the client is read at `:23`. Compute it after that read and apply
+   `kitActive` with no month (section 3's table), so both branches follow the one rule.
 5. `components/report-sections/organic-social/aeo-informed/section.tsx:84`: `kitLook` also requires `kitActive`.
 6. `lib/organic-social/influencer-tab.ts`: `SPLIT_BASIS` reads from the same table, so the split rule has one source.
    The rule is the same for a kit version and the version it wraps (#500, `c08e4d66`), so it needs no month.
@@ -119,9 +130,10 @@ It cannot be a standalone PR before round 2 merges: its table names versions tha
 - **Malformed `designFrom`** (not `YYYY-MM`): the client draws the old look on every month, and the page logs the client
   and the bad value once per render. Old look is the safe side: it never shows a delivered month in a look it was not
   delivered in.
-- **No served month** with `designFrom` set (the lock config could not be read, `index.tsx:170`): old look, by the
-  rule in section 3, on the body, both boxes and the AEO tab alike. The pin script refuses to write `designFrom` for a
-  client without reporting months, so this is reachable only through a failed read.
+- **No served month** with `designFrom` set: old look, by the rule in section 3, on the body, both boxes and the AEO
+  tab alike. The pin script refuses to write `designFrom` for a client without reporting months, so this is reachable
+  only if reporting months are removed later.
+- **The client row cannot be read:** the code template, which is the old look (section 3, below the table).
 - **A kit pin over the wrong old version:** the pin script refuses (section 3), so a past month can never fall back to
   a version the client never drew.
 - **A kit version missing from the table:** a test fails (section 7), so it cannot ship.
@@ -156,7 +168,7 @@ It cannot be a standalone PR before round 2 merges: its table names versions tha
 8. Reads: the same requests and lock keys before and after, for both a past and a new month.
 9. The rule table in section 3, row by row, for the body, both box branches and the AEO tab (they must agree).
 10. Pin script: refuses a kit version over any old version other than the one it wraps (for example `ytd-review@4`
-    to `@5`).
+    to `@5`), including a version that comes from the environment's template row rather than the client's override.
 
 ## 8. Not in scope
 

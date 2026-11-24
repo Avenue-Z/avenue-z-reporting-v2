@@ -24,3 +24,19 @@ No BLOCKER. Every citation in the spec checked out.
    (`app/export/[clientSlug]/[section]/page.tsx`, `exportStamp`). Compare the report markup without the stamp.
 9. Untested outputs: the malformed-setting log, the pin script's no-reporting-months refusal, the one-write of
    `designFrom` with the pins, and `SPLIT_BASIS` reading from the table.
+
+## Round 2 (2026-11-24): one fresh reviewer, changed lines only
+
+Three MAJOR, each with exactly one fix and no choice, so fixed with targeted edits and reported (no round 3):
+1. A failed client read cannot see `designFrom`, so the "Valid, no month, failed read" row was unreachable. Fixed: a
+   failed read applies no override and draws the code template, the old look by construction (`index.tsx:147-157`);
+   the boxes keep today's error path (`commentary/index.tsx:23`). The table row now covers only removed reporting months.
+2. The pin script's "wrapped version" check did not say what it compares against. Fixed: the version the client
+   resolves in the target environment (template row plus override, `index.tsx:152-155`, `:179`); test 10 covers a
+   template-row version.
+3. No step applied the rule in the boxes' non-month branch (`commentary/index.tsx:66`, look computed at `:22`). Fixed:
+   section 4 step 4b.
+
+MINOR, for the plan:
+10. "as Renaissance is" (on `ytd-review@4`) cites only the registry. The source is the plan's read-only check,
+    `docs/superpowers/plans/2026-11-23-os-design-phase1.md:103`; cite that.
