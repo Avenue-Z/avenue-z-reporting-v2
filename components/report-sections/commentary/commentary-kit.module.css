@@ -1,0 +1,7 @@
+/* The Insights and Recommendations boxes on the design kit (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md,
+   Task 11): the frame of the kit's client analysis box (design/kit.module.css `.comm.commClient`) without its padding,
+   because the panel keeps its own inner spacing. Colours come from the kit's variables on `.root`, which the box carries.
+   Used only when the panel is drawn with `look="kit"`. */
+.box { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); }
+/* A client's label reads muted, as the kit's client box does (`.commClient .lbl`); the team's keeps the kit's yellow. */
+.box .lblClient { color: var(--muted); }
