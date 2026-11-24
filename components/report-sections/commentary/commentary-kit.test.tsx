@@ -1,0 +1,58 @@
+// The Insights and Recommendations boxes on the design kit (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md,
+// Task 11). CommentaryPanel is shared by every report with commentary, so without `look` it must render exactly as today:
+// the snapshots below were recorded from the code before this change, for an approver (with and without the history
+// open), an editor, a client and the PDF, on formatted entries (a list, a link, bold, a heading).
+import { describe, expect, test, vi } from 'vitest'
+import { fireEvent, render } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { CommentaryPanel } from './commentary-panel'
+import { ExportModeProvider } from '@/components/export/export-mode'
+import type { CommentaryCapabilities, CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }))
+vi.mock('@/app/actions/commentary', () => ({ approveCommentary: vi.fn(), revokeCommentary: vi.fn(), saveCommentary: vi.fn(), deleteCommentaryDraft: vi.fn() }))
+
+// Made-up entries only, formatted as the live Organic Social entries are (all 69 use formatting, spec section 5).
+const entry = (over: Partial<CommentaryEntry>): CommentaryEntry => ({
+  id: 'e1', viewKey: 'organic-social:instagram', periodStart: '2026-10-01', periodEnd: '2026-10-31', status: 'approved',
+  bodyHtml: '<h3>Highlights</h3><p>Reach grew <strong>18%</strong> on the back of two Reels.</p><ul><li>Saves doubled</li><li>Shares held</li></ul><p>See <a href="https://example.com/post">the top post</a>.</p>',
+  updatedBy: 'writer@avenuez.com', updatedAt: '2026-11-03T15:00:00.000Z', approvedBy: 'approver@avenuez.com', approvedAt: '2026-11-04T16:30:00.000Z',
+  deletedAt: null, deletedBy: null, ...over,
+})
+const APPROVED = entry({})
+const DRAFT = entry({ id: 'e2', status: 'draft', approvedBy: null, approvedAt: null, updatedAt: '2026-11-10T09:00:00.000Z', bodyHtml: '<p>Draft: <em>Stories</em> slowed; <a href="https://example.com/s">details</a>.</p><ol><li>One</li><li>Two</li></ol>' })
+const HISTORY: CommentaryPeriodHistory[] = [{
+  periodStart: '2026-10-01', periodEnd: '2026-10-31',
+  versions: [
+    { entry: APPROVED, tag: 'live' },
+    { entry: entry({ id: 'e0', bodyHtml: '<p>An older version.</p>', approvedAt: '2026-11-01T10:00:00.000Z' }), tag: 'superseded' },
+    { entry: entry({ id: 'e9', status: 'draft', bodyHtml: '<p>Thrown away.</p>', deletedAt: '2026-11-02T10:00:00.000Z', deletedBy: 'writer@avenuez.com' }), tag: 'deleted' },
+  ],
+}]
+
+type Who = { caps: CommentaryCapabilities; entries: CommentaryEntry[]; history: CommentaryPeriodHistory[]; initialId: string; clientEntryId: string | null }
+const APPROVER: Who = { caps: { canEdit: true, canApprove: true }, entries: [DRAFT, APPROVED], history: HISTORY, initialId: DRAFT.id, clientEntryId: APPROVED.id }
+const EDITOR: Who = { caps: { canEdit: true, canApprove: false }, entries: [DRAFT, APPROVED], history: [], initialId: DRAFT.id, clientEntryId: APPROVED.id }
+const CLIENT: Who = { caps: { canEdit: false, canApprove: false }, entries: [APPROVED], history: [], initialId: APPROVED.id, clientEntryId: APPROVED.id }
+
+export function panel(who: Who, extra: Record<string, unknown> = {}): ReactNode {
+  return (
+    <CommentaryPanel clientSlug="acme" viewKey="organic-social:instagram" entries={who.entries} initialId={who.initialId}
+      clientEntryId={who.clientEntryId} capabilities={who.caps} history={who.history}
+      entryNotes={{ [APPROVED.id]: 'Client sees from Nov 12' }} {...extra} />
+  )
+}
+const draw = (node: ReactNode, exporting = false) => render(exporting ? <ExportModeProvider>{node}</ExportModeProvider> : <>{node}</>).container
+const openHistory = (c: HTMLElement) => { const b = [...c.querySelectorAll('button')].find((x) => x.textContent?.startsWith('History')); if (b) fireEvent.click(b); return c }
+
+describe('without look, the panel is exactly as before', () => {
+  test.each([
+    ['an approver, editor closed', () => draw(panel(APPROVER))],
+    ['an approver, history open', () => openHistory(draw(panel(APPROVER)))],
+    ['an editor who is not an approver', () => draw(panel(EDITOR))],
+    ['a client', () => draw(panel(CLIENT))],
+    ['the PDF export', () => draw(panel(APPROVER), true)],
+  ])('%s', (_name, make) => {
+    expect(make().innerHTML).toMatchSnapshot()
+  })
+})
