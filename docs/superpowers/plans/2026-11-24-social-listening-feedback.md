@@ -2,7 +2,7 @@
 
 Builds the items in `docs/superpowers/specs/2026-11-24-social-listening-feedback.md` (F1 to F15). That file holds the
 map from each point to the code, with line citations, and my decisions. This plan holds only the build: what changes,
-in what order, how each part is tested and what guards stay on. Status: **decided except the questions in section 3**. Nothing here is built yet. Two fresh-eyed review rounds ran on 2026-11-24 (round 1: 1 BLOCKER, 8 MAJOR fixed; round 2, changed lines only: 3 MAJOR, each with one fix and no choice, fixed; MINORs listed in section 5). No round 3.
+in what order, how each part is tested and what guards stay on. Status: **decided and reviewed, ready to build**. Nothing here is built yet. Two fresh-eyed review rounds ran on 2026-11-24 (round 1: 1 BLOCKER, 8 MAJOR fixed; round 2, changed lines only: 3 MAJOR, each with one fix and no choice, fixed; MINORs listed in section 5). No round 3.
 
 Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 
