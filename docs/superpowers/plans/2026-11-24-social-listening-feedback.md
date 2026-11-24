@@ -10,15 +10,19 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 ## 1. Shape and rules
 
 - **Shape.** `feat/social-listening-1124-feedback` (#518) is the deliverable branch. Each unit below is its own branch
-  off it and its own PR into it, standalone, mergeable in any order unless a unit says it waits for another. #518
-  then goes to dev as one reviewed unit.
+  and its own PR into it. Several units edit the same files (`SL/brand.tsx`, `SL/industry.tsx`, `KIT/frames.tsx`,
+  `KIT/charts.tsx`), so they go **in this order, each cut from #518 after the one before it has merged** (never stacked
+  on an open PR): A, C, B, D, E, F, G, H. Unit I is a read-only check and can run any time. #518 then goes to dev as one
+  reviewed unit.
 - **Social Listening on staging is approved.** Before the first change, measure the October brand and industry views
   on staging (staff view and client preview): the box of every card, tile and analysis box through `getComputedStyle`,
   plus one PDF export. Saved privately in `~/.claude/organic-social-work/` (it is client data), never in this repo.
   After each unit, the same measurements locally, and every difference is one the unit meant to make.
 - **Renaissance byte-identical.** The Organic Social golden and parity tests (`parts/*.golden.test.tsx`,
-  `parts/version-parity.test.tsx`) pass unchanged. Any test change outside Social Listening stops the unit, except the
-  export request tests in Unit C, which must show every non-Social Listening request unchanged.
+  `parts/version-parity.test.tsx`) pass unchanged. Any test change outside Social Listening stops the unit, with one
+  exception: Units C and F add Social Listening cases to the export and report route tests (`lib/export/request.test.ts`,
+  `lib/export/bulk.test.ts`, and the two report routes' tests). Every existing assertion there stays as it is, and new
+  tests prove every non-Social Listening page and request is unchanged.
 - **No conflicts with the open PRs.** #516 and #517 both edit `parts/ytd-kit.tsx`, and #517 edits
   `KIT/kit.module.css`, `ytd-notes-panel.tsx`, `note-form.tsx` and `note-actions.tsx`. No unit edits those. New styles
   go in a new CSS module next to the Social Listening components. Before #518 leaves draft: it merges clean with dev,
@@ -93,7 +97,8 @@ Files: `KIT/frames.tsx`, a new `SL/layout.module.css`, `SL/brand.tsx`, `SL/indus
 
 Tests (first): `SlCard` with a box puts the box outside the card and both inside one export block; without a box the
 render equals a snapshot of today's markup; the kit YTD block's tests pass unchanged; no `.g2` grid holds a chart card
-on either topic; the conversation box sits inside Themes; the new owned text; no industry YTD card.
+on either topic; the conversation box sits inside Themes; the new owned text; the industry month-by-month card takes its
+own full row.
 `SL/section.snapshot.test.tsx` is updated on purpose and its diff read line by line.
 
 ### Unit B: tooltips (F2)
@@ -109,35 +114,52 @@ table; a missing entry draws nothing; the hint never prints in the PDF.
 
 Files: `KIT/charts.tsx` (two new charts: sentiment shares by month as three lines with gaps, and results per day by
 sentiment as three lines), a new client component `SL/chart-toggle.tsx`, `SL/brand.tsx`, `SL/industry.tsx`,
-`LIB/params.ts`, and the export path: `lib/export/request.ts`, `components/export-pdf-button.tsx`, and
+`SL/section.tsx`, `LIB/params.ts`, and the path the AEO tab's settings already take: the two report routes
+(`app/dashboard/[clientSlug]/reports/page.tsx`, `app/portal/[clientSlug]/reports/page.tsx`: they read the params, pass
+them to the section, and build `serverExport`, dashboard `:140-143`, `:296-310`), `components/export-pdf-button.tsx`,
+`lib/export/request.ts`, `lib/export/bulk.ts` (bulk export forwards the AEO values at `:44-45`), and
 `app/export/[clientSlug]/[section]/page.tsx`.
 
-- The toggle shows the line first. A choice of columns is kept in the page URL (one short param listing the charts set
-  to columns), the export button sends it, and the export page draws those charts as columns. That is the AEO tab's
-  pattern (`lib/export/request.ts:16-19`, `:50-51`, `:59-60`, `:72-73`). The param is checked against the fixed list of
-  toggle charts; anything else is ignored.
+- Mechanism: the toggle writes a page URL param, `slcols`, listing the charts set to columns, with `router.push`, the
+  same way the topic pills change `sl` (`SL/pills.tsx:11-19`). The server re-renders, so the route has the value and
+  passes it into `serverExport`; the button sends it; bulk export forwards it on the Social Listening page; the export
+  page draws those charts as columns. Each step is spread only when the view is Social Listening, as the AEO values are
+  (dashboard route `:309`), so every other page and request carries nothing new.
+- Bad values, on purpose two rules: on the page, an unknown chart id or a repeat is dropped, so an old link still loads;
+  in the export request, any value outside the fixed list makes the request invalid, as the AEO values do
+  (`lib/export/request.ts:50-51`), since the button only ever sends what the route already cleaned.
 - Brand: Sentiment YTD and Reddit YTD toggle; Positive + neutral does not; all three full width, stacked.
 - Industry: Sentiment over time (daily) toggles, and so does the month-by-month card while it stays (Q3).
 
 Edge-case list for the commit body: the param comes from the browser, so an unknown chart id, a repeat, or an
-oversized value is dropped, never echoed; a request with no param is the request of today.
+oversized value is dropped on the page and refused in an export request, never echoed; a request with no param is the
+request of today.
 
 Tests: the line charts break at a gap month and label each point; the toggle starts on line and switches; the columns
-view is today's chart unchanged; the export page draws columns only for the charts the param names; every export
-request without the param is byte-identical to today (`lib/export/request.test.ts`).
+view is today's chart unchanged; the export page draws columns only for the charts the param names; a bulk export of
+the Social Listening page carries the param and every other page's body is unchanged (`lib/export/bulk.test.ts`); every
+export request without the param is byte-identical to today (`lib/export/request.test.ts`); both routes pass the param
+only on the Social Listening view.
 
 ### Unit D: media types (F9, F10)
 
 Files: `KIT/charts.tsx` (`MediaShare`, and a new sentiment-by-media chart), `LIB/compare.ts` (the deck baseline and
-Q2's rule), `lib/db/schema.ts` and a migration (media type numbers on `social_listening_history`), `LIB/boxes.ts`
-(one new box id at the end), `LIB/view-model.ts`, `SL/brand.tsx`.
+Q2's rule), `lib/db/schema.ts` and **the one history migration** (both new history columns, media and authors; Unit F
+reads the authors column and waits for this unit), `LIB/boxes.ts` (one new box id at the end), `LIB/view-model.ts`,
+`SL/brand.tsx`.
 
 1. Colour: drop `neutral` at `KIT/charts.tsx:215`, so a rise reads up and green with its sign, a drop down and red.
-2. Deck baseline: a nullable media column on the history row (each type's result count as the deck shows it);
-   `mediaChanges` reads last month's history row first and falls back to last month's presented upload, as
-   `presentedValues` does (`LIB/compare.ts:111-138`). A history row without media behaves as today. October's counts are
-   entered from the final October deck (they rebuild exactly from its charts), a database write on my go.
-3. Q2: when a media type is new this month, Other reads n/a.
+2. Deck baseline. Two nullable jsonb columns on `social_listening_history`: `media`, a list of `{ media: string,
+   count: integer }`, and `authors`, a list of `{ authorId: string, name: string, network: string, posts: integer }`.
+   Media names are stored exactly as the export spells them (the decks use the same Talkwalker names); entering a row
+   refuses a name that is not in that month's upload, so a misspelling can never become a silent n/a. Author ids come
+   from the month's upload, matched to the deck's rows by name and network, and a row that doesn't match is refused.
+   `mediaChanges` reads last month's history `media` first and falls back to last month's presented upload, as
+   `presentedValues` does (`LIB/compare.ts:111-138`), and stays keyed by exact name in a Map (`:170-172`). A history row
+   without the columns behaves as today. October's values come from the final October deck (they rebuild exactly from
+   its charts), a database write on my go.
+3. Q2: when a media type is new this month (in this month's data, not in the baseline), the type named exactly
+   `Other` reads n/a. `Online News Other` is a different type and is not affected (`LIB/colors.ts:18`, `:24`).
 4. Slide 10's chart: one 100% bar per sentiment with its count, split by media type in the tab's media colours
    (`LIB/colors.ts:10-29`), shares printed in segments wide enough, a legend. Full width, its own analysis box.
 5. The numbers check, once October's deck values are entered on my go: on staging, with a November test upload, every
@@ -145,19 +167,28 @@ Q2's rule), `lib/db/schema.ts` and a migration (media type numbers on `social_li
    back to me before the unit ships.
 
 Tests: rise, drop, zero and missing baseline render as the tiles do; a history row's media numbers win over last
-month's upload, and a history row without them falls back to the upload; the migration on PGlite; Q2's rule; the new chart's shares sum to 100 per
-sentiment, an empty sentiment draws an empty bar, a media type absent from one sentiment has no segment there.
+month's upload, and a history row without them falls back to the upload; entering a media name or author not in the
+month's upload is refused; the migration on PGlite; Q2's rule touches only `Other`; the new chart's shares sum to 100
+per sentiment, an empty sentiment draws an empty bar, a media type absent from one sentiment has no segment there.
 
 ### Unit E: annotations (F6)
 
 Waits for Unit C (it draws on the new line charts).
 
-Files: `lib/organic-social/annotations.ts` (new chart values), the note input check, `app/actions/chart-notes.ts`
-(accept the Social Listening channel and charts), a Social Listening notes reader, the new line charts and Results over
-time (marks and hover). The note form and panel are imported, never edited (#517 changes them).
+Values: channel `SOCIAL_LISTENING`; charts `sl-b-daily` and `sl-i-daily` (day notes), `sl-b-ytd`, `sl-b-posneu`
+and `sl-b-reddit` (month notes, stored on the month's 1st, as the YTD notes are, `lib/db/schema.ts:431`).
 
-Edge-case list for the commit body: an unknown chart or channel value is refused before any read; a note before the
-client's first reporting month is refused as today; a second save on the same day edits the open draft (the existing
+Files: a new `LIB/notes.ts` (the values above and their own key check), `app/actions/chart-notes.ts` (when the channel
+is `SOCIAL_LISTENING`, check with the new Social Listening check and gate on the client having the Social Listening tab,
+read from `LIB/capabilities.ts` before building; every other channel takes today's path unchanged), a Social Listening
+notes reader, the new line charts and Results over time (marks and hover). `CHANNELS` (`lib/organic-social/metrics.ts`),
+`checkAnnotationChannel` (`lib/organic-social/annotation-hides/mutations.ts:15-16`), `ANNOTATION_CHARTS` and
+`YTD_NOTE_CHARTS` (`lib/organic-social/annotations.ts:47`, `:52`) stay exactly as they are, so Renaissance's notes and
+hides are untouched. The note form and panel are imported, never edited (#517 changes them).
+
+Edge-case list for the commit body: an unknown chart or channel value is refused before any read; a Social Listening
+chart under a Dash channel, or a Dash chart under `SOCIAL_LISTENING`, is refused; a note before the client's first
+reporting month is refused as today; a second save on the same day edits the open draft (the existing
 unique index, `lib/db/schema.ts:446-448`); a failed save logs the client, chart and day, never the text.
 
 Tests: a graph with no approved note renders identical to the same graph without notes; an approved note draws its
@@ -166,14 +197,23 @@ another channel and the reverse.
 
 ### Unit F: authors the team picks (F11)
 
-Files: `LIB/export-parse.ts` (`MAX_INFLUENCERS` 5 to 25), a new table and migration for the month's picks, `LIB/store.ts`,
-an action in `app/actions/social-listening.ts`, `LIB/view-model.ts`, `SL/brand.tsx` (the table and cards get a client
-component for sorting and the staff Show/Hide controls).
+Waits for Units C (the URL param path) and D (the history `authors` column).
 
-- Picks table: client, month (its 1st), what is picked (an author id, or an overview card), shown or hidden, by and at.
-  A change is a new row; nothing is deleted.
-- A month with no picks shows the first 5 authors to the client, as today.
+Files: `LIB/export-parse.ts` (`MAX_INFLUENCERS` 5 to 25, `:37`, sliced at `:353`), a new table and migration for the
+month's picks, `LIB/store.ts`, an action in `app/actions/social-listening.ts`, `LIB/view-model.ts`, `SL/brand.tsx`
+(the table and cards get a client component for sorting and the staff Show/Hide controls), and Unit C's param path for
+the sort.
+
+- Picks table: client, month (its 1st), kind (`author` or `card`), key (the author id, or the card's label as the
+  export gives it, such as "Most active author"), state (`shown` or `hidden`), by and at. A change is a new row; nothing
+  is deleted.
+- Read rule: for each item, the newest row for that month wins. An item with no row has a default: an author is shown
+  if it is in the first 5 in export order (before any sorting), hidden otherwise; a card is shown. So a month with no
+  picks looks as today, and a month with one hide shows the other four.
+- A pick whose author is not in the month's current upload (a re-upload dropped it) is kept but ignored.
 - A hidden author also hides an overview card with the same name and network; staff can hide any card directly.
+- Sort: posts (default), reach or engagement, as a page URL param `slsort` through Unit C's path, so the PDF prints the
+  order on screen.
 - Posts change against what the client saw: `authorChanges` reads last month's history row first (October's top five,
   entered with Unit D's media counts, matched to the October upload's author ids by name and network), then the upload.
 - Q4: "Reach per mention" and "Engagement per mention" columns.
@@ -182,18 +222,30 @@ Edge-case list for the commit body: author ids come from an untrusted file and s
 (`LIB/compare.ts:176-178`); the action checks the month is one staff can edit and the author or card is in that month's
 upload; two staff picking at once both land (no lost update); a failed write logs the client, month and author id.
 
-Tests: the parser keeps 25 and still refuses a widget missing a column; picks apply to their month only; clients see
-only picked authors and never the controls; a month with no picks shows the first 5; hiding an author hides its card;
-sorting changes order only; the PDF prints what the client sees in the order on screen. Migration tested on PGlite;
+Tests: the parser keeps 25 and still refuses a widget missing a column; picks apply to their month only; the newest
+row wins; clients see only shown authors and never the controls; a month with no picks shows the first 5 in export
+order; a month with only a hide shows the other four; a pick for an author the upload no longer has is ignored; hiding
+an author hides its card; sorting changes order only; an unknown `slsort` falls back to posts; the PDF prints what the
+client sees in the order on screen. Migration tested on PGlite;
 applied to dev and staging only on my go. The card name match is checked on a real export first.
 
 ### Unit G: keyword appendix carries over (F5)
 
-Files: `SL/section.tsx` (the box read), a pure helper next to `lib/commentary/month.ts`.
+Files: `SL/section.tsx`, a new `SL/carried-appendix.tsx`, a pure helper in `LIB/` (the newest earlier approved
+appendix for a box). `components/report-sections/commentary/monthly.tsx` is shared by every report and stays untouched:
+it keeps only the served month's entries (`monthly.tsx:51`), so it can't carry anything over.
 
-Tests: a month with its own entry shows it; a month without one shows the newest earlier approved appendix, to the
-client too; other boxes never carry over; nothing is written on read; editing a carried-over appendix saves this
-month's own draft.
+- For `b-keywords` and `i-keywords` only, when the served month has no entry of its own, `SL/section.tsx` renders the
+  carried appendix through `SL/carried-appendix.tsx` instead of `monthlyCommentary`: `SlAnalysis` with the carried entry
+  as its only entry. Staff see a "From <month>" note and an Edit that opens a **new draft for this month** prefilled with
+  the carried text (a save with no id and this month's period, so last month's row is never changed); Approve and
+  Revoke are not offered on a carried entry. A client and the PDF see the carried text.
+- The box's id goes into `approvedBoxes` when it carries over (`SL/section.tsx:80-82`), so `show.keywords` holds for a
+  client (`LIB/view-model.ts:193`).
+
+Tests: a month with its own entry shows it, through `monthlyCommentary` as today; a month without one shows the newest
+earlier approved appendix, to the client too; the client sees the section; other boxes never carry over; nothing is
+written on read; Edit on a carried appendix saves a new draft for this month and last month's row is unchanged.
 
 ### Unit H: industry themes by sentiment (F15)
 
@@ -206,7 +258,17 @@ and confirm they are the five sentiment colours brand uses (`LIB/colors.ts:35-37
 A read-only check of staging: does October have a trends row for the client. The answer goes to the team; the code
 stays as is unless the check finds a fault, which then gets debugged on its own.
 
-## 5. Done means
+## 5. Minor findings from review round 1, handled in the build
+
+- Unit D: the media card's label (`SL/brand.tsx:155`) changes from "Change vs the <month> export" to name the report,
+  since the baseline becomes what the client saw.
+- Unit C: Positive + neutral at full width draws on a 960-wide frame like the other charts, not the 480 it has today
+  (`KIT/charts.tsx:276`), so it doesn't double in height.
+- Unit B: the tooltip table is keyed by box id for charts and by a fixed tile id for tiles, never by title text.
+- Unit C's two bad-value rules (drop on the page, refuse in the export request) are on purpose; section 4 says so.
+- The map's influencer slice citation is corrected to `LIB/export-parse.ts:353`.
+
+## 6. Done means
 
 Every unit: its tests pass, the full suite and type check pass, the staging measurements differ only where intended,
 Renaissance's golden tests are unchanged, the merge proofs in section 1 hold, pushed. Then #518's body, my self-review

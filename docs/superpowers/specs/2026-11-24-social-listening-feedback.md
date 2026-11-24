@@ -162,7 +162,7 @@ cut by sentiment; colour coded); list.
 
 **F11. Top influencers: pull 25, remove per month, sort by reach and engagement.** Call 00:15:01 to 00:20:58; list
 ("don't permanently remove authors, only for the current month"); notes next step.
-- Today: the parser keeps the export's first 5 (`LIB/export-parse.ts:37`, sliced at `:356`); the table keeps export
+- Today: the parser keeps the export's first 5 (`LIB/export-parse.ts:37`, sliced at `:353`); the table keeps export
   order (`SL/brand.tsx:192-221`). Talkwalker exports only the rows its widget shows (Paul, call 00:17:08), so 25 needs
   the widget widened in Talkwalker first. Uploads already stored hold 5 rows (the raw file is kept, `lib/db/schema.ts:639`,
   but it only ever had 5), so October needs a new export.
