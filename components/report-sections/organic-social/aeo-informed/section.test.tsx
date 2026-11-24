@@ -27,7 +27,7 @@ const CLIENT = {
   dashSocialConfig: { brandId: 1, aeoInformedSocial: { enabled: true, allTimeFrom: '2026-01-22' } },
 }
 const OCT = 'custom:2026-10-01,2026-10-31'
-const props = (o: Partial<Parameters<typeof AeoInformedSection>[0]> = {}) => ({ clientSlug: 'a-client', servedRange: OCT, aeo: 'month' as const, aeoMin: 2, role: 'INTERNAL_ADMIN', deadlineMs: 120_000, ...o })
+const props = (o: Partial<Parameters<typeof AeoInformedSection>[0]> = {}) => ({ clientSlug: 'a-client', servedRange: OCT, aeo: 'month' as const, aeoMin: 2, role: 'INTERNAL_ADMIN', deadlineMs: 120_000, monthKey: '2026-10', ...o })
 const show = async (o: Partial<Parameters<typeof AeoInformedSection>[0]> = {}) => render(<>{await AeoInformedSection(props(o))}</>)
 
 beforeEach(() => {

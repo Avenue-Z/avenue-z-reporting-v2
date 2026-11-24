@@ -113,13 +113,15 @@ export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCt
     try { aeoClient = await getClientBySlug(rctx.clientSlug) } catch { aeoReadFailed = true }
     const aeoLocked = aeoReadFailed ? null : lockedRangeFor(aeoClient, role, rctx.dateRange, requestClock())
     if (aeoLocked?.reason === 'malformed-config') logMalformedConfig(rctx.clientSlug, aeoLocked.malformedKey)
+    const aeoDesignFrom = aeoReadFailed ? null : parseDesignFrom(aeoClient)
+    if (aeoDesignFrom?.kind === 'malformed') logMalformedDesignFrom(rctx.clientSlug, aeoDesignFrom.value)
     if (aeoLocked && !aeoLocked.month) return <NoMonths text={noMonthsText(aeoLocked, viewerForRole(role))} />
     if (aeoLocked?.month && aeoLocked.outcome === 'replaced' && aeoLocked.hiddenMonthAttempt) {
       logHiddenMonthAttempt(rctx.clientSlug, rctx.dateRange, aeoLocked.month.dateRange)
     }
     return (
       <AeoInformedSection clientSlug={rctx.clientSlug} servedRange={aeoLocked?.month?.dateRange ?? rctx.dateRange}
-        aeo={settings.range} aeoMin={settings.min} role={role} deadlineMs={settings.deadlineMs} />
+        aeo={settings.range} aeoMin={settings.min} role={role} deadlineMs={settings.deadlineMs} monthKey={aeoLocked?.month?.key ?? null} />
     )
   }
   // The Social Listening tab (spec 2026-11-19 section 4): its own section, no template parts, served the same month as every other tab

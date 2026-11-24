@@ -109,7 +109,7 @@ describe('the AEO Informed Social view (plan Task 9)', () => {
     const ctx = buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: null, view: 'aeo-informed', dateRange: OCT })
     const out = await OrganicSocialBody({ ctx, aeo: { range: 'ytd', min: 3, deadlineMs: 120_000 } }) as ReactElement
     expect(out.type).toBe(AeoInformedSection)
-    expect(out.props).toEqual({ clientSlug: 'renaissance', servedRange: OCT, aeo: 'ytd', aeoMin: 3, role: 'INTERNAL_ADMIN', deadlineMs: 120_000 })
+    expect(out.props).toEqual({ clientSlug: 'renaissance', servedRange: OCT, aeo: 'ytd', aeoMin: 3, role: 'INTERNAL_ADMIN', deadlineMs: 120_000, monthKey: null })
     expect(getSectionTemplate).not.toHaveBeenCalled()
   })
   test('with no AEO settings handed in, the body uses Month, min 2 and the page\'s 120 s', async () => {
@@ -168,7 +168,15 @@ describe('locked months in the section', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const out = await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'c', channel: null, view: 'aeo-informed', dateRange: LIVE }), aeo: { range: 'month', min: 2, deadlineMs: 120_000 } }) as ReactElement
     expect(out.type).toBe(AeoInformedSection)
-    expect(out.props).toMatchObject({ servedRange: SEP, role: 'CLIENT_VIEWER' })
+    expect(out.props).toMatchObject({ servedRange: SEP, role: 'CLIENT_VIEWER', monthKey: '2026-09' })
+  })
+  test('on the AEO tab a malformed designFrom is logged once, and the section still gets the served month', async () => {
+    as('INTERNAL_ADMIN')
+    getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { ...OPTED.dashSocialConfig, designFrom: '2026-13' } })
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const out = await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'c', channel: null, view: 'aeo-informed', dateRange: SEP }), aeo: { range: 'month', min: 2, deadlineMs: 120_000 } }) as ReactElement
+    expect(out.props).toMatchObject({ servedRange: SEP, monthKey: '2026-09' })
+    expect(err.mock.calls).toEqual([['[organic-social] designFrom setting is invalid slug=c value="2026-13"']])
   })
 
   test('a client asking for the live month gets September and its comparison, logged once (edge 22)', async () => {

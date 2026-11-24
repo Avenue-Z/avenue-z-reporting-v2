@@ -32,6 +32,7 @@ import { ExportModeProvider } from '@/components/export/export-mode'
 import { AeoInformedSection } from './section'
 import { expectSameValues } from '../parts/version-parity'
 import kit from '../design/kit.module.css'
+import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/organic-social/design-from.rows'
 
 let RESULT: AeoTabResult
 beforeAll(async () => {
@@ -40,11 +41,13 @@ beforeAll(async () => {
 })
 
 const SETTING = { enabled: true, allTimeFrom: '2026-01-22' }
-const clientWith = (aeoInformedSocial: object) => ({
-  id: 'client-uuid', slug: 'a-client', peecCustomerProjectId: 'or_TEST_PROJECT', dashSocialConfig: { brandId: 1, aeoInformedSocial },
+// designFrom '2026-10' (option B): the kit applies to the served month October, so the cases below still prove what the
+// kit draws. Without `design: "kit"` it changes nothing.
+const clientWith = (aeoInformedSocial: object, dsc: Record<string, unknown> = { designFrom: '2026-10' }) => ({
+  id: 'client-uuid', slug: 'a-client', peecCustomerProjectId: 'or_TEST_PROJECT', dashSocialConfig: { brandId: 1, ...dsc, aeoInformedSocial },
 })
 const OCT = 'custom:2026-10-01,2026-10-31'
-const props = (o: Partial<Parameters<typeof AeoInformedSection>[0]> = {}) => ({ clientSlug: 'a-client', servedRange: OCT, aeo: 'month' as const, aeoMin: 2, role: 'INTERNAL_ADMIN', deadlineMs: 120_000, ...o })
+const props = (o: Partial<Parameters<typeof AeoInformedSection>[0]> = {}) => ({ clientSlug: 'a-client', servedRange: OCT, aeo: 'month' as const, aeoMin: 2, role: 'INTERNAL_ADMIN', deadlineMs: 120_000, monthKey: '2026-10', ...o })
 const draw = async (exporting: boolean, o: Partial<Parameters<typeof AeoInformedSection>[0]> = {}) => {
   const node = await AeoInformedSection(props(o))
   return render(exporting ? <ExportModeProvider>{node}</ExportModeProvider> : <>{node}</>).container
@@ -124,5 +127,31 @@ describe('with design: "kit", the tab reads and plots exactly as before, on the 
     expect(now.setting.design).toBe('kit')
     expect(strip(now)).toBe(strip(was))
     expect(key(now)).toBe(key(was))
+  })
+})
+
+describe('option B: design: "kit" applies only from the client\'s designFrom (spec section 3)', () => {
+  const KIT = { ...SETTING, design: 'kit' }
+  // Recharts numbers its clip paths per render too (recharts259-clip, recharts271-clip): one placeholder, as sameIds does.
+  const markup = (c: HTMLElement) => sameIds(c.innerHTML).replace(/recharts\d+-/g, 'recharts<id>-')
+  const oldMarkup = async () => { getClientBySlug.mockResolvedValue(clientWith(SETTING, {})); return markup(await draw(false)) }
+  it('a month before designFrom is drawn exactly as without the setting; the month itself takes the kit', async () => {
+    const old = await oldMarkup()
+    getClientBySlug.mockResolvedValue(clientWith(KIT, { designFrom: '2026-11' }))
+    expect(markup(await draw(false, { monthKey: '2026-10' }))).toBe(old)
+    expect((await draw(false, { monthKey: '2026-11' })).querySelector(`.${kit.root}`)).not.toBeNull()
+  })
+  it('a malformed designFrom, or none, or no served month: the old look', async () => {
+    const old = await oldMarkup()
+    for (const [dsc, monthKey] of [[{ designFrom: '2026-13' }, '2026-10'], [{}, '2026-10'], [{ designFrom: '2026-01' }, null]] as const) {
+      getClientBySlug.mockResolvedValue(clientWith(KIT, dsc))
+      expect(markup(await draw(false, { monthKey })), JSON.stringify([dsc, monthKey])).toBe(old)
+    }
+  })
+  it.each(DESIGN_FROM_ROWS)('$name', async (row) => {
+    getClientBySlug.mockResolvedValue({ ...clientWith(KIT), dashSocialConfig: rowConfig(row, { aeoInformedSocial: KIT }) })
+    const c = await draw(false, { monthKey: row.month })
+    expect(c.querySelector('[data-aeo-block="graphs"]')).not.toBeNull()
+    expect(c.querySelector(`.${kit.root}`) !== null).toBe(row.kit)
   })
 })
