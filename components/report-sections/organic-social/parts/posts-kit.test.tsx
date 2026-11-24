@@ -118,6 +118,24 @@ describe('the posts with the kit', () => {
       expect(c.querySelector('div.rounded-lg.px-6.py-5')).toBeNull()
     }
   })
+  // Pinned the way a client moved onto the kit will be: the platform composition carries the kit version, and the split
+  // rule (influencerRulesFor) reads that pin. The same posts on each tab, the same totals and the same reads as today.
+  test.each([
+    ['the Influencer tab, platform top-content@3 moved to @4 (the outline rule)', influencerPostsV1, influencerPostsV2, INFLUENCER_TAB, 3, 4, {}],
+    ['a top-content@2 tab with a saved handle, moved to @5 (the author rule)', topContentV2, topContentV5, IG, 2, 5, { hiddenReports: ['organic-influencer'] }],
+  ] as const)('%s', async (_name, oldV, kitV, ctx, from, to, extra) => {
+    const pinned = (v: number) => ({ ...TAB_CLIENT, ...extra, reportSectionConfig: { 'organic-social:platform': { versions: { 'top-content': v } } } })
+    const serveAt = async (v: number, part: typeof oldV | typeof kitV) => {
+      getClientBySlug.mockResolvedValue(pinned(v))
+      for (const f of [fetchTopContentFrozen, getDesignations]) f.mockClear()
+      const c = draw(await serve(part.render({ ...ctx, role: 'INTERNAL_ADMIN' }, r(part.id, part.version))), false)
+      return { c, reads: JSON.stringify([fetchTopContentFrozen.mock.calls, getDesignations.mock.calls]) }
+    }
+    const today = await serveAt(from, oldV)
+    const moved = await serveAt(to, kitV)
+    expectSameValues(today.c, moved.c)
+    expect(moved.reads).toBe(today.reads)
+  })
   test('asks exactly what the old versions ask: the same post read, client read and designations', async () => {
     const calls = () => JSON.stringify([fetchTopContentFrozen.mock.calls.map((c) => c.slice(0, 3)), getClientBySlug.mock.calls, getDesignations.mock.calls])
     for (const [, oldV, kitV, ctx, client] of PAIRS) {
