@@ -8,8 +8,8 @@ Author: Thomas Chang. "I", "me" and "my" mean me. Date: 2026-11-24.
 | PR | Branch | Diff range | Plan tasks |
 |---|---|---|---|
 | #497 | `feat/os-kit-tiles` | `a55cadef..794fdba0` | 2, 5 |
-| #498 | `feat/os-kit-trends` | `ef32da9b..602b90a3` | 3, 4 |
-| #499 | `feat/os-kit-ytd` | `ef32da9b..ba98c909` | 6 |
+| #498 | `feat/os-kit-trends` | `ef32da9b..4fbf61f9` | 3, 4 |
+| #499 | `feat/os-kit-ytd` | `ef32da9b..d91a0614` | 6 |
 | #500 | `feat/os-kit-posts` | `ef32da9b..c08e4d66` | 7, 8 |
 | #501 | `feat/os-kit-kpi-check-in` | `ef32da9b..89c06dd3` | 9 |
 | #502 | `feat/os-kit-aeo` | `ef32da9b..61897594` | 10 |
@@ -83,6 +83,8 @@ and me). Sev: ● correctness, ○ cleanup or convention.
 | 9 | ○ | PLAUSIBLE | #497, #498, #499, #500, #501, #502 | Seven things are proven by tests but not seen on screen |
 | 10 | ○ | CONFIRMED | `trends.tsx:166-212`, `designation-toggle.tsx:31`, `pill.ts:4-5` | The graph controls, note buttons and designation toggle keep their old style |
 | 11 | ○ | CONFIRMED | `parts/registry.ts:26` | `follower-graph@1` has no kit form |
+| 12 | ● | CONFIRMED (Paul), fixed in #498 (`4fbf61f9`) and #499 (`d91a0614`) | `design/kit.module.css:77` | The fix for 3 raised the svg rule's specificity, so it beat `.donutWrap svg` and stretched every Social Listening donut |
+| 13 | ● | CONFIRMED (Paul, #506), fixed in #508 (`f2930199`) | `design/kit.module.css:27` | Kit blocks replaced the PDF export's font stack, so arrows and emoji could print as boxes |
 
 ## 4. Detail
 
@@ -93,8 +95,8 @@ and me). Sev: ● correctness, ○ cleanup or convention.
    shared with option B if chosen (past-months spec section 4).
 2. **Server and client.** `lookOf` moved to `chart-look.ts`, a plain module; `client-boundary.test.ts` now fails on any
    server module calling into a client module.
-3. **The svg rule.** Now `.root svg:not(:global(.recharts-surface))`; `kit-svg-rule.test.ts` checks it the way CSS
-   Modules hashes it. Social Listening draws no Recharts, so it is unchanged.
+3. **The svg rule.** Now `.root svg:where(:not(:global(.recharts-surface)))`; `kit-svg-rule.test.ts` checks it the way
+   CSS Modules hashes it. My first fix used a bare `:not()`, which changed Social Listening too: finding 12.
 4. **Time zone.** Each timestamp is one placeholder (`clockFree`); everything else is still compared byte for byte.
 5. **Past months.** The look is chosen per client, by tab, once per render, whatever month is on screen; locked months
    freeze numbers, not the look. The choice, A or B, and option B's design are in the past-months spec. Nothing is
@@ -111,9 +113,18 @@ and me). Sev: ● correctness, ○ cleanup or convention.
 11. **`follower-graph@1`.** Staging's platform template row pins `@1`. Any client drawing it needs a kit form; check
     Renaissance's pins at its step.
 
+12. **The donuts (Paul's blocker).** A bare `:not()` counts its class, so the rule went from (0,1,1) to (0,2,1) and beat
+    `.donutWrap svg`, which wins only by file order. `:where()` adds nothing, so it is back at (0,1,1). New tests resolve
+    which rule wins, not only which match; in Chrome the donut went 168px (dev), 900px (the bare `:not()`), 168px (fixed).
+13. **PDF fonts (#506).** `.root` sets its own font stack, which replaced the export's Noto fonts inside kit blocks.
+    #508 adds `:global(.export-theme) .root { font-family: var(--font-sans); }`, its own PR off `dev`, needed before
+    the first kit pin, not before round 2 merges.
+
 ## 5. Follow-ups
 
-- **Before merge (block):** finding 5, Paul's answer on the spec PR; decision N4 (screenshots).
+- **Before merge (block):** decision N4 (screenshots). Finding 5 is answered (B, #504); B is its own PR after round 2.
+- **Before the first kit pin:** #508 (13) and B's PR.
+- **Tests (#507):** the gaps Paul found in #500, #501 and #503, one tests-only PR after round 2 merges.
 - **After merge:** fold the five helpers (6); the round 3 controls PR (10); the pin script compares against the
   version each client resolves (template row plus override), per the past-months spec.
 - **The Renaissance step:** kit forms of `ytd-review@4` (plan) and `follower-graph@1` (11).
