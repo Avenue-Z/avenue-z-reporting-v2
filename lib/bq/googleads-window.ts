@@ -10,10 +10,12 @@ import { AW_FRESHNESS_TABLE, ISO_DATE, awHistoryFrom } from './googleads'
  * `clipped`: the range was cut to what the warehouse holds — `from` is the history floor when the start
  * moved, `through` the newest day when the end moved, `empty` when nothing of the range is left.
  * `unavailable`: BigQuery could not say what it holds, so nothing is shown.
+ * `reach`: the sums are shown but reach and frequency are not, for a stale snapshot or a failed read (C4).
  */
 export type AdsNotice =
   | { kind: 'clipped'; from: string | null; through: string | null; empty: boolean }
   | { kind: 'unavailable' }
+  | { kind: 'reach'; reason: 'delayed' | 'unavailable' }
 
 /** `dateRange` is what every Google Ads fetcher on the page is given; null means fetch nothing. */
 export interface AdsWindow { dateRange: string | null; notice: AdsNotice | null }
