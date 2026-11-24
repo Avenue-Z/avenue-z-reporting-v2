@@ -5,6 +5,7 @@ import { ExportMedia, Media, cardMetrics, type CardMetric } from './post-card'
 import { safeHref } from './annotation-callouts'
 import { useExportMode } from '@/components/export/export-mode'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
+import pk from './posts-kit.module.css'
 
 /** The card's rows without the ones that have nothing in them: a rate Dash did not send, and Views when the post
  *  reports none (influencer and UGC posts usually carry no reach, so a row of "—" and a 0 says nothing). Engagements
@@ -20,12 +21,13 @@ export function influencerCardMetrics(post: TopContentPost, sortKey: string): Ca
 
 /** The Influencer tab's card, laid out like a deck slide: the post on the left, its date, caption and numbers
  *  beside it. Same media, numbers and staff toggle as PostCard. */
-export function InfluencerCard({ post, clientSlug, canEdit, sortKey }: {
-  post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey: string
+/** `look="kit"`: the design kit's frame (posts-kit.module.css), the row layout kept. Absent: exactly as before. */
+export function InfluencerCard({ post, clientSlug, canEdit, sortKey, look }: {
+  post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey: string; look?: 'kit'
 }) {
-  if (useExportMode()) return <ExportInfluencerCard post={post} sortKey={sortKey} />
+  if (useExportMode()) return <ExportInfluencerCard post={post} sortKey={sortKey} {...(look ? { look } : {})} />
   return (
-    <div data-influencer-card className="flex w-full overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
+    <div data-influencer-card className={look === 'kit' ? `flex w-full ${pk.frame}` : 'flex w-full overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]'}>
       <div className="relative w-2/5 shrink-0">
         <Media post={post} />
         {post.mediaType === 'CAROUSEL' && (
@@ -56,7 +58,7 @@ export function InfluencerCard({ post, clientSlug, canEdit, sortKey }: {
 /** The card as the PDF export prints it (as PostCard's export form does): the post's print image (a video's poster
  *  frame; a player cannot print) beside its numbers, the same rows hidden, the whole card one link to the post
  *  (http(s) only), no staff toggle. */
-function ExportInfluencerCard({ post, sortKey }: { post: TopContentPost; sortKey: string }) {
+function ExportInfluencerCard({ post, sortKey, look }: { post: TopContentPost; sortKey: string; look?: 'kit' }) {
   const href = safeHref(post.url)
   const body = (
     <>
@@ -80,7 +82,7 @@ function ExportInfluencerCard({ post, sortKey }: { post: TopContentPost; sortKey
       </div>
     </>
   )
-  const cls = 'flex overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]'
+  const cls = look === 'kit' ? `flex ${pk.frame}` : 'flex overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]'
   return href
     ? <a href={href} target="_blank" rel="noopener noreferrer" data-export-link="" className={cls}>{body}</a>
     : <div className={cls}>{body}</div>

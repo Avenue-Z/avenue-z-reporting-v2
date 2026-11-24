@@ -8,6 +8,7 @@ import { safeHref } from './annotation-callouts'
 import { useExportMode } from '@/components/export/export-mode'
 import { printImageUrl } from '@/lib/export/print-image'
 import type { TopContentPost } from '@/lib/organic-social/content-types'
+import pk from './posts-kit.module.css'
 
 export interface CardMetric { key: string; label: string; value: string; emphasised?: boolean }
 
@@ -84,7 +85,7 @@ export function ExportMedia({ post }: { post: TopContentPost }) {
 
 /** A card as the PDF export prints it: the whole card is one link to the post (http(s) only), "View post"
  *  reads as a link on paper, the card fills its grid cell, and staff controls are gone. */
-function ExportPostCard({ post, sortKey }: { post: TopContentPost; sortKey: string }) {
+function ExportPostCard({ post, sortKey, look }: { post: TopContentPost; sortKey: string; look?: 'kit' }) {
   const href = safeHref(post.url)
   const body = (
     <>
@@ -108,18 +109,20 @@ function ExportPostCard({ post, sortKey }: { post: TopContentPost; sortKey: stri
       </div>
     </>
   )
-  const cls = 'block overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]'
+  const cls = look === 'kit' ? `block ${pk.frame}` : 'block overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]'
   return href
     ? <a href={href} target="_blank" rel="noopener noreferrer" data-export-link="" className={cls}>{body}</a>
     : <div className={cls}>{body}</div>
 }
 
-export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements' }: {
-  post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey?: string
+/** `look="kit"` draws the card in the design kit's frame (posts-kit.module.css) inside a kit part version's block; the
+ *  content, the numbers and the staff toggle are the same. Absent: the card is exactly as before. */
+export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements', look }: {
+  post: TopContentPost; clientSlug: string; canEdit: boolean; sortKey?: string; look?: 'kit'
 }) {
-  if (useExportMode()) return <ExportPostCard post={post} sortKey={sortKey} />
+  if (useExportMode()) return <ExportPostCard post={post} sortKey={sortKey} {...(look ? { look } : {})} />
   return (
-    <div className="w-56 shrink-0 overflow-hidden rounded-xl print:w-[calc(25%-9px)] border border-white/[0.08] bg-white/[0.02]">
+    <div className={look === 'kit' ? `w-56 shrink-0 print:w-[calc(25%-9px)] ${pk.frame}` : 'w-56 shrink-0 overflow-hidden rounded-xl print:w-[calc(25%-9px)] border border-white/[0.08] bg-white/[0.02]'}>
       <div className="relative">
         <Media post={post} />
         {post.mediaType === 'CAROUSEL' && (

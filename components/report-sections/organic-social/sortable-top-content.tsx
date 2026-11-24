@@ -14,7 +14,7 @@ export type PlatformGroup = { platform: string; posts: TopContentPost[] }
  *  and page 2 is the next `pageSize`, never a fetch-order reshuffle. Its own `page` state is reset
  *  to 0 by the parent remounting it (keyed on sortKey+dir) whenever the sort changes. */
 function PlatformCardRow({
-  platform, posts, sortKey, dir, pageSize, clientSlug, canEdit, limit,
+  platform, posts, sortKey, dir, pageSize, clientSlug, canEdit, limit, look,
 }: {
   platform: string
   posts: TopContentPost[]
@@ -25,6 +25,7 @@ function PlatformCardRow({
   canEdit: boolean
   /** Show only the top `limit` by the active sort, as one page with no pager (outline tabs). */
   limit?: number
+  look?: 'kit'
 }) {
   const [page, setPage] = useState(0)
   const sorted = sortPosts(posts, sortKey, dir)
@@ -60,7 +61,7 @@ function PlatformCardRow({
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2 print:flex-wrap print:overflow-visible">
         {pg.slice.map((p) => (
-          <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} sortKey={sortKey} />
+          <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={canEdit} sortKey={sortKey} {...(look ? { look } : {})} />
         ))}
       </div>
     </div>
@@ -82,6 +83,7 @@ export function SortableTopContent({
   influencerHeading,
   hiddenInfluencer,
   heading,
+  look,
 }: {
   owned: PlatformGroup[]
   influencer: PlatformGroup[]
@@ -104,12 +106,14 @@ export function SortableTopContent({
   /** The section's title, drawn here only in the PDF export, inside the first row's block so it never ends a
    *  page alone (the part's own title is hidden there). The live page ignores it. */
   heading?: string
+  /** The design kit's look for the cards and the sort buttons (top-content@4 and @5). Absent: exactly as before. */
+  look?: 'kit'
 }) {
   const { metrics, sortKey, dir, onMetric } = useSort(sortKeys)
   const exportMode = useExportMode()
   if (exportMode) {
     return <ExportTopContent owned={owned} influencer={influencer} clientSlug={clientSlug} pageSize={pageSize} ownedLimit={ownedLimit}
-      sortKey={sortKey} sortLabel={metrics.find((m) => m.key === sortKey)!.label} influencerHeading={influencerHeading} heading={heading} />
+      sortKey={sortKey} sortLabel={metrics.find((m) => m.key === sortKey)!.label} influencerHeading={influencerHeading} heading={heading} {...(look ? { look } : {})} />
   }
 
   // key includes sortKey+dir so a sort change REMOUNTS each row, resetting its page to 0 — the new
@@ -127,12 +131,13 @@ export function SortableTopContent({
         clientSlug={clientSlug}
         canEdit={canEdit}
         limit={section === 'owned' ? ownedLimit : undefined}
+        {...(look ? { look } : {})}
       />
     ))
 
   return (
     <div className="space-y-6">
-      <SortToolbar metrics={metrics} sortKey={sortKey} dir={dir} onMetric={onMetric} />
+      <SortToolbar metrics={metrics} sortKey={sortKey} dir={dir} onMetric={onMetric} {...(look ? { look } : {})} />
 
       <div className="space-y-5">{rows(owned, 'owned')}</div>
 
@@ -162,9 +167,9 @@ const chunk = <T,>(xs: T[], n: number): T[][] => Array.from({ length: Math.ceil(
  *  sort, in rows of five cards, each row an unbreakable block. A platform's label rides in its first row's
  *  block, and the section's title and sort line in the very first one, so no title ends a page alone. No
  *  sort buttons, pager or staff-only rows. */
-function ExportTopContent({ owned, influencer, clientSlug, pageSize, ownedLimit, sortKey, sortLabel, influencerHeading, heading }: {
+function ExportTopContent({ owned, influencer, clientSlug, pageSize, ownedLimit, sortKey, sortLabel, influencerHeading, heading, look }: {
   owned: PlatformGroup[]; influencer: PlatformGroup[]; clientSlug: string; pageSize: number; ownedLimit?: number
-  sortKey: SortKey; sortLabel: string; influencerHeading?: string; heading?: string
+  sortKey: SortKey; sortLabel: string; influencerHeading?: string; heading?: string; look?: 'kit'
 }) {
   const blocks = (g: PlatformGroup, lead: ReactNode, limit: number | undefined, section: string) => {
     const sorted = sortPosts(g.posts, sortKey, 'desc')
@@ -181,7 +186,7 @@ function ExportTopContent({ owned, influencer, clientSlug, pageSize, ownedLimit,
       <div key={`${section}-${g.platform}-${i}`} data-export-block="" className="space-y-2">
         {i === 0 && <>{lead}{label}</>}
         <div className="grid grid-cols-5 gap-3">
-          {row.map((p) => <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={false} sortKey={sortKey} />)}
+          {row.map((p) => <PostCard key={p.id} post={p} clientSlug={clientSlug} canEdit={false} sortKey={sortKey} {...(look ? { look } : {})} />)}
         </div>
       </div>
     ))
