@@ -104,8 +104,21 @@ test('names exactly the kit versions the registry holds', () => {
   const kit = pins(ORGANIC_SOCIAL_PARTS).filter((p) => !pins(PRE_KIT_PARTS).includes(p)).sort()
   expect(Object.entries(KIT_WRAPS).flatMap(([id, m]) => Object.keys(m).map((v) => `${id}@${v}`)).sort()).toEqual(kit)
 })
-test('every kit version wraps a version registered before the kit, with its label', () => { /* for each [id, kit, old]:
-  expect(PRE_KIT_PARTS[id]?.[old]).toBeDefined(); expect(ORGANIC_SOCIAL_PARTS[id][kit].defaultLabel).toBe(PRE_KIT_PARTS[id][old].defaultLabel) */ })
+// Labels cannot prove this: platform-headlines @1 to @3 and ytd-review @1 to @4 share one label each. Every kit version
+// calls its wrapped version's render when it runs (tiles-kit.tsx:53, trends-kit.tsx:64, posts-kit.tsx:80,
+// ytd-kit.tsx:92, kpi-kit.tsx:75), so the test spies on exactly that render.
+test.each(Object.entries(KIT_WRAPS).flatMap(([id, m]) => Object.entries(m).map(([kit, old]) => [id, Number(kit), old] as const)))(
+  '%s@%i renders exactly the version it wraps, @%i', (id, kit, old) => {
+    const wrapped = PRE_KIT_PARTS[id]?.[old]
+    expect(wrapped).toBeDefined()
+    const others = Object.values(PRE_KIT_PARTS[id]).filter((p) => p !== wrapped).map((p) => vi.spyOn(p, 'render').mockReturnValue(null))
+    const spy = vi.spyOn(wrapped!, 'render').mockReturnValue(null)
+    const ctx = { clientSlug: 'c' } as never, part = { id, version: kit, label: 'x' }
+    ORGANIC_SOCIAL_PARTS[id][kit].render(ctx, part)
+    expect(spy).toHaveBeenCalledExactlyOnceWith(ctx, part)
+    for (const o of others) expect(o).not.toHaveBeenCalled()
+    vi.restoreAllMocks()
+  })
 test('the shared boxes: every version after @1 is in SHARED_KIT_WRAPS and wraps a registered version', () => { ... })
 test('drawnVersion', () => {
   expect(drawnVersion('top-content', 4, true)).toBe(4)
@@ -147,10 +160,15 @@ test('drawnVersion', () => {
   - `DESIGN_FROM_ROWS: { name: string; designFrom?: unknown; month: string | null; kit: boolean }[]` (`designFrom`
     omitted means the key is absent)
 
-- [ ] **Step 1: Write the rows** (`design-from.rows.ts`), one per spec row and edge: absent with `'2026-10'` and with
-  `null`: kit; malformed `null`, `'2026-13'`, `'2026-1'`, `202611`, `'2026-11-01'`, `' 2026-11'`, each with `'2026-12'`,
-  and `'2026-13'` with `null`: old; valid `'2026-11'` with `'2026-10'`: old, `'2026-11'`: kit, `'2026-12'`: kit, `null`:
-  old; valid `'2026-01'` with `'2025-12'`: old.
+- [ ] **Step 1: Write the rows** (`design-from.rows.ts`), one per spec row and edge. Every month is one the surface tests
+  can actually serve (their clock 2026-11-24 and `firstMonth: '2026-08'` give staff 2026-08 to 2026-11 and a client
+  2026-08 to 2026-10; any other request is replaced, `reporting-months.ts:207-210`); `month: null` is served by a client
+  without `reportingMonths`. Absent with `'2026-10'` and with `null`: kit; malformed `null`, `'2026-13'`, `'2026-1'`,
+  `202611`, `'2026-11-01'`, `' 2026-11'`, each with `'2026-10'`, and `'2026-13'` with `null`: old; valid `'2026-11'` with
+  `'2026-10'`: old, `'2026-11'`: kit (inclusive), `null`: old; valid `'2026-09'` with `'2026-10'`: kit (after it); valid
+  `'2027-01'` with `'2026-11'`: old (later than every open month, edge 2). Rows for `kitActive` alone, never served by a
+  surface, live in `design-from.test.ts`: valid `'2026-01'` with `'2025-12'`: old, with `'2026-01'`: kit (the year
+  boundary).
 - [ ] **Step 2: Write the failing tests** (`design-from.test.ts`):
   - `test.each(DESIGN_FROM_ROWS)('%s')`: `kitActive({ dashSocialConfig: { brandId: 1, ...(designFrom key when present) } }, month)` equals `kit`.
   - `parseDesignFrom` of `null`, `undefined`, `{}`, `{ dashSocialConfig: null }`, `{ dashSocialConfig: [] }`: `{ kind: 'absent' }`.
@@ -202,8 +220,10 @@ test('drawnVersion', () => {
   - "no reporting months and a valid designFrom: the old versions"; "no reporting months and none: as pinned".
   - "a frozen snapshot is mapped too": `override.frozen` holding `top-content@4`, September: `top-content@3`.
   - `test.each(DESIGN_FROM_ROWS)` on the Instagram tab (spec test 9): staff requesting the row's month (a row with
-    `month: null` uses a client without `reportingMonths`) asks `top-content@4` exactly when the row says kit, else
-    `top-content@3`. The same rows drive Tasks 4 and 5, so the four surfaces cannot disagree.
+    `month: null` uses a client without `reportingMonths`). First assert the served month is the row's month (the
+    recorded ctx's `dateRange` starts on its first day, or is the request itself for `month: null`), then that it asks
+    `top-content@4` exactly when the row says kit, else `top-content@3`. Tasks 4 and 5 run every row the same way, none
+    filtered out, so the four surfaces cannot disagree.
   - A client read failure still draws the code template (the existing test, `index.test.tsx:43-53`, stays green).
 - [ ] **Step 2: Run** `npx vitest run components/report-sections/organic-social/index.design-from.test.tsx`.
   Expected: FAIL on every case that expects a wrapped version or the log.
@@ -224,9 +244,10 @@ test('drawnVersion', () => {
 **Interfaces:** consumes `kitActive`, `DESIGN_FROM_ROWS` (Task 2).
 
 - [ ] **Step 1: Write the failing tests.** Mock `requestClock` to `clockFor(new Date('2026-11-24T15:00:00Z'))` (the
-  existing tests depend on the real date, #507). For each row of `DESIGN_FROM_ROWS` whose month is a reporting month:
-  - locked-months branch: client with `reportingMonths: { firstMonth: '2026-08' }`, staff requesting that month on
-    `organic-social:instagram` with `look: 'kit'`: the panel gets `look: 'kit'` exactly when the row says kit.
+  existing tests depend on the real date, #507). Every row of `DESIGN_FROM_ROWS` runs, none filtered out:
+  - a row with a month, locked-months branch: client with `reportingMonths: { firstMonth: '2026-08' }`, staff
+    requesting that month on `organic-social:instagram` with `look: 'kit'`. First assert the panel's `defaultPeriod`
+    starts on the row's month (it was served, `monthly.tsx:71`); then it gets `look: 'kit'` exactly when the row says kit.
   - no-months branch (`firstMonth: '2027-01'`, so `month` is null, `monthly.tsx:37-41`): `look` exactly when the row
     with `month: null` says kit.
   - non-month branch (no `reportingMonths`, `commentary/index.tsx:56-67`): the `month: null` rows.

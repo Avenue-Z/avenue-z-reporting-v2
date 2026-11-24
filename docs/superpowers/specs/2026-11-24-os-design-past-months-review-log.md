@@ -40,3 +40,31 @@ Three MAJOR, each with exactly one fix and no choice, so fixed with targeted edi
 MINOR, for the plan:
 10. "as Renaissance is" (on `ytd-review@4`) cites only the registry. The source is the plan's read-only check,
     `docs/superpowers/plans/2026-11-23-os-design-phase1.md:103`; cite that.
+
+## The plan, round 1 (2026-11-24): one fresh reviewer, the fixed checklist, whole plan
+
+Plan: `docs/superpowers/plans/2026-11-24-os-design-past-months-b.md`. Two MAJOR, each with exactly one fix and no
+choice, fixed with targeted edits:
+1. Task 1's test tied the table to the code only through `defaultLabel`, which old versions share
+   (`platform-headlines.tsx:34` and `outline-data.tsx:47`; all four `ytd-review` versions), so a wrong entry passed.
+   Fixed: a spy on the wrapped version's own `render`, which every kit version calls (`tiles-kit.tsx:53`,
+   `trends-kit.tsx:64`, `posts-kit.tsx:80`, `ytd-kit.tsx:92`, `kpi-kit.tsx:75`), and none of its siblings.
+2. Some rows named months the surface tests cannot serve (a request outside the client's months is replaced,
+   `reporting-months.ts:207-210`), and Task 4 filtered rows out. Fixed: every row's month is servable, each surface
+   asserts the served month before the look, and no surface filters a row. The year boundary rows test `kitActive` alone.
+
+MINOR, for the build (Task named):
+11. Task 5: `index.test.tsx:112` asserts the AEO props with an exact object; add `monthKey: null` there.
+12. Task 3: spec tests 3, 6 and 8 are met by the `lookup` spy and element tree plus round 2's per-version parity, not
+    by `expectSameValues` on the body; say so in the PR. Add a new-month case to the ctx-equality test.
+13. Task 2: the log format for a non-string value: `JSON.stringify(String(value))`, cut to 32 characters.
+14. Task 2: refusing a config that already has `designFrom` is a decision (add it to the list); refuse too when
+    `reportingMonths` does not parse (`reporting-months.ts:199-200` gives `months: []`, which would pass).
+15. Task 7: define the validator's new arguments (the before config and `dash_social_config`), and prove only
+    `designFrom` changes on `dash_social_config` before the write.
+16. Task 3: log the malformed value before the `NoMonths` return at `index.tsx:172`, so a client with no months still
+    logs once.
+17. Task 4: "Social Listening keeps its own panel" and "another report" pass before the change; keep them, labelled
+    as regression guards.
+18. Task 8: name the dev pin script for the local look (a copy of the staging script with the dev host guard), or add
+    it to Task 7.
