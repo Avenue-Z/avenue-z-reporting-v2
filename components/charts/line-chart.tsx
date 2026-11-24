@@ -66,8 +66,9 @@ interface LineChartProps {
    *  it. Absent: no formatter is passed to Recharts, and the chart renders exactly as before this prop existed. */
   xFormat?: 'month-day'
   /** The Organic Social design kit look (design overhaul decision (b)): a soft fill under each line, its colour fading
-   *  from 0.35 at the line to 0, as the Social Listening charts draw it. The fill is kept out of the hover box and the
-   *  legend, so no value is listed twice. Absent: the chart renders exactly as before this prop existed. */
+   *  from 0.35 at the line to 0, as the Social Listening charts draw it, and the kit's grid (4/4 dashes at 8% white;
+   *  round 3). The fill is kept out of the hover box and the legend, so no value is listed twice. Absent: the chart
+   *  renders exactly as before this prop existed. */
   shaded?: boolean
   /** Drops the chart's own bordered box, for a chart drawn inside a card that already has one (the kit's card). With
    *  callouts, the positioned layer the dots and cards need is kept. Absent: the box is drawn, as before this prop. */
@@ -396,7 +397,9 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
             })}
           </defs>
         )}
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+        {/* The kit's grid with the kit look (Organic Social design round 3): 4/4 dashes at 8% white, the artifact's and
+            the kit's own (.gridLine). Without it, the grid every chart has today. */}
+        <CartesianGrid strokeDasharray={shaded ? '4 4' : '3 3'} stroke={shaded ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.06)'} />
         <XAxis
           dataKey={xKey}
           tick={{ fill: '#8A8A8A', fontSize: 12 }}
