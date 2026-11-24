@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { designFromWriteProblem, kitActive, logMalformedDesignFrom, parseDesignFrom } from './design-from'
-import { DESIGN_FROM_ROWS, rowConfig } from './design-from.rows'
+import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/test-utils/design-from-rows'
 import { clockFor } from './reporting-months'
 
 afterEach(() => vi.restoreAllMocks())

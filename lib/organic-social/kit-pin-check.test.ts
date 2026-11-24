@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { kitPinProblems, sharedKitPinProblems } from './kit-pin-check'
-import type { SectionTemplate } from '@/lib/report-sections/types'
+import type { PartRegistry, SectionTemplate } from '@/lib/report-sections/types'
+import { SHARED_PARTS } from '@/components/report-sections/shared/parts/registry'
 
 // Spec test 10 (docs/superpowers/specs/2026-11-24-os-design-past-months.md, section 3): a kit version may only replace the
 // exact version it wraps, as the client resolves it today (template row or code template, plus its override).
@@ -50,17 +51,41 @@ describe('kitPinProblems', () => {
   })
 })
 
+// The shared boxes, read the way the app resolves them (resolveSharedParts, components/report-sections/shared/parts/
+// resolve.ts): a pin the registry does not know is dropped, and a duplicate is drawn as many times as it appears
+// (Paul, #512). SHARED is the real registry, cast as the app casts it (shared-parts-header.tsx:23); WITH_V3 adds a
+// registered @3 that is neither kit nor wrapped.
+const SHARED = SHARED_PARTS as unknown as PartRegistry<unknown>
+const WITH_V3 = { ...SHARED, commentary: { ...SHARED.commentary, 3: { ...SHARED.commentary[1], version: 3 } } } as PartRegistry<unknown>
+const c = (...versions: number[]) => versions.map((version) => ({ id: 'commentary', version }))
+
 describe('sharedKitPinProblems', () => {
   test('commentary@1 to @2 is fine', () => {
-    expect(sharedKitPinProblems([{ id: 'commentary', version: 1 }], [{ id: 'commentary', version: 2 }])).toEqual([])
+    expect(sharedKitPinProblems(c(1), c(2), SHARED)).toEqual([])
   })
   test('absent to @2 is refused', () => {
-    const problems = sharedKitPinProblems(undefined, [{ id: 'commentary', version: 2 }])
+    const problems = sharedKitPinProblems(undefined, c(2), SHARED)
     expect(problems).toHaveLength(1)
     expect(problems[0]).toMatch(/commentary@2/)
   })
   test('already @2 before and after is fine; a non-kit change is fine', () => {
-    expect(sharedKitPinProblems([{ id: 'recommendations', version: 2 }], [{ id: 'recommendations', version: 2 }])).toEqual([])
-    expect(sharedKitPinProblems(undefined, [{ id: 'commentary', version: 1 }])).toEqual([])
+    expect(sharedKitPinProblems([{ id: 'recommendations', version: 2 }], [{ id: 'recommendations', version: 2 }], SHARED)).toEqual([])
+    expect(sharedKitPinProblems(undefined, c(1), SHARED)).toEqual([])
+  })
+  test('a pin the registry does not know is dropped before, as the app does: [@1, @9] to @2 is fine', () => {
+    expect(sharedKitPinProblems(c(1, 9), c(2), SHARED)).toEqual([])
+  })
+  test('only an unknown pin before draws nothing, so @2 is refused and says so', () => {
+    const problems = sharedKitPinProblems(c(9), c(2), SHARED)
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toMatch(/draws nothing/)
+  })
+  test('a duplicate before is drawn every time: [@1, @1] to @2 is fine', () => {
+    expect(sharedKitPinProblems(c(1, 1), c(2), SHARED)).toEqual([])
+  })
+  test('a duplicate drawing another registered version is refused, naming every version drawn', () => {
+    const problems = sharedKitPinProblems(c(1, 3), c(2), WITH_V3)
+    expect(problems).toHaveLength(1)
+    expect(problems[0]).toMatch(/@1 and @3/)
   })
 })

@@ -21,7 +21,7 @@ import { OrganicSocialBody } from './index'
 import { NoMonths } from './no-months'
 import { buildOrganicSocialCtx } from './ctx'
 import { elementTree } from '@/lib/test-utils/element-tree'
-import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/organic-social/design-from.rows'
+import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/test-utils/design-from-rows'
 
 const SEP = 'custom:2026-09-01,2026-09-30'
 const OCT = 'custom:2026-10-01,2026-10-31'

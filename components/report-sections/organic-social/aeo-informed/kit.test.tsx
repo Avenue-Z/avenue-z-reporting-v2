@@ -32,7 +32,7 @@ import { ExportModeProvider } from '@/components/export/export-mode'
 import { AeoInformedSection } from './section'
 import { expectSameValues } from '../parts/version-parity'
 import kit from '../design/kit.module.css'
-import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/organic-social/design-from.rows'
+import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/test-utils/design-from-rows'
 
 let RESULT: AeoTabResult
 beforeAll(async () => {
