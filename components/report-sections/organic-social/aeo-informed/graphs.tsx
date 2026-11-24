@@ -5,7 +5,8 @@
 // Colors (spec section 3, Avenue Z brand colors with continuity across the dashboard), read from the constants, never repeated:
 // used as a source: brand green, a color no Organic Social line uses; all platforms: white, the dashboard's color for totals across
 // channels (CHART_COLORS.blended); LinkedIn and the fourth graph: that platform's line color on the other Organic Social tabs (CHANNEL_COLOR).
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useId } from 'react'
+import { Area, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { CHART_COLORS } from '@/lib/constants'
 // The pure graph module only: the adapter's entry point (index.ts) reaches the Peec reader and must never be bundled for the browser.
 import { graphOrder, type GraphId, type GraphPoint } from '@/lib/organic-social/aeo-informed/graphs'
@@ -15,6 +16,7 @@ import { formatMonthDay } from '@/components/charts/line-chart'
 import { CHANNEL_COLOR } from '../trends'
 import { NoData } from '../no-data'
 import { GRAPH_TITLE, NO_SOURCE_DATA, PARTIAL_WEEK, aeoPct } from './copy'
+import kit from '../design/kit.module.css'
 
 export type GraphSpec = { id: GraphId; title: string; color: string; unit: 'percent' | 'citations' }
 
@@ -41,17 +43,32 @@ export function chartRows(points: GraphPoint[]): { week: string; value: number |
   return points.map((p) => ({ week: p.weekStart, value: p.value, partial: p.partial }))
 }
 
-function Graph({ spec, points }: { spec: GraphSpec; points: GraphPoint[] }) {
+/** `look="kit"` (the tab's `design: "kit"` setting): the card is the design kit's card and the line gets the shaded fill the
+ *  shared chart draws (components/charts/line-chart.tsx, `shaded`: a 0.35 to 0 gradient under the line, a Recharts
+ *  ComposedChart because a LineChart draws no Area). Absent: exactly as before. */
+function Graph({ spec, points, look }: { spec: GraphSpec; points: GraphPoint[]; look?: 'kit' }) {
   const exportMode = useExportMode()
+  // One fill id per chart, only characters safe inside url(#...), as the shared chart does.
+  const fillId = `aeo-fill-${useId().replace(/[^A-Za-z0-9_-]/g, '')}`
+  const shaded = look === 'kit'
+  const Chart = shaded ? ComposedChart : LineChart
   const rows = chartRows(points)
   const empty = rows.length === 0 || rows.every((r) => r.value === null)
   const fmt = (v: unknown) => (typeof v === 'number' ? formatGraphValue(spec.unit, v) : '')
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-bg-surface p-5">
+    <div className={shaded ? kit.card : 'rounded-lg border border-white/[0.08] bg-bg-surface p-5'}>
       <h3 className="mb-3 text-sm font-extrabold text-white">{spec.title}</h3>
       {empty ? <NoData message={NO_SOURCE_DATA} /> : (
         <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <Chart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            {shaded && (
+              <defs>
+                <linearGradient id={fillId} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stopColor={spec.color} stopOpacity={0.35} />
+                  <stop offset="1" stopColor={spec.color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+            )}
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
             <XAxis dataKey="week" tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} tickFormatter={(v) => formatMonthDay(v)} />
             <YAxis domain={[0, 'auto']} allowDecimals={spec.unit === 'percent'} tick={{ fill: '#8A8A8A', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={fmt} />
@@ -63,18 +80,22 @@ function Graph({ spec, points }: { spec: GraphSpec; points: GraphPoint[] }) {
               }}
               contentStyle={{ background: '#272727', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', color: '#FFFFFF', fontSize: '13px' }}
             />
+            {shaded && (
+              <Area type="monotone" dataKey="value" fill={`url(#${fillId})`} stroke="none" activeDot={false} tooltipType="none" legendType="none"
+                connectNulls={false} {...(exportMode ? { isAnimationActive: false } : {})} />
+            )}
             <Line type="monotone" dataKey="value" stroke={spec.color} strokeWidth={2} dot={false} connectNulls={false} {...(exportMode ? { isAnimationActive: false } : {})} />
-          </LineChart>
+          </Chart>
         </ResponsiveContainer>
       )}
     </div>
   )
 }
 
-export function AeoGraphs({ graphs, fourthGraph }: { graphs: GraphPoint[]; fourthGraph: FourthGraph }) {
+export function AeoGraphs({ graphs, fourthGraph, look }: { graphs: GraphPoint[]; fourthGraph: FourthGraph; look?: 'kit' }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {graphSpecs(fourthGraph).map((spec) => <Graph key={spec.id} spec={spec} points={graphs.filter((p) => p.graphId === spec.id)} />)}
+      {graphSpecs(fourthGraph).map((spec) => <Graph key={spec.id} spec={spec} points={graphs.filter((p) => p.graphId === spec.id)} {...(look ? { look } : {})} />)}
     </div>
   )
 }
