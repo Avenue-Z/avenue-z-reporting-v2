@@ -27,6 +27,13 @@
   font-family: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
+/* In the PDF, the export's own font stack (app/export/export-theme.css, --font-sans): its Noto fonts draw the arrows
+   and emoji Nunito Sans lacks, which the server's Chromium has no system font for, so they printed as empty boxes
+   (#506). It outranks `.root` by specificity, so the order the stylesheets load in does not matter. :global, because
+   .export-theme is the export page's class, not this module's: written bare, CSS Modules would hash it and the rule
+   would match nothing. Live pages never carry .export-theme, so they keep the kit stack above. */
+:global(.export-theme) .root { font-family: var(--font-sans); }
+
 /* Topics and the preview toggle */
 .topics { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--active); background: none; padding: 6px 14px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; }
