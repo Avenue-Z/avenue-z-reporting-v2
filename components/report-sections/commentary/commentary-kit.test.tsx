@@ -44,6 +44,10 @@ export function panel(who: Who, extra: Record<string, unknown> = {}): ReactNode 
       entryNotes={{ [APPROVED.id]: 'Client sees from Nov 12' }} {...extra} />
   )
 }
+/** The panel's timestamps ("Nov 10, 2026, 9:00 AM", commentary-panel.tsx fmtDateTime) are formatted in the machine's own
+ *  time zone, so a snapshot recorded in New York failed in CI's UTC. Everything else is compared byte for byte; each
+ *  timestamp becomes one placeholder (the space before AM/PM may be a narrow no-break space in newer ICU). */
+const clockFree = (html: string) => html.replace(/[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2}[\s\u202f][AP]M/g, '<datetime>')
 const draw = (node: ReactNode, exporting = false) => render(exporting ? <ExportModeProvider>{node}</ExportModeProvider> : <>{node}</>).container
 const openHistory = (c: HTMLElement) => { const b = [...c.querySelectorAll('button')].find((x) => x.textContent?.startsWith('History')); if (b) fireEvent.click(b); return c }
 
@@ -55,7 +59,7 @@ describe('without look, the panel is exactly as before', () => {
     ['a client', () => draw(panel(CLIENT))],
     ['the PDF export', () => draw(panel(APPROVER), true)],
   ])('%s', (_name, make) => {
-    expect(make().innerHTML).toMatchSnapshot()
+    expect(clockFree(make().innerHTML)).toMatchSnapshot()
   })
 })
 
