@@ -120,21 +120,29 @@ September values, keep MoM % changes only; colour code them and adjust with +/-"
 - There is no September values column today. If the list means something on screen, it needs naming.
 - Change: up arrows green, down red, with the sign, through the tiles' existing change line (Paul: "we already have
   this mechanism").
-- Baseline (my call, corrected later on 2026-11-24): **the September deck's media numbers**, not an export. I told
-  Savannah we use her deck for past months, because Talkwalker keeps adding data after she checks a month, so the deck
-  holds the numbers the client was actually shown. The changes must match the October deck's media slide (slide 10).
+- Baseline (my call, settled later on 2026-11-24): every comparison works against **what the client saw**. I told
+  Savannah we use her deck for past months, because Talkwalker keeps adding data after she checks a month.
+- **The client first sees the tab with November** (my call). So October is never a client page; it is only the month
+  November compares with, and that month is the delivered October deck. September's numbers never reach a client.
+- What I found reading both decks (details and client numbers kept privately):
+  1. The delivered decks' month-over-month arrows are Talkwalker's own, comparing with the previous month as Talkwalker
+     reads it on the pull day, not as the client saw it. No rule reproduces them. The tab's rule (compare with the report
+     as presented) is the one that follows what the client saw, and it holds from November on.
+  2. The September deck shows media shares but no counts; they rebuild exactly from the deck's own charts. The final
+     October deck's tiles and media counts equal one export exactly, but its sentiment donuts are one result off that
+     export, so no export equals the deck. Neither matters once October is only a stored baseline.
 - The deck numbers live in `social_listening_history` (`lib/db/schema.ts:655-675`): results, the tiles, the sentiment
   split and Reddit's, with a source of history sheet or delivered deck. It has no media types, which is why
-  `mediaChanges` reads only uploads (`LIB/compare.ts:167-169`). So this needs media type numbers added to the history
-  (a migration), September's typed in from its deck (a database write, on my go), and `mediaChanges` reading the history
-  first, the same order `presentedValues` already follows (`LIB/compare.ts:111-138`).
-- Two things stand between that and an exact match:
-  1. **October's export on the tab is not the deck's.** I pulled it later than Savannah (my Slack, 2026-11-20), and the
-     dashboard on the call shows shares a tenth or so off the deck's (read from a low-resolution screenshot, to be
-     checked against the stored upload). Changes computed from it won't equal the slide.
-  2. **"Other" reads n/a on the slide** because September grouped Newspaper inside Other (noted in the mockup,
-     `docs/social-listening/mock.template.html:759`). The code would give Other a change, since Other exists in both
-     months (`LIB/compare.ts:171-174`).
+  `mediaChanges` reads only uploads (`LIB/compare.ts:167-169`). So this needs media type counts added to the history
+  row (a migration), October's entered from its delivered deck (a database write, on my go), and `mediaChanges` reading
+  the history first, the same order `presentedValues` already follows (`LIB/compare.ts:111-138`).
+- **This reset happens once.** From November the tab freezes what the client saw itself: a month's numbers come from
+  the export uploaded before it opened, and a later upload never moves the baseline (`LIB/compare.ts:111-114`,
+  `LIB/view-model.ts:71`). It holds only while the client's numbers come from the tab; a deck built from Talkwalker's
+  own arrows would drift from it every month.
+- Still open: when a media type is new this month, its results were inside last month's "Other", so Other has no
+  fair comparison (September grouped Newspaper inside Other, `docs/social-listening/mock.template.html:759`). The code
+  would give Other a change (`LIB/compare.ts:171-174`). Proposed rule: Other reads n/a in that case.
 
 **F10. Share of media types by sentiment (deck slide 9).** Call 00:10:36 to 00:11:44 and 00:15:01 (Paul: the volume
 cut by sentiment; colour coded); list.
@@ -163,6 +171,12 @@ cut by sentiment; colour coded); list.
   table, so a migration). Until the team picks anyone for a month, the client sees the first 5, as today, so the
   approved October view doesn't change by itself.
 - Sorting: posts (default, as today), reach or engagement, for every viewer.
+- The "vs Oct" posts change in November must compare with the five authors the October deck showed. Today it reads
+  only last month's upload (`LIB/compare.ts:179-185`). So October's top five go on its history row with F9's media
+  counts, matched to the October upload's author ids by name and network (the deck shows no ids), and the change reads
+  the history first.
+- Gap found in the decks: every deck's influencer table also has "Reach per mention" and "Engagement per mention".
+  The tab has neither (`SL/brand.tsx:195-197`), and the 2026-11-19 spec never decided them. Open.
 - Overview cards (my call): an author the team hid is hidden from the cards too, and staff can also hide any card
   directly (the two site cards have no row in the table). Today's labels, from the test workbook: most active author,
   most influential author, most active site, most influential site
@@ -182,7 +196,11 @@ keywords"; I said I'd look); list (slide 12); notes next step ("investigate").
 ### Industry only
 
 **F13. Remove "Sentiment, May to October".** List. The call (00:27:23) said the industry bar charts turn into line
-graphs with a toggle; the list, written after, says remove this one. Following the list.
+graphs with a toggle; the list, written after, says remove this one.
+- **Conflict found in the decks:** this chart is its own slide in both the September and October decks, titled
+  "Sentiment Over Time" and drawn as monthly lines. The names cross: the deck's "Sentiment Over Time" is this monthly
+  chart, while the tab's "Sentiment over time" (F14) is the daily one. So the list may mean something else. Confirm with
+  Savannah before removing it; the alternative is to draw it as lines with the F8 toggle.
 - Today: `SL/industry.tsx:44-46`, box `i-ytd`. Change: the card goes, and share of sentiment takes the full width
   (my call). The `i-ytd` id stays in the box list, so any text written there is kept, just not shown (`LIB/boxes.ts:3-5`).
 

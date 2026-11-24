@@ -2,8 +2,7 @@
 
 Builds the items in `docs/superpowers/specs/2026-11-24-social-listening-feedback.md` (F1 to F15). That file holds the
 map from each point to the code, with line citations, and my decisions. This plan holds only the build: what changes,
-in what order, how each part is tested and what guards stay on. Status: **decided except the two questions in section
-3**. Nothing here is built yet. Review rounds (at most two, fresh-eyed, foreground, never Fable) run on this plan before
+in what order, how each part is tested and what guards stay on. Status: **decided except the questions in section 3**. Nothing here is built yet. Review rounds (at most two, fresh-eyed, foreground, never Fable) run on this plan before
 the first unit.
 
 Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
@@ -38,7 +37,8 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 | D1 | F3 | It was on Share of sentiment and is gone. Try to reproduce on October data; if it doesn't come back, close it |
 | D2 | F8 | Positive + neutral: no toggle, full width |
 | D3 | F8, F14 | Clients get the toggle; the PDF prints whichever view is on screen |
-| D4 | F9 | Baseline is the September deck's media numbers (past months always come from the deck); changes must match the October deck's media slide |
+| D4 | F9, F11 | Every comparison works against what the client saw. November's baseline is the delivered October deck, stored once on October's history row (media counts and top five authors added) |
+| D15 | All | The client first sees the tab with November. October is a stored baseline, never a client page, so no October upload is swapped and September's media and authors are not needed |
 | D5 | F10 | The chart is slide 10 of the October deck (screenshot kept privately) |
 | D6 | F11 | The team picks which authors show, per month; clients see only those |
 | D7 | F11 | Sort by posts (default), reach or engagement, for every viewer |
@@ -50,19 +50,21 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 | D13 | Phase 3 | Parked |
 | D14 | Shape | Deliverable branch, one PR per unit |
 
-Waiting on other people: tooltip text (Savannah's doc, F2), the industry keyword appendix (Paul, F5), the September
-deck's media types slide (F9), Savannah's original October export if Q1 is yes (F9), the industry widget change and
-re-export (F15), the team's YTD data sheet (list, F8, purpose to confirm).
+Waiting on other people: tooltip text (Savannah's doc, F2), the industry keyword appendix (Paul, F5), the industry
+widget change and re-export (F15), the team's YTD data sheet (list, F8, purpose to confirm).
 
-## 3. Two questions left (both about matching the deck)
+The one-time reset (D4, D15) is three steps, each on my go: a read-only check that October's history row on staging
+equals the final October deck; the migration for media counts and top authors on the history row; entering October's
+values from the deck (privately checked; the numbers never enter the repo). From November the tab keeps its own record
+(`LIB/compare.ts:111-114`), as long as the client's numbers come from the tab.
+
+## 3. Questions left
 
 | # | Question | My recommendation |
 |---|---|---|
-| Q1 | October on the tab is my later pull, so its media shares differ a little from the deck. Replace it with Savannah's original October export, so the changes match slide 10? Her original only has 5 authors, so 25 would start with November. | Yes: replace it with her original, 25 authors from November |
-| Q2 | The slide shows "Other" as n/a because September grouped Newspaper inside Other. The code would give Other a change. Rule: when a media type is new this month, Other has no fair comparison and reads n/a? | Yes, that rule (inferred from the mockup note, `docs/social-listening/mock.template.html:759`) |
-
-Replacing October is an upload, so it is a database write: it waits for my go on that exact upload, and the month
-keeps its "uploaded after the month opened" staff note (`LIB/view-model.ts:71`).
+| Q2 | When a media type is new this month, its results were inside last month's Other. Should Other read n/a then? | Yes (`docs/social-listening/mock.template.html:759` records the September case) |
+| Q3 | F13: Savannah's list removes the industry May-to-month chart, but both decks have it as its own slide ("Sentiment Over Time"). Remove it, or draw it as lines with the toggle? | Confirm with Savannah; until then, lines with the toggle |
+| Q4 | The decks' influencer table has "Reach per mention" and "Engagement per mention"; the tab has neither. Add them? | Yes, they are on every deck the client gets |
 
 ## 4. Units, in build order
 
@@ -81,7 +83,7 @@ Files: `KIT/frames.tsx`, a new `SL/layout.module.css`, `SL/brand.tsx`, `SL/indus
 3. F4: `b-conv` and `i-conv` move into the Themes section with a small "Top conversation themes" label; the industry
    box still shows for staff with no upload.
 4. F7: the owned note string at `SL/brand.tsx:124`.
-5. F13: the industry YTD card goes.
+5. F13: the industry YTD card goes, or becomes lines with the toggle, per Q3.
 6. F3: a reproduction attempt on the October data before the layout change (staff, client preview, 375px and 1400px).
    Result recorded in the unit's PR. No fix without a reproduction.
 
@@ -127,18 +129,16 @@ Q2's rule), `lib/db/schema.ts` and a migration (media type numbers on `social_li
 (one new box id at the end), `LIB/view-model.ts`, `SL/brand.tsx`.
 
 1. Colour: drop `neutral` at `KIT/charts.tsx:215`, so a rise reads up and green with its sign, a drop down and red.
-2. Deck baseline: a nullable media types column on the history row (each type's result count as the deck shows it);
+2. Deck baseline: a nullable media column on the history row (each type's result count as the deck shows it);
    `mediaChanges` reads last month's history row first and falls back to last month's presented upload, as
-   `presentedValues` does (`LIB/compare.ts:111-138`). A history row without media types behaves as today. What goes in
-   the column depends on what the September deck's media slide shows: counts give exact changes; shares only would
-   need the month's results to rebuild counts, and rounding could move a change by a point, which comes back to me
-   before anything is entered. Entering September's numbers is a database write, on my go.
+   `presentedValues` does (`LIB/compare.ts:111-138`). A history row without media behaves as today. October's counts are
+   entered from the final October deck (they rebuild exactly from its charts), a database write on my go.
 3. Q2's rule for Other, if I say yes.
 4. Slide 10's chart: one 100% bar per sentiment with its count, split by media type in the tab's media colours
    (`LIB/colors.ts:10-29`), shares printed in segments wide enough, a legend. Full width, its own analysis box.
-5. The numbers check, once September's deck numbers are entered (and per Q1, Savannah's October export uploaded), each
-   on my go: on staging, every change in Share of media types equals slide 10's, and every segment of the new chart
-   equals the slide's. Checked privately. Any difference comes back to me before the unit ships.
+5. The numbers check, once October's deck values are entered on my go: on staging, with a November test upload, every
+   media change equals November against the October deck's counts, worked out by hand privately. Any difference comes
+   back to me before the unit ships.
 
 Tests: rise, drop, zero and missing baseline render as the tiles do; a history row's media numbers win over last
 month's upload, and a history row without them falls back to the upload; the migration on PGlite; Q2's rule; the new chart's shares sum to 100 per
@@ -170,6 +170,9 @@ component for sorting and the staff Show/Hide controls).
   A change is a new row; nothing is deleted.
 - A month with no picks shows the first 5 authors to the client, as today.
 - A hidden author also hides an overview card with the same name and network; staff can hide any card directly.
+- Posts change against what the client saw: `authorChanges` reads last month's history row first (October's top five,
+  entered with Unit D's media counts, matched to the October upload's author ids by name and network), then the upload.
+- Q4's two "per mention" columns, if I say yes.
 
 Edge-case list for the commit body: author ids come from an untrusted file and stay Map keys, never object keys
 (`LIB/compare.ts:176-178`); the action checks the month is one staff can edit and the author or card is in that month's
