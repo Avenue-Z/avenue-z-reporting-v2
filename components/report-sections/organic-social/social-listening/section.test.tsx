@@ -68,7 +68,7 @@ afterEach(() => { warn.mockRestore() })
 describe('staff, brand', () => {
   test('every section in the spec order, every brand box, the pills and the re-upload control', async () => {
     const { container } = await show()
-    expect(h2s()).toEqual(['Data', 'Sentiment', 'Year to date', 'Media types', 'Themes', 'Top conversation themes', 'Top influencers', 'Most relevant posts', 'Key takeaways', 'Keyword appendix'])
+    expect(h2s()).toEqual(['Data', 'Sentiment', 'Year to date', 'Media types', 'Themes', 'Top influencers', 'Most relevant posts', 'Key takeaways', 'Keyword appendix'])
     expect(boxes(container)).toEqual([
       'b-kpis', 'b-daily', 'b-sent', 'b-owned', 'b-cross', 'b-ytd', 'b-posneu', 'b-reddit', 'b-media', 'b-themes', 'b-trends',
       'b-conv', 'b-authors', 'b-posts', 'b-takeaways', 'b-keywords',
@@ -106,7 +106,7 @@ describe('staff, brand', () => {
     h.getSlMonth.mockResolvedValue(monthData([]))
     await show()
     expect(screen.getByText('Upload the brand export for October 2026')).toBeTruthy()
-    expect(h2s()).toEqual(['Themes', 'Top conversation themes', 'Most relevant posts', 'Key takeaways', 'Keyword appendix'])
+    expect(h2s()).toEqual(['Themes', 'Most relevant posts', 'Key takeaways', 'Keyword appendix'])
   })
 
   test('the live month: upload opens when it ends (R2-13)', async () => {
@@ -185,7 +185,7 @@ describe('industry', () => {
   test('the industry sections in order, the sample line and points changes', async () => {
     h.getSlMonth.mockResolvedValue(monthData([up(parsed('industry')), up(parsed('industry', '2026-09'))]))
     const { container } = await show({ topic: 'industry' })
-    expect(h2s()).toEqual(['Data', 'Sentiment', 'Themes', 'Top conversation themes', 'Key takeaways', 'Keyword appendix'])
+    expect(h2s()).toEqual(['Data', 'Sentiment', 'Themes', 'Key takeaways', 'Keyword appendix'])
     expect(screen.getByText('The industry topic is a 10% sample of the conversation, by design.')).toBeTruthy()
     expect(boxes(container)).toEqual(['i-kpis', 'i-daily', 'i-sent', 'i-ytd', 'i-sentday', 'i-cross', 'i-themes', 'i-conv', 'i-takeaways', 'i-keywords'])
     expect(screen.getAllByText(/pts|0 pts/).length).toBeGreaterThan(0)

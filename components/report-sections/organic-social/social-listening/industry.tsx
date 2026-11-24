@@ -1,8 +1,8 @@
 // The industry topic, laid out as the approved mockup (docs/social-listening/mock.template.html, #view-industry): data tiles
-// (results, then the three shares with their points changes), results over time, share of sentiment beside sentiment year
-// to date, sentiment over time, sentiment by media type, keyword themes, top conversation themes, key takeaways, keyword
-// appendix. Server component.
-import { AnalysisOnly, SourceLine, fmt, fromFirst, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
+// (results, then the three shares with their points changes), results over time, share of sentiment, sentiment year to
+// date (each chart card on a row of its own since 2026-11-24), sentiment over time, sentiment by media type, keyword
+// themes with the top conversation themes box, key takeaways, keyword appendix. Server component.
+import { AnalysisOnly, ConversationThemes, SourceLine, fmt, fromFirst, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
 import { Cloud, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from '../design/charts'
 import { SlCard, SlSection } from '../design/frames'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
@@ -36,15 +36,15 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
           </SlSection>
 
           <SlSection title="Sentiment">
-            <div className={`${s.grid} ${s.g2}`}>
-              <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={s.donutWrap}>
-                <Donut counts={r.sentiment.counts} />
-                <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
-              </SlCard>
-              <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
-                <YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
-              </SlCard>
-            </div>
+            <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={s.donutWrap}>
+              <Donut counts={r.sentiment.counts} />
+              <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
+            </SlCard>
+            {/* Stays until Savannah confirms whether her list meant to remove it: both decks carry it as its own slide
+                (plan 2026-11-24, Q3). */}
+            <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
+              <YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
+            </SlCard>
             <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']}>
               <DailyStack rows={r.dailyBySentiment} />
               <Key items={[{ name: 'Positive', color: SENTIMENT_COLORS.pos }, { name: 'Neutral', color: SENTIMENT_COLORS.neu }, { name: 'Negative', color: SENTIMENT_COLORS.neg }]} />
@@ -54,16 +54,20 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
             </SlCard>
           </SlSection>
 
-          <SlSection title="Themes">
+        </>
+      )}
+
+      {(r || (view.show.conv && boxes['i-conv'])) && (
+        <SlSection title="Themes">
+          {r && (
             <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['i-themes']}
               note="Colour is decoration on the industry cloud. It does not mean sentiment.">
               <Cloud themes={r.themes} colorFor={decoColor} />
             </SlCard>
-          </SlSection>
-        </>
+          )}
+          <ConversationThemes show={view.show.conv} box={boxes['i-conv']} />
+        </SlSection>
       )}
-
-      <AnalysisOnly title="Top conversation themes" show={view.show.conv} box={boxes['i-conv']} />
       <AnalysisOnly title="Key takeaways" show={view.show.takeaways} box={boxes['i-takeaways']} />
       <AnalysisOnly title="Keyword appendix" show={view.show.keywords} box={boxes['i-keywords']} />
 

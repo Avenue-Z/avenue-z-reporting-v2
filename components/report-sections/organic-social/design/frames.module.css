@@ -1,0 +1,7 @@
+/* SlCard with an analysis box (2026-11-24): the card, then its box under it, outside it. A separate module so the shared
+   kit stylesheet (kit.module.css), which an open PR also edits, is not touched. The 12px gap is the section's own
+   (kit.module.css .section). The box keeps the kit's standalone look (.comm), as the box under the data tiles has. */
+.item { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* The label over a box with no chart of its own, in the kit's small-caps muted style (kit.module.css .secHead span). */
+.label { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
