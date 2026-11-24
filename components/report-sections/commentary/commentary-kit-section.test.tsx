@@ -45,12 +45,16 @@ const rangeFor = (month: string) => month === '2026-11' ? 'custom:2026-11-01,202
 describe('CommentarySection', () => {
   test('passes the kit look to the panel on an Organic Social view, on a month from designFrom', async () => {
     client.value = { id: 'client-1', slug: 'acme', dashSocialConfig: { brandId: 1, ...MONTHS, designFrom: '2026-10' } }
-    for (const key of ['organic-social', 'organic-social:instagram', 'organic-social:instagram:recommendations']) {
+    // The AEO Informed tab's boxes are the shared boxes too (round 3 review), so the kit's empty box and line height reach
+    // them as on every Organic Social tab.
+    for (const key of ['organic-social', 'organic-social:instagram', 'organic-social:instagram:recommendations', 'organic-social:aeo-informed']) {
       expect((await propsFor(key, 'kit', OCT))?.look, key).toBe('kit')
     }
   })
   test('a client without reporting months never gets the kit look (absent designFrom is the old look)', async () => {
-    for (const key of ['organic-social', 'organic-social:instagram', 'organic-social:instagram:recommendations']) {
+    // The AEO Informed tab's boxes are the shared boxes too (round 3 review), so the kit's empty box and line height reach
+    // them as on every Organic Social tab.
+    for (const key of ['organic-social', 'organic-social:instagram', 'organic-social:instagram:recommendations', 'organic-social:aeo-informed']) {
       const props = await propsFor(key, 'kit')
       expect(props, key).not.toBeNull()
       expect(props, key).not.toHaveProperty('look')
