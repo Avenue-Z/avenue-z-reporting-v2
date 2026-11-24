@@ -16,14 +16,15 @@ import type { OrganicSocialCtx } from '../ctx'
 import { CountColumns } from '../design/charts'
 import { SlCard } from '../design/frames'
 import kit from '../design/kit.module.css'
+import { YtdNotesPanel } from '../ytd-notes-panel'
 import { YtdReviewSection } from './ytd-review'
 import { ytdReviewV2 } from './ytd-review-sheet'
 
 type El = ReactElement<Record<string, unknown>>
 type Section = (props: never) => Promise<ReactNode>
 
-/** One element of a returned YTD tree in kit form. Only host elements and fragments are walked into; any other
- *  component (the notes panel, a fallback card) is left exactly as it is. */
+/** One element of a returned YTD tree in kit form. Only host elements and fragments are walked into; the notes panel
+ *  gets the kit look for its controls (round 3), and any other component (a fallback card) is left exactly as it is. */
 function kitYtd(node: ReactNode): ReactNode {
   if (Array.isArray(node)) return node.map(kitYtd)
   if (!isValidElement(node)) return node
@@ -41,6 +42,8 @@ function kitYtd(node: ReactNode): ReactNode {
       points={data.map((d) => ({ label: String(d[xKey]), value: d[y.key] == null ? null : Number(d[y.key]) }))} />
   }
   if (el.type === YtdReviewSection) return <KitYtdV1Section key={key} {...(p as { ctx: OrganicSocialCtx })} />
+  // The notes panel's controls take the kit's pill, buttons and fields (round 3); what it shows and does is the same.
+  if (el.type === YtdNotesPanel) return cloneElement(el, { look: 'kit' })
   if (typeof el.type === 'string' || el.type === Fragment) {
     const kids = p.children as ReactNode
     if (kids === undefined) return el

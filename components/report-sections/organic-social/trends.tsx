@@ -13,6 +13,8 @@ import { NoteForm, savedLine, type ExistingNote, type SavedNote } from './note-f
 import { ExportAnnotationList } from './export-annotations'
 import { useExportMode } from '@/components/export/export-mode'
 import { lookOf, type ChartLook } from './chart-look'
+import type { ControlLook } from './control-look'
+import kit from './design/kit.module.css'
 
 /** How long the line after a save stays (Phase 2c, D18). */
 const SAVED_LINE_MS = 8000
@@ -150,6 +152,9 @@ export function ChannelTrendChart({
 
   // The design kit's look (shaded, frameless), handed only when set, so every chart drawn without it is exactly as before.
   const look = lookOf({ shaded, frameless })
+  // The controls' kit look (round 3, decision (d)): `shaded` is set only by the kit versions (asKitChart,
+  // parts/trends-kit.tsx), so it is the kit look here too. Without it every control below is exactly as before.
+  const controlLook: ControlLook = shaded ? 'kit' : undefined
   if (exportMode) return <ExportChannelTrendChart title={title} series={series} annotations={annotations} {...look} />
 
   return (
@@ -167,7 +172,9 @@ export function ChannelTrendChart({
                   key={c}
                   type="button"
                   onClick={() => toggle(c)}
-                  className={cn(
+                  // The kit's pill draws its on state from aria-pressed, which the old toggle never set.
+                  {...(controlLook ? { 'aria-pressed': on } : {})}
+                  className={controlLook ? kit.pill : cn(
                     'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
                     on
                       ? 'border-white/20 bg-white/[0.06] text-white'
@@ -187,7 +194,7 @@ export function ChannelTrendChart({
                 type="button"
                 onClick={() => setShowAnnotations((v) => !v)}
                 aria-pressed={showAnnotations}
-                className={cn(
+                className={controlLook ? kit.pill : cn(
                   'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
                   showAnnotations
                     ? 'border-white/20 bg-white/[0.06] text-white'
@@ -206,14 +213,14 @@ export function ChannelTrendChart({
                 type="button"
                 onClick={() => { showSaved(null); setForm((f) => (f ? null : {})) }}
                 aria-expanded={!!form}
-                className="no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white"
+                className={controlLook ? `no-print ${kit.pill}` : 'no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white'}
               >
                 Add annotation
               </button>
             )}
           </div>
           {form && noteControls && (
-            <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} notes={existing}
+            <NoteForm key={form.day ?? 'new'} {...(controlLook ? { look: controlLook } : {})} controls={noteControls} fixedDay={form.day} initial={form.initial} notes={existing}
               onClose={() => setForm(null)} onSaved={(s) => {
                 setForm(null)
                 showSaved(s)
@@ -224,7 +231,7 @@ export function ChannelTrendChart({
             <p role="status" className="no-print text-xs text-text-muted">{savedLine(saved, noteControls.canApprove)}</p>
           )}
           {inRow && inRow.length > 0 && (
-            <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
+            <AnnotationCallouts {...(controlLook ? { look: controlLook } : {})} items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
           )}
           {activeEmpty ? (
             <NoData />
@@ -242,7 +249,7 @@ export function ChannelTrendChart({
                     x: a.date,
                     label: a.label,
                     muted: !!a.hidden || (!!a.noteOnly && !a.note),
-                    content: <CalloutCard annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
+                    content: <CalloutCard {...(controlLook ? { look: controlLook } : {})} annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
                   }))
                 : undefined}
             />

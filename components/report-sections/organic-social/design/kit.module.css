@@ -183,6 +183,9 @@
 .tbtn { border-radius: 8px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: var(--fg); padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .tbtn:hover { background: rgba(255,255,255,0.1); }
 .tbtn:disabled { opacity: 0.5; cursor: default; }
+/* A note field on a kit graph (round 3, Task 3): the artifact's form field colours and border (its post form inputs and
+   analysis text area). Each field keeps its own size; only these change. */
+.field { border-radius: 8px; border: 1px solid rgba(255,255,255,0.16); background: var(--subtle); color: var(--fg); }
 .primary { background: var(--cyan) !important; border-color: var(--cyan) !important; color: #000 !important; }
 .ghost { border-color: transparent !important; background: none !important; color: var(--muted) !important; }
 .ghost:hover { color: var(--fg) !important; }
