@@ -80,3 +80,12 @@ table. MINOR, for the build:
 20. Task 3's "Tasks 4 and 5 run every row the same way" holds for Task 4 only. Task 5's rows test `kitActive` inside
     the AEO section (it is handed `monthKey`); the body's hand-off of the served month is pinned by
     `index.test.tsx:165-172` alone, so that test must assert `monthKey` for a locked month and for no month.
+
+## The plan, self-check against Paul's feedback (2026-11-24, at my request)
+
+Not a review round. Every `file:line` the plan cites (72) was resolved mechanically against the combined tree and read;
+all hold (the only misses are files the plan creates and the private validator). Paul's feedback to date was matched to
+the plan: #504 (1: B, 2: agree), round 2's reviews, #506, #507, and his reviews of the round 2 plan (#490) and round 1
+(#494). Three gaps against rules he set on #490, each with one fix, edited in: the review record gate
+(`2026-11-23-os-design-phase1.md:86-87`), `npm run check:rsc` in the gates (same lines), and the production script's
+`aeoInformedSocial.design` write (`:105-107`). N4 (screenshots) and N5 are still unanswered.

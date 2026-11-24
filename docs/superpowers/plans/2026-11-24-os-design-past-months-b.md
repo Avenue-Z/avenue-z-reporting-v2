@@ -326,11 +326,15 @@ problem is one plain sentence naming the part, the kit version, the version it w
 - [ ] **Step 4: Dry runs on staging, read only:** with `--design-from 2026-11` against a checkout of this branch:
   VALID, both columns printed. With `--design-from 2026-10`: REFUSING (a client can see October). Expected output
   saved beside the script.
-- [ ] **Step 5:** The production script, when its time comes, is a copy of this one with the production host guard.
+- [ ] **Step 5:** The production script, when its time comes, is a copy of this one with the production host guard,
+  run by me or the session I work in, on my written go (round 2 plan, "Pinning", `2026-11-23-os-design-phase1.md:105-107`).
+  For a client with the AEO tab it also writes `aeoInformedSocial.design: "kit"` in the same guarded write, only once
+  #489 is on `main`, as that plan says; its "only `designFrom` changes" proof then names those two keys.
 
 ### Task 8: Prove and ship
 
-- [ ] **Step 1:** `npx tsc --noEmit`, `npx eslint` on every changed file, `npx vitest run --maxWorkers=2`. Expected:
+- [ ] **Step 1:** `npx tsc --noEmit`, `npx eslint` on every changed file, `npm run check:rsc`,
+  `npx vitest run --maxWorkers=2` (the round 2 plan's standard gates, `2026-11-23-os-design-phase1.md:86-87`). Expected:
   0 errors, all passing.
 - [ ] **Step 2: Renaissance.** Its composition test (`index.test.tsx:268-282`) and the lock key pins pass unchanged;
   state in the PR that no Renaissance input reaches the new code with a value (no `designFrom`, no kit pin).
@@ -338,7 +342,9 @@ problem is one plain sentence naming the part, the kit version, the version it w
   `designFrom: '2026-11'` with the dev script's guard, then open September (old) and November (kit) as staff and
   export both PDFs. Roll back after.
 - [ ] **Step 4:** PR off `dev`, "→ dev". Prove it merges clean with every open PR. Self-review comment, the
-  `self-reviewed` label, then Paul's review.
+  `self-reviewed` label, and its review record (`docs/qa/os-design-past-months-code-review.md`, its own docs PR off
+  `dev`, the format in CLAUDE.md's Branch Flow; Paul asked for the record gate on #490), then Paul's review.
+  Screenshots follow Paul's answer to N4 on #504.
 - [ ] **Step 5:** Commit body of Task 3 carries the edge-case list: operator visibility (malformed `designFrom` logged
   with slug), input boundaries (unvalidated `dash_social_config` read through the parser), state (300 s cache, both
   columns in one write), external failure (client read failure falls to the code template), bounds and security (none:
