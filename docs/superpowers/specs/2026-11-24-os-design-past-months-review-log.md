@@ -68,3 +68,15 @@ MINOR, for the build (Task named):
     as regression guards.
 18. Task 8: name the dev pin script for the local look (a copy of the staging script with the dev host guard), or add
     it to Task 7.
+
+## The plan, round 2 (2026-11-24): one fresh reviewer, changed lines only
+
+No BLOCKER or MAJOR. It confirmed the spy test intercepts the wrapped render (`PRE_KIT_PARTS` holds the same part
+objects the kit files call, `lib/report-sections/registry.ts:8`), that every row's month is servable for staff on
+2026-11-24 (`reporting-months.ts:171-187`, October open from Nov 12, `:111`), and that each row matches the spec's
+table. MINOR, for the build:
+19. Task 1: restore the spies in `afterEach(() => vi.restoreAllMocks())`, as `index.test.tsx:160` does, so a failing
+    row cannot leave a spy that fails the rows after it.
+20. Task 3's "Tasks 4 and 5 run every row the same way" holds for Task 4 only. Task 5's rows test `kitActive` inside
+    the AEO section (it is handed `monthKey`); the body's hand-off of the served month is pinned by
+    `index.test.tsx:165-172` alone, so that test must assert `monthKey` for a locked month and for no month.
