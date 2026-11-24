@@ -42,6 +42,7 @@ export default defineConfig({
       'lib/meta/base.bq.test.ts',
       'lib/meta/geo.compare.test.ts',
       'lib/meta/kpis.test.ts',
+      'lib/meta/kpis.reach.test.ts',
       'lib/meta/creative.test.ts',
       'lib/salesforce/num.test.ts',
       'lib/salesforce/resolve-compare-iso.test.ts',

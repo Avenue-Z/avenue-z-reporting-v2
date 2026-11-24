@@ -22,15 +22,21 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { MetaAdsReport } from './index'
 
 const FRESHNESS = 'max(event_date)'
-/** BigQuery double: the freshness probe answers `through`; every mart read answers no rows (or `read` throws). */
-function marts(through: string | Error, read: 'ok' | Error = 'ok') {
+const PULLED = 'max(pulled_on)'
+/**
+ * BigQuery double: the freshness probe answers `through`, the reach snapshot's pull date `pulled` (today's by
+ * default), every mart read `rows` (none by default, or `read` throws), and the reach lookups `reach` (none by default).
+ */
+function marts(through: string | Error, read: 'ok' | Error = 'ok', o: { pulled?: string; rows?: Record<string, unknown>[]; reach?: Record<string, unknown>[] | Error } = {}) {
   vi.mocked(bqRows).mockImplementation(async (sql: string) => {
     if (sql.includes(FRESHNESS)) { if (through instanceof Error) throw through; return [{ d: through }] }
+    if (sql.includes(PULLED)) return [{ d: o.pulled ?? '2026-11-17' }]
     if (read instanceof Error) throw read
-    return []
+    if (sql.includes('reach_by_range')) { if (o.reach instanceof Error) throw o.reach; return o.reach ?? [] }
+    return o.rows ?? []
   })
 }
-const reads = () => vi.mocked(bqRows).mock.calls.filter(([sql]) => !sql.includes(FRESHNESS))
+const reads = () => vi.mocked(bqRows).mock.calls.filter(([sql]) => !sql.includes(FRESHNESS) && !sql.includes(PULLED))
 const readRanges = () => reads().map(([, p]) => `${p.start},${p.end}`)
 const page = async (dateRange: string) => render(await MetaAdsReport({ clientSlug: 'renaissance', dateRange }))
 const UNAVAILABLE = "Data delayed — Meta data can't be loaded right now. Try again shortly."
@@ -112,6 +118,30 @@ describe('Meta on BigQuery (C2): stale → notice, failure → notice, never liv
     expect(queryAllByTestId('part')).toHaveLength(0)
     expect(reads()).toHaveLength(0)
     expect(smQuery).not.toHaveBeenCalled()
+  })
+
+  test('a stale reach snapshot (C4): the parts render, and the page says reach is delayed; never live', async () => {
+    marts('2026-11-16', 'ok', { pulled: '2026-11-15', rows: [{ cost: 1 }] })
+    const { getByRole, getAllByTestId } = await page('last_30_days')
+    expect(getByRole('note').textContent).toBe("Data delayed — Meta reach and frequency are waiting on today's snapshot, so they show — for now.")
+    expect(getAllByTestId('part')).toHaveLength(3)
+    expect(reads().some(([sql]) => sql.includes('reach_by_range'))).toBe(false) // a stale snapshot is never looked up
+    expect(smQuery).not.toHaveBeenCalled()
+  })
+
+  test('a failed reach read (C4): the parts render, and the page says reach cannot be loaded; never live', async () => {
+    marts('2026-11-16', 'ok', { rows: [{ cost: 1 }], reach: new Error('Job timed out') })
+    const { getByRole, getAllByTestId } = await page('last_30_days')
+    expect(getByRole('note').textContent).toBe("Data delayed — Meta reach and frequency can't be loaded right now. Try again shortly.")
+    expect(getAllByTestId('part')).toHaveLength(3)
+    expect(smQuery).not.toHaveBeenCalled()
+  })
+
+  test('a custom range (C4): reach is preset-only, told by the tile alone, with no notice', async () => {
+    marts('2026-11-16', 'ok', { rows: [{ cost: 1 }] })
+    const { queryByRole, getAllByTestId } = await page('custom:2026-11-03,2026-11-10')
+    expect(queryByRole('note')).toBeNull()
+    expect(getAllByTestId('part')).toHaveLength(3)
   })
 
   test('switched off, the page is unchanged: live Supermetrics, no notice, no BigQuery', async () => {
