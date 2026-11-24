@@ -35,6 +35,8 @@ const HISTORY: CommentaryPeriodHistory[] = [{
 type Who = { caps: CommentaryCapabilities; entries: CommentaryEntry[]; history: CommentaryPeriodHistory[]; initialId: string; clientEntryId: string | null }
 const APPROVER: Who = { caps: { canEdit: true, canApprove: true }, entries: [DRAFT, APPROVED], history: HISTORY, initialId: DRAFT.id, clientEntryId: APPROVED.id }
 const EDITOR: Who = { caps: { canEdit: true, canApprove: false }, entries: [DRAFT, APPROVED], history: [], initialId: DRAFT.id, clientEntryId: APPROVED.id }
+// Nothing written yet: the empty box an editor sees (round 3, Task 8 changes it under the kit only).
+const EMPTY: Who = { caps: { canEdit: true, canApprove: true }, entries: [], history: [], initialId: null as unknown as string, clientEntryId: null }
 const CLIENT: Who = { caps: { canEdit: false, canApprove: false }, entries: [APPROVED], history: [], initialId: APPROVED.id, clientEntryId: APPROVED.id }
 
 export function panel(who: Who, extra: Record<string, unknown> = {}): ReactNode {
@@ -58,6 +60,7 @@ describe('without look, the panel is exactly as before', () => {
     ['an editor who is not an approver', () => draw(panel(EDITOR))],
     ['a client', () => draw(panel(CLIENT))],
     ['the PDF export', () => draw(panel(APPROVER), true)],
+    ['an editor with nothing written yet (recorded before round 3)', () => draw(panel(EMPTY))],
   ])('%s', (_name, make) => {
     expect(clockFree(make().innerHTML)).toMatchSnapshot()
   })
