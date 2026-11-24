@@ -5,3 +5,7 @@
 
 /* The label over a box with no chart of its own, in the kit's small-caps muted style (kit.module.css .secHead span). */
 .label { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+
+/* A donut card on a full row (2026-11-24): the donut and its legend keep the width they had in the approved half-width
+   card (a 527px card less its 48px padding), so each share sits beside its label instead of at the far edge. */
+.donutBody { max-width: 480px; }

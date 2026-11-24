@@ -7,6 +7,7 @@ import { Cloud, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumn
 import { SlCard, SlSection } from '../design/frames'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import s from '../design/kit.module.css'
+import f from '../design/frames.module.css'
 
 export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps) {
   const r = view.ready
@@ -36,7 +37,7 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
           </SlSection>
 
           <SlSection title="Sentiment">
-            <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={s.donutWrap}>
+            <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={`${s.donutWrap} ${f.donutBody}`}>
               <Donut counts={r.sentiment.counts} />
               <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
             </SlCard>

@@ -84,6 +84,17 @@ describe.each(['brand', 'industry'] as const)('%s topic layout', (topic) => {
     expect(boxed.length).toBe(cards(root).length)
   })
 
+  test('a donut card keeps the donut and its legend at the approved half-card width, so the numbers sit by their labels', async () => {
+    const root = await page({ topic })
+    const donutCards = cards(root).filter((c) => c.querySelector('svg circle') && c.querySelector('ul'))
+    expect(donutCards.length).toBeGreaterThan(0)
+    for (const card of donutCards) {
+      const body = card.querySelector('ul')!.parentElement!
+      expect(cls(body, 'donutWrap')).toBe(true)
+      expect(cls(body, 'donutBody')).toBe(true)
+    }
+  })
+
   test('the top conversation themes box sits inside the Themes section, with no section of its own', async () => {
     const root = await page({ topic })
     const themes = sectionTitled(root, 'Themes')!

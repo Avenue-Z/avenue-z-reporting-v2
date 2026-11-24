@@ -122,12 +122,12 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
           </SlSection>
 
           <SlSection title="Sentiment">
-            <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} bodyClassName={s.donutWrap}>
+            <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} bodyClassName={`${s.donutWrap} ${f.donutBody}`}>
               <Donut counts={r.sentiment.counts} />
               <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
             </SlCard>
             {view.show.owned && r.owned && (
-              <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={s.donutWrap}
+              <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={`${s.donutWrap} ${f.donutBody}`}
                 note="Excludes results from the brand's owned channels.">
                 <Donut counts={r.owned.counts} />
                 <Legend counts={r.owned.counts} pct={r.owned.pct} />
