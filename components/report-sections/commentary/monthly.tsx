@@ -3,6 +3,7 @@ import { canApproveCommentary, canEditCommentary } from '@/lib/commentary/permis
 import { historyEntries, toClientSafeEntry, visibleEntries } from '@/lib/commentary/select'
 import { clientMonthEntry, clientOpensNote, eligibleEntries, pickMonthDefault } from '@/lib/commentary/month'
 import { lockedRangeFor, requestClock } from '@/lib/organic-social/locked-range'
+import { kitActive } from '@/lib/organic-social/design-from'
 import { firstOf, lastOf, monthTitle, viewerForRole } from '@/lib/organic-social/reporting-months'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { CommentaryPanel } from './commentary-panel'
@@ -34,11 +35,14 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
   const clock = requestClock()
   const locked = lockedRangeFor(client, role, requestedRange, clock)
   const month = locked?.month ?? null
+  // Option B: the kit look only on a served month on or after the client's designFrom; before it, the box is drawn as it
+  // was delivered (commentary@1). Never adds a look the caller did not ask for (Social Listening passes none).
+  const kitLook = look && kitActive(client, month?.key ?? null) ? { look } : {}
   if (!month) {
     if (!capabilities.canEdit) return null
     return (
       <Panel clientSlug={client.slug} viewKey={viewKey} entries={[]} initialId={null} clientEntryId={null}
-        capabilities={capabilities} history={[]} emptyText="No reporting months yet" labels={labels} {...(look ? { look } : {})} />
+        capabilities={capabilities} history={[]} emptyText="No reporting months yet" labels={labels} {...kitLook} />
     )
   }
   const all = prefetched ? prefetched.filter((e) => e.viewKey === viewKey) : await getCommentaryForView(client.id, viewKey)
@@ -72,7 +76,7 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
       emptyText={emptyMonthText(labels, monthTitle(month.key))}
       entryNotes={entryNotes}
       labels={labels}
-      {...(look ? { look } : {})}
+      {...kitLook}
     />
   )
 }

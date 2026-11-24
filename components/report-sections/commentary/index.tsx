@@ -8,6 +8,7 @@ import { CommentaryPanel } from './commentary-panel'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { isOrganicSocialViewKey } from '@/lib/commentary/month'
 import { monthlyCommentary } from './monthly'
+import { kitActive } from '@/lib/organic-social/design-from'
 import { INSIGHTS_LABELS, type CommentaryLabels } from '@/lib/commentary/labels'
 
 /** One commentary box. `labels` names it (Insights by default; Recommendations for the bottom box, which is the
@@ -19,13 +20,16 @@ export async function CommentarySection({ clientSlug, viewKey, requestedRange, l
    *  crosses to the browser. */
   look?: 'kit'
 }) {
-  const kitLook = look === 'kit' && isOrganicSocialViewKey(viewKey) ? { look: 'kit' as const } : {}
+  const wantsKit = look === 'kit' && isOrganicSocialViewKey(viewKey)
   const [session, client] = await Promise.all([auth(), getClientBySlug(clientSlug)])
   if (!client) return null
-  // Locked months: the box follows the month on screen (spec 3.9). Everyone else runs the code below unchanged.
+  // Locked months: the box follows the month on screen (spec 3.9). Everyone else runs the code below unchanged. The kit
+  // look applies only on a month on or after the client's designFrom (option B); monthlyCommentary decides by the month.
   if (hasReportingMonths(client) && isOrganicSocialViewKey(viewKey)) {
-    return monthlyCommentary({ client, role: session?.user?.role, email: session?.user?.email ?? null, viewKey, requestedRange, labels, ...kitLook })
+    return monthlyCommentary({ client, role: session?.user?.role, email: session?.user?.email ?? null, viewKey, requestedRange, labels, ...(wantsKit ? { look: 'kit' as const } : {}) })
   }
+  // No served month here, so by the one rule the kit never applies (false for every client today).
+  const kitLook = wantsKit && kitActive(client, null) ? { look: 'kit' as const } : {}
 
   const email = session?.user?.email ?? null
   const capabilities = { canEdit: canEditCommentary(email), canApprove: canApproveCommentary(email) }
