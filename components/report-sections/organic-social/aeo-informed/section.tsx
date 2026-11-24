@@ -14,6 +14,7 @@ import { AeoRangeControl, AeoMinControl } from './controls'
 import { AeoGraphs } from './graphs'
 import { AeoTiles } from './tiles'
 import { AeoTable } from './aeo-table'
+import kit from '../design/kit.module.css'
 import {
   COMPETITOR_LINE, COMPETITOR_TABLE_TITLE, NO_DATA_FOR_WINDOW, TIMEOUT_TEXT, URL_GAPS_LINE, URL_GAPS_TITLE, notStartedText, ownTableTitle, periodLine,
 } from './copy'
@@ -77,14 +78,18 @@ export async function AeoInformedSection({ clientSlug, servedRange, aeo, aeoMin,
   const r = data.result
   const showChange = w.previousDays !== null
   const brands = r.meta.brands
+  // The design kit (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md, Task 10): only when the client's setting asks
+  // for it (`design: "kit"`, setting.ts), the tiles and the graphs take the kit's look inside the kit's colours. Without it,
+  // the tab is exactly as before (kit.test.tsx's snapshots, recorded before this change).
+  const kitLook = setting.design === 'kit'
   return (
-    <div className="space-y-8">
+    <div className={kitLook ? `${kit.root} space-y-8` : 'space-y-8'}>
       {controls}
       <section data-aeo-block="graphs" data-export-block="">
-        <AeoGraphs graphs={r.graphs} fourthGraph={setting.fourthGraph} />
+        <AeoGraphs graphs={r.graphs} fourthGraph={setting.fourthGraph} {...(kitLook ? { look: 'kit' as const } : {})} />
       </section>
       <section data-aeo-block="tiles" data-export-block="">
-        <AeoTiles totals={r.totals} previousDays={w.previousDays} />
+        <AeoTiles totals={r.totals} previousDays={w.previousDays} {...(kitLook ? { kit: true } : {})} />
       </section>
       <section data-aeo-block="own" data-export-block="">
         <Heading title={ownTableTitle(r.meta.ownBrandName)} />

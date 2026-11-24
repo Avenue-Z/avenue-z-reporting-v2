@@ -3,6 +3,7 @@
 // lib/organic-social/outline-delta.ts: percent change against the size of the previous value, none when it is 0), against the previous
 // window of the same length, and is shown in Month only (previousDays); YTD and All time have none.
 import { KpiCard } from '@/components/charts/kpi-card'
+import { KpiTile } from '../design/charts'
 import { outlineDelta } from '@/lib/organic-social/outline-delta'
 import type { AeoTotals } from '@/lib/organic-social/aeo-informed'
 import type { TotalMetric } from '@/lib/dash-social/types'
@@ -10,7 +11,10 @@ import { aeoPct, deltaLabel, EMPTY_MARK, TILE, TILES_LABEL } from './copy'
 
 const change = (cur: number | null, prev: number | null | undefined) => outlineDelta({ value: cur, context: prev ?? null } as unknown as TotalMetric)
 
-export function AeoTiles({ totals, previousDays }: { totals: AeoTotals; previousDays: number | null }) {
+/** `kit` (the tab's `design: "kit"` setting) draws the tiles with the design kit's KpiTile, which reads exactly as KpiCard
+ *  (design/kpi-tile.test.tsx). Absent: exactly as before. */
+export function AeoTiles({ totals, previousDays, kit }: { totals: AeoTotals; previousDays: number | null; kit?: boolean }) {
+  const Tile = kit ? KpiTile : KpiCard
   const p = totals.prior
   const withChange = previousDays !== null
   const tiles = [
@@ -28,7 +32,7 @@ export function AeoTiles({ totals, previousDays }: { totals: AeoTotals; previous
       <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-text-muted">{TILES_LABEL}</p>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {tiles.map((t) => (
-          <KpiCard
+          <Tile
             key={t.title}
             title={t.title}
             tooltip={t.tooltip}
