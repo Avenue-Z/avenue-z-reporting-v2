@@ -12,6 +12,7 @@ import { AnnotationCallouts, CalloutCard } from './annotation-callouts'
 import { NoteForm, savedLine, type ExistingNote, type SavedNote } from './note-form'
 import { ExportAnnotationList } from './export-annotations'
 import { useExportMode } from '@/components/export/export-mode'
+import { lookOf, type ChartLook } from './chart-look'
 
 /** How long the line after a save stays (Phase 2c, D18). */
 const SAVED_LINE_MS = 8000
@@ -31,12 +32,6 @@ export const CHANNEL_COLOR: Record<string, string> = {
 export const colorFor = (channel: string) => CHANNEL_COLOR[channel] ?? PALETTE[0]
 
 const hasOwn = (o: object, key: string) => Object.prototype.hasOwnProperty.call(o, key)
-
-/** The design kit's look for the line (docs/superpowers/plans/2026-11-23-os-design-phase1.md, Task 3): a shaded fill and
- *  no inner frame, passed through to LineChart's own options of those names. Both default off. */
-export type ChartLook = { shaded?: boolean; frameless?: boolean }
-/** Only the options that are set, so a chart drawn without them is handed neither key, exactly as before. */
-export const lookOf = ({ shaded, frameless }: ChartLook): ChartLook => ({ ...(shaded ? { shaded } : {}), ...(frameless ? { frameless } : {}) })
 
 /** The overrides a new answer does not yet agree with. A day missing from the answer keeps its override. */
 function dropAgreed(overrides: Record<string, boolean>, annotations: ChartAnnotation[] | undefined): Record<string, boolean> {

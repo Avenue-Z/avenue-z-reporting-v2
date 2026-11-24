@@ -1,4 +1,5 @@
-import { ChannelTrendChart, lookOf, type ChartLook } from './trends'
+import { ChannelTrendChart } from './trends'
+import { lookOf, type ChartLook } from './chart-look'
 import type { TrendSeries } from '@/lib/organic-social/types'
 import type { AnnotationControls, ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
 

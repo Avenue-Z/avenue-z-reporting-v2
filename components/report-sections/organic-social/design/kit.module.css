@@ -71,7 +71,10 @@
 .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cardBody { margin-top: 12px; }
 .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
-.root svg { display: block; width: 100%; height: auto; }
+/* The kit's own hand-drawn charts fill their card. Not a Recharts chart's svgs (its chart and legend icons), which keep
+   Recharts' own sizes when a trend graph sits in a kit card (kit-svg-rule.test.ts). :global, because Recharts' class
+   is not one of this module's: written bare, CSS Modules would hash it and the exclusion would match nothing. */
+.root svg:not(:global(.recharts-surface)) { display: block; width: 100%; height: auto; }
 .root svg text { font-family: inherit; }
 .tMuted { fill: var(--muted); }
 .tFg { fill: var(--fg); }
