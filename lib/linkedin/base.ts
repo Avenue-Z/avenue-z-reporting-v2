@@ -2,8 +2,7 @@ import { smQuery, parseSmRows, DS_IDS } from '@/lib/supermetrics/client'
 import { getClientBySlug } from '@/lib/db/queries'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { bqEnabled, logBqFallback } from '@/lib/bq/backend'
-import { LI_LIVE_ONLY, isLinkedInDim, readLinkedInMarts } from '@/lib/bq/linkedin'
-import { BqUnavailable } from '@/lib/bq/errors'
+import { readLinkedInMarts } from '@/lib/bq/linkedin'
 
 type LiOpts = { filters?: string; settings?: Record<string, unknown>; maxRows?: number }
 
@@ -34,17 +33,11 @@ export async function linkedinQuery(
   const accountId = client?.linkedinConfig?.linkedinAdAccountId
   const envVar = client?.smApiKeyEnvVar
   if (!accountId || !envVar) throw new Error(`linkedin_config / sm_api_key_env_var missing for ${slug}`)
+  // Geography (memberRegion) is a declared GAP: live, never a BigQuery miss. Reach is in the marts since C4.
   if (bqEnabled('linkedin', slug) && !opts.filters && !opts.settings && !fields.includes('memberRegion')) {
-    const liveOnly = fields.filter((f) => LI_LIVE_ONLY.has(f))
-    const martFields = fields.filter((f) => !LI_LIVE_ONLY.has(f))
     try {
-      if (liveOnly.length && fields.some(isLinkedInDim)) throw new BqUnavailable('unsupported', 'live-only fields with dimensions')
       const { startDate, endDate } = parseDateRange(dateRange)
-      const [rows, live] = await Promise.all([
-        readLinkedInMarts(accountId, martFields, startDate, endDate, opts.maxRows),
-        liveOnly.length ? liveLinkedInQuery(accountId, envVar, liveOnly, dateRange, {}) : Promise.resolve(null),
-      ])
-      return live ? [{ ...(rows[0] ?? {}), ...(live[0] ?? {}) }] : rows
+      return await readLinkedInMarts(accountId, fields, startDate, endDate, opts.maxRows)
     } catch (err) {
       logBqFallback('linkedin', slug, err)
     }

@@ -7,6 +7,8 @@ import { LinkedInGeoSection } from './geo-section'
 import { SmTimeoutError } from '@/lib/supermetrics/client'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 import { PaidMediaFallback } from '@/components/report-sections/paid-media/fallback'
+import { DataDelayedNotice } from '@/components/report-sections/paid-media/data-delayed-notice'
+import { reachNotice } from '@/lib/bq/reach'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
   try {
@@ -36,6 +38,7 @@ export async function LinkedInAdsReport({
   return (
     <div className="space-y-8">
       <SharedPartsHeader viewKey="linkedin-ads" clientSlug={clientSlug} />
+      <DataDelayedNotice notice={reachNotice(kpis.data)} source="LinkedIn" />
       {kpis.data ? <KpiGrid kpis={kpis.data} /> : <PaidMediaFallback kind={kpis.error!} />}
       {creative.data ? <LinkedInCreativeTable groups={creative.data} /> : <PaidMediaFallback kind={creative.error!} />}
       {geo.data ? <LinkedInGeoSection rows={geo.data} /> : <PaidMediaFallback kind={geo.error!} />}

@@ -1,5 +1,6 @@
 import { linkedinQuery, resolveCompareIso } from './base'
 import type { Kpi } from '@/lib/paid-search/types'
+import { REACH_STATE_KEY, REACH_TOOLTIP, type ReachState } from '@/lib/bq/reach'
 
 function n(row: Record<string, string>, id: string): number {
   return Number(row[id] || 0)
@@ -28,7 +29,10 @@ export function transformLinkedInKpis(
   // suppress the derived Frequency + deltas that depend on it.
   const reachRaw = totals['approximateUniqueImpressions']
   const reachAvailable = reachRaw != null && reachRaw !== ''
-  const reachNote = 'LinkedIn only reports Reach for date ranges up to ~90 days.'
+  // A BigQuery row whose reach was not served says why (lib/bq/reach); only stale or failed is told on the page.
+  const state = totals[REACH_STATE_KEY] as ReachState | undefined
+  const reachNote = state ? REACH_TOOLTIP[state] : 'LinkedIn only reports Reach for date ranges up to ~90 days.'
+  const reachState = state === 'delayed' || state === 'unavailable' ? state : undefined
 
   const liLeads = n(totals, 'oneClickLeads')
 
@@ -41,6 +45,7 @@ export function transformLinkedInKpis(
       value: reachAvailable ? n(totals, 'approximateUniqueImpressions') : '—',
       delta: reachAvailable ? d('approximateUniqueImpressions') : undefined,
       tooltip: reachAvailable ? undefined : reachNote,
+      ...(reachState && { reachState }),
     },
     { key: 'clicks', label: 'Clicks', value: n(totals, 'clicks'), delta: d('clicks'), compareValue: cv('clicks') },
     // LinkedIn returns ctr / leadFormCompletionRate as 0-1 fractions — scale to percent.
