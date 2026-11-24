@@ -22,7 +22,10 @@ function asBrowserSees(selector: string): string {
 function specificity(selector: string): number[] {
   return [/#[\w-]+/g, /\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g, /(?:^|[\s>+~])[a-zA-Z][\w-]*/g].map((re) => (selector.match(re) ?? []).length)
 }
-/** Every top-level rule that sets font-family, its selectors as the browser sees them. */
+/** Every top-level rule that sets font-family, its selectors as the browser sees them. A rule inside `@media` or
+ *  `@supports` is not read (Paul, #508). On 2026-11-24 none sets font-family: kit.module.css's four `@media` rules set
+ *  layout only (`.pgrid` scrolling and grid columns), and export-theme.css's only `@media` is inside a comment. If one
+ *  ever sets font-family, read it here too, or this test can pass while that rule decides the font. */
 function fontRules(css: string, hashed: boolean) {
   return [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].flatMap(([, sel, body]) => {
     const font = /(?:^|[\s;])font-family\s*:\s*([^;]+)/.exec(body)?.[1].trim()
