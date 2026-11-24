@@ -42,6 +42,9 @@ Where the call and the list disagree, the list wins (it is written, and it came 
   In a row, every card gets the row's tallest card height and every box starts on the same line.
 - A card with no box renders exactly as today. That keeps the kit YTD block unchanged: it never passes a box
   (`components/report-sections/organic-social/parts/ytd-kit.tsx:33`).
+- My call (2026-11-24): no cards side by side anywhere on the tab. Every chart card gets its own full-width row,
+  including brand's share of sentiment and without brand-owned, and industry's share of sentiment. So "the same size"
+  means the same width, and no row has to line up two different heights.
 
 **F2. A tooltip on every metric.** Call 00:05:42 to 00:08:08 ("tool tips in the data pills", "for all these", Jasmine:
 "do the outline for everything now" since this gets copied to other clients); list; notes next step.
@@ -58,7 +61,9 @@ next step ("fix the broken graph"). Not in Savannah's list.
   in order, or the upload is refused (`LIB/export-parse.ts:227-244`), so the Results over time line cannot fold back on
   itself from bad row order. Staging last changed 2026-11-23 13:11 (`origin/staging` a16ad0cb), so a change "in the last
   30 minutes" on staging came from data, not code. Dev changed at 14:29 and 14:47 that day (#510, #515).
-- Needs: which graph and which site. Then it gets debugged and reproduced before any fix.
+- My answer (2026-11-24): it was on Share of sentiment, and I don't see it anymore. So: try to reproduce it locally on
+  the October data (staff view, client preview, a narrow and a wide window). If it doesn't come back, it is closed as
+  not reproduced, with no code change. F1 moves that card to its own full-width row anyway.
 
 **F4. Top conversation themes move into Themes.** Call 00:21:53 to 00:23:12; list (brand and industry); notes.
 - Today: its own section and heading through `AnalysisOnly` (`SL/brand.tsx:57-61`, used at `:176`; `SL/industry.tsx:66`).
@@ -70,8 +75,9 @@ next step ("fix the broken graph"). Not in Savannah's list.
 **F5. Keyword appendix carries over month to month.** Call 00:20:58, 00:21:53 (Jasmine checks it was said); list.
 - Today: a box shows only an entry for the month on screen (`lib/commentary/month.ts:12-29`). Boxes `b-keywords` and
   `i-keywords` (`LIB/boxes.ts:10-11`, `:63-66`).
-- Change: for these two boxes only, a month with no entry shows the newest earlier approved appendix. Nothing is copied
-  or deleted. Editing it saves this month's own entry through the same draft and approve steps as today.
+- Change: for these two boxes only, a month with no entry shows the newest earlier approved appendix, to the client
+  too, with no new approval (my call: Savannah shouldn't have to retype it). Nothing is copied or deleted. She can
+  still edit it, and that saves this month's own entry through the same draft and approve steps as today.
 - Paul sends the industry appendix (call 00:28:24, his next step). It differs from brand's.
 
 **F6. Optional annotations on the line graphs.** Call 00:24:04 to 00:25:03 (Jasmine: call out an AMA; optional, "if we
@@ -98,7 +104,11 @@ Jasmine: "I like that"; "I'll make the default for all three of those line graph
   `KIT/charts.tsx:275-305`, drawn 480 wide at `:276`) and Reddit (columns) share a half-width row (`SL/brand.tsx:139-151`).
 - Change: Sentiment YTD and Reddit YTD get a three-line view (positive, neutral, negative by month, a gap stays a gap,
   as `KIT/charts.tsx:5`), shown first, with a Line / Columns toggle. All three full width, one under the other.
-- Open: Positive + neutral is already a line and has no columns form today, so what its toggle switches to is unclear.
+  Positive + neutral stays as it is, with no toggle (my call), just full width.
+- The toggle is for clients too, and the PDF prints whichever view is on screen (my call). The PDF is rendered by a
+  fresh server page, so the choice has to travel with the export request. The AEO tab already does this for its own
+  settings (`lib/export/request.ts:16-19`, `:50-51`, `:59-60`, `:72-73`), so the toggle follows that pattern: present
+  only on a Social Listening export, so every other export request stays the same.
 - List also says "AI for OS: make a sheet with the YTD data". I read that as the Organic Social team's action. Not mapped.
 
 **F9. Share of media types: change only, colour coded.** Call 00:12:31 to 00:15:01; list ("remove the column for the
@@ -110,14 +120,31 @@ September values, keep MoM % changes only; colour code them and adjust with +/-"
 - There is no September values column today. If the list means something on screen, it needs naming.
 - Change: up arrows green, down red, with the sign, through the tiles' existing change line (Paul: "we already have
   this mechanism").
-- Open: where September's baseline comes from (Jasmine: "it should just on the back end get it").
+- Baseline (my call): the September export the September deck was built from, uploaded as September's export. The
+  changes must match the October deck's media slide (slide 10), which itself says "Change vs September (export)".
+- Two things stand between that and an exact match:
+  1. **October's export on the tab is not the deck's.** I pulled it later than Savannah (my Slack, 2026-11-20), and the
+     dashboard on the call shows shares a tenth or so off the deck's (read from a low-resolution screenshot, to be
+     checked against the stored upload). Changes computed from it won't equal the slide.
+  2. **"Other" reads n/a on the slide** because September grouped Newspaper inside Other (noted in the mockup,
+     `docs/social-listening/mock.template.html:759`). The code would give Other a change, since Other exists in both
+     months (`LIB/compare.ts:171-174`).
 
 **F10. Share of media types by sentiment (deck slide 9).** Call 00:10:36 to 00:11:44 and 00:15:01 (Paul: the volume
 cut by sentiment; colour coded); list.
 - Today: share bars are one colour (`KIT/charts.tsx:213`). A separate Sentiment by media type card already shows each
   type's split as a 100% bar (`SL/brand.tsx:130-132`, `KIT/charts.tsx:183-202`) and stays as is (call 00:27:23).
-- Not mapped yet: I can't see slide 9. Needs the slide. My guess, unconfirmed: each share bar keeps its length and is
-  split into sentiment colours.
+- The slide is slide 10 of the October deck (I shared a screenshot, kept out of this repo). Right side, "Share of
+  sentiment, by media type: where each sentiment came from": one 100% bar per sentiment (Positive, Neutral, Negative,
+  each with its result count), split into media types, the share printed in the larger segments, a media type legend.
+  Left side: share of media types by volume with the coloured change, which F9 covers (the tab keeps its approved
+  bars, not the slide's donut).
+- Data: nothing new. The export's sentiment by media type (`LIB/export-parse.ts:285-311`) holds every count needed.
+- Colours: the tab already has a colour per media type (`LIB/colors.ts:10-29`), attached to each media row
+  (`LIB/view-model.ts:124`) but never drawn. The new chart uses those. The deck's own colours don't carry over: its X is
+  black, which disappears on the dark page.
+- Change: a new full-width card in Media types, under Share of media types, with its own analysis box. A new box id
+  is added at the end of the list (`LIB/boxes.ts:9-12`), so no stored id moves.
 
 **F11. Top influencers: pull 25, remove per month, sort by reach and engagement.** Call 00:15:01 to 00:20:58; list
 ("don't permanently remove authors, only for the current month"); notes next step.
@@ -125,10 +152,17 @@ cut by sentiment; colour coded); list.
   order (`SL/brand.tsx:192-221`). Talkwalker exports only the rows its widget shows (Paul, call 00:17:08), so 25 needs
   the widget widened in Talkwalker first. Uploads already stored hold 5 rows (the raw file is kept, `lib/db/schema.ts:639`,
   but it only ever had 5), so October needs a new export.
-- Change: keep up to 25; staff hide or restore an author for one month (stored per month, never deleted, a new small
-  table, so a migration); clients see only kept authors; sort by posts, reach or engagement.
-- Unchanged: the four overview cards (call 00:20:58, "okay how it looks right now"). They come from Talkwalker's own
-  Overview widget (`LIB/view-model.ts:146`).
+- Change (my call): the Organic Social team picks which authors show, per month. Clients see only the authors the team
+  allowed. Staff see all 25 with a Show or Hide control. Picks are stored per month and never deleted (a new small
+  table, so a migration). Until the team picks anyone for a month, the client sees the first 5, as today, so the
+  approved October view doesn't change by itself.
+- Sorting: posts (default, as today), reach or engagement, for every viewer.
+- Overview cards (my call): an author the team hid is hidden from the cards too, and staff can also hide any card
+  directly (the two site cards have no row in the table). Today's labels, from the test workbook: most active author,
+  most influential author, most active site, most influential site
+  (`LIB/test-workbook.ts:124-127`). A card holds a name but no author id (`LIB/types.ts:40`), so a card is matched to a
+  hidden author by name and network, checked on a real export before it ships. The cards' look is unchanged
+  (call 00:20:58).
 
 **F12. Trends in keyword themes not filling in.** Call 00:19:47 (Paul: "pull it against September trends and
 keywords"; I said I'd look); list (slide 12); notes next step ("investigate").
@@ -136,15 +170,15 @@ keywords"; I said I'd look); list (slide 12); notes next step ("investigate").
   an empty month reads "Not entered yet. Type the trends from the Talkwalker dashboard." (`SL/trends.tsx:86`). Saved
   and read per month (`app/actions/social-listening.ts:269-280`, `LIB/store.ts:31`, `:103`). How trends get filled was
   an open choice before the build (`docs/social-listening/export-coverage.md:61`: screenshot, typed, or our own estimate).
-- Needs: a read-only look at staging for the October trends row, then a choice: keep typing, or work them out from
-  this month's themes against last month's (which needs the same September baseline as F9).
+- My call: keep typing them. First a read-only look at staging for the October trends row, to tell the team whether
+  they were never entered or something failed.
 
 ### Industry only
 
 **F13. Remove "Sentiment, May to October".** List. The call (00:27:23) said the industry bar charts turn into line
 graphs with a toggle; the list, written after, says remove this one. Following the list.
-- Today: `SL/industry.tsx:44-46`, box `i-ytd`. Change: the card goes. Share of sentiment is left alone in its row. The
-  `i-ytd` id stays in the box list, so any text written there is kept, just not shown (`LIB/boxes.ts:3-5`).
+- Today: `SL/industry.tsx:44-46`, box `i-ytd`. Change: the card goes, and share of sentiment takes the full width
+  (my call). The `i-ytd` id stays in the box list, so any text written there is kept, just not shown (`LIB/boxes.ts:3-5`).
 
 **F14. Sentiment over time: line by default, toggle to today's columns.** List; call 00:27:23.
 - Today: stacked daily columns (`SL/industry.tsx:48-51`, `KIT/charts.tsx:307-332`). Change: a three-line daily view
@@ -155,8 +189,8 @@ cut this by sentiment so the colors will change", "coming from export", "Correct
 - Today: the industry cloud uses decoration colours with a note saying so (`SL/industry.tsx:58-60`, `KIT/charts.tsx:355`).
   The October industry export's theme colours are 25 one-off colours that mean nothing (`LIB/colors.ts:31-34`), unlike
   brand's five sentiment colours read by `themeTone` (`LIB/colors.ts:35-40`).
-- So the export can't give sentiment today. The industry theme widget in Talkwalker has to be set to colour by
-  sentiment first; then the cloud reads it as brand does and the decoration note goes.
+- So the export can't give sentiment today. Savannah sets the industry theme widget in Talkwalker to colour by
+  sentiment and re-exports (my call); then the cloud reads it as brand does and the decoration note goes.
 
 ### Heard on the call, no code change
 
@@ -168,6 +202,7 @@ cut this by sentiment so the colors will change", "coming from export", "Correct
 - **N4. Most relevant posts:** not tested by the team yet (call 00:21:53). No change.
 - **N5. Two exports, brand sentiment and industry sentiment** (call 00:26:12 to 00:27:23). Matches the upload today.
 - **Phase 3 (an analysis box under every chart on the other Organic Social tabs):** not on the call or the list. "The
-  analysis stuff in all these boxes" (00:23:12) was about this tab. Its two open questions were not discussed.
+  analysis stuff in all these boxes" (00:23:12) was about this tab. Its two open questions were not discussed. Parked
+  (my call, 2026-11-24).
 - Not this build: Renaissance influencer approvals, comment engagement, the content calendar, the Dash competitor
   audit, Glean, Asana, the AEO dashboard.
