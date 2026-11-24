@@ -12,6 +12,7 @@ import { AnnotationCallouts, CalloutCard } from './annotation-callouts'
 import { NoteForm, savedLine, type ExistingNote, type SavedNote } from './note-form'
 import { ExportAnnotationList } from './export-annotations'
 import { useExportMode } from '@/components/export/export-mode'
+import { lookOf, type ChartLook } from './chart-look'
 
 /** How long the line after a save stays (Phase 2c, D18). */
 const SAVED_LINE_MS = 8000
@@ -44,8 +45,8 @@ function dropAgreed(overrides: Record<string, boolean>, annotations: ChartAnnota
 // before the prop existed, with no button, no row and no dots. That is what keeps every
 // client still pinned to v1 of these parts, Renaissance included, unchanged.
 export function ChannelTrendChart({
-  title, series, annotations, annotationControls, noteControls,
-}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls }) {
+  title, series, annotations, annotationControls, noteControls, shaded, frameless,
+}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls } & ChartLook) {
   // This chart's state is per view: each tab and each month gets its own instance, because both report
   // pages wrap the section in a Suspense keyed on the tab and the month (app/dashboard and app/portal
   // .../reports/page.tsx). Keep that key. The legend below is seeded once, on mount, so without the key it
@@ -147,7 +148,9 @@ export function ChannelTrendChart({
   }
   for (const [day, note] of Object.entries(justSaved)) existing[day] = note
 
-  if (exportMode) return <ExportChannelTrendChart title={title} series={series} annotations={annotations} />
+  // The design kit's look (shaded, frameless), handed only when set, so every chart drawn without it is exactly as before.
+  const look = lookOf({ shaded, frameless })
+  if (exportMode) return <ExportChannelTrendChart title={title} series={series} annotations={annotations} {...look} />
 
   return (
     <section className="space-y-3">
@@ -227,6 +230,7 @@ export function ChannelTrendChart({
             <NoData />
           ) : (
             <LineChart
+              {...look}
               data={series.points}
               xKey="date"
               xFormat="month-day"
@@ -252,7 +256,7 @@ export function ChannelTrendChart({
 /** The chart as the PDF export prints it (spec 2026-10-06 §7): title, legend and chart as one unbreakable
  *  block; the annotations a client sees, numbered in date order, as a mark at each day's point and a list
  *  under the chart. No hover cards, toggles or note editors. */
-function ExportChannelTrendChart({ title, series, annotations }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[] }) {
+function ExportChannelTrendChart({ title, series, annotations, shaded, frameless }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[] } & ChartLook) {
   const printable = (annotations ?? []).filter(isClientVisible).sort((a, b) => a.date.localeCompare(b.date))
   const onSeries = new Set(series.points.map((p) => String(p.date)))
   // Only a day with a point gets a mark, so only those are numbered: the chart's numbers never skip, and the list shows
@@ -274,7 +278,7 @@ function ExportChannelTrendChart({ title, series, annotations }: { title: string
                 </span>
               ))}
             </div>
-            <LineChart data={series.points} xKey="date" yKeys={yKeys} marks={marks} xFormat="month-day" />
+            <LineChart {...lookOf({ shaded, frameless })} data={series.points} xKey="date" yKeys={yKeys} marks={marks} xFormat="month-day" />
           </>
         )}
       </div>
@@ -284,7 +288,7 @@ function ExportChannelTrendChart({ title, series, annotations }: { title: string
 }
 
 export function EngagementTrend({
-  series, annotations, annotationControls, noteControls, title = 'Engagement Over Time',
-}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls; title?: string }) {
-  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} noteControls={noteControls} />
+  series, annotations, annotationControls, noteControls, title = 'Engagement Over Time', shaded, frameless,
+}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls; title?: string } & ChartLook) {
+  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} noteControls={noteControls} {...lookOf({ shaded, frameless })} />
 }
