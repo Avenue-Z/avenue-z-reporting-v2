@@ -73,8 +73,10 @@
 .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
 /* The kit's own hand-drawn charts fill their card. Not a Recharts chart's svgs (its chart and legend icons), which keep
    Recharts' own sizes when a trend graph sits in a kit card (kit-svg-rule.test.ts). :global, because Recharts' class
-   is not one of this module's: written bare, CSS Modules would hash it and the exclusion would match nothing. */
-.root svg:not(:global(.recharts-surface)) { display: block; width: 100%; height: auto; }
+   is not one of this module's: written bare, CSS Modules would hash it and the exclusion would match nothing. :where,
+   because it adds no specificity: a bare :not() would count its class, and the rule would then outrank `.donutWrap svg`
+   below and stretch every Social Listening donut (Paul, #498 review). */
+.root svg:where(:not(:global(.recharts-surface))) { display: block; width: 100%; height: auto; }
 .root svg text { font-family: inherit; }
 .tMuted { fill: var(--muted); }
 .tFg { fill: var(--fg); }
