@@ -15,11 +15,11 @@ Author: Thomas Chang. "I", "me" and "my" mean me. Date: 2026-11-24.
 | #502 | `feat/os-kit-aeo` | `ef32da9b..61897594` | 10 |
 | #503 | `feat/os-kit-boxes` | `ef32da9b..d0c8f4ab` | 11 |
 
-This record changes no code. Fixes it names are follow-ups.
+This record changes no code. Fixes not yet made are follow-ups.
 
-> [!CAUTION]
-> One decision is open before any of these is pinned: what the new look does to months already reported (finding 5).
-> It is asked on the spec PR, `docs/superpowers/specs/2026-11-24-os-design-past-months.md`.
+> [!NOTE]
+> The past-months decision (finding 5) is answered on #504: B. Months already reported keep the look they were
+> delivered in; option B is its own PR after this round merges, and nothing is pinned before then.
 
 ## 1. How it works
 
@@ -76,7 +76,7 @@ and me). Sev: ● correctness, ○ cleanup or convention.
 | 2 | ● | CONFIRMED, fixed in #498 (`602b90a3`) | `components/report-sections/organic-social/chart-look.ts` | A server module called a function from a `'use client'` module; every follower graph would have errored |
 | 3 | ● | CONFIRMED, fixed in #498 and #499 | `design/kit.module.css` (the `.root svg` rule) | The kit's svg rule stretched Recharts' legend icon to 72px |
 | 4 | ○ | CONFIRMED, fixed in #503 (`d0c8f4ab`) | `components/report-sections/commentary/commentary-kit.test.tsx:50` | Snapshots held New York times and failed in CI's UTC |
-| 5 | ● | DECISION | `components/report-sections/organic-social/index.tsx:143`, `:179` | A pin redraws every month in the new look, past ones included |
+| 5 | ● | DECISION, answered B (#504) | `components/report-sections/organic-social/index.tsx:143`, `:179` | A pin redraws every month in the new look, past ones included |
 | 6 | ○ | CONFIRMED | `parts/{tiles,trends,ytd,posts,kpi}-kit.tsx` | The section-swap helper exists in five files |
 | 7 | ○ | CONFIRMED | `design/kit.module.css` | #498 and #499 both edit it (byte-identical), which the plan said no round 2 PR would |
 | 8 | ○ | CONFIRMED | `design/kit.module.css:59` (`.kpi .t`, seen in #497) | A tile title's line height is 18px, not 16px |
@@ -99,8 +99,8 @@ and me). Sev: ● correctness, ○ cleanup or convention.
    CSS Modules hashes it. My first fix used a bare `:not()`, which changed Social Listening too: finding 12.
 4. **Time zone.** Each timestamp is one placeholder (`clockFree`); everything else is still compared byte for byte.
 5. **Past months.** The look is chosen per client, by tab, once per render, whatever month is on screen; locked months
-   freeze numbers, not the look. The choice, A or B, and option B's design are in the past-months spec. Nothing is
-   pinned until Paul answers.
+   freeze numbers, not the look. Paul answered B on #504; option B's design is in the past-months spec and its plan, and
+   it ships as its own PR after this round. Nothing is pinned before then.
 6. **Five helpers.** They could not share one file without the PRs depending on each other. Fold them once all merge.
 7. **The stylesheet.** Identical changes on both sides merge clean (proven).
 8. **Line height.** The kit sets none. Visible, small, and the one difference besides the look.
