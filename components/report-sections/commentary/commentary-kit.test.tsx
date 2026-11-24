@@ -81,6 +81,8 @@ describe('with look="kit", the panel reads and behaves exactly as before, on the
     // The kit really drew: its colours on the box, the formatted body in the kit's body style, no old frame left.
     const box = kitted.querySelector('section')!
     expect(box.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(box.classList.contains(kit.tight)).toBe(true)
     expect(kitted.querySelector(`.${kit.commBody}`)).not.toBeNull()
     expect(kitted.querySelector('section.rounded-lg.border')).toBeNull()
   })

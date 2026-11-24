@@ -183,6 +183,8 @@ describe('the Data block and the breakdown with the kit', () => {
     const breakdown = draw(await KitBreakdownSection({ ctx: IG, channel: 'INSTAGRAM', rows: OUTLINE_BREAKDOWN_ROWS.INSTAGRAM! }), false)
     for (const c of [data, breakdown]) {
       expect(c.firstElementChild?.classList.contains(kit.root)).toBe(true)
+      // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+      expect(c.firstElementChild?.classList.contains(kit.tight)).toBe(true)
       expect(c.querySelectorAll(`.${kit.kpi}`).length).toBeGreaterThan(0)
       expect(c.querySelector('div.rounded-lg.px-6.py-5')).toBeNull()
     }

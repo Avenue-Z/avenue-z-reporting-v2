@@ -55,7 +55,7 @@ function kitYtd(node: ReactNode): ReactNode {
 /** A YTD section's answer in kit form: the block inside the kit's colours. A fallback card, the empty card or nothing
  *  passes through as it is; @2's fallback to @1 becomes @1's kit form. */
 function kitYtdBlock(node: ReactNode): ReactNode {
-  if (isValidElement(node) && node.type === 'section') return <div className={kit.root}>{kitYtd(node)}</div>
+  if (isValidElement(node) && node.type === 'section') return <div className={`${kit.root} ${kit.tight}`}>{kitYtd(node)}</div>
   return kitYtd(node)
 }
 

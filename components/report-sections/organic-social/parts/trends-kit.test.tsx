@@ -125,6 +125,8 @@ describe.each(VIEWS)('the trend graphs with the kit read and plot exactly as tod
     // And the kit really drew: the chart shaded and frameless, inside a kit card.
     for (const c of kitCharts) expect([c.shaded, c.frameless]).toEqual([true, true])
     expect(kitted.firstElementChild?.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(kitted.firstElementChild?.classList.contains(kit.tight)).toBe(true)
     expect(kitted.firstElementChild?.classList.contains(kit.card)).toBe(true)
   })
   test('the annotated graphs really carry annotations on this data, so the comparison above covers them', async () => {

@@ -44,7 +44,7 @@ function kitPosts(node: ReactNode): ReactNode {
 
 /** A posts section's answer in kit form: the block inside the kit's colours. A fallback card or nothing passes through. */
 function kitPostsBlock(node: ReactNode): ReactNode {
-  if (isValidElement(node) && node.type === 'section') return <div className={kit.root}>{kitPosts(node)}</div>
+  if (isValidElement(node) && node.type === 'section') return <div className={`${kit.root} ${kit.tight}`}>{kitPosts(node)}</div>
   return node
 }
 

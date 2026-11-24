@@ -116,7 +116,7 @@ export function CommentaryPanel({
   }
 
   return (
-    <section className={K ? `${kit.root} ${bx.box} mb-8` : 'mb-8 rounded-lg border border-white/[0.08] bg-bg-surface'}>
+    <section className={K ? `${kit.root} ${kit.tight} ${bx.box} mb-8` : 'mb-8 rounded-lg border border-white/[0.08] bg-bg-surface'}>
       <div className="flex items-center justify-between p-4">
         <button type="button" onClick={() => setCollapsed((c) => !c)}
           className={K ? `flex items-center gap-2 ${kit.lbl}${capabilities.canEdit ? '' : ` ${bx.lblClient}`}` : 'flex items-center gap-2 text-sm font-extrabold text-white'}>
@@ -250,7 +250,7 @@ function ExportCommentary({ entry: shown, title, look }: { entry: CommentaryEntr
   if (!shown) return null
   const K = look === 'kit'
   return (
-    <section data-export-block="" className={K ? `${kit.root} ${bx.box} mb-8 space-y-3 p-4` : 'mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4'}>
+    <section data-export-block="" className={K ? `${kit.root} ${kit.tight} ${bx.box} mb-8 space-y-3 p-4` : 'mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4'}>
       <h2 className={K ? `${kit.lbl} ${bx.lblClient}` : 'text-sm font-extrabold text-white'}>{title}</h2>
       <p className="text-xs text-text-muted">Reporting period: {fmt(shown.periodStart)} – {fmt(shown.periodEnd)}</p>
       <div

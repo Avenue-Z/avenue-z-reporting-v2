@@ -85,6 +85,8 @@ describe.each(VIEWS)('the posts with the kit read exactly as today, for %s', (_w
     expectSameValues(old, kitted)
     // The kit really drew: its colours on the block, its frame on every card, and no old frame left.
     expect(kitted.firstElementChild?.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(kitted.firstElementChild?.classList.contains(kit.tight)).toBe(true)
     const cards = kitted.querySelectorAll(`.${pk.frame}`)
     expect(cards.length).toBeGreaterThan(0)
     expect(cards.length).toBe(old.querySelectorAll('.rounded-xl.border').length)

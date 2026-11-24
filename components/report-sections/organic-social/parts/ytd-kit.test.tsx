@@ -200,6 +200,8 @@ describe('ytd-review@5', () => {
     CASES[0][2]()
     const c = draw(await resolveSection(ytdReviewV5.render(SEPT, r)), false)
     expect(c.firstElementChild?.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(c.firstElementChild?.classList.contains(kit.tight)).toBe(true)
     expect(c.querySelectorAll(`.${kit.card}`)).toHaveLength(2)
     expect(c.querySelector('div.rounded-lg.px-6.py-5')).toBeNull()
   })

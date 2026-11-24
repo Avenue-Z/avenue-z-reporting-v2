@@ -34,6 +34,10 @@
    would match nothing. Live pages never carry .export-theme, so they keep the kit stack above. */
 :global(.export-theme) .root { font-family: var(--font-sans); }
 
+/* Line height `normal`, as the artifact (round 3, Task 6). Not on `.root`: Social Listening and AEO Informed draw on
+   `.root` too and were approved with the app's line height, so only Organic Social's own kit wrappers carry this. */
+.tight { line-height: normal; }
+
 /* Topics and the preview toggle */
 .topics { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--active); background: none; padding: 6px 14px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; }

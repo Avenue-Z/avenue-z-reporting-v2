@@ -20,10 +20,10 @@ import { engagementTrendV1, engagementTrendV2 } from './engagement-trend'
 export function asKitChart(node: ReactNode): ReactNode {
   if (!isValidElement(node)) return node
   if (node.type === FollowerGraph) {
-    return <div className={`${kit.root} ${kit.card}`}><FollowerGraph {...(node.props as ComponentProps<typeof FollowerGraph>)} shaded frameless /></div>
+    return <div className={`${kit.root} ${kit.tight} ${kit.card}`}><FollowerGraph {...(node.props as ComponentProps<typeof FollowerGraph>)} shaded frameless /></div>
   }
   if (node.type === EngagementTrend) {
-    return <div className={`${kit.root} ${kit.card}`}><EngagementTrend {...(node.props as ComponentProps<typeof EngagementTrend>)} shaded frameless /></div>
+    return <div className={`${kit.root} ${kit.tight} ${kit.card}`}><EngagementTrend {...(node.props as ComponentProps<typeof EngagementTrend>)} shaded frameless /></div>
   }
   return node
 }

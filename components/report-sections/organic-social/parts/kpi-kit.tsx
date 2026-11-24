@@ -40,7 +40,7 @@ function kitKpi(node: ReactNode): ReactNode {
 /** The section's answer in kit form: the block, or a staff member's two views, inside the kit's colours. A fallback
  *  card or nothing passes through as it is. */
 function kitKpiBlock(node: ReactNode): ReactNode {
-  if (isValidElement(node) && (node.type === 'section' || node.type === PrintAsClient)) return <div className={kit.root}>{kitKpi(node)}</div>
+  if (isValidElement(node) && (node.type === 'section' || node.type === PrintAsClient)) return <div className={`${kit.root} ${kit.tight}`}>{kitKpi(node)}</div>
   return node
 }
 
