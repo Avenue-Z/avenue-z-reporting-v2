@@ -50,7 +50,8 @@ const card = (c: HTMLElement, title: string) =>
   ([...c.querySelectorAll('p')].find((p) => p.textContent === title)?.closest('div.rounded-lg') ?? null) as HTMLElement | null
 
 test('the registry adds three unpublished versions and leaves v1 as it was', () => {
-  expect(Object.keys(ORGANIC_SOCIAL_PARTS['platform-headlines'])).toEqual(['1', '2', '3'])
+  // @4, @5 and @6 are the design kit's versions of @2, @3 and @1 (parts/tiles-kit.tsx, registered in parts/kit/tiles.parts.ts).
+  expect(Object.keys(ORGANIC_SOCIAL_PARTS['platform-headlines'])).toEqual(['1', '2', '3', '4', '5', '6'])
   expect(ORGANIC_SOCIAL_PARTS['platform-headlines'][1]).toBe(platformHeadlinesV1)
   expect(ORGANIC_SOCIAL_PARTS['engagement-breakdown'][1].published).toBe(false)
   expect(ORGANIC_SOCIAL_PARTS['platform-headlines'][2].published).toBe(false)
