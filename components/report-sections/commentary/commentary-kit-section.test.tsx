@@ -24,7 +24,7 @@ vi.mock('@/lib/organic-social/locked-range', async (importOriginal) => {
 
 import { CommentarySection } from './index'
 import { monthlyCommentary } from './monthly'
-import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/organic-social/design-from.rows'
+import { DESIGN_FROM_ROWS, rowConfig } from '@/lib/test-utils/design-from-rows'
 import { SL_BOX_IDS, slBoxViewKey } from '@/lib/organic-social/social-listening/boxes'
 import { SHARED_PARTS, SHARED_PART_PLACEMENT, commentaryPart, recommendationsPart } from '@/components/report-sections/shared/parts/registry'
 import { validateSectionOverride } from '@/lib/report-sections/mutations'
@@ -100,10 +100,12 @@ describe('the rule, row by row (spec test 9), on every branch of the boxes', () 
     if (row.kit) expect(props?.look).toBe('kit')
     else expect(props).not.toHaveProperty('look')
   })
-  test('Social Listening keeps its own panel: no look is asked for, so none is given, whatever designFrom says', async () => {
+  // Both sides of the rule for October (Paul, #512): '2026-12' is a month before designFrom, '2026-09' a month on the kit.
+  // The second is the one that catches a box adding a look Social Listening never asked for.
+  test.each(['2026-12', '2026-09'])('Social Listening keeps its own panel: no look is asked for, so none is given (designFrom %s)', async (designFrom) => {
     let got: Record<string, unknown> | null = null
     const Panel = (props: Record<string, unknown>) => { got = props; return null }
-    const c = { id: 'client-1', slug: 'acme', dashSocialConfig: { brandId: 1, ...MONTHS, designFrom: '2026-12' } }
+    const c = { id: 'client-1', slug: 'acme', dashSocialConfig: { brandId: 1, ...MONTHS, designFrom } }
     const el = await monthlyCommentary({ client: c, role: 'INTERNAL_ADMIN', email: staff.user.email, viewKey: slBoxViewKey(SL_BOX_IDS[0]), requestedRange: OCT, labels: { title: 'x' } as never, entries: [], Panel: Panel as never })
     if (el) render(el as ReactElement)
     expect(got).not.toBeNull()

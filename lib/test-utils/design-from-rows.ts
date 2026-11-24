@@ -1,8 +1,9 @@
-// Test data only: the rule in section 3 of docs/superpowers/specs/2026-11-24-os-design-past-months.md, one row per
-// line of its table and edge. Every surface's tests (the rule, the body, both boxes, the AEO tab) run these same rows,
-// so the surfaces cannot disagree. Every month is one the surface tests can serve on their clock (2026-11-24, firstMonth
-// 2026-08: staff 2026-08 to 2026-11, a client 2026-08 to 2026-10); `month: null` is a client without reportingMonths.
-// `designFrom` omitted means the key is absent.
+// Test data only, kept under lib/test-utils so app code cannot import it by mistake (Paul, #512). The rule in section 3
+// of docs/superpowers/specs/2026-11-24-os-design-past-months.md, one row per line of its table and edge. Every
+// surface's tests (the rule, the body, both boxes, the AEO tab) run these same rows, so the surfaces cannot disagree.
+// Every month is one the surface tests can serve on their clock (2026-11-24, firstMonth 2026-08: staff 2026-08 to
+// 2026-11, a client 2026-08 to 2026-10); `month: null` is a client without reportingMonths. `designFrom` omitted means
+// the key is absent.
 
 export type DesignFromRow = { name: string; designFrom?: unknown; month: string | null; kit: boolean }
 
