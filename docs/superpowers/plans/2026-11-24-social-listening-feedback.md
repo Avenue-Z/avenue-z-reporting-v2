@@ -58,13 +58,17 @@ equals the final October deck; the migration for media counts and top authors on
 values from the deck (privately checked; the numbers never enter the repo). From November the tab keeps its own record
 (`LIB/compare.ts:111-114`), as long as the client's numbers come from the tab.
 
-## 3. Questions left
+## 3. Decided later on 2026-11-24
 
-| # | Question | My recommendation |
+| # | Question | Decision |
 |---|---|---|
 | Q2 | When a media type is new this month, its results were inside last month's Other. Should Other read n/a then? | Yes (`docs/social-listening/mock.template.html:759` records the September case) |
-| Q3 | F13: Savannah's list removes the industry May-to-month chart, but both decks have it as its own slide ("Sentiment Over Time"). Remove it, or draw it as lines with the toggle? | Confirm with Savannah; until then, lines with the toggle |
-| Q4 | The decks' influencer table has "Reach per mention" and "Engagement per mention"; the tab has neither. Add them? | Yes, they are on every deck the client gets |
+| Q3 | F13: Savannah's list removes the industry May-to-month chart, but both decks have it as its own slide ("Sentiment Over Time"). Remove it, or draw it as lines with the toggle? | Confirm with Savannah; until she answers, it stays and becomes lines with the toggle |
+| Q4 | The decks' influencer table has "Reach per mention" and "Engagement per mention"; the tab has neither. Add them? | Yes |
+
+Q4's columns are reach and engagement divided by posts. On the final October deck that reproduces both columns to
+their rounding for every row (checked privately); the build checks it again against the export's own columns, if the
+export carries them, before choosing which to show.
 
 ## 4. Units, in build order
 
@@ -83,7 +87,7 @@ Files: `KIT/frames.tsx`, a new `SL/layout.module.css`, `SL/brand.tsx`, `SL/indus
 3. F4: `b-conv` and `i-conv` move into the Themes section with a small "Top conversation themes" label; the industry
    box still shows for staff with no upload.
 4. F7: the owned note string at `SL/brand.tsx:124`.
-5. F13: the industry YTD card goes, or becomes lines with the toggle, per Q3.
+5. F13: the industry month-by-month card stays until Savannah answers Q3, and becomes lines with the Line / Columns toggle (Unit C). If she confirms removal, the card goes and share of sentiment takes the full row.
 6. F3: a reproduction attempt on the October data before the layout change (staff, client preview, 375px and 1400px).
    Result recorded in the unit's PR. No fix without a reproduction.
 
@@ -113,7 +117,7 @@ sentiment as three lines), a new client component `SL/chart-toggle.tsx`, `SL/bra
   pattern (`lib/export/request.ts:16-19`, `:50-51`, `:59-60`, `:72-73`). The param is checked against the fixed list of
   toggle charts; anything else is ignored.
 - Brand: Sentiment YTD and Reddit YTD toggle; Positive + neutral does not; all three full width, stacked.
-- Industry: Sentiment over time toggles.
+- Industry: Sentiment over time (daily) toggles, and so does the month-by-month card while it stays (Q3).
 
 Edge-case list for the commit body: the param comes from the browser, so an unknown chart id, a repeat, or an
 oversized value is dropped, never echoed; a request with no param is the request of today.
@@ -133,7 +137,7 @@ Q2's rule), `lib/db/schema.ts` and a migration (media type numbers on `social_li
    `mediaChanges` reads last month's history row first and falls back to last month's presented upload, as
    `presentedValues` does (`LIB/compare.ts:111-138`). A history row without media behaves as today. October's counts are
    entered from the final October deck (they rebuild exactly from its charts), a database write on my go.
-3. Q2's rule for Other, if I say yes.
+3. Q2: when a media type is new this month, Other reads n/a.
 4. Slide 10's chart: one 100% bar per sentiment with its count, split by media type in the tab's media colours
    (`LIB/colors.ts:10-29`), shares printed in segments wide enough, a legend. Full width, its own analysis box.
 5. The numbers check, once October's deck values are entered on my go: on staging, with a November test upload, every
@@ -172,7 +176,7 @@ component for sorting and the staff Show/Hide controls).
 - A hidden author also hides an overview card with the same name and network; staff can hide any card directly.
 - Posts change against what the client saw: `authorChanges` reads last month's history row first (October's top five,
   entered with Unit D's media counts, matched to the October upload's author ids by name and network), then the upload.
-- Q4's two "per mention" columns, if I say yes.
+- Q4: "Reach per mention" and "Engagement per mention" columns.
 
 Edge-case list for the commit body: author ids come from an untrusted file and stay Map keys, never object keys
 (`LIB/compare.ts:176-178`); the action checks the month is one staff can edit and the author or card is in that month's

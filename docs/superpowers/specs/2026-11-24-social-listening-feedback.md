@@ -142,7 +142,7 @@ September values, keep MoM % changes only; colour code them and adjust with +/-"
   own arrows would drift from it every month.
 - Still open: when a media type is new this month, its results were inside last month's "Other", so Other has no
   fair comparison (September grouped Newspaper inside Other, `docs/social-listening/mock.template.html:759`). The code
-  would give Other a change (`LIB/compare.ts:171-174`). Proposed rule: Other reads n/a in that case.
+  would give Other a change (`LIB/compare.ts:171-174`). Decided (Q2): Other reads n/a in that case.
 
 **F10. Share of media types by sentiment (deck slide 9).** Call 00:10:36 to 00:11:44 and 00:15:01 (Paul: the volume
 cut by sentiment; colour coded); list.
@@ -176,7 +176,7 @@ cut by sentiment; colour coded); list.
   counts, matched to the October upload's author ids by name and network (the deck shows no ids), and the change reads
   the history first.
 - Gap found in the decks: every deck's influencer table also has "Reach per mention" and "Engagement per mention".
-  The tab has neither (`SL/brand.tsx:195-197`), and the 2026-11-19 spec never decided them. Open.
+  The tab has neither (`SL/brand.tsx:195-197`), and the 2026-11-19 spec never decided them. Decided (Q4): add both.
 - Overview cards (my call): an author the team hid is hidden from the cards too, and staff can also hide any card
   directly (the two site cards have no row in the table). Today's labels, from the test workbook: most active author,
   most influential author, most active site, most influential site
@@ -199,10 +199,11 @@ keywords"; I said I'd look); list (slide 12); notes next step ("investigate").
 graphs with a toggle; the list, written after, says remove this one.
 - **Conflict found in the decks:** this chart is its own slide in both the September and October decks, titled
   "Sentiment Over Time" and drawn as monthly lines. The names cross: the deck's "Sentiment Over Time" is this monthly
-  chart, while the tab's "Sentiment over time" (F14) is the daily one. So the list may mean something else. Confirm with
-  Savannah before removing it; the alternative is to draw it as lines with the F8 toggle.
-- Today: `SL/industry.tsx:44-46`, box `i-ytd`. Change: the card goes, and share of sentiment takes the full width
-  (my call). The `i-ytd` id stays in the box list, so any text written there is kept, just not shown (`LIB/boxes.ts:3-5`).
+  chart, while the tab's "Sentiment over time" (F14) is the daily one. So the list may mean something else. Decided (Q3):
+  confirm with Savannah; until she answers it stays and becomes lines with the F8 toggle.
+- Today: `SL/industry.tsx:44-46`, box `i-ytd`. Change for now: share of sentiment and this card each take a full row
+  (my call), and this card gets the line view first with the toggle. If Savannah confirms removal, the card goes; the
+  `i-ytd` id stays in the box list either way, so any text written there is kept (`LIB/boxes.ts:3-5`).
 
 **F14. Sentiment over time: line by default, toggle to today's columns.** List; call 00:27:23.
 - Today: stacked daily columns (`SL/industry.tsx:48-51`, `KIT/charts.tsx:307-332`). Change: a three-line daily view
