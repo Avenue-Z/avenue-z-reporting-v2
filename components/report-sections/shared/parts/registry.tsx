@@ -1,3 +1,4 @@
+import { cloneElement, isValidElement, type ReactElement } from 'react'
 import { CommentarySection } from '@/components/report-sections/commentary'
 import { RECOMMENDATIONS_LABELS } from '@/lib/commentary/labels'
 import { recommendationsViewKeyFor, type CommentaryViewKey } from '@/lib/commentary/views'
@@ -36,9 +37,29 @@ export const recommendationsPart: PartImpl<SharedCtx> = {
   },
 }
 
+/** The two boxes on the design kit (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md, Task 11): @1's element with
+ *  `look="kit"`, nothing else different. CommentarySection applies it only on an Organic Social view. Published, because a
+ *  client's sharedParts pin must name a published part (lib/report-sections/validate.ts) or that client's next config
+ *  save fails; shared parts have no template to promote into and no snapshot to freeze into, and resolveSharedParts
+ *  renders only the version a client pins (shared/parts/resolve.ts), so publishing reaches no one who has not pinned it. */
+function withKitLook(v1: PartImpl<SharedCtx>): PartImpl<SharedCtx> {
+  return {
+    id: v1.id,
+    version: 2,
+    published: true,
+    defaultLabel: v1.defaultLabel,
+    render: (ctx, resolved) => {
+      const el = v1.render(ctx, resolved)
+      return isValidElement(el) ? cloneElement(el as ReactElement<{ look?: 'kit' }>, { look: 'kit' }) : el
+    },
+  }
+}
+export const commentaryPartV2 = withKitLook(commentaryPart)
+export const recommendationsPartV2 = withKitLook(recommendationsPart)
+
 export const SHARED_PARTS: PartRegistry<SharedCtx> = {
-  commentary: { 1: commentaryPart },
-  recommendations: { 1: recommendationsPart },
+  commentary: { 1: commentaryPart, 2: commentaryPartV2 },
+  recommendations: { 1: recommendationsPart, 2: recommendationsPartV2 },
 }
 
 /** Where a shared part renders. Unlisted ids render at the top, as every part did before. */

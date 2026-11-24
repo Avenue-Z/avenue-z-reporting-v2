@@ -18,9 +18,11 @@ type MonthlyClient = { id: string; slug: string; dashSocialConfig?: unknown }
  *  clock as the section, so both serve the same month. `entries`, when given, are rows already read for several boxes
  *  at once (the Social Listening tab's one prefix read, spec 2026-11-19 section 9): the box keeps the rows of its own
  *  view key and makes no query. Without it the box reads its own view, as every other caller does. */
-export async function monthlyCommentary({ client, role, email, viewKey, requestedRange, labels, entries: prefetched, Panel = CommentaryPanel }: {
+export async function monthlyCommentary({ client, role, email, viewKey, requestedRange, labels, entries: prefetched, Panel = CommentaryPanel, look }: {
   client: MonthlyClient; role: unknown; email: string | null; viewKey: CommentaryViewKey; requestedRange: string | undefined
   labels: CommentaryLabels; entries?: CommentaryEntry[]
+  /** The design kit's look, passed through to the Panel unchanged (CommentarySection decides when). Absent: no key. */
+  look?: 'kit'
   /** The box that renders the entries. Default: CommentaryPanel, as every report uses. The Social Listening tab passes its
    *  own (the approved mockup's look) with the same props and the same commentary actions. */
   Panel?: ComponentType<ComponentProps<typeof CommentaryPanel>>
@@ -36,7 +38,7 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
     if (!capabilities.canEdit) return null
     return (
       <Panel clientSlug={client.slug} viewKey={viewKey} entries={[]} initialId={null} clientEntryId={null}
-        capabilities={capabilities} history={[]} emptyText="No reporting months yet" labels={labels} />
+        capabilities={capabilities} history={[]} emptyText="No reporting months yet" labels={labels} {...(look ? { look } : {})} />
     )
   }
   const all = prefetched ? prefetched.filter((e) => e.viewKey === viewKey) : await getCommentaryForView(client.id, viewKey)
@@ -70,6 +72,7 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
       emptyText={emptyMonthText(labels, monthTitle(month.key))}
       entryNotes={entryNotes}
       labels={labels}
+      {...(look ? { look } : {})}
     />
   )
 }
