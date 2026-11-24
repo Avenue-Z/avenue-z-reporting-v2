@@ -14,9 +14,14 @@ Insights box). **Those three are additions beyond what Paul approved in round 2,
   on every tab, and every month before a client's `designFrom`, option B) draws exactly as today.
 - **Behaviour unchanged.** Same handlers, same server actions, same disabled rules, same `no-print`, same accessible
   names. Only class names change, plus `aria-pressed` on the channel toggles under the kit (see Task 2).
-- **Social Listening and AEO Informed untouched.** Both share `design/kit.module.css` (`social-listening/section.tsx:91,122`,
-  `aeo-informed/section.tsx:89`). New classes are added to the stylesheet; no existing rule changes. Social Listening
-  is measured before and after on the local app (Task 6); if anything on it moves, I stop and tell Thomas.
+- **Social Listening and AEO Informed's own blocks untouched.** Both share `design/kit.module.css`
+  (`social-listening/section.tsx:91,122`, `aeo-informed/section.tsx:89`). New classes are added to the stylesheet; no
+  existing rule changes. Social Listening is measured before and after on the local app (Task 6); if anything on it
+  moves, I stop and tell Thomas. The Insights and Recommendations boxes on the AEO Informed tab are not AEO Informed's
+  own: they are the shared boxes (view key `organic-social:aeo-informed`, `organic-social/index.tsx:73,82,87`), which
+  already take the kit look there under commentary@2 (`lib/commentary/month.ts:6`, `commentary/index.tsx:23,29`,
+  `monthly.tsx:40`; round 2, Task 11). They follow Tasks 6 and 8 as on every other Organic Social tab, and are measured
+  there too.
 - **Requests unchanged.** No getter, request key or server action is touched, so the lock-key pins stay green.
 - **Test first.** Each task's tests are written first and watched failing. Without-the-look markup is pinned by a
   snapshot recorded on `dev` before the change.
@@ -27,7 +32,7 @@ Insights box). **Those three are additions beyond what Paul approved in round 2,
 
 | Area | Signal today | How the controls get it |
 |---|---|---|
-| Trend graphs (`trends.tsx`) | `shaded` / `frameless`, set only by `asKitChart` (`parts/trends-kit.tsx:23,26`) and documented as the kit look (`components/charts/line-chart.tsx:67-70`) | `ChannelTrendChart` reads `shaded` as the kit look (`const look = shaded ? 'kit' : undefined`) and passes `look` down to its controls. No new prop on the chart. |
+| Trend graphs (`trends.tsx`) | `shaded` / `frameless`, set only by `asKitChart` (`parts/trends-kit.tsx:23,26`) and documented as the kit look (`components/charts/line-chart.tsx:68-71`) | `ChannelTrendChart` reads `shaded` as the kit look (`const controlLook = shaded ? 'kit' : undefined`) and passes `look` down to its controls. No new prop on the chart. |
 | YTD notes (`ytd-notes-panel.tsx`) | none; `kitYtd` leaves the panel as it is (`parts/ytd-kit.tsx:25-26`) | `kitYtd` clones the `YtdNotesPanel` element with `look: 'kit'` (it already clones `LineChart` that way, `:34`). |
 | Post cards | `look="kit"` (`post-card.tsx:120-125`, `influencer-card.tsx:25-30`) | The cards pass `look` on to `DesignationToggle` (`post-card.tsx:147`, `influencer-card.tsx:51`). |
 | Insights box | `look="kit"` (`commentary/commentary-panel.tsx:92`) | Already there. |
@@ -40,7 +45,10 @@ Insights box). **Those three are additions beyond what Paul approved in round 2,
 - `.pill` (`:39-41`): 999px radius, 1px `var(--active)` border, no fill, 6px 14px, 12px/700, muted, fg on hover;
   pressed state on `aria-pressed="true"`.
 - `.tbtn` (`:183-185`): 8px radius, 1px border at 14% white, 4% fill, 5px 10px, 12px/700, fg; `:disabled` at 0.5.
-- New, added by this PR (nothing existing changes): `.tight` (Task 6), `.field` (Task 3), `.addEmpty` (Task 8).
+- `.addAnalysis` (`:166-167`): the artifact's dashed "+ Add analysis" button, used with `.tbtn`; already used by Social
+  Listening (`social-listening/analysis.tsx:102`). Its `!important` makes it win over `.tbtn` whatever order the
+  stylesheets load in.
+- New, added by this PR (nothing existing changes): `.tight` (Task 6), `.field` (Task 3).
 
 ## Task 1: one place for the control classes
 
@@ -85,12 +93,12 @@ same arguments (the existing mocks in `annotation-callouts.test.tsx` and `chart-
 ## Task 4: YTD notes (`ytd-notes-panel.tsx`)
 
 - `YtdNotesPanel` (`:30`) gains `look`, passed to `EditorPanel` (`:77`): Add annotation (`:102`) uses `noteButton`,
-  `MonthForm` (`:131`) its buttons (`:190-191`) and fields (`:173`, `:187`, `FIELD` at `:13`), and each row's
+  `MonthForm` (`:132`) its buttons (`:190-191`) and fields (`:173`, `:187`, `FIELD` at `:13`), and each row's
   `NoteActions` (`:122`) gets `look`.
 - `parts/ytd-kit.tsx` `kitYtd`: `if (el.type === YtdNotesPanel) return cloneElement(el, { look: 'kit' })`.
 
 Tests: `ytd-kit.test.tsx` gains a case that the kit YTD tree hands the panel `look: 'kit'` and @2 hands it none; the
-panel's before-snapshot without the look.
+panel's before-snapshot without the look (`ytd-notes-panel.test.tsx`).
 
 ## Task 5: designation toggle
 
@@ -111,7 +119,7 @@ added next to `kit.root` on the Organic Social kit wrappers only:
 - `parts/kit-tiles.tsx:56,68,90`
 - `commentary/commentary-panel.tsx:119,253` (the kit path only)
 
-Measured on the local app before and after with `getComputedStyle`: the tile heights, a tile title's line box, a pill
+Measured on the local app before and after with `getComputedStyle`: the Insights box on the AEO Informed tab, the tile heights, a tile title's line box, a pill
 and a button on November (kit), and the same on September (old look, must not move). **Social Listening** (APFM's tab,
 same session): every section's height and a sample of text line boxes before and after. If any Social Listening number
 moves, I stop and tell Thomas before going further. Unit test: each wrapper's class list holds `kit.tight`.
@@ -135,15 +143,14 @@ client never sees it (the server already returns nothing for a client with nothi
 
 In `CommentaryPanel`, with `look="kit"`, when the editor can edit, is not editing, there are no entries, and there is
 no history to open (`!(canApprove && history.length > 0)`): render only
-`<div className="mb-8 {kit.root} {kit.tight}"><button className="{kit.tbtn} {bx.addEmpty}">+ {addText(labels)}</button></div>`,
+`<div className="mb-8 {kit.root} {kit.tight}"><button className="{kit.tbtn} {kit.addAnalysis}">+ {addText(labels)}</button></div>`,
+the same button Social Listening's empty box draws (`social-listening/analysis.tsx:102`),
 whose click does exactly what Add does today (`setEditing('new')`); once editing, the full panel with the editor shows
-as today. When there is no month to add for (`monthly.tsx:42-45`, "No reporting months yet", no `defaultPeriod`), that
-line stays beside the button so staff still know why. `.addEmpty` (new, `commentary-kit.module.css`): dashed border, no
-fill, muted, yellow text and 50% yellow border on hover. Words stay the box's own ("+ Add insights", "+ Add
+as today. Words stay the box's own ("+ Add insights", "+ Add
 recommendations"). Without the look, nothing changes; the editor, saving, approval and history are untouched.
 
 Tests (`commentary-kit.test.tsx`): kit + empty + staff renders only the dashed button; clicking it
-opens the editor as today; kit + history keeps the full panel; kit + no months shows the line; old look unchanged
+opens the editor as today; kit + history keeps the full panel; old look unchanged
 (before-snapshot).
 
 ## Out of scope (named so nobody reads it as missed)
@@ -163,3 +170,23 @@ with `dev` on its own.
 1. The signal: `shaded` as the kit look inside `ChannelTrendChart` and `LineChart`, rather than a new prop.
 2. Byte-identical without the look: the before-snapshots.
 3. The three additions (Tasks 6 to 8), and the Social Listening measurement that proves Task 6 left it alone.
+
+## Review round 1 (2026-11-24): MINOR findings, handled in the build
+
+Both MAJORs were fixed above (the AEO Informed tab's boxes; `.addAnalysis` in place of a new class). The MINORs, each
+handled while building, not by another review round:
+
+1. Task 8's "no month" branch can never draw the kit: `kitActive(client, null)` is always false
+   (`lib/organic-social/design-from.ts:27`), so `monthly.tsx:40-45` draws that panel without the look. The branch and
+   its test are dropped.
+2. `trends.tsx:152` already has `const look`; the control signal is named `controlLook`.
+3. Citations: the `shaded` doc comment is `line-chart.tsx:68-71`; `MonthForm` starts at `ytd-notes-panel.tsx:132`.
+4. Task 3 writes the exact kit class string for each element and replaces the old string rather than adding to it:
+   the form boxes (`note-form.tsx:152`, `ytd-notes-panel.tsx:166`, the YTD one was missing) and the four fields
+   (`note-form.tsx:157,213`, `ytd-notes-panel.tsx:173,187`), so no two utilities fight on one element.
+5. Both Add annotation buttons take the same look. The YTD one (`ytd-notes-panel.tsx:102`) becomes `kit.pill` like
+   the trend graph's (`trends.tsx:205-212`): both open the form, and both sit where the toggles would be.
+6. Class-name tests cannot prove a rule exists (CSS modules under Vitest may return a name for any key). A stylesheet
+   test, as `design/kit-svg-rule.test.ts` does, asserts `.tight { line-height: normal }` and `.field`'s declarations.
+7. Task 8 records the empty staff case (no entries, can edit, no history) without the look on `dev` before the change,
+   since the existing snapshots have none.
