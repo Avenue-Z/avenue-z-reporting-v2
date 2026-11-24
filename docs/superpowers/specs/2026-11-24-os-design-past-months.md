@@ -48,9 +48,21 @@ the overhaul spec (section 8, item 6). Confirming it here so the two decisions a
 
 One new per-client setting, `dash_social_config.designFrom`, a reporting month such as `"2026-11"`.
 
-- **Absent:** exactly A. Nothing about a client without it changes, Renaissance included.
-- **Present:** a served month **on or after** `designFrom` draws the new look; a served month **before** it draws the
-  old look, byte for byte as today.
+**The rule, `kitActive(client, month)`, in this order.** The body, both boxes (in both of their branches,
+`commentary/index.tsx:22-26` and `:66`) and the AEO tab all apply this one rule, so they never disagree:
+
+| `designFrom` | Served month | Look |
+|---|---|---|
+| Absent | Any, or none | New (exactly A; a client without kit pins is unaffected, Renaissance included) |
+| Malformed | Any, or none | Old |
+| Valid | On or after it | New |
+| Valid | Before it | Old |
+| Valid | None (no reporting months, or the lock config could not be read, `locked-range.ts:11`, `index.tsx:170`) | Old |
+
+- **"Old" means what the client drew before its kit pin.** That holds only if every kit pin replaced exactly the
+  version that kit version wraps. Not every old version has a kit form: `ytd-review` has `@1` to `@4`
+  (`parts/registry.ts:34`), and `@5` wraps only `@2`. So the pin script refuses to pin a kit version over any version
+  other than the one it wraps (a client on `ytd-review@4`, as Renaissance is, waits for a kit form of `@4`).
 - **The kit pins stay as round 2 writes them.** For a month before `designFrom`, each kit version on the page is drawn
   as the version it wraps (table below), which is exactly today's output: every kit version is the old version's own
   render with the frame swapped (round 2 parity tests).
@@ -107,8 +119,11 @@ It cannot be a standalone PR before round 2 merges: its table names versions tha
 - **Malformed `designFrom`** (not `YYYY-MM`): the client draws the old look on every month, and the page logs the client
   and the bad value once per render. Old look is the safe side: it never shows a delivered month in a look it was not
   delivered in.
-- **No served month** (the client is not on locked months, or the lock config could not be read, `index.tsx:170`):
-  old look. The pin script refuses to write `designFrom` for a client without reporting months.
+- **No served month** with `designFrom` set (the lock config could not be read, `index.tsx:170`): old look, by the
+  rule in section 3, on the body, both boxes and the AEO tab alike. The pin script refuses to write `designFrom` for a
+  client without reporting months, so this is reachable only through a failed read.
+- **A kit pin over the wrong old version:** the pin script refuses (section 3), so a past month can never fall back to
+  a version the client never drew.
 - **A kit version missing from the table:** a test fails (section 7), so it cannot ship.
 - **Requests and locks:** unchanged. A version choice never changes a request (round 2's "same reads" tests), so no
   lock key moves.
@@ -139,6 +154,9 @@ It cannot be a standalone PR before round 2 merges: its table names versions tha
 6. PDF: a past month's export is byte-identical to today's.
 7. No setting: every snapshot from round 2's "without the kit" tests unchanged.
 8. Reads: the same requests and lock keys before and after, for both a past and a new month.
+9. The rule table in section 3, row by row, for the body, both box branches and the AEO tab (they must agree).
+10. Pin script: refuses a kit version over any old version other than the one it wraps (for example `ytd-review@4`
+    to `@5`).
 
 ## 8. Not in scope
 
