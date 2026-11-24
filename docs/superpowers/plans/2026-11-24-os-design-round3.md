@@ -92,7 +92,7 @@ same arguments (the existing mocks in `annotation-callouts.test.tsx` and `chart-
 
 ## Task 4: YTD notes (`ytd-notes-panel.tsx`)
 
-- `YtdNotesPanel` (`:30`) gains `look`, passed to `EditorPanel` (`:77`): Add annotation (`:102`) uses `noteButton`,
+- `YtdNotesPanel` (`:30`) gains `look`, passed to `EditorPanel` (`:77`): Add annotation (`:102`) uses `kit.pill` (MINOR 5), the form box (`:166`) the kit box string,
   `MonthForm` (`:132`) its buttons (`:190-191`) and fields (`:173`, `:187`, `FIELD` at `:13`), and each row's
   `NoteActions` (`:122`) gets `look`.
 - `parts/ytd-kit.tsx` `kitYtd`: `if (el.type === YtdNotesPanel) return cloneElement(el, { look: 'kit' })`.
@@ -190,3 +190,10 @@ handled while building, not by another review round:
    test, as `design/kit-svg-rule.test.ts` does, asserts `.tight { line-height: normal }` and `.field`'s declarations.
 7. Task 8 records the empty staff case (no entries, can edit, no history) without the look on `dev` before the change,
    since the existing snapshots have none.
+
+Review round 2 (changed lines only) found no BLOCKER or MAJOR. Its MINORs, also handled in the build:
+
+8. The kit string for the note form box (`note-form.tsx:152`) keeps `no-print`; the Task 3 kit test asserts it.
+9. `ytd-notes-panel.test.tsx` gains a kit-case assertion that Add annotation carries `kit.pill`.
+10. The AEO Informed tab's boxes under the kit get a `commentary-kit.test.tsx` case with view key
+    `organic-social:aeo-informed`; the local measurement runs there only if a dev client has that tab and the kit on.
