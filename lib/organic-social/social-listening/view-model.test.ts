@@ -281,3 +281,24 @@ describe('authors and cards', () => {
     expect(r.influencers.map((i) => [i.authorId, i.change])).toEqual([['id-0', 5], ['id-1', null]])
   })
 })
+
+// Unit H (plan 2026-11-24, F15): the industry cloud is coloured by sentiment once Savannah's widget exports sentiment
+// colours; until then its colours stay decoration, as today.
+describe('industry theme colours', () => {
+  const industryView = (themes: SlExport['themes']) =>
+    buildTopicView(input({ topic: 'industry', data: data({ uploads: [up(exp('industry', '2026-10', { pos: 1, neu: 0, neg: 0 }, { themes }))] }) })).ready!
+  test("every theme in one of brand's five sentiment colours: drawn by sentiment, as brand is", () => {
+    const r = industryView([{ theme: 'a', share: 0.2, color: '#1fce6e' }, { theme: 'b', share: 0.1, color: '#F2C100' }, { theme: 'c', share: 0.1, color: '#EB6F63' }])
+    expect(r.themeColors).toBe('sentiment')
+    expect(r.themes.map((t) => t.color)).toEqual(['#60FF80', '#FFFC60', '#FF4444'])
+  })
+  test('one colour outside the five, or no themes: decoration, exactly as today', () => {
+    const mixed = industryView([{ theme: 'a', share: 0.2, color: '#1FCE6E' }, { theme: 'b', share: 0.1, color: '#123456' }])
+    expect(mixed.themeColors).toBe('decoration')
+    expect(mixed.themes.map((t) => t.color)).toEqual(['#1FCE6E', '#123456'])
+    expect(industryView([]).themeColors).toBe('decoration')
+  })
+  test('brand is always by sentiment', () => {
+    expect(buildTopicView(input()).ready!.themeColors).toBe('sentiment')
+  })
+})

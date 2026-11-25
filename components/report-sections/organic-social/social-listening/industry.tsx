@@ -68,12 +68,18 @@ export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, 
 
       {(r || (view.show.conv && boxes['i-conv'])) && (
         <SlSection title="Themes">
-          {r && (
+          {r && (r.themeColors === 'sentiment' ? (
+            // Unit H (F15): the export's colours are sentiment colours, so the cloud reads as brand's does.
+            <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['i-themes']} tooltip={slCardTooltip('i-themes')}>
+              <Cloud themes={r.themes} colorFor={(t) => t.color} />
+              <Key items={[{ name: 'Mostly positive', color: SENTIMENT_COLORS.pos }, { name: 'Mostly neutral', color: SENTIMENT_COLORS.neu }, { name: 'Mostly negative', color: SENTIMENT_COLORS.neg }]} />
+            </SlCard>
+          ) : (
             <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['i-themes']} tooltip={slCardTooltip('i-themes')}
               note="Colour is decoration on the industry cloud. It does not mean sentiment.">
               <Cloud themes={r.themes} colorFor={decoColor} />
             </SlCard>
-          )}
+          ))}
           <ConversationThemes show={view.show.conv} box={boxes['i-conv']} />
         </SlSection>
       )}

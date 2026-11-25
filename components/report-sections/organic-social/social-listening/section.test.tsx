@@ -430,3 +430,27 @@ describe('the keyword appendix carries over', () => {
     expect(container.textContent).not.toContain('Brand keywords')
   })
 })
+
+// Unit H (plan 2026-11-24, F15): the industry cloud by sentiment, once the export's colours are sentiment colours.
+describe('industry keyword themes', () => {
+  const DECO = 'Colour is decoration on the industry cloud. It does not mean sentiment.'
+  // The real October industry export has 25 themes in 25 one-off colours, none a sentiment colour (counted 2026-11-25 on
+  // the private file); the synthetic workbook gives industry brand's colours, so this sets one-off ones.
+  test('an export in one-off colours keeps the decoration note and no sentiment key, as today', async () => {
+    const industry = parsed('industry')
+    const oneOff = { ...industry, themes: industry.themes.map((t, i) => ({ ...t, color: ['#123456', '#ABCDEF', '#0F0F0F'][i % 3] })) }
+    h.getSlMonth.mockResolvedValue(monthData([up(parsed('brand')), up(oneOff)]))
+    const { container } = await show({ topic: 'industry', role: 'CLIENT_VIEWER', email: null })
+    expect(container.textContent).toContain(DECO)
+    expect(container.textContent).not.toContain('Mostly positive')
+  })
+  test("an export in brand's sentiment colours draws by sentiment with the key, and the note goes", async () => {
+    const industry = parsed('industry')
+    const tones = ['#1FCE6E', '#F2C100', '#E74C3C']
+    const data = { ...industry, themes: industry.themes.map((t, i) => ({ ...t, color: tones[i % 3] })) }
+    h.getSlMonth.mockResolvedValue(monthData([up(parsed('brand')), up(data)]))
+    const { container } = await show({ topic: 'industry', role: 'CLIENT_VIEWER', email: null })
+    expect(container.textContent).not.toContain(DECO)
+    expect(container.textContent).toContain('Mostly positive')
+  })
+})
