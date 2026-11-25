@@ -18,3 +18,7 @@
 
 /* The Line / Columns toggle on a Social Listening chart (Unit C): the kit's pills, on the right above the chart. */
 .toggle { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+
+/* A share printed on a media type segment (the media types by sentiment chart, Unit D): a light pill with dark text, as the
+   deck prints it, so it reads on every media colour, the dark ones included. */
+.segPill { background: rgba(255,255,255,0.85); color: #111; border-radius: 999px; padding: 1px 6px; font-weight: 800; font-size: 11px; line-height: 1.4; }

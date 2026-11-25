@@ -12,6 +12,7 @@ import type { SlPct, YtdPoint } from '@/lib/organic-social/social-listening/comp
 import type { SlDay } from '@/lib/organic-social/social-listening/types'
 import type { SlCrossRow, SlMediaRow } from '@/lib/organic-social/social-listening/view-model'
 import s from './kit.module.css'
+import f from './frames.module.css'
 
 type K = 'pos' | 'neu' | 'neg'
 const KEYS: K[] = ['pos', 'neu', 'neg']
@@ -201,7 +202,38 @@ export function HBars({ rows }: { rows: SlCrossRow[] }) {
   )
 }
 
-/** Share of media types: a cyan bar, the share and the change against the previous month's export. */
+/** Where each sentiment came from (the October deck's slide 10, plan 2026-11-24 F10): one 100% bar per sentiment, labelled with
+ *  its result count, split by media type in volume order (`rows` as the view model sorts them), each type in its own colour,
+ *  the share printed in a light pill when its segment is 9% or more, and a key of the media types. A sentiment with no
+ *  results is an empty bar. */
+export function SentimentByMedia({ rows, colorFor }: { rows: SlCrossRow[]; colorFor: (media: string) => string }) {
+  return (
+    <>
+      <div className={s.hbars}>
+        {KEYS.map((k) => {
+          const total = rows.reduce((a, r) => a + r[k], 0)
+          const parts = rows.filter((r) => r[k] > 0).map((r) => ({ media: r.media, share: total > 0 ? (100 * r[k]) / total : 0 }))
+          return (
+            <div key={k} className={s.hrow}>
+              <div className={s.lab}>{NAME[k]} ({fmt(total)})</div>
+              <div className={s.hbar} role="img" aria-label={`${NAME[k]}: ${parts.map((p) => `${p.media} ${pct1(p.share, 100)}%`).join(', ')}`}>
+                {parts.map((p) => (
+                  <i key={p.media} style={{ width: `${p.share}%`, background: colorFor(p.media) }} title={`${p.media}: ${pct1(p.share, 100)}%`}>
+                    {p.share >= 9 ? <b className={f.segPill}>{`${pct1(p.share, 100)}%`}</b> : ''}
+                  </i>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <Key items={rows.map((r) => ({ name: r.media, color: colorFor(r.media) }))} />
+    </>
+  )
+}
+
+/** Share of media types: a cyan bar, the share and the change against last month (the report as delivered, else its export),
+ *  coloured as the tiles' change line: up in green, down in red (2026-11-24, Jasmine on the call; it was grey before). */
 export function MediaShare({ rows }: { rows: SlMediaRow[] }) {
   const max = Math.max(1, ...rows.map((r) => r.count))
   return (
@@ -212,7 +244,7 @@ export function MediaShare({ rows }: { rows: SlMediaRow[] }) {
           <span className={s.lab} title={r.media}>{r.media} <span>{fmt(r.count)}</span></span>
           <span className={s.track}><i style={{ width: `${(100 * r.count) / max}%` }} /></span>
           <span className={s.pct}>{r.pct}%</span>
-          <span className={s.chg}>{r.change === null ? <span className={s.flat}>n/a</span> : <Change v={r.change} unit="%" label="" neutral />}</span>
+          <span className={s.chg}>{r.change === null ? <span className={s.flat}>n/a</span> : <Change v={r.change} unit="%" label="" />}</span>
         </div>
       ))}
     </div>

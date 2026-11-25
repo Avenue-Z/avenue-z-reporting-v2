@@ -70,7 +70,7 @@ describe('staff, brand', () => {
     const { container } = await show()
     expect(h2s()).toEqual(['Data', 'Sentiment', 'Year to date', 'Media types', 'Themes', 'Top influencers', 'Most relevant posts', 'Key takeaways', 'Keyword appendix'])
     expect(boxes(container)).toEqual([
-      'b-kpis', 'b-daily', 'b-sent', 'b-owned', 'b-cross', 'b-ytd', 'b-posneu', 'b-reddit', 'b-media', 'b-themes', 'b-trends',
+      'b-kpis', 'b-daily', 'b-sent', 'b-owned', 'b-cross', 'b-ytd', 'b-posneu', 'b-reddit', 'b-media', 'b-mediasent', 'b-themes', 'b-trends',
       'b-conv', 'b-authors', 'b-posts', 'b-takeaways', 'b-keywords',
     ])
     expect(screen.getByRole('button', { name: /Brand: Made Up Brand/ })).toBeTruthy()

@@ -177,3 +177,21 @@ describe('line views and the toggle', () => {
     expect(root.querySelectorAll('button')).toHaveLength(0)
   })
 })
+
+// Unit D (plan 2026-11-24, F9, F10): the media types section.
+describe('media types', () => {
+  test('brand: share of media types, then the share of media types by sentiment (slide 10) with its own box, each on a full row', async () => {
+    const root = await page()
+    const section = sectionTitled(root, 'Media types')!
+    expect(Array.from(section.querySelectorAll('h3')).map((h) => h.textContent)).toEqual(['Share of media types', 'Share of media types by sentiment'])
+    expect(cardTitled(root, 'Share of media types by sentiment')!.nextElementSibling?.querySelector('[data-box]')?.getAttribute('data-box')).toBe('b-mediasent')
+    expect(pairedRows(root).flatMap((r) => r.titles)).not.toContain('Share of media types by sentiment')
+  })
+  test('the change column names the report it compares with when no export is behind it', async () => {
+    const card = cardTitled(await page(), 'Share of media types')!
+    expect(card.textContent).toContain('Change vs the September report')
+  })
+  test('industry has no media types section (slide 10 is brand only)', async () => {
+    expect(sectionTitled(await page({ topic: 'industry' }), 'Media types')).toBeUndefined()
+  })
+})

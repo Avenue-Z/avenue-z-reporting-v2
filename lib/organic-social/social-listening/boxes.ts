@@ -7,7 +7,7 @@ import { ANALYSIS_LABELS, KEYWORD_LABELS, type CommentaryLabels } from '@/lib/co
 
 /** Brand boxes, in page order. */
 export const SL_BRAND_BOX_IDS = [
-  'b-kpis', 'b-daily', 'b-sent', 'b-owned', 'b-cross', 'b-ytd', 'b-posneu', 'b-reddit', 'b-media', 'b-themes',
+  'b-kpis', 'b-daily', 'b-sent', 'b-owned', 'b-cross', 'b-ytd', 'b-posneu', 'b-reddit', 'b-media', 'b-mediasent', 'b-themes',
   'b-trends', 'b-conv', 'b-authors', 'b-posts', 'b-takeaways', 'b-keywords',
 ] as const
 
@@ -16,7 +16,7 @@ export const SL_INDUSTRY_BOX_IDS = [
   'i-kpis', 'i-daily', 'i-sent', 'i-ytd', 'i-sentday', 'i-cross', 'i-themes', 'i-conv', 'i-takeaways', 'i-keywords',
 ] as const
 
-/** All 26 box ids, brand then industry. */
+/** All 27 box ids, brand then industry (b-mediasent added 2026-11-24, Unit D; no id was renamed). */
 export const SL_BOX_IDS = [...SL_BRAND_BOX_IDS, ...SL_INDUSTRY_BOX_IDS] as const
 
 export type SlBoxId = (typeof SL_BOX_IDS)[number]
@@ -41,6 +41,7 @@ export const SL_BOX_SECTION: Record<SlBoxId, string> = {
   'b-posneu': 'Brand positive and neutral with negative, year to date',
   'b-reddit': 'Brand Reddit sentiment, year to date',
   'b-media': 'Brand share of media types',
+  'b-mediasent': 'Brand share of media types by sentiment',
   'b-themes': 'Brand keyword themes',
   'b-trends': 'Brand trends in keyword themes',
   'b-conv': 'Brand top conversation themes',

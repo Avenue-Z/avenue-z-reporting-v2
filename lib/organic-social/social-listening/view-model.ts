@@ -5,7 +5,7 @@
 import { monthTitle } from '../reporting-months'
 import type { SlBoxId } from './boxes'
 import { brandThemeColor, mediaColor } from './colors'
-import { authorChanges, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries, type SlPct, type YtdPoint } from './compare'
+import { authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries, type SlPct, type YtdPoint } from './compare'
 import { MAX_IMAGES, MAX_POSTS } from './posts'
 import { currentUpload, presentedUpload } from './select'
 import { clientTrends } from './trends'
@@ -44,6 +44,8 @@ export type SlReadyView = {
   owned: { counts: SlSentimentCounts; pct: SlPct; total: number } | null
   cross: SlCrossRow[]
   media: SlMediaRow[]
+  /** What the media change compares with: the delivered report's counts, last month's export, or nothing (plan 2026-11-24, D4). */
+  mediaVs: 'report' | 'export' | null
   ytd: YtdPoint[]
   posNeu: { month: SlMonth; value: number | null }[]
   reddit: YtdPoint[] | null
@@ -119,7 +121,8 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
       ]
 
   const mediaTotal = d.sentimentByMedia.reduce((a, r) => a + sum(r), 0)
-  const mChanges = mediaChanges(d, prevUpload)
+  const mBase = mediaBaseline(prevMonth(month), topic, data.history, data.uploads)
+  const mChanges = mediaChanges(d, mBase?.counts ?? null)
   const media = d.sentimentByMedia
     .map((r) => ({ media: r.media, count: sum(r), pct: pct(sum(r), mediaTotal), change: mChanges.get(r.media) ?? null, color: mediaColor(r.media) }))
     .sort((a, b) => b.count - a.count)
@@ -138,6 +141,7 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
     owned: d.ownedExcluded ? { counts: d.ownedExcluded, pct: splitPct(d.ownedExcluded, sum(d.ownedExcluded)), total: sum(d.ownedExcluded) } : null,
     cross,
     media,
+    mediaVs: mBase?.source ?? null,
     ytd,
     posNeu: topic === 'brand' ? ytd.map((p) => ({ month: p.month, value: p.value ? posNeu(p.value) : null })) : [],
     reddit: topic === 'brand' ? ytdSeries(d, data.history, data.uploads, 'reddit') : null,

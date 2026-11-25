@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint, uniqueIndex, doublePrecision, customType, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import type { SnapshotPayload } from '@/lib/organic-social/content-types'
-import type { SlExport, SlTrend } from '@/lib/organic-social/social-listening/types'
+import type { SlExport, SlHistoryAuthor, SlHistoryMedia, SlTrend } from '@/lib/organic-social/social-listening/types'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
@@ -668,6 +668,10 @@ export const socialListeningHistory = pgTable('social_listening_history', {
   redditNeu: integer('reddit_neu'),
   redditNeg: integer('reddit_neg'),
   source: text('source').notNull(),               // 'history-sheet' or 'delivered-deck', plus the deck month
+  // The delivered report's count per media type and its top authors (2026-11-24, Social Listening Unit D). Nullable: a row
+  // without them behaves as before. Checked on read (select.ts toSlHistory) and on entry.
+  media: jsonb('media').$type<SlHistoryMedia[]>(),
+  authors: jsonb('authors').$type<SlHistoryAuthor[]>(),
 }, (table) => ({
   clientMonthTopicUnique: unique('social_listening_history_client_month_topic_key').on(table.clientId, table.month, table.topic),
   topicKnown: check('social_listening_history_topic', sql`${table.topic} IN ('brand', 'industry')`),

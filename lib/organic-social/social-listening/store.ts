@@ -63,6 +63,8 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
       redditNeu: socialListeningHistory.redditNeu,
       redditNeg: socialListeningHistory.redditNeg,
       source: socialListeningHistory.source,
+      media: socialListeningHistory.media,
+      authors: socialListeningHistory.authors,
     })
       .from(socialListeningHistory)
       .where(and(eq(socialListeningHistory.clientId, clientId), inArray(socialListeningHistory.month, dates))),

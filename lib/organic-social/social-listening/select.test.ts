@@ -105,6 +105,7 @@ describe('row mappers', () => {
     })).toEqual({
       month: '2026-10', topic: 'brand', results: 1200, uniqueAuthors: null, engagement: 3400.5, potentialReach: null,
       pos: 40, neu: 45, neg: 15, redditPos: null, redditNeu: null, redditNeg: null, source: 'delivered-deck 2026-10',
+      media: null, authors: null,
     })
   })
 
@@ -171,5 +172,36 @@ describe('toSlMonthData', () => {
     expect(data.posts.map((p) => [p.id, p.imageIds])).toEqual([['p1', ['i1', 'i2']], ['p2', ['i3']]])
     expect(data.trends).toBeNull()
     expect(data.history).toEqual([])
+  })
+})
+
+// Unit D (plan 2026-11-24): a delivered report's media counts and top authors. A row cached before the columns existed
+// has neither key; a stored value that is not the exact shape is read as none, so it can never become a wrong baseline.
+describe('toSlHistory media and authors', () => {
+  const base = {
+    month: '2026-10-01', topic: 'brand', results: 100, uniqueAuthors: null, engagement: null, potentialReach: null,
+    pos: 70, neu: 20, neg: 10, redditPos: null, redditNeu: null, redditNeg: null, source: 'delivered-deck 2026-10',
+  }
+  test('both kept when well formed', () => {
+    const h = toSlHistory({ ...base, media: [{ media: 'X', count: 12 }, { media: 'Blogs', count: 0 }], authors: [{ authorId: 'a1', name: 'Made Up', network: 'Instagram', posts: 4 }] })
+    expect(h.media).toEqual([{ media: 'X', count: 12 }, { media: 'Blogs', count: 0 }])
+    expect(h.authors).toEqual([{ authorId: 'a1', name: 'Made Up', network: 'Instagram', posts: 4 }])
+  })
+  test('a row cached before the columns existed reads as none', () => {
+    expect(toSlHistory(base)).toMatchObject({ media: null, authors: null })
+  })
+  test.each([
+    ['not a list', { media: 'X' }],
+    ['a negative count', [{ media: 'X', count: -1 }]],
+    ['a fraction', [{ media: 'X', count: 1.5 }]],
+    ['an empty name', [{ media: '', count: 1 }]],
+    ['a repeated name', [{ media: 'X', count: 1 }, { media: 'X', count: 2 }]],
+    ['a missing count', [{ media: 'X' }]],
+  ])('media that is %s reads as none', (_label, media) => {
+    expect(toSlHistory({ ...base, media } as never).media).toBeNull()
+  })
+  test('authors with a bad entry read as none', () => {
+    expect(toSlHistory({ ...base, authors: [{ authorId: 'a1', name: 'Made Up', network: 'Instagram', posts: -2 }] } as never).authors).toBeNull()
+    expect(toSlHistory({ ...base, authors: [{ authorId: '', name: 'x', network: 'y', posts: 1 }] } as never).authors).toBeNull()
   })
 })
