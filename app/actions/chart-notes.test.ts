@@ -412,6 +412,15 @@ test('save: a Social Listening note whose write fails logs the client, chart and
   expect(err).toHaveBeenCalledWith('[social-listening] note save failed slug=a-client chart=sl-b-daily day=2026-09-14 code=08006')
   err.mockRestore()
 })
+test('save: a failed Social Listening note write logs the database code from the cause, where Drizzle puts it', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.mocked(m.insertDraft).mockRejectedValueOnce(Object.assign(new Error('Failed query'), { cause: { code: '57014' } }))
+  await expect(saveChartNoteAction(SL)).rejects.toThrow('Failed query')
+  expect(err).toHaveBeenCalledWith('[social-listening] note save failed slug=a-client chart=sl-b-daily day=2026-09-14 code=57014')
+  err.mockRestore()
+})
 test('approve, revoke and delete work on a Social Listening note, which checks its own day for an open draft', async () => {
   as('INTERNAL_ADMIN', 'approver@avenuez.com')
   vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)

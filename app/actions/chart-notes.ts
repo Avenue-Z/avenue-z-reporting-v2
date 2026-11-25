@@ -14,6 +14,7 @@ import {
 } from '@/lib/organic-social/chart-notes/mutations'
 import { checkSlNoteInput, isSlMonthNoteChart, SL_NOTES_CHANNEL, slNoteEarliest, type SlNoteChart } from '@/lib/organic-social/social-listening/notes'
 import { hasSocialListeningTab } from '@/lib/organic-social/social-listening/setting'
+import { sqlState } from '@/lib/organic-social/social-listening/sql-state'
 import type { NoteChart } from '@/lib/organic-social/annotations'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 
@@ -117,8 +118,8 @@ async function saveSlNote(input: { clientSlug: string; channel: string; chart: s
       console.warn(`[social-listening] note save refused, a draft is already open ${where}`)
       return { ok: false, error: 'A draft is already open on this day. Reload to see it.' }
     }
-    const code = typeof e === 'object' && e !== null && typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : 'none'
-    console.error(`[social-listening] note save failed ${where} code=${code}`)
+    // The code from the cause too: Drizzle wraps the driver's error (sql-state.ts).
+    console.error(`[social-listening] note save failed ${where} code=${sqlState(e)}`)
     throw e
   }
   updateTag('db')
