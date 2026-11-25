@@ -21,18 +21,53 @@ export function parseRunFolderName(name: string): string | null {
   return `${m[1]}-${m[2]}-${m[3]}`
 }
 
-async function driveFetch(url: string): Promise<Response> {
+async function readCapped(res: Response, signal: AbortSignal): Promise<Uint8Array> {
+  const len = Number(res.headers.get('content-length'))
+  if (Number.isFinite(len) && len > MAX_BYTES) throw new Error('Drive file too large')
+  if (!res.body) return new Uint8Array(0)
+  const reader = res.body.getReader()
+  const onAbort = () => { void reader.cancel().catch(() => undefined) }
+  signal.addEventListener('abort', onAbort)
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > MAX_BYTES) { void reader.cancel().catch(() => undefined); throw new Error('Drive file too large') }
+      chunks.push(value)
+    }
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+  const out = new Uint8Array(total)
+  let off = 0
+  for (const c of chunks) { out.set(c, off); off += c.byteLength }
+  return out
+}
+
+// One deadline covers the request AND the body read; the body is consumed here so nothing can stall after it.
+async function driveFetch(url: string, mode: 'json' | 'bytes'): Promise<unknown> {
   const token = await googleToken([SCOPE])
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
-  try {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { ctrl.abort(); reject(new Error('Drive timeout')) }, TIMEOUT_MS)
+  })
+  const work = (async (): Promise<unknown> => {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal })
     if (!res.ok) throw new Error(`Drive ${res.status}`)
-    return res
+    const bytes = await readCapped(res, ctrl.signal)
+    if (mode === 'bytes') return bytes
+    try { return JSON.parse(new TextDecoder().decode(bytes)) } catch { throw new Error('Drive invalid response') }
+  })()
+  work.catch(() => undefined) // a late rejection after the deadline must not go unhandled
+  try {
+    return await Promise.race([work, deadline])
   } catch (e) {
-    if (ctrl.signal.aborted) throw new Error('Drive timeout')
-    if (e instanceof Error && e.message.startsWith('Drive ')) throw e
-    throw new Error('Drive request failed')
+    if (e instanceof Error && (e.message.startsWith('Drive ') )) throw e
+    throw new Error(ctrl.signal.aborted ? 'Drive timeout' : 'Drive request failed')
   } finally {
     clearTimeout(timer)
   }
@@ -53,9 +88,7 @@ async function listChildren(parentId: string, extraQuery: string): Promise<Drive
       includeItemsFromAllDrives: 'true',
     })
     if (pageToken) params.set('pageToken', pageToken)
-    const res = await driveFetch(`${DRIVE}?${params}`)
-    let body: { files?: DriveFile[]; nextPageToken?: string }
-    try { body = await res.json() } catch { throw new Error('Drive invalid response') }
+    const body = (await driveFetch(`${DRIVE}?${params}`, 'json')) as { files?: DriveFile[]; nextPageToken?: string } | null
     if (!body || !Array.isArray(body.files)) throw new Error('Drive invalid response')
     out.push(...body.files)
     pageToken = body.nextPageToken
@@ -82,10 +115,8 @@ export async function fetchIssuesOverview(runFolderId: string): Promise<{ bytes:
   const files = await listChildren(runFolderId, ` and mimeType!='${FOLDER_MIME}'`)
   const match = files.filter(f => ISSUES_FILE.test(f.name)).sort((a, b) => (a.name < b.name ? 1 : -1))[0]
   if (!match) return null
-  const res = await driveFetch(`${DRIVE}/${encodeURIComponent(match.id)}?alt=media&supportsAllDrives=true`)
-  const buf = new Uint8Array(await res.arrayBuffer())
-  if (buf.byteLength > MAX_BYTES) throw new Error('Drive file too large')
-  return { bytes: buf }
+  const bytes = (await driveFetch(`${DRIVE}/${encodeURIComponent(match.id)}?alt=media&supportsAllDrives=true`, 'bytes')) as Uint8Array
+  return { bytes }
 }
 
 const REQUIRED = ['Issue Name', 'Issue Type', 'Issue Priority', 'URLs'] as const

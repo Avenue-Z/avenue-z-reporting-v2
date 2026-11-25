@@ -105,6 +105,34 @@ describe('Drive calls', () => {
     await assertion
   })
 
+  it('aborts when headers arrive but the body never finishes', async () => {
+    vi.useFakeTimers()
+    const stalled = new ReadableStream<Uint8Array>({ pull: () => new Promise(() => undefined) })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stalled, { status: 200 })))
+    const assertion = expect(listSfRuns('f1')).rejects.toThrow('Drive timeout')
+    await vi.advanceTimersByTimeAsync(15_001)
+    await assertion
+  })
+
+  const filesThenDownload = (download: Response) => vi.fn()
+    .mockResolvedValueOnce(jsonRes({ files: [{ id: 'y', name: 'issues_overview.csv' }] }))
+    .mockResolvedValueOnce(download)
+
+  it('rejects early when content-length exceeds the cap', async () => {
+    const big = new Response('x', { status: 200, headers: { 'content-length': String(21 * 1024 * 1024) } })
+    vi.stubGlobal('fetch', filesThenDownload(big))
+    await expect(fetchIssuesOverview('run1')).rejects.toThrow('Drive file too large')
+  })
+
+  it('aborts a stream that exceeds the cap with no content-length', async () => {
+    let pulled = 0
+    const chunk = new Uint8Array(5 * 1024 * 1024)
+    const stream = new ReadableStream<Uint8Array>({ pull(c) { pulled++; c.enqueue(chunk) } })
+    vi.stubGlobal('fetch', filesThenDownload(new Response(stream, { status: 200 })))
+    await expect(fetchIssuesOverview('run1')).rejects.toThrow('Drive file too large')
+    expect(pulled).toBeLessThan(10)
+  })
+
   it('fetchIssuesOverview returns null when no matching file', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonRes({ files: [{ id: 'x', name: 'internal_all.csv' }] })))
     expect(await fetchIssuesOverview('run1')).toBeNull()
