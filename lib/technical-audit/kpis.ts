@@ -1,5 +1,14 @@
 import type { MetricsRow } from './store'
 
+/** The metric columns only: no row id, snapshot id or timestamps. */
+export type ViewMetrics = Omit<MetricsRow, 'id' | 'snapshotId'>
+
+export function toViewMetrics(m: MetricsRow | null): ViewMetrics | null {
+  if (!m) return null
+  const { id: _id, snapshotId: _snapshotId, ...cols } = m
+  return cols
+}
+
 export type KpiKey = 'health' | 'sf_issue_types' | 'indexed' | 'not_indexed' | 'cwv_poor_mobile' | 'cwv_good_pct_mobile'
 export type KpiDef = { key: KpiKey; label: string; better: 'higher' | 'lower'; unit: 'pts' | 'count' | 'pct' }
 
@@ -13,7 +22,7 @@ export const KPI_DEFS: readonly KpiDef[] = [
   { key: 'cwv_good_pct_mobile', label: 'Good CWV URLs % (mobile)', better: 'higher', unit: 'pct' },
 ]
 
-export function kpiValue(key: KpiKey, m: MetricsRow | null): number | null {
+export function kpiValue(key: KpiKey, m: ViewMetrics | null): number | null {
   if (!m) return null
   switch (key) {
     case 'health': return m.ahrefsHealthScore

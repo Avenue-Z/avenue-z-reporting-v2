@@ -1,8 +1,9 @@
 import { getClientBySlug } from '@/lib/db/queries'
-import { KPI_DEFS, kpiValue } from './kpis'
-import type { KpiKey } from './kpis'
+import { mapWithConcurrency } from '@/lib/concurrency'
+import { KPI_DEFS, kpiValue, toViewMetrics } from './kpis'
+import type { KpiKey, ViewMetrics } from './kpis'
 import { getSnapshotBundle, getSnapshots } from './store'
-import type { IssueRow, MetricsRow, RunRow, SnapshotRow } from './store'
+import type { IssueRow, RunRow, SnapshotRow } from './store'
 
 export type Viewer = 'team' | 'client'
 export type ViewRun = { source: RunRow['source']; status: RunRow['status']; lastError?: string | null }
@@ -24,8 +25,8 @@ export interface TechAuditView {
   snapshots: { id: string; date: string; status: 'draft' | 'published' }[]
   selected: ViewSnapshot
   previous: ViewSnapshot | null
-  metrics: MetricsRow | null
-  prevMetrics: MetricsRow | null
+  metrics: ViewMetrics | null
+  prevMetrics: ViewMetrics | null
   series: Record<KpiKey, SeriesPoint[]>
   runs: ViewRun[]
   /** Filled by the issue-list task. */
@@ -36,6 +37,9 @@ export interface TechAuditView {
 }
 
 const STALE_DAYS = 35
+/** Most recent visible snapshots feeding the sparklines and trend chart. */
+const SERIES_WINDOW = 24
+const BUNDLE_CONCURRENCY = 4
 const DAY_MS = 86_400_000
 
 const asStatus = (v: string): 'draft' | 'published' => (v === 'published' ? 'published' : 'draft')
@@ -69,14 +73,14 @@ export async function loadTechAuditView(
   const selectedIdx = visible.indexOf(selected)
   const previous = visible[selectedIdx + 1] ?? null
 
+  const windowed = visible.slice(0, SERIES_WINDOW)
+  const toFetch = [...new Set([...windowed, selected, ...(previous ? [previous] : [])])]
   const bundles = new Map(
-    await Promise.all(
-      visible.map(async (s) => [s.id, await getSnapshotBundle(client.id, s.id)] as const),
-    ),
+    await mapWithConcurrency(toFetch, BUNDLE_CONCURRENCY, async (s) => [s.id, await getSnapshotBundle(client.id, s.id)] as const),
   )
-  const metricsOf = (s: SnapshotRow | null): MetricsRow | null => (s ? bundles.get(s.id)?.metrics ?? null : null)
+  const metricsOf = (s: SnapshotRow | null): ViewMetrics | null => (s ? toViewMetrics(bundles.get(s.id)?.metrics ?? null) : null)
 
-  const oldestFirst = [...visible].reverse()
+  const oldestFirst = [...windowed].reverse()
   const series = Object.fromEntries(
     KPI_DEFS.map((d) => [d.key, oldestFirst.map((s) => ({ date: s.snapshotDate, value: kpiValue(d.key, metricsOf(s)) }))]),
   ) as Record<KpiKey, SeriesPoint[]>

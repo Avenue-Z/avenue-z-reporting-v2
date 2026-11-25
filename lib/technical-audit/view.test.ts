@@ -47,6 +47,27 @@ beforeEach(() => {
 })
 
 describe('loadTechAuditView', () => {
+  const thirty = () => Array.from({ length: 30 }, (_, i) => snap(new Date(Date.UTC(2026, 10, 30) - i * 86_400_000).toISOString().slice(0, 10)))
+
+  test('series covers only the 24 most recent snapshots', async () => {
+    all = thirty()
+    const v = await loadTechAuditView('x', undefined, 'team', NOW)
+    expect(v?.series.health).toHaveLength(24)
+    expect(v?.series.health[23].date).toBe(all[0].snapshotDate)
+    expect(v?.snapshots).toHaveLength(30)
+  })
+
+  test('bundles are read only for the window plus selected and previous', async () => {
+    all = thirty()
+    const v = await loadTechAuditView('x', all[27].snapshotDate, 'team', NOW)
+    const ids = h.getSnapshotBundle.mock.calls.map((c: string[]) => c[1])
+    expect(new Set(ids)).toEqual(new Set([...all.slice(0, 24), all[27], all[28]].map((s) => s.id)))
+    expect(ids).toHaveLength(26)
+    expect(v?.selected.snapshotDate).toBe(all[27].snapshotDate)
+    expect(v?.previous?.snapshotDate).toBe(all[28].snapshotDate)
+    expect(v?.metrics).not.toBeNull()
+  })
+
   test('returns null for an unknown client or when a client viewer has nothing published', async () => {
     h.getClientBySlug.mockResolvedValueOnce(null)
     expect(await loadTechAuditView('nope', undefined, 'team', NOW)).toBeNull()
@@ -116,6 +137,10 @@ describe('loadTechAuditView', () => {
       expect(v!.runs[0]).not.toHaveProperty(k)
     }
     expect(v!.runs[0]).toEqual({ source: 'sf', status: 'failed' })
+    for (const m of [v!.metrics!, v!.prevMetrics!]) {
+      for (const k of ['id', 'snapshotId', 'createdAt', 'updatedAt']) expect(m).not.toHaveProperty(k)
+      expect(m).toHaveProperty('ahrefsHealthScore')
+    }
     const team = await loadTechAuditView('x', undefined, 'team', NOW)
     expect(team!.selected.publishedBy).toBe('a@b.c')
     expect(team!.selected).not.toHaveProperty('createdAt')
