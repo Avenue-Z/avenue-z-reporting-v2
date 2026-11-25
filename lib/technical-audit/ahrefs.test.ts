@@ -16,6 +16,15 @@ describe('pickAhrefsCrawl', () => {
   it('rejects a crawl after the snapshot', () => {
     expect(pickAhrefsCrawl('2026-11-13T00:00:00Z', '2026-11-12')).toBe(false)
   })
+  it('rejects a crawl string with no timezone', () => {
+    expect(pickAhrefsCrawl('2026-11-11T16:55:16', '2026-11-12')).toBe(false)
+  })
+  it('accepts a crawl later on the snapshot day', () => {
+    expect(pickAhrefsCrawl('2026-11-12T20:00:00Z', '2026-11-12')).toBe(true)
+  })
+  it('rejects a non date-only snapshot', () => {
+    expect(pickAhrefsCrawl('2026-11-11T16:55:16Z', '2026-11-12T00:00:00')).toBe(false)
+  })
   it('rejects unparseable dates', () => {
     expect(pickAhrefsCrawl('garbage', '2026-11-12')).toBe(false)
   })
@@ -167,5 +176,49 @@ describe('fetchAhrefs', () => {
     await vi.advanceTimersByTimeAsync(15_000)
     await assertion
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('times out when headers arrive but the body never does', async () => {
+    vi.useFakeTimers()
+    const body = new ReadableStream<Uint8Array>({ start() {} })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status: 200 })))
+    const p = fetchAhrefs('9371114', '2026-11-18')
+    const assertion = expect(p).rejects.toThrow('Ahrefs timeout')
+    await vi.advanceTimersByTimeAsync(15_000)
+    await assertion
+  })
+
+  it('refuses a content-length over 5 MB', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 200, headers: { 'content-length': String(6 * 1024 * 1024) } })),
+    )
+    await expect(fetchAhrefs('9371114', '2026-11-18')).rejects.toThrow('Ahrefs response too large')
+  })
+
+  it('refuses a streamed body over 5 MB', async () => {
+    const chunk = new Uint8Array(1024 * 1024)
+    let sent = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (sent++ < 10) c.enqueue(chunk)
+        else c.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status: 200 })))
+    await expect(fetchAhrefs('9371114', '2026-11-18')).rejects.toThrow('Ahrefs response too large')
+  })
+
+  it('caps a huge Retry-After at 5 s', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(json({}, 429, { 'Retry-After': '120' }))
+      .mockResolvedValueOnce(json({ healthscores: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const p = fetchAhrefs('9371114', '2026-11-18')
+    await vi.advanceTimersByTimeAsync(5_000)
+    await p
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
