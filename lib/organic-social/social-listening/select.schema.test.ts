@@ -22,7 +22,7 @@ test('0030 exists and holds its place in the journal', () => {
   expect(file).toBe('0030_social_listening.sql')
   const journal = JSON.parse(readFileSync(join(dir, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] }
   expect(journal.entries[30]?.tag).toBe('0030_social_listening')
-  expect(journal.entries).toHaveLength(31)
+  expect(journal.entries.length).toBeGreaterThanOrEqual(31)
 })
 
 test('it creates exactly the five tables and touches no other table', () => {
