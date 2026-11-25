@@ -1,7 +1,7 @@
 # Technical Audit snapshot page — design
 
 **Date:** 2026-11-23 · revised 2026-11-25 with Tina's answers to the decisions doc
-**Status:** Draft for Paul's approval
+**Status:** Approved by Paul 2026-11-25
 **Brief:** "Technical Audit Page Build Brief" (Tina Fleming, Glean) + "Technical Audit Page Mockup" (Glean, sample data)
 **Build owners:** Thomas Chang, Paul Ramirez
 **Branch:** `feat/technical-audit-snapshots` (off `dev`)
@@ -132,6 +132,11 @@ GSC estimates (rejected by Tina); **automatic SF + Ahrefs, uploaded GSC (chosen)
 5. **03 · Issues to investigate** — the merged list (§6.4): columns **#**, **Issue** (with the per-tool source
    line), **Severity**, **URLs affected**, **Sources**. Filters by source and severity (default All, ranked).
    No change column, no status tags, no resolved/new counts.
+   **Strategist controls (team view, per brand):** each row can be **hidden** or **annotated**. A hidden row
+   disappears from the client view and the PDF; in the team view hidden rows collapse into "Hidden by strategist
+   (N)" with Unhide. An annotation is a short plain-text note shown under the row in every view, e.g.
+   "Intentional — member-only pages". Both apply to the brand, keyed by canonical issue, so they carry across
+   months (including past ones, like the issue map). Each shows who set it and when (team view only).
 
 The current tab's sections — SF KPI cards, "What changed since the last crawl?", "How are technical issues
 trending?", AI bot activity, AI-activity/issue overlap, crawler waste, fix list (+ its scoring card), Sitebulb
@@ -159,6 +164,9 @@ two IDs (Renaissance: Ahrefs `9371114`; IDs for all 24 projects in the probes do
   GSC indexed / not indexed; CWV poor / NI / good per device. Nullable per source.
 - `tech_audit_source_issues` — `snapshot_id`, `source` (`ahrefs` | `sf` | `gsc_indexing` | `gsc_cwv`),
   `native_issue_name`, `native_severity`, `url_count`, `device` (CWV).
+- `tech_audit_issue_overrides` — `client_id`, `issue_key` (canonical key, or `source:native_name` for an
+  unmapped issue), `hidden` (bool), `note` (plain text ≤ 280 chars, rendered as text, never HTML),
+  `updated_by`, `updated_at`; unique (`client_id`, `issue_key`). Staff-only writes via a server action.
 
 ### 6.3 Monthly pipeline (Vercel cron, daily) + uploads
 
@@ -245,7 +253,7 @@ timestamps / badge — as shipped. No commentary: team view "Add commentary"; cl
 
 Feature PRs into `dev`, each reviewed: (1) tables + client config + SF + Ahrefs pull + sweep, (2) GSC uploads
 + parsers + "Before you publish" checklist + manual publish, (3) header + health tiles + delta strip + trend
-chart, (4) issue list + pre-built canonical map, (5) commentary binding + PDF + removal of the old sections.
+chart, (4) issue list + pre-built canonical map + hide/annotate, (5) commentary binding + PDF + removal of the old sections.
 Outside this repo: Issues Overview added to the SF scheduled export (with Zaf); `AHREFS_API_KEY` and
 `GSC_IMPERSONATE_EMAIL` in Vercel; AEO team review of the issue map.
 
@@ -254,13 +262,15 @@ Outside this repo: Issues Overview added to the SF scheduled export (with Zaf); 
 Component layout under `components/report-sections/peec-ai/technical-audit/`; gauge implementation; exact
 parser column handling once sample files are in hand; ⓘ and checklist copy.
 
-## 12. Still open
+## 12. Resolved at approval (Paul, 2026-11-25)
 
-- **Strategist judgment on issues.** Tina: "keep the action items list open to interpretation of the
-  strategist" (some pages are meant to be unindexed). v1 leaves the list neutral and lets commentary carry the
-  judgment. Open: should strategists also be able to hide or annotate a row per brand?
-- **Ahrefs crawl depth** for Renaissance (crawl stops at max depth) — unanswered.
-- **Who reviews the issue map** — "the AEO team"; a named owner would help.
+- **Strategist judgment on issues:** strategists can hide or annotate a row per brand (§5, §6.2) — Tina's
+  "open to interpretation of the strategist".
+- **Ahrefs crawl depth (Renaissance):** raise the project's max depth so the crawl covers the whole site
+  (2,620 URLs; 1.48M of 1.5M monthly crawl credits unused). Counts will jump on the first deeper crawl, so
+  that snapshot gets `crawl_settings_changed` and the header flag. The settings change is made in Ahrefs by
+  the AEO team / Paul, not by this build.
+- **Issue map review:** the AEO team.
 
 ---
 
@@ -308,7 +318,8 @@ Priority as §6.4. Ties break by URLs affected, then name.
 6. Totals match the tools for Renaissance: Ahrefs Health Score, SF Issues tab, and the uploaded GSC Indexing
    and CWV reports.
 7. The checklist tells the strategist what's missing; nothing publishes without them.
-8. PDF export contains approved commentary only.
+8. Strategists can hide or annotate an issue row per brand; hidden rows never reach a client view or PDF.
+9. PDF export contains approved commentary only.
 
 ## Appendix B — calls made in writing this doc (check these)
 
@@ -320,3 +331,4 @@ Priority as §6.4. Ties break by URLs affected, then name.
 - Canonical map stays read-time (pre-building it makes Tina's "past months change" concern mostly moot).
 - KPIs revert to the brief's indexing measures (uploads only).
 - Old-section code deleted when nothing else imports it.
+- Hide/annotate apply per brand across all months (not per month); notes are plain text, shown to clients.
