@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { hasInfluencerTab, influencerRulesFor, withoutTabbedInfluencer } from './influencer-tab'
 import { ORGANIC_SOCIAL_PLATFORM_TEMPLATE } from '@/components/report-sections/organic-social/template'
+import { KIT_WRAPS } from './kit-wraps'
 
 const c = (channels: string[] | undefined, hidden: string[] = [], influencerSection?: unknown) =>
   ({ dashSocialConfig: { channels, ...(influencerSection === undefined ? {} : { influencerSection }) }, hiddenReports: hidden })
@@ -34,6 +35,21 @@ test("a version 2 pin with a saved Instagram handle uses the author rule; everyt
   expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, { versions: { 'top-content': 3 } }, handle)).toBe('outline')
   expect(influencerRulesFor(ORGANIC_SOCIAL_PLATFORM_TEMPLATE, { versions: { 'top-content': 1 } }, handle)).toBe('designations')
   expect(influencerRulesFor({ order: [], labels: {}, thresholds: {} }, undefined, handle)).toBe('designations')
+})
+
+// The design kit's Top Content versions draw the version they wrap (kit-wraps.ts: @4 is @3, @5 is @2). The split rule
+// decides which fetch the Influencer tab and Overview's gallery make and which posts land on each tab, so a client moved
+// onto the kit must split exactly as before. kit-wraps.test.ts holds the table to every registered kit version.
+test('a kit Top Content pin splits posts exactly as the version it wraps', () => {
+  const WRAPS = KIT_WRAPS['top-content']
+  expect(Object.keys(WRAPS).length).toBeGreaterThan(0)
+  const T = ORGANIC_SOCIAL_PLATFORM_TEMPLATE
+  for (const dsc of [undefined, {}, { ownHandles: { instagram: 'renbenefits' } }]) {
+    for (const [kit, old] of Object.entries(WRAPS)) {
+      expect(influencerRulesFor(T, { versions: { 'top-content': Number(kit) } }, dsc), `@${kit} with ${JSON.stringify(dsc)}`)
+        .toBe(influencerRulesFor(T, { versions: { 'top-content': old } }, dsc))
+    }
+  }
 })
 
 // Paul, #334 review item 1: hiding the tab the usual way (hidden_reports) removed the tab while both galleries still

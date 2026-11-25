@@ -8,7 +8,7 @@ import { printImageUrl } from '@/lib/export/print-image'
 import { cardThumbs, isClientVisible, type AnnotationControls, type ChartAnnotation, type ChartThumb, type NoteControls } from '@/lib/organic-social/annotations'
 import type { Creative } from '@/lib/organic-social/content-types'
 import { NoteActions } from './note-actions'
-import { CARD_PILL } from './pill'
+import { cardButton, type ControlLook } from './control-look'
 
 const TILE = 'h-16 w-16 shrink-0 rounded-md'
 
@@ -61,7 +61,7 @@ export function Thumb({ thumb, alt }: { thumb: ChartThumb; alt: string }) {
  *  action re-checks the role) it carries a hide or unhide button. Optimistic: it fades or
  *  un-fades at once and goes back if the action refuses or fails. Freshness after success
  *  comes from the action's updateTag('db'). */
-function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, floating }: {
+function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, as, floating, look }: {
   annotation: ChartAnnotation
   controls?: AnnotationControls
   /** Set by the chart, which holds which days are hidden so the dot goes with the row. `null` after a failed
@@ -71,6 +71,8 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
   as?: 'li' | 'div'
   floating?: boolean
+  /** The kit look (round 3): the kit's small buttons, still never printed or wrapped. Absent: exactly as before. */
+  look?: ControlLook
 }) {
   const hidden = !!annotation.hidden
   const [pending, startTransition] = useTransition()
@@ -137,12 +139,12 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
               onClick={toggle}
               disabled={pending}
               aria-label={hidden ? 'Unhide' : 'Hide from client'}
-              className={CARD_PILL}
+              className={cardButton(look)}
             >
               {hidden ? 'Unhide' : floating ? 'Hide' : 'Hide from client'}
             </button>
           )}
-          {noteControls && onEdit && <NoteActions annotation={annotation} controls={noteControls} compact={floating} onEdit={onEdit} saving={!!annotation.noteSaving} />}
+          {noteControls && onEdit && <NoteActions {...(look ? { look } : {})} annotation={annotation} controls={noteControls} compact={floating} onEdit={onEdit} saving={!!annotation.noteSaving} />}
         </span>
       )}
     </Tag>
@@ -152,12 +154,13 @@ function AnnotationItem({ annotation, controls, onToggle, noteControls, onEdit, 
 /** The row of callouts above the chart. Since Phase 2b it holds only a callout whose day has no point
  *  on the series (it has no dot to open a card from); every other callout is a card that opens from
  *  its dot (CalloutCard, trends.tsx). */
-export function AnnotationCallouts({ items, controls, noteControls, onToggle, onEdit }: {
+export function AnnotationCallouts({ items, controls, noteControls, onToggle, onEdit, look }: {
   items: ChartAnnotation[]
   controls?: AnnotationControls
   noteControls?: NoteControls
   onToggle?: (day: string, hidden: boolean | null) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+  look?: ControlLook
 }) {
   if (items.length === 0) return null
   // Hiding every card is not enough: the list is a non-last child of the chart's section, so
@@ -167,7 +170,7 @@ export function AnnotationCallouts({ items, controls, noteControls, onToggle, on
   return (
     <ul aria-label="Annotations" className={cn('flex flex-wrap gap-3', nothingPrintable && 'no-print')}>
       {items.map((a) => (
-        <AnnotationItem key={a.date} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} onEdit={onEdit} />
+        <AnnotationItem key={a.date} {...(look ? { look } : {})} annotation={a} controls={controls} noteControls={noteControls} onToggle={onToggle} onEdit={onEdit} />
       ))}
     </ul>
   )
@@ -183,6 +186,7 @@ export function CalloutCard(props: {
   noteControls?: NoteControls
   onToggle?: (day: string, hidden: boolean | null) => void
   onEdit?: (day: string, initial?: { text: string; postIds: number[] }) => void
+  look?: ControlLook
 }) {
   return <AnnotationItem {...props} as="div" floating />
 }

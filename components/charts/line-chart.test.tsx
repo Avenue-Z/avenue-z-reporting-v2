@@ -13,18 +13,21 @@ vi.mock('recharts', async () => {
   // Records each Line's props too (the export turns animation off), then renders the real one. Recharts
   // finds its children by type, so the recorder carries the real component's displayName.
   const Line = Object.assign((props: Record<string, unknown>) => { lineProps.push(props); return <actual.Line {...props} /> }, { displayName: actual.Line.displayName })
+  // Records each Area's props (the shaded option), then renders the real one, found by type like Line.
+  const Area = Object.assign((props: Record<string, unknown>) => { areaProps.push(props); return <actual.Area {...(props as { dataKey: string })} /> }, { displayName: actual.Area.displayName })
   // Records the props the chart hands Recharts' XAxis, then renders the real one.
   const XAxis = (props: Record<string, unknown>) => { xAxisProps.push(props); return <actual.XAxis {...props} /> }
   return {
     ...actual,
     Tooltip,
     Line,
+    Area,
     XAxis,
     ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) =>
       cloneElement(children, { width: 800, height: 300 }),
   }
 })
-const { tooltipProps, lineProps, xAxisProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[], lineProps: [] as Record<string, unknown>[], xAxisProps: [] as Record<string, unknown>[] }))
+const { tooltipProps, lineProps, xAxisProps, areaProps } = vi.hoisted(() => ({ tooltipProps: [] as Record<string, unknown>[], lineProps: [] as Record<string, unknown>[], xAxisProps: [] as Record<string, unknown>[], areaProps: [] as Record<string, unknown>[] }))
 
 const mk = (vals: number[], key = 'v') => vals.map((v) => ({ [key]: v }))
 
@@ -158,6 +161,17 @@ describe('LineChart callouts (Phase 2b: dots only, a card on hover, focus or tap
     })
   })
   afterEach(() => { vi.useRealTimers(); rect.mockRestore(); delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight })
+
+  test('shaded (a ComposedChart), every hit area still sits exactly on Recharts\' own dot', () => {
+    const { container } = render(<LineChart data={DATA} xKey="date" yKeys={[{ key: 'v' }]} marks={SHOWN.map((x) => ({ x }))} callouts={callouts} shaded />)
+    expect(container.querySelectorAll('.recharts-area-area')).toHaveLength(1)
+    const dots = [...container.querySelectorAll('.recharts-reference-dot-dot')]
+    expect(dots).toHaveLength(SHOWN.length)
+    SHOWN.forEach((x, i) => {
+      expect(hx(hit(container, x))).toBeCloseTo(num(dots[i], 'cx'), 1)
+      expect(hy(hit(container, x))).toBeCloseTo(num(dots[i], 'cy'), 1)
+    })
+  })
 
   test('each hit area sits exactly on Recharts\' own dot', () => {
     const { container } = draw()
@@ -644,3 +658,104 @@ describe('dates as month/day (xFormat="month-day")', () => {
   })
 })
 
+
+describe('the default chart, pinned before the shaded and frameless options (design overhaul decision (b))', () => {
+  // Recharts numbers each chart's clip path (recharts1-clip) and React numbers its ids (_r_0_); both depend on render
+  // order, so they are normalised. Everything else is the markup as rendered.
+  const norm = (h: string) => h.replace(/recharts\d+-/g, 'recharts-').replace(/_r_[0-9a-z]+_/g, '_r_')
+  const D = [{ d: '2026-08-01', a: 3, b: 5 }, { d: '2026-08-02', a: 6, b: 4 }, { d: '2026-08-03', a: 4, b: 7 }]
+  const KEYS = [{ key: 'a', color: '#60FDFF', label: 'A' }, { key: 'b', color: '#39A0FF', label: 'B' }]
+  test('norm makes two renders of the same chart identical', () => {
+    const one = norm(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container.innerHTML)
+    const two = norm(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container.innerHTML)
+    expect(one).toBe(two)
+  })
+  test('two series, no marks or callouts', () => {
+    expect(norm(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container.innerHTML)).toMatchSnapshot()
+  })
+  test('one series with marks and month-day dates', () => {
+    expect(norm(render(<LineChart data={D} xKey="d" yKeys={[KEYS[0]]} marks={[{ x: '2026-08-02' }]} xFormat="month-day" />).container.innerHTML)).toMatchSnapshot()
+  })
+})
+
+describe('shaded and frameless: the Organic Social design kit look, opt-in (design overhaul decision (b))', () => {
+  const D = [{ d: '2026-08-01', a: 3, b: 5 }, { d: '2026-08-02', a: 6, b: 4 }, { d: '2026-08-03', a: 4, b: 7 }]
+  const KEYS = [{ key: 'a', color: '#60FDFF', label: 'A' }, { key: 'b', color: '#39A0FF', label: 'B' }]
+  // Round 3, Task 7 (plan docs/superpowers/plans/2026-11-24-os-design-round3.md): the kit's grid is the artifact's, 4/4
+  // dashes at 8% white (design/kit.module.css .gridLine); every other chart keeps 3/3 at 6%.
+  const gridLines = (c: HTMLElement) => [...c.querySelectorAll('.recharts-cartesian-grid line')].map((l) => [l.getAttribute('stroke-dasharray'), l.getAttribute('stroke')])
+  test('shaded draws the kit\'s grid: 4/4 dashes at 8% white', () => {
+    const lines = gridLines(render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded frameless />).container)
+    expect(lines.length).toBeGreaterThan(3)
+    for (const l of lines) expect(l).toEqual(['4 4', 'rgba(255,255,255,0.08)'])
+  })
+  test('without shaded, the grid is today\'s: 3/3 dashes at 6% white', () => {
+    const lines = gridLines(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container)
+    expect(lines.length).toBeGreaterThan(3)
+    for (const l of lines) expect(l).toEqual(['3 3', 'rgba(255,255,255,0.06)'])
+  })
+  beforeEach(() => { areaProps.length = 0 })
+  const framed = (c: HTMLElement) => (c.firstElementChild as HTMLElement).className.includes('rounded-lg border')
+
+  test('shaded draws one filled area per line, in the line\'s colour, with the kit gradient (0.35 at the line to 0)', () => {
+    const { container } = render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />)
+    expect(container.querySelectorAll('.recharts-area-area')).toHaveLength(2)
+    expect(container.querySelectorAll('.recharts-line-curve')).toHaveLength(2)
+    const grads = [...container.querySelectorAll('linearGradient')]
+    expect(grads).toHaveLength(2)
+    for (const [i, g] of grads.entries()) {
+      const stops = [...g.querySelectorAll('stop')]
+      expect(stops.map((st) => [st.getAttribute('offset'), st.getAttribute('stop-color'), st.getAttribute('stop-opacity')]))
+        .toEqual([['0', KEYS[i].color, '0.35'], ['1', KEYS[i].color, '0']])
+    }
+    // Each area points at its own gradient, so two charts on a page never share one.
+    expect(areaProps.map((p) => p.fill)).toEqual(grads.map((g) => `url(#${g.id})`))
+    expect(new Set(grads.map((g) => g.id)).size).toBe(2)
+  })
+
+  test('shaded areas stay out of the hover box and the legend, so no value is listed twice', () => {
+    const { container } = render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />)
+    expect(areaProps.map((p) => [p.dataKey, p.tooltipType, p.legendType, p.stroke, p.activeDot])).toEqual([
+      ['a', 'none', 'none', 'none', false], ['b', 'none', 'none', 'none', false],
+    ])
+    // And as rendered (#493): the legend lists each series once, exactly as the plain chart does.
+    const legend = (c: HTMLElement) => [...c.querySelectorAll('.recharts-legend-item')].map((e) => e.textContent)
+    expect(legend(container)).toEqual(['A', 'B'])
+    expect(legend(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container)).toEqual(legend(container))
+  })
+
+  test('shaded keeps the lines exactly as they were', () => {
+    lineProps.length = 0
+    render(<LineChart data={D} xKey="d" yKeys={KEYS} />)
+    const plain = lineProps.map(({ dataKey, stroke, strokeWidth, type, dot }) => ({ dataKey, stroke, strokeWidth, type, dot }))
+    lineProps.length = 0
+    render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />)
+    expect(lineProps.map(({ dataKey, stroke, strokeWidth, type, dot }) => ({ dataKey, stroke, strokeWidth, type, dot }))).toEqual(plain)
+  })
+
+  test('shaded draws every line on exactly the same path as the plain chart (#493: the ComposedChart swap keeps the scale)', () => {
+    const paths = (c: HTMLElement) => [...c.querySelectorAll('.recharts-line-curve')].map((e) => e.getAttribute('d'))
+    const plain = paths(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container)
+    expect(plain).toHaveLength(2)
+    expect(plain.every((d) => !!d && d.length > 10)).toBe(true)
+    expect(paths(render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded />).container)).toEqual(plain)
+  })
+
+  test('frameless drops the bordered box; the default keeps it', () => {
+    expect(framed(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container)).toBe(true)
+    expect(framed(render(<LineChart data={D} xKey="d" yKeys={KEYS} frameless />).container)).toBe(false)
+  })
+
+  test('frameless with callouts keeps the positioned layer the hit areas and cards sit in', () => {
+    const cs = [{ x: '2026-08-02', label: 'l', content: <span>c</span> }]
+    const { container } = render(<LineChart data={D} xKey="d" yKeys={KEYS} callouts={cs} frameless />)
+    const first = container.firstElementChild as HTMLElement
+    expect(first.className).not.toContain('rounded-lg border')
+    expect(first.className).toContain('relative')
+  })
+
+  test('in the PDF export the areas do not animate, like the lines', () => {
+    render(<ExportModeProvider><LineChart data={D} xKey="d" yKeys={KEYS} shaded /></ExportModeProvider>)
+    expect(areaProps.map((p) => p.isAnimationActive)).toEqual([false, false])
+  })
+})

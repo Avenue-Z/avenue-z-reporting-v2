@@ -6,6 +6,7 @@ import type { SectionOverride, SectionTemplate } from '@/lib/report-sections/typ
 import { parseInfluencerSection } from './influencer-section'
 import { CHANNEL_LABEL, resolveChannels } from './metrics'
 import { authorRuleOn } from './outline-top-content'
+import { KIT_WRAPS } from './kit-wraps'
 
 export type InfluencerTabClient = {
   dashSocialConfig?: { channels?: string[]; influencerSection?: unknown } | null
@@ -29,15 +30,20 @@ export function hasInfluencerTab(client: InfluencerTabClient): boolean {
 
 export type InfluencerRules = 'outline' | 'author' | 'designations'
 
-/** 'outline' when the platform composition pins top-content@3 (partitionByAuthor, UGC and author marks, deck-basis
- *  rate); 'author' when it pins top-content@2 and the client has a saved Instagram handle (the same split, no rate
+/** 'outline' when the platform composition pins top-content@3 or its kit form @4 (partitionByAuthor, UGC and author marks,
+ *  deck-basis rate); 'author' when it pins top-content@2 or its kit form @5 and the client has a saved Instagram handle (the same split, no rate
  *  change; spec 2026-10-09 section 6); else 'designations' (partitionPosts: the stored choice, then #ad). `dsc` is the
  *  client's dash_social_config; absent means no handle. */
 export function influencerRulesFor(template: SectionTemplate, override: SectionOverride | undefined, dsc?: unknown): InfluencerRules {
   const pin = resolveSection(template, override).find((p) => p.id === 'top-content')
-  if (pin?.version === 3) return 'outline'
-  return pin?.version === 2 && authorRuleOn(dsc) ? 'author' : 'designations'
+  const basis = pin ? (SPLIT_BASIS[pin.version] ?? pin.version) : undefined
+  if (basis === 3) return 'outline'
+  return basis === 2 && authorRuleOn(dsc) ? 'author' : 'designations'
 }
+
+/** The design kit's Top Content versions draw the version they wrap (kit-wraps.ts: @4 is @3, @5 is @2), so they split
+ *  posts by that version's rule. One table, shared with the past-months rule, so the two cannot disagree. */
+const SPLIT_BASIS: Readonly<Record<number, number>> = KIT_WRAPS['top-content']
 
 /** The gallery rows without the Instagram influencer group, for a client that has the tab (the posts live there
  *  instead, spec B1: moved, not shown twice). Both galleries (top-content@2 and @3) use this, so the rule cannot drift

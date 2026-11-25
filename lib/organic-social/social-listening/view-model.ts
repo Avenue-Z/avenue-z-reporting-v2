@@ -4,9 +4,10 @@
 // so every rule about who sees what, and every number and change, is tested here. No I/O.
 import { monthTitle } from '../reporting-months'
 import type { SlBoxId } from './boxes'
-import { brandThemeColor, mediaColor } from './colors'
-import { authorChanges, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries, type SlPct, type YtdPoint } from './compare'
+import { brandThemeColor, mediaColor, themeTone } from './colors'
+import { authorBaseline, authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries, type SlPct, type YtdPoint } from './compare'
 import { MAX_IMAGES, MAX_POSTS } from './posts'
+import { applyPicks, perMention, sortAuthors, type SlAuthorSort } from './picks'
 import { currentUpload, presentedUpload } from './select'
 import { clientTrends } from './trends'
 import type { SlDay, SlExport, SlMonth, SlMonthData, SlPost, SlSentimentCounts, SlTopic, SlTrendLists, SlUpload } from './types'
@@ -25,12 +26,20 @@ export type SlViewInput = {
   data: SlMonthData
   /** Boxes with approved text a client would see this month (clientMonthEntry). */
   approvedBoxes: ReadonlySet<SlBoxId>
+  /** The authors table's order (slsort, Unit F); posts when absent. */
+  sort?: SlAuthorSort
 }
 
-export type SlTile = { title: string; value: number | null; change?: number; points?: number | null; unit?: '%' }
+/** A tile's fixed id (Unit B): the tooltip table is keyed by it, never by the title text a later copy change could alter. */
+export type SlTileId = 'results' | 'unique-authors' | 'engagement' | 'potential-reach' | 'positive' | 'neutral' | 'negative'
+export type SlTile = { id: SlTileId; title: string; value: number | null; change?: number; points?: number | null; unit?: '%' }
 export type SlMediaRow = { media: string; count: number; pct: number; change: number | null; color: string }
 export type SlCrossRow = { media: string; total: number } & SlSentimentCounts
 type Influencer = NonNullable<SlExport['influencers']>[number]
+/** An author row as the table shows it (Unit F): its posts change, whether the month shows it (staff see every author, a
+ *  client only the shown ones), and reach and engagement per mention (Q4). */
+export type SlAuthorRow = Influencer & { change: number | null; shown: boolean; reachPer: number | null; engagementPer: number | null }
+export type SlOverviewCard = NonNullable<SlExport['overview']>[number] & { shown: boolean }
 
 export type SlReadyView = {
   results: number
@@ -44,12 +53,18 @@ export type SlReadyView = {
   owned: { counts: SlSentimentCounts; pct: SlPct; total: number } | null
   cross: SlCrossRow[]
   media: SlMediaRow[]
+  /** What the media change compares with: the delivered report's counts, last month's export, or nothing (plan 2026-11-24, D4). */
+  mediaVs: 'report' | 'export' | null
   ytd: YtdPoint[]
   posNeu: { month: SlMonth; value: number | null }[]
   reddit: YtdPoint[] | null
   themes: { theme: string; share: number; color: string }[]
-  influencers: (Influencer & { change: number | null })[]
-  overview: NonNullable<SlExport['overview']>
+  /** How the cloud's colours read (Unit H, F15): by sentiment (brand always; industry once every theme's colour is one of the
+   *  five sentiment colours, which Savannah's widget change gives), or decoration (an industry export with any other colour,
+   *  as every industry export is today). */
+  themeColors: 'sentiment' | 'decoration'
+  influencers: SlAuthorRow[]
+  overview: SlOverviewCard[]
 }
 
 export type SlTopicView = {
@@ -97,36 +112,47 @@ export function topicPills(i: { month: SlMonth; data: SlMonthData; setting: SlSe
 const splitPct = (c: SlSentimentCounts, total: number): SlPct => ({ pos: pct(c.pos, total), neu: pct(c.neu, total), neg: pct(c.neg, total) })
 const sum = (c: SlSentimentCounts) => c.pos + c.neu + c.neg
 
-function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthData): SlReadyView {
+function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthData, clientView: boolean, sort: SlAuthorSort): SlReadyView {
   const prev = presentedValues(prevMonth(month), topic, data.history, data.uploads)
-  const prevUpload = presentedUpload(uploadsOf(data, prevMonth(month), topic))?.data ?? null
   const sentPct = splitPct(d.sentiment, d.results)
   const point = (k: keyof SlPct) => pointsChange(sentPct[k], prev ? { pct: prev.pct[k], whole: prev.whole } : null)
   const change = { pos: point('pos'), neu: point('neu'), neg: point('neg') }
 
   const tiles: SlTile[] = topic === 'brand'
     ? [
-        { title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
-        { title: 'Unique authors', value: d.uniqueAuthors ?? null, change: d.uniqueAuthors === undefined ? undefined : tileChange(d.uniqueAuthors, prev?.uniqueAuthors) },
-        { title: 'Engagement', value: d.engagement ?? null, change: d.engagement === undefined ? undefined : tileChange(d.engagement, prev?.engagement) },
-        { title: 'Potential reach', value: d.potentialReach ?? null, change: d.potentialReach === undefined ? undefined : tileChange(d.potentialReach, prev?.potentialReach) },
+        { id: 'results', title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
+        { id: 'unique-authors', title: 'Unique authors', value: d.uniqueAuthors ?? null, change: d.uniqueAuthors === undefined ? undefined : tileChange(d.uniqueAuthors, prev?.uniqueAuthors) },
+        { id: 'engagement', title: 'Engagement', value: d.engagement ?? null, change: d.engagement === undefined ? undefined : tileChange(d.engagement, prev?.engagement) },
+        { id: 'potential-reach', title: 'Potential reach', value: d.potentialReach ?? null, change: d.potentialReach === undefined ? undefined : tileChange(d.potentialReach, prev?.potentialReach) },
       ]
     : [
-        { title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
-        { title: 'Positive', value: sentPct.pos, points: change.pos, unit: '%' },
-        { title: 'Neutral', value: sentPct.neu, points: change.neu, unit: '%' },
-        { title: 'Negative', value: sentPct.neg, points: change.neg, unit: '%' },
+        { id: 'results', title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
+        { id: 'positive', title: 'Positive', value: sentPct.pos, points: change.pos, unit: '%' },
+        { id: 'neutral', title: 'Neutral', value: sentPct.neu, points: change.neu, unit: '%' },
+        { id: 'negative', title: 'Negative', value: sentPct.neg, points: change.neg, unit: '%' },
       ]
 
   const mediaTotal = d.sentimentByMedia.reduce((a, r) => a + sum(r), 0)
-  const mChanges = mediaChanges(d, prevUpload)
+  const mBase = mediaBaseline(prevMonth(month), topic, data.history, data.uploads)
+  const mChanges = mediaChanges(d, mBase?.counts ?? null)
   const media = d.sentimentByMedia
     .map((r) => ({ media: r.media, count: sum(r), pct: pct(sum(r), mediaTotal), change: mChanges.get(r.media) ?? null, color: mediaColor(r.media) }))
     .sort((a, b) => b.count - a.count)
   const cross = d.sentimentByMedia.map((r) => ({ media: r.media, pos: r.pos, neu: r.neu, neg: r.neg, total: sum(r) })).sort((a, b) => b.total - a.total)
 
   const ytd = ytdSeries(d, data.history, data.uploads, 'all')
-  const aChanges = authorChanges(d, prevUpload)
+  // Authors (Unit F): the posts change against what the client saw last month, the team's picks for this month, and the
+  // chosen order. A client gets only the shown authors and cards.
+  const aChanges = authorChanges(d, authorBaseline(prevMonth(month), topic, data.history, data.uploads))
+  const picked = applyPicks(d.influencers ?? [], d.overview ?? [], data.picks ?? [])
+  const authors: SlAuthorRow[] = (d.influencers ?? []).map((i) => ({
+    ...i, change: aChanges.get(i.authorId) ?? null, shown: picked.authors.get(i.authorId) ?? false,
+    reachPer: perMention(i.reach, i.posts), engagementPer: perMention(i.engagement, i.posts),
+  }))
+  // Unit H: the industry cloud reads sentiment only when the export's colours are all sentiment colours; one stray colour
+  // means the widget was not set to sentiment, and the colours stay decoration.
+  const bySentiment = topic === 'brand' || (d.themes.length > 0 && d.themes.every((t) => themeTone(t.color) !== null))
+  const cards: SlOverviewCard[] = (d.overview ?? []).map((c) => ({ ...c, shown: picked.cards.get(c.label) ?? true }))
   return {
     results: d.results,
     changeLabel: `vs ${monthTitle(prevMonth(month))} report`,
@@ -138,12 +164,14 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
     owned: d.ownedExcluded ? { counts: d.ownedExcluded, pct: splitPct(d.ownedExcluded, sum(d.ownedExcluded)), total: sum(d.ownedExcluded) } : null,
     cross,
     media,
+    mediaVs: mBase?.source ?? null,
     ytd,
     posNeu: topic === 'brand' ? ytd.map((p) => ({ month: p.month, value: p.value ? posNeu(p.value) : null })) : [],
     reddit: topic === 'brand' ? ytdSeries(d, data.history, data.uploads, 'reddit') : null,
-    themes: d.themes.map((t) => ({ theme: t.theme, share: t.share, color: topic === 'brand' ? brandThemeColor(t.color) : t.color })),
-    influencers: (d.influencers ?? []).map((i) => ({ ...i, change: aChanges.get(i.authorId) ?? null })),
-    overview: d.overview ?? [],
+    themes: d.themes.map((t) => ({ theme: t.theme, share: t.share, color: bySentiment ? brandThemeColor(t.color) : t.color })),
+    themeColors: bySentiment ? 'sentiment' : 'decoration',
+    influencers: sortAuthors(clientView ? authors.filter((a) => a.shown) : authors, sort),
+    overview: clientView ? cards.filter((c) => c.shown) : cards,
   }
 }
 
@@ -175,7 +203,7 @@ export function buildTopicView(i: SlViewInput): SlTopicView {
     lists: approvedLists,
     draft: clientView || !data.trends ? null : { lists: data.trends.draft, status: data.trends.status },
   }
-  const ready = current ? readyView(topic, month, current.data, data) : null
+  const ready = current ? readyView(topic, month, current.data, data, clientView, i.sort ?? 'posts') : null
   const isBrand = topic === 'brand'
   return {
     topic,

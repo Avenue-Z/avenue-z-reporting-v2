@@ -6,7 +6,7 @@ import { saveChartNoteAction } from '@/app/actions/chart-notes'
 import { NOTE_MAX_CHARS, NOTE_MAX_POSTS } from '@/lib/organic-social/chart-notes/limits'
 import { dayLabel, type NoteControls } from '@/lib/organic-social/annotations'
 import { Picture } from './annotation-callouts'
-import { PILL as BUTTON } from './pill'
+import { field, noteBox, noteButton, type ControlLook } from './control-look'
 import { cn } from '@/lib/utils'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
@@ -42,8 +42,10 @@ export function savedLine({ day, had }: SavedNote, canApprove: boolean): string 
  *  a draft. The action re-checks the role and email, the client, the day (not in the future, not before the
  *  client's first reporting month), the text and the post ids' shape; it does not check that a picked post is
  *  from that day. Staff only, and `no-print`, since Export PDF prints the page. */
-export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved }: {
+export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved, look }: {
   controls: NoteControls
+  /** The kit look (round 3): the kit's buttons and fields. Absent: exactly as before. */
+  look?: ControlLook
   fixedDay?: string
   initial?: { text: string; postIds: number[] }
   /** This chart's notes by day (Phase 2c, D19). */
@@ -149,12 +151,12 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
   }
 
   return (
-    <div role="group" aria-label="Note" className="no-print w-full space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-3">
+    <div role="group" aria-label="Note" className={noteBox(look, 'no-print ')}>
       {!fixedDay && controls.days.length > 0 && (
         <label className="flex items-center gap-2 text-[11px] text-text-muted">
           Day
           <select aria-label="Day" value={day ?? ''} disabled={pending} onChange={(e) => chooseDay(e.target.value)}
-            className="rounded-md border border-white/[0.12] bg-bg-surface px-2 py-1 text-xs text-white">
+            className={field(look, 'rounded-md border border-white/[0.12] bg-bg-surface px-2 py-1 text-xs text-white')}>
             <option value="">Pick a day</option>
             {controls.days.map((d) => (
               <option key={d.day} value={d.day}>{d.posts.length > 0 ? dayLabel(d.day) : `${dayLabel(d.day)} (no posts)`}</option>
@@ -210,11 +212,11 @@ export function NoteForm({ controls, fixedDay, initial, notes, onClose, onSaved 
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <input aria-label="Note text" className={`${FIELD} min-w-[12rem] flex-1`} value={text}
+        <input aria-label="Note text" className={`${field(look, FIELD)} min-w-[12rem] flex-1`} value={text}
           maxLength={NOTE_MAX_CHARS} onChange={(e) => setText(e.target.value)} placeholder="What happened this day?" />
         <span className="text-[11px] text-text-muted" aria-live="polite">{[...text].length}/{NOTE_MAX_CHARS}</span>
-        <button type="button" className={BUTTON} onClick={save} disabled={!canSave}>Save draft</button>
-        <button type="button" className={BUTTON} onClick={onClose} disabled={pending}>Cancel</button>
+        <button type="button" className={noteButton(look)} onClick={save} disabled={!canSave}>Save draft</button>
+        <button type="button" className={noteButton(look)} onClick={onClose} disabled={pending}>Cancel</button>
       </div>
       {error && <p role="alert" className="text-[11px] text-red-400">{error}</p>}
     </div>

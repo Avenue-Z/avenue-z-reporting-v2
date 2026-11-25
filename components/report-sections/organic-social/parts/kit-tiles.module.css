@@ -1,0 +1,7 @@
+/* The tiles' own styles for the design kit versions (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md: each
+   round 2 PR keeps its new styles beside its files, so no PR edits design/kit.module.css). Colours come from the kit's
+   variables on `.root`, which every kit tile block carries. */
+
+/* A platform's label, and the Data block's heading: the kit's section heading (design/kit.module.css `.section > h2`),
+   kept on an h3 because these sit under the tab's own headings, as the old tiles' labels do. */
+.label { margin: 0; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }

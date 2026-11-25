@@ -10,6 +10,8 @@ import type { CommentaryEntry, CommentaryCapabilities, CommentaryPeriodHistory, 
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { INSIGHTS_LABELS, addText, emptyText as emptyDefault, type CommentaryLabels } from '@/lib/commentary/labels'
 import { useExportMode } from '@/components/export/export-mode'
+import kit from '@/components/report-sections/organic-social/design/kit.module.css'
+import bx from './commentary-kit.module.css'
 
 function fmt(d: string): string {
   // 'YYYY-MM-DD' → 'Mon D, YYYY' without timezone drift.
@@ -22,6 +24,16 @@ function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
   })
+}
+
+/** A panel button: the shared Button, or with the kit look the kit's small button (`plain`, `primary` for the add button,
+ *  `ghost` for the quieter actions). Same text, same handler, same disabled state either way. */
+function PanelButton({ look, tone = 'plain', onClick, disabled, children }: {
+  look?: 'kit'; tone?: 'plain' | 'primary' | 'ghost'; onClick: () => void; disabled?: boolean; children: React.ReactNode
+}) {
+  if (look !== 'kit') return <Button onClick={onClick} disabled={disabled}>{children}</Button>
+  const cls = tone === 'primary' ? `${kit.tbtn} ${kit.primary}` : tone === 'ghost' ? `${kit.tbtn} ${kit.ghost}` : kit.tbtn
+  return <button type="button" className={cls} onClick={onClick} disabled={disabled}>{children}</button>
 }
 
 const TAG_STYLE: Record<CommentaryVersionTag, string> = {
@@ -43,6 +55,7 @@ export function CommentaryPanel({
   emptyText,
   entryNotes,
   labels = INSIGHTS_LABELS,
+  look,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
@@ -57,6 +70,9 @@ export function CommentaryPanel({
   entryNotes?: Record<string, string>
   /** The box's words (title, button, empty line). Absent: Insights, the box formerly titled Commentary. */
   labels?: CommentaryLabels
+  /** The design kit's look (commentary@2 and recommendations@2, Organic Social only; CommentarySection decides): the kit's
+   *  frame, label, buttons, badges and body style. Every behaviour is the same. Absent: exactly as before. */
+  look?: 'kit'
 }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
@@ -72,7 +88,8 @@ export function CommentaryPanel({
   const selected = entries.find((e) => e.id === selectedId) ?? null
   const exportMode = useExportMode()
 
-  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} title={labels.title} />
+  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} title={labels.title} {...(look ? { look } : {})} />
+  const K = look === 'kit'
 
   function refresh() {
     setEditing(null)
@@ -98,14 +115,26 @@ export function CommentaryPanel({
     router.refresh()
   }
 
+  // The kit's empty box (Organic Social design round 3, Task 8): with nothing written and no history to open, only the
+  // artifact's dashed add button, the one Social Listening's empty box draws. It does what Add does: the full panel with
+  // the editor opens. A client never gets here (the server returns nothing for a client with nothing approved).
+  if (K && capabilities.canEdit && editing === null && entries.length === 0 && !(capabilities.canApprove && history.length > 0)) {
+    return (
+      <div className={`mb-8 ${kit.root} ${kit.tight}`}>
+        <button type="button" className={`${kit.tbtn} ${kit.addAnalysis}`} onClick={() => setEditing('new')}>+ {addText(labels)}</button>
+      </div>
+    )
+  }
+
   return (
-    <section className="mb-8 rounded-lg border border-white/[0.08] bg-bg-surface">
+    <section className={K ? `${kit.root} ${kit.tight} ${bx.box} mb-8` : 'mb-8 rounded-lg border border-white/[0.08] bg-bg-surface'}>
       <div className="flex items-center justify-between p-4">
-        <button type="button" onClick={() => setCollapsed((c) => !c)} className="flex items-center gap-2 text-sm font-extrabold text-white">
+        <button type="button" onClick={() => setCollapsed((c) => !c)}
+          className={K ? `flex items-center gap-2 ${kit.lbl}${capabilities.canEdit ? '' : ` ${bx.lblClient}`}` : 'flex items-center gap-2 text-sm font-extrabold text-white'}>
           <span>{collapsed ? '▸' : '▾'}</span> {labels.title}
         </button>
         {capabilities.canEdit && editing === null && (
-          <Button onClick={() => setEditing('new')}>{addText(labels)}</Button>
+          <PanelButton look={look} tone="primary" onClick={() => setEditing('new')}>{addText(labels)}</PanelButton>
         )}
       </div>
 
@@ -136,16 +165,16 @@ export function CommentaryPanel({
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <span className="text-text-muted">Reporting period: {fmt(selected.periodStart)} – {fmt(selected.periodEnd)}</span>
                 {entryNotes?.[selected.id] && (
-                  <span className="rounded bg-white/10 px-2 py-0.5 font-semibold text-text-muted">{entryNotes[selected.id]}</span>
+                  <span className={K ? kit.edited : 'rounded bg-white/10 px-2 py-0.5 font-semibold text-text-muted'}>{entryNotes[selected.id]}</span>
                 )}
                 {capabilities.canEdit && (
-                  <span className={`rounded px-2 py-0.5 font-semibold ${selected.status === 'approved' ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
+                  <span className={K ? (selected.status === 'approved' ? kit.approved : kit.whoTag) : `rounded px-2 py-0.5 font-semibold ${selected.status === 'approved' ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
                     {selected.status === 'approved' ? 'Approved' : 'Draft'}
                   </span>
                 )}
               </div>
               <div
-                className="text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1"
+                className={K ? kit.commBody : 'text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1'}
                 dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
               />
               {capabilities.canEdit && (
@@ -158,15 +187,15 @@ export function CommentaryPanel({
               )}
               {capabilities.canEdit && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button onClick={() => setEditing(selected.id)}>Edit</Button>
+                  <PanelButton look={look} onClick={() => setEditing(selected.id)}>Edit</PanelButton>
                   {capabilities.canApprove && selected.status === 'draft' && (
-                    <Button onClick={() => doApprove(selected.id)} disabled={isPending}>Approve</Button>
+                    <PanelButton look={look} onClick={() => doApprove(selected.id)} disabled={isPending}>Approve</PanelButton>
                   )}
                   {capabilities.canApprove && selected.status === 'approved' && (
-                    <Button onClick={() => doRevoke(selected.id)} disabled={isPending}>Revoke</Button>
+                    <PanelButton look={look} tone="ghost" onClick={() => doRevoke(selected.id)} disabled={isPending}>Revoke</PanelButton>
                   )}
                   {selected.status === 'draft' && (
-                    <Button onClick={() => doDelete(selected.id)} disabled={isPending}>Delete draft</Button>
+                    <PanelButton look={look} tone="ghost" onClick={() => doDelete(selected.id)} disabled={isPending}>Delete draft</PanelButton>
                   )}
                 </div>
               )}
@@ -228,14 +257,15 @@ export function CommentaryPanel({
 /** Commentary as the PDF export prints it: what the client sees, whoever exports. The client's entry is worked out
  *  server-side with the client's own rules (index.tsx; monthly.tsx for a locked month, where a whole-month entry wins),
  *  not from `initialId`, which for staff is the newest entry including drafts. None, nothing. No controls; one block. */
-function ExportCommentary({ entry: shown, title }: { entry: CommentaryEntry | null; title: string }) {
+function ExportCommentary({ entry: shown, title, look }: { entry: CommentaryEntry | null; title: string; look?: 'kit' }) {
   if (!shown) return null
+  const K = look === 'kit'
   return (
-    <section data-export-block="" className="mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4">
-      <h2 className="text-sm font-extrabold text-white">{title}</h2>
+    <section data-export-block="" className={K ? `${kit.root} ${kit.tight} ${bx.box} mb-8 space-y-3 p-4` : 'mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4'}>
+      <h2 className={K ? `${kit.lbl} ${bx.lblClient}` : 'text-sm font-extrabold text-white'}>{title}</h2>
       <p className="text-xs text-text-muted">Reporting period: {fmt(shown.periodStart)} – {fmt(shown.periodEnd)}</p>
       <div
-        className="text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1"
+        className={K ? kit.commBody : 'text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1'}
         dangerouslySetInnerHTML={{ __html: shown.bodyHtml }}
       />
     </section>

@@ -11,7 +11,7 @@ import { addText, INSIGHTS_LABELS, type CommentaryLabels } from '@/lib/commentar
 import type { CommentaryCapabilities, CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
 import type { CommentaryViewKey } from '@/lib/commentary/views'
 import { analysisHtmlToText, analysisTextToHtml, editorName } from '@/lib/organic-social/social-listening/analysis-text'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 type Props = {
   clientSlug: string
@@ -25,6 +25,10 @@ type Props = {
   emptyText?: string
   entryNotes?: Record<string, string>
   labels?: CommentaryLabels
+  /** A carried keyword appendix (Unit G): the month the shown entry was approved in, as a title ("October 2026"). The
+   *  entry is another month's, so staff get a "From <month>" note and Edit drafts this month's own entry (no id, the
+   *  default period) prefilled with the carried text; Approve and Revoke are not offered on it. */
+  carriedFrom?: string
 }
 
 function Body({ html }: { html: string }) {
@@ -32,7 +36,7 @@ function Body({ html }: { html: string }) {
   return <div className={s.commBody} dangerouslySetInnerHTML={{ __html: html }} />
 }
 
-export function SlAnalysis({ clientSlug, viewKey, entries, initialId, clientEntryId, capabilities, history, defaultPeriod, entryNotes, labels = INSIGHTS_LABELS }: Props) {
+export function SlAnalysis({ clientSlug, viewKey, entries, initialId, clientEntryId, capabilities, history, defaultPeriod, entryNotes, labels = INSIGHTS_LABELS, carriedFrom }: Props) {
   const router = useRouter()
   const exportMode = useExportMode()
   const [editing, setEditing] = useState<null | 'new' | string>(null)
@@ -65,7 +69,8 @@ export function SlAnalysis({ clientSlug, viewKey, entries, initialId, clientEntr
   const open = (target: 'new' | CommentaryEntry) => {
     setText(target === 'new' ? '' : analysisHtmlToText(target.bodyHtml))
     setError(null)
-    setEditing(target === 'new' ? 'new' : target.id)
+    // A carried entry belongs to an earlier month: editing it drafts this month's own entry, never changes that row.
+    setEditing(target === 'new' || carriedFrom ? 'new' : target.id)
   }
 
   if (editing !== null) {
@@ -106,16 +111,17 @@ export function SlAnalysis({ clientSlug, viewKey, entries, initialId, clientEntr
     <div className={staff ? s.comm : `${s.comm} ${s.commClient}`}>
       <div className={s.commHead}>
         <span className={s.lbl}>{labels.title}</span>
-        {staff && <span className={s.by}>{editorName(selected.updatedBy)}</span>}
-        {staff && (selected.status === 'approved' ? <span className={s.approved}>Approved</span> : <span className={s.edited}>Draft</span>)}
+        {staff && carriedFrom && <span className={s.by}>{`From ${carriedFrom}. Edit to write this month's.`}</span>}
+        {staff && !carriedFrom && <span className={s.by}>{editorName(selected.updatedBy)}</span>}
+        {staff && !carriedFrom && (selected.status === 'approved' ? <span className={s.approved}>Approved</span> : <span className={s.edited}>Draft</span>)}
         {staff && entryNotes?.[selected.id] && <span className={s.by}>{entryNotes[selected.id]}</span>}
         <span className={s.spacer} />
         {staff && (
           <>
-            {capabilities.canApprove && selected.status === 'draft' && (
+            {capabilities.canApprove && !carriedFrom && selected.status === 'draft' && (
               <button type="button" className={s.tbtn} disabled={pending} onClick={() => run(() => approveCommentary(clientSlug, selected.id))}>Approve</button>
             )}
-            {capabilities.canApprove && selected.status === 'approved' && (
+            {capabilities.canApprove && !carriedFrom && selected.status === 'approved' && (
               <button type="button" className={`${s.tbtn} ${s.ghost}`} disabled={pending} onClick={() => run(() => revokeCommentary(clientSlug, selected.id))}>Revoke</button>
             )}
             <button type="button" className={s.tbtn} onClick={() => open(selected)}>Edit</button>

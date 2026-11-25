@@ -164,22 +164,52 @@ export function posNeu(point: SlPct): number {
   return whole(point.pos) + whole(point.neu)
 }
 
-/** Each media type's percent change in results against the previous month's presented upload (history rows don't
- *  hold media types), unrounded like `tileChange`. Null ("n/a") with no upload last month, a type absent last month,
- *  or a type with no results last month. Keyed by the media name in a Map: the name comes from the uploaded file, which
+/** An upload's result count per media type. Keyed by the media name in a Map: the name comes from the uploaded file, which
  *  never becomes a plain object key (export-parse.ts), since "__proto__" would read back as Object.prototype (#477). */
-export function mediaChanges(now: SlExport, prev: SlExport | null): Map<string, number | null> {
-  const before = new Map((prev?.sentimentByMedia ?? []).map((r) => [r.media, r.pos + r.neu + r.neg]))
-  return new Map(now.sentimentByMedia.map((r) => [r.media, tileChange(r.pos + r.neu + r.neg, before.get(r.media)) ?? null]))
+export function uploadMediaCounts(data: SlExport): Map<string, number> {
+  return new Map(data.sentimentByMedia.map((r) => [r.media, r.pos + r.neu + r.neg]))
 }
 
-/** Each influencer's change in posts against the previous month's presented upload, matched by `authorId` (a name
- *  can change, an id does not). Null ("new") when the author was not in last month's list or there is no list. Keyed
- *  by author id in a Map, for the same reason as `mediaChanges`. */
-export function authorChanges(now: SlExport, prev: SlExport | null): Map<string, number | null> {
-  const before = new Map((prev?.influencers ?? []).map((i) => [i.authorId, i.posts]))
+/** Last month's count per media type, from what the client saw (plan 2026-11-24, D4): the delivered report's counts when its
+ *  history row has them, else last month's presented upload (the same order `presentedValues` follows). Null when neither
+ *  exists. `source` says which, so the card can name it. */
+export function mediaBaseline(month: SlMonth, topic: SlTopic, history: readonly SlHistory[], uploads: readonly SlUpload[]):
+  { source: 'report' | 'export'; counts: Map<string, number> } | null {
+  const h = historyRow(month, topic, history)
+  if (h?.media) return { source: 'report', counts: new Map(h.media.map((m) => [m.media, m.count])) }
+  const u = presentedOf(month, topic, uploads)
+  return u ? { source: 'export', counts: uploadMediaCounts(u.data) } : null
+}
+
+/** The type whose results hold a type Talkwalker had not split out yet (September's "Other" held Newspaper). */
+const OTHER = 'Other'
+
+/** Each media type's percent change in results against last month's counts (`mediaBaseline`), unrounded like `tileChange`.
+ *  Null ("n/a") with no baseline, a type absent last month, or a type with no results last month. When a type with results
+ *  this month is absent from the baseline, its results were counted inside last month's "Other", so "Other" has no fair
+ *  comparison and is n/a too (Q2; only the type named exactly "Other", never "Online News Other"). Keyed by name in a Map. */
+export function mediaChanges(now: SlExport, before: ReadonlyMap<string, number> | null): Map<string, number | null> {
+  const counts = uploadMediaCounts(now)
+  const newType = before !== null && [...counts].some(([m, n]) => n > 0 && !before.has(m))
+  return new Map([...counts].map(([m, n]) => [m, newType && m === OTHER ? null : tileChange(n, before?.get(m)) ?? null]))
+}
+
+/** Last month's posts per author, from what the client saw (plan 2026-11-24, D4, Unit F): the delivered report's top authors
+ *  when its history row has them (entered by Unit D's script, matched to that month's upload ids by name and network), else
+ *  last month's presented upload. Null when neither exists. Keyed by author id in a Map (#477). */
+export function authorBaseline(month: SlMonth, topic: SlTopic, history: readonly SlHistory[], uploads: readonly SlUpload[]): Map<string, number> | null {
+  const h = historyRow(month, topic, history)
+  if (h?.authors) return new Map(h.authors.map((a) => [a.authorId, a.posts]))
+  const u = presentedOf(month, topic, uploads)
+  return u ? new Map((u.data.influencers ?? []).map((i) => [i.authorId, i.posts])) : null
+}
+
+/** Each influencer's change in posts against last month's posts (`authorBaseline`), matched by `authorId` (a name can
+ *  change, an id does not). Null ("new") when the author was not in last month's list or there is no list. Keyed by author
+ *  id in a Map, for the same reason as `mediaChanges`. */
+export function authorChanges(now: SlExport, before: ReadonlyMap<string, number> | null): Map<string, number | null> {
   return new Map((now.influencers ?? []).map((i) => {
-    const p = before.get(i.authorId)
+    const p = before?.get(i.authorId)
     return [i.authorId, p === undefined ? null : i.posts - p]
   }))
 }

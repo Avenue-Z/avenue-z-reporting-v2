@@ -34,7 +34,9 @@ const INFLUENCER_HEADERS = {
   authorId: 'Authors', name: 'Influencer', network: 'Source Type', posts: 'Total',
   pos: 'Positive', neu: 'Neutral', neg: 'Negative', reach: 'Potential Reach', engagement: 'Engagement',
 } as const
-const MAX_INFLUENCERS = 5
+// The team picks which authors a month shows from up to 25 (plan 2026-11-24, Unit F); Talkwalker exports only the rows its widget
+// shows, so 25 needs the widget widened there first.
+const MAX_INFLUENCERS = 25
 // Overview: four cards on rows 5, 7, 9 and 11 (0-based 4, 6, 8, 10); each card's unit sits in column 4 of the row above.
 const OVERVIEW_ROWS = [4, 6, 8, 10]
 const OWNED_TITLE = 'Share of Sentiment - Without Brand Owned Channels'

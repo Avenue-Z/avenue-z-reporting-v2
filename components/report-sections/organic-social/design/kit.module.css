@@ -1,6 +1,7 @@
-/* The Social Listening tab's look, ported from the mockup the team approved on 2026-11-19
-   (docs/social-listening/mock.template.html, the page-content rules). Scoped to this tab by the module: nothing here can
-   reach another page. Values are the mockup's own. */
+/* The shared Organic Social design kit's stylesheet, first used by the Social Listening tab. Ported from the mockup the
+   team approved on 2026-11-19 (docs/social-listening/mock.template.html, the page-content rules). A CSS module, so its
+   classes reach only the components that import it, and its colours come from the variables on `.root`, which a page
+   puts on its wrapper. Values are the mockup's own. */
 
 .root {
   --fg: #FFFFFF;
@@ -25,6 +26,17 @@
   color: var(--fg);
   font-family: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
+
+/* In the PDF, the export's own font stack (app/export/export-theme.css, --font-sans): its Noto fonts draw the arrows
+   and emoji Nunito Sans lacks, which the server's Chromium has no system font for, so they printed as empty boxes
+   (#506). It outranks `.root` by specificity, so the order the stylesheets load in does not matter. :global, because
+   .export-theme is the export page's class, not this module's: written bare, CSS Modules would hash it and the rule
+   would match nothing. Live pages never carry .export-theme, so they keep the kit stack above. */
+:global(.export-theme) .root { font-family: var(--font-sans); }
+
+/* Line height `normal`, as the artifact (round 3, Task 6). Not on `.root`: Social Listening and AEO Informed draw on
+   `.root` too and were approved with the app's line height, so only Organic Social's own kit wrappers carry this. */
+.tight { line-height: normal; }
 
 /* Topics and the preview toggle */
 .topics { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -53,6 +65,8 @@
 
 /* KPI card */
 .kpi { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); padding: 20px 24px; min-width: 0; }
+/* Title row when a tile has a hover hint, as KpiCard's (gap-1.5). */
+.kpi .th { display: flex; align-items: center; gap: 6px; }
 .kpi .t { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .kpi .v { margin: 8px 0 0; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .kpi .d { margin: 4px 0 0; font-size: 14px; font-weight: 700; }
@@ -68,7 +82,12 @@
 .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cardBody { margin-top: 12px; }
 .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
-.root svg { display: block; width: 100%; height: auto; }
+/* The kit's own hand-drawn charts fill their card. Not a Recharts chart's svgs (its chart and legend icons), which keep
+   Recharts' own sizes when a trend graph sits in a kit card (kit-svg-rule.test.ts). :global, because Recharts' class
+   is not one of this module's: written bare, CSS Modules would hash it and the exclusion would match nothing. :where,
+   because it adds no specificity: a bare :not() would count its class, and the rule would then outrank `.donutWrap svg`
+   below and stretch every Social Listening donut (Paul, #498 review). */
+.root svg:where(:not(:global(.recharts-surface))) { display: block; width: 100%; height: auto; }
 .root svg text { font-family: inherit; }
 .tMuted { fill: var(--muted); }
 .tFg { fill: var(--fg); }
@@ -168,6 +187,9 @@
 .tbtn { border-radius: 8px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: var(--fg); padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .tbtn:hover { background: rgba(255,255,255,0.1); }
 .tbtn:disabled { opacity: 0.5; cursor: default; }
+/* A note field on a kit graph (round 3, Task 3): the artifact's form field colours and border (its post form inputs and
+   analysis text area). Each field keeps its own size; only these change. */
+.field { border-radius: 8px; border: 1px solid rgba(255,255,255,0.16); background: var(--subtle); color: var(--fg); }
 .primary { background: var(--cyan) !important; border-color: var(--cyan) !important; color: #000 !important; }
 .ghost { border-color: transparent !important; background: none !important; color: var(--muted) !important; }
 .ghost:hover { color: var(--fg) !important; }

@@ -15,3 +15,20 @@ test('the Social Listening export renders the client view (exporting), and no ot
     expect(el.props).not.toHaveProperty('exporting')
   }
 })
+
+test('the Social Listening export takes the charts set to columns; without them, and on every other tab, nothing is passed', () => {
+  const v = { section: 'organic-social', subsectionId: 'organic-social-listening', channel: null, view: 'social-listening', pageTitle: 'Social Listening' } as const
+  expect(exportReportElement(v, { ...params, slCols: ['b-ytd', 'i-sentday'] }).props).toMatchObject({ exporting: true, slCols: ['b-ytd', 'i-sentday'] })
+  expect(exportReportElement(v, params).props).not.toHaveProperty('slCols')
+  expect(exportReportElement(v, { ...params, slCols: [] }).props).not.toHaveProperty('slCols')
+  const ig = exportReportElement({ section: 'organic-social', subsectionId: 'organic-instagram', channel: 'INSTAGRAM', view: null, pageTitle: 'x' }, { ...params, slCols: ['b-ytd'] })
+  expect(ig.props).not.toHaveProperty('slCols')
+})
+
+test('the Social Listening export takes the authors order; posts, and every other tab, pass nothing', () => {
+  const v = { section: 'organic-social', subsectionId: 'organic-social-listening', channel: null, view: 'social-listening', pageTitle: 'Social Listening' } as const
+  expect(exportReportElement(v, { ...params, slSort: 'reach' }).props).toMatchObject({ exporting: true, slSort: 'reach' })
+  expect(exportReportElement(v, { ...params, slSort: 'posts' }).props).not.toHaveProperty('slSort')
+  const ig = exportReportElement({ section: 'organic-social', subsectionId: 'organic-instagram', channel: 'INSTAGRAM', view: null, pageTitle: 'x' }, { ...params, slSort: 'reach' })
+  expect(ig.props).not.toHaveProperty('slSort')
+})

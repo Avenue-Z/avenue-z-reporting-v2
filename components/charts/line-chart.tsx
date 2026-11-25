@@ -3,7 +3,9 @@
 import {
   ResponsiveContainer,
   LineChart as RechartsLineChart,
+  ComposedChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,7 +16,7 @@ import {
   type DefaultTooltipContentProps,
   usePlotArea,
 } from 'recharts'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { CHART_COLORS } from '@/lib/constants'
 import { money } from '@/lib/paid-media/format'
 import { PIN_CARD_WIDTH, PIN_LINE_COLOR, PIN_STUB } from './pins'
@@ -63,6 +65,14 @@ interface LineChartProps {
    *  The data, marks, callouts and notes keep the raw key. A string, like valueFormat, so a Server Component can pass
    *  it. Absent: no formatter is passed to Recharts, and the chart renders exactly as before this prop existed. */
   xFormat?: 'month-day'
+  /** The Organic Social design kit look (design overhaul decision (b)): a soft fill under each line, its colour fading
+   *  from 0.35 at the line to 0, as the Social Listening charts draw it, and the kit's grid (4/4 dashes at 8% white;
+   *  round 3). The fill is kept out of the hover box and the legend, so no value is listed twice. Absent: the chart
+   *  renders exactly as before this prop existed. */
+  shaded?: boolean
+  /** Drops the chart's own bordered box, for a chart drawn inside a card that already has one (the kit's card). With
+   *  callouts, the positioned layer the dots and cards need is kept. Absent: the box is drawn, as before this prop. */
+  frameless?: boolean
 }
 
 const DAY_KEY = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -255,7 +265,7 @@ function areaTop(el: HTMLElement): number {
   return 0
 }
 
-export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 300, valueFormat, xFormat }: LineChartProps) {
+export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 300, valueFormat, xFormat, shaded, frameless }: LineChartProps) {
   const yDomain = niceYDomain(data, yKeys)
   const fmt =
     valueFormat === 'currency-cents' ? (v?: number | string) => (v !== undefined ? money(Number(v)) : '') : undefined
@@ -265,6 +275,12 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
     ? { labelFormatter: (label: ReactNode) => (typeof label === 'string' || typeof label === 'number' ? formatMonthDay(label) : label) }
     : {}
   const hasCallouts = !!callouts && callouts.length > 0 && yKeys.length > 0
+  // One gradient id per series, unique per chart, so two shaded charts on a page never share a fill. Only characters
+  // that are safe inside url(#...) are kept.
+  const gradientBase = `lc-fill-${useId().replace(/[^A-Za-z0-9_-]/g, '')}`
+  // A Recharts LineChart does not draw an Area (measured on recharts 3.7), so a shaded chart is a ComposedChart. An
+  // unshaded chart keeps the LineChart, so its markup is unchanged.
+  const Chart = shaded ? ComposedChart : RechartsLineChart
   // In the PDF export the lines must be complete on first paint (no draw-in animation to catch half way).
   const exportMode = useExportMode()
   const [layout, setLayout] = useState<CalloutLayout | null>(null)
@@ -367,8 +383,23 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
   }
   const chart = (
     <ResponsiveContainer width="100%" height={height}>
-      <RechartsLineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+      <Chart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        {shaded && (
+          <defs>
+            {yKeys.map((series, i) => {
+              const color = series.color ?? CHART_COLORS.primary
+              return (
+                <linearGradient key={series.key} id={`${gradientBase}-${i}`} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="1" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              )
+            })}
+          </defs>
+        )}
+        {/* The kit's grid with the kit look (Organic Social design round 3): 4/4 dashes at 8% white, the artifact's and
+            the kit's own (.gridLine). Without it, the grid every chart has today. */}
+        <CartesianGrid strokeDasharray={shaded ? '4 4' : '3 3'} stroke={shaded ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.06)'} />
         <XAxis
           dataKey={xKey}
           tick={{ fill: '#8A8A8A', fontSize: 12 }}
@@ -398,6 +429,19 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           {...xLabel}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
+        {shaded && yKeys.map((series, i) => (
+          <Area
+            key={`fill-${series.key}`}
+            type="monotone"
+            dataKey={series.key}
+            fill={`url(#${gradientBase}-${i})`}
+            stroke="none"
+            activeDot={false}
+            tooltipType="none"
+            legendType="none"
+            {...(exportMode ? { isAnimationActive: false } : {})}
+          />
+        ))}
         {yKeys.map((series) => (
           <Line
             key={series.key}
@@ -434,10 +478,10 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
           <CalloutLayer callouts={callouts!} data={data} xKey={xKey} yKey={yKeys[0].key} open={openLive?.x ?? null}
             side={side} onLayout={setLayout} />
         )}
-      </RechartsLineChart>
+      </Chart>
     </ResponsiveContainer>
   )
-  if (!hasCallouts) return <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
+  if (!hasCallouts) return frameless ? <div>{chart}</div> : <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{chart}</div>
   const callout = openLive ? callouts!.find((c) => c.x === openLive.x) : undefined
   const spot = openLive ? layout?.spots.find((s) => s.x === openLive.x) : undefined
   let card = null
@@ -478,19 +522,18 @@ export function LineChart({ data, xKey, yKeys, marks, notes, callouts, height = 
         onClick={() => on.tap(s.x)} onKeyDown={(e) => on.key(s.x, e)} />,
     ]
   })
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">
-      {/* Focus moving to anything outside this chart closes its card, as a tap outside does (C8): with the
-          keyboard, Tab to the other graph's dot then Enter left both cards open (Paul's second review,
-          R5). Focus lost to nothing (the window, a removed element) leaves the card as it is. */}
-      <div className="relative" ref={wrapRef} onBlur={(e) => {
-        const next = e.relatedTarget
-        if (open && next instanceof Node && !e.currentTarget.contains(next)) { clear(); setOpen(null) }
-      }}>
-        {chart}
-        {hitAreas}
-        {card}
-      </div>
+  // Focus moving to anything outside this chart closes its card, as a tap outside does (C8): with the keyboard, Tab to
+  // the other graph's dot then Enter left both cards open (Paul's second review, R5). Focus lost to nothing (the window,
+  // a removed element) leaves the card as it is.
+  const layer = (
+    <div className="relative" ref={wrapRef} onBlur={(e) => {
+      const next = e.relatedTarget
+      if (open && next instanceof Node && !e.currentTarget.contains(next)) { clear(); setOpen(null) }
+    }}>
+      {chart}
+      {hitAreas}
+      {card}
     </div>
   )
+  return frameless ? layer : <div className="rounded-lg border border-white/[0.06] bg-bg-surface p-6">{layer}</div>
 }

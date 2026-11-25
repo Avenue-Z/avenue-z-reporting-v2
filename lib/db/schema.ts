@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint, uniqueIndex, doublePrecision, customType, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import type { SnapshotPayload } from '@/lib/organic-social/content-types'
-import type { SlExport, SlTrend } from '@/lib/organic-social/social-listening/types'
+import type { SlExport, SlHistoryAuthor, SlHistoryMedia, SlTrend } from '@/lib/organic-social/social-listening/types'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
 import type { SectionTemplate, ReportSectionConfig } from '@/lib/report-sections/types'
@@ -668,6 +668,10 @@ export const socialListeningHistory = pgTable('social_listening_history', {
   redditNeu: integer('reddit_neu'),
   redditNeg: integer('reddit_neg'),
   source: text('source').notNull(),               // 'history-sheet' or 'delivered-deck', plus the deck month
+  // The delivered report's count per media type and its top authors (2026-11-24, Social Listening Unit D). Nullable: a row
+  // without them behaves as before. Checked on read (select.ts toSlHistory) and on entry.
+  media: jsonb('media').$type<SlHistoryMedia[]>(),
+  authors: jsonb('authors').$type<SlHistoryAuthor[]>(),
 }, (table) => ({
   clientMonthTopicUnique: unique('social_listening_history_client_month_topic_key').on(table.clientId, table.month, table.topic),
   topicKnown: check('social_listening_history_topic', sql`${table.topic} IN ('brand', 'industry')`),
@@ -753,8 +757,30 @@ export const socialListeningTrends = pgTable('social_listening_trends', {
   monthFirst: check('social_listening_trends_month_first', sql`EXTRACT(DAY FROM ${table.month}) = 1`),
 }))
 
+/** Which authors and overview cards a month shows (2026-11-24, Social Listening Unit F). A pick is a row and is never
+ *  updated or deleted: changing a pick inserts a newer row, and the newest row for an item wins (picks.ts applyPicks), so
+ *  two people picking at once both land and the history stays. `key` is the author's id, or the card's label as the export
+ *  gives it. */
+export const socialListeningPicks = pgTable('social_listening_picks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  month: date('month').notNull(),
+  kind: text('kind').notNull(),                   // 'author' | 'card'
+  key: text('key').notNull(),
+  state: text('state').notNull(),                 // 'shown' | 'hidden'
+  createdBy: text('created_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientMonthIdx: index('social_listening_picks_client_month_idx').on(table.clientId, table.month),
+  kindKnown: check('social_listening_picks_kind', sql`${table.kind} IN ('author', 'card')`),
+  stateKnown: check('social_listening_picks_state', sql`${table.state} IN ('shown', 'hidden')`),
+  keySize: check('social_listening_picks_key_size', sql`char_length(${table.key}) BETWEEN 1 AND 500`),
+  monthFirst: check('social_listening_picks_month_first', sql`EXTRACT(DAY FROM ${table.month}) = 1`),
+}))
+
 export type SocialListeningUploadRow = typeof socialListeningUploads.$inferSelect
 export type SocialListeningHistoryRow = typeof socialListeningHistory.$inferSelect
 export type SocialListeningPostRow = typeof socialListeningPosts.$inferSelect
 export type SocialListeningPostImageRow = typeof socialListeningPostImages.$inferSelect
 export type SocialListeningTrendsRow = typeof socialListeningTrends.$inferSelect
+export type SocialListeningPickRow = typeof socialListeningPicks.$inferSelect

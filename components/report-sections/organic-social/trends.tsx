@@ -12,6 +12,9 @@ import { AnnotationCallouts, CalloutCard } from './annotation-callouts'
 import { NoteForm, savedLine, type ExistingNote, type SavedNote } from './note-form'
 import { ExportAnnotationList } from './export-annotations'
 import { useExportMode } from '@/components/export/export-mode'
+import { lookOf, type ChartLook } from './chart-look'
+import type { ControlLook } from './control-look'
+import kit from './design/kit.module.css'
 
 /** How long the line after a save stays (Phase 2c, D18). */
 const SAVED_LINE_MS = 8000
@@ -44,8 +47,8 @@ function dropAgreed(overrides: Record<string, boolean>, annotations: ChartAnnota
 // before the prop existed, with no button, no row and no dots. That is what keeps every
 // client still pinned to v1 of these parts, Renaissance included, unchanged.
 export function ChannelTrendChart({
-  title, series, annotations, annotationControls, noteControls,
-}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls }) {
+  title, series, annotations, annotationControls, noteControls, shaded, frameless,
+}: { title: string; series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls } & ChartLook) {
   // This chart's state is per view: each tab and each month gets its own instance, because both report
   // pages wrap the section in a Suspense keyed on the tab and the month (app/dashboard and app/portal
   // .../reports/page.tsx). Keep that key. The legend below is seeded once, on mount, so without the key it
@@ -147,7 +150,12 @@ export function ChannelTrendChart({
   }
   for (const [day, note] of Object.entries(justSaved)) existing[day] = note
 
-  if (exportMode) return <ExportChannelTrendChart title={title} series={series} annotations={annotations} />
+  // The design kit's look (shaded, frameless), handed only when set, so every chart drawn without it is exactly as before.
+  const look = lookOf({ shaded, frameless })
+  // The controls' kit look (round 3, decision (d)): `shaded` is set only by the kit versions (asKitChart,
+  // parts/trends-kit.tsx), so it is the kit look here too. Without it every control below is exactly as before.
+  const controlLook: ControlLook = shaded ? 'kit' : undefined
+  if (exportMode) return <ExportChannelTrendChart title={title} series={series} annotations={annotations} {...look} />
 
   return (
     <section className="space-y-3">
@@ -164,7 +172,9 @@ export function ChannelTrendChart({
                   key={c}
                   type="button"
                   onClick={() => toggle(c)}
-                  className={cn(
+                  // The kit's pill draws its on state from aria-pressed, which the old toggle never set.
+                  {...(controlLook ? { 'aria-pressed': on } : {})}
+                  className={controlLook ? kit.pill : cn(
                     'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
                     on
                       ? 'border-white/20 bg-white/[0.06] text-white'
@@ -184,7 +194,7 @@ export function ChannelTrendChart({
                 type="button"
                 onClick={() => setShowAnnotations((v) => !v)}
                 aria-pressed={showAnnotations}
-                className={cn(
+                className={controlLook ? kit.pill : cn(
                   'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
                   showAnnotations
                     ? 'border-white/20 bg-white/[0.06] text-white'
@@ -203,14 +213,14 @@ export function ChannelTrendChart({
                 type="button"
                 onClick={() => { showSaved(null); setForm((f) => (f ? null : {})) }}
                 aria-expanded={!!form}
-                className="no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white"
+                className={controlLook ? `no-print ${kit.pill}` : 'no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white'}
               >
                 Add annotation
               </button>
             )}
           </div>
           {form && noteControls && (
-            <NoteForm key={form.day ?? 'new'} controls={noteControls} fixedDay={form.day} initial={form.initial} notes={existing}
+            <NoteForm key={form.day ?? 'new'} {...(controlLook ? { look: controlLook } : {})} controls={noteControls} fixedDay={form.day} initial={form.initial} notes={existing}
               onClose={() => setForm(null)} onSaved={(s) => {
                 setForm(null)
                 showSaved(s)
@@ -221,12 +231,13 @@ export function ChannelTrendChart({
             <p role="status" className="no-print text-xs text-text-muted">{savedLine(saved, noteControls.canApprove)}</p>
           )}
           {inRow && inRow.length > 0 && (
-            <AnnotationCallouts items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
+            <AnnotationCallouts {...(controlLook ? { look: controlLook } : {})} items={inRow} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />
           )}
           {activeEmpty ? (
             <NoData />
           ) : (
             <LineChart
+              {...look}
               data={series.points}
               xKey="date"
               xFormat="month-day"
@@ -238,7 +249,7 @@ export function ChannelTrendChart({
                     x: a.date,
                     label: a.label,
                     muted: !!a.hidden || (!!a.noteOnly && !a.note),
-                    content: <CalloutCard annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
+                    content: <CalloutCard {...(controlLook ? { look: controlLook } : {})} annotation={a} controls={annotationControls} noteControls={noteControls} onToggle={setHidden} onEdit={onEdit} />,
                   }))
                 : undefined}
             />
@@ -252,7 +263,7 @@ export function ChannelTrendChart({
 /** The chart as the PDF export prints it (spec 2026-10-06 §7): title, legend and chart as one unbreakable
  *  block; the annotations a client sees, numbered in date order, as a mark at each day's point and a list
  *  under the chart. No hover cards, toggles or note editors. */
-function ExportChannelTrendChart({ title, series, annotations }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[] }) {
+function ExportChannelTrendChart({ title, series, annotations, shaded, frameless }: { title: string; series: TrendSeries; annotations?: ChartAnnotation[] } & ChartLook) {
   const printable = (annotations ?? []).filter(isClientVisible).sort((a, b) => a.date.localeCompare(b.date))
   const onSeries = new Set(series.points.map((p) => String(p.date)))
   // Only a day with a point gets a mark, so only those are numbered: the chart's numbers never skip, and the list shows
@@ -274,7 +285,7 @@ function ExportChannelTrendChart({ title, series, annotations }: { title: string
                 </span>
               ))}
             </div>
-            <LineChart data={series.points} xKey="date" yKeys={yKeys} marks={marks} xFormat="month-day" />
+            <LineChart {...lookOf({ shaded, frameless })} data={series.points} xKey="date" yKeys={yKeys} marks={marks} xFormat="month-day" />
           </>
         )}
       </div>
@@ -284,7 +295,7 @@ function ExportChannelTrendChart({ title, series, annotations }: { title: string
 }
 
 export function EngagementTrend({
-  series, annotations, annotationControls, noteControls, title = 'Engagement Over Time',
-}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls; title?: string }) {
-  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} noteControls={noteControls} />
+  series, annotations, annotationControls, noteControls, title = 'Engagement Over Time', shaded, frameless,
+}: { series: TrendSeries; annotations?: ChartAnnotation[]; annotationControls?: AnnotationControls; noteControls?: NoteControls; title?: string } & ChartLook) {
+  return <ChannelTrendChart title={title} series={series} annotations={annotations} annotationControls={annotationControls} noteControls={noteControls} {...lookOf({ shaded, frameless })} />
 }

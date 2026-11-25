@@ -14,6 +14,11 @@ import { topContentV1, topContentV2 } from './top-content'
 import { topContentV3 } from './top-content-outline'
 import { influencerPostsV1 } from './influencer-posts'
 import { kpiCheckInV1 } from './kpi-check-in'
+import { KIT_TILES_PARTS } from './kit/tiles.parts'
+import { KIT_TRENDS_PARTS } from './kit/trends.parts'
+import { KIT_YTD_PARTS } from './kit/ytd.parts'
+import { KIT_POSTS_PARTS } from './kit/posts.parts'
+import { KIT_KPI_CHECK_IN_PARTS } from './kit/kpi-check-in.parts'
 
 const BASE_PARTS: PartRegistry<OrganicSocialCtx> = {
   'platform-headlines': { 1: platformHeadlinesV1 },
@@ -36,4 +41,16 @@ const OUTLINE_PARTS: PartRegistry<OrganicSocialCtx> = {
   'kpi-check-in': { 1: kpiCheckInV1 },
 }
 
-export const ORGANIC_SOCIAL_PARTS: PartRegistry<OrganicSocialCtx> = mergeRegistries(BASE_PARTS, OUTLINE_PARTS)
+/** Every version registered before the design kit. Exported so `kit/slots.test.ts` can prove no kit version replaces one. */
+export const PRE_KIT_PARTS: PartRegistry<OrganicSocialCtx> = mergeRegistries(BASE_PARTS, OUTLINE_PARTS)
+
+/** The design kit's versions (docs/superpowers/plans/2026-11-23-os-design-phase1.md), one file per PR under `kit/`, so
+ *  those PRs never edit this file and merge in any order. All unpublished; `kit/slots.test.ts` holds them to that. */
+export const ORGANIC_SOCIAL_PARTS: PartRegistry<OrganicSocialCtx> = mergeRegistries(
+  PRE_KIT_PARTS,
+  KIT_TILES_PARTS,
+  KIT_TRENDS_PARTS,
+  KIT_YTD_PARTS,
+  KIT_POSTS_PARTS,
+  KIT_KPI_CHECK_IN_PARTS,
+)

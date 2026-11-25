@@ -5,18 +5,20 @@
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
-import s from './sl.module.css'
+import { nextHref } from './pending-url'
+import s from '../design/kit.module.css'
 
 function useSetParam() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   return (name: string, value: string | null) => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (value === null) params.delete(name)
-    else params.set(name, value)
-    const qs = params.toString()
-    router.push(qs ? `${pathname}?${qs}` : pathname)
+    // Built on any URL a click before this one has not landed yet (pending-url.ts, #529), so a quick topic or preview click
+    // after a Line / Columns toggle or a sort keeps it.
+    router.push(nextHref(pathname, searchParams.toString(), (params) => {
+      if (value === null) params.delete(name)
+      else params.set(name, value)
+    }))
   }
 }
 

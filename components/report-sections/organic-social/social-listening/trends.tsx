@@ -8,7 +8,7 @@ import { useExportMode } from '@/components/export/export-mode'
 import { approveTrendsAction, saveTrendsAction } from '@/app/actions/social-listening'
 import { formatTrendLines } from '@/lib/organic-social/social-listening/trends'
 import type { SlTrendLists } from '@/lib/organic-social/social-listening/types'
-import s from './sl.module.css'
+import s from '../design/kit.module.css'
 
 const EMPTY: SlTrendLists = { emerging: [], decreasing: [], newThemes: [] }
 const signed = (change: string, sign: '+' | '-') => (/^[+-]/.test(change) ? change : `${sign}${change}`)
