@@ -68,7 +68,8 @@ export async function ensureSnapshot(
 }
 
 /** Atomically take a run for this sweep. True iff this caller now owns it: the run is pending or failed (or `missing`
- *  with `includeMissing`, which also requires the snapshot to be a draft) AND was never started or its last claim
+ *  with `includeMissing`) AND the snapshot is a draft (always: a published snapshot must not change under its readers,
+ *  so a publish between the caller's read and this claim wins) AND was never started or its last claim
  *  is older than `staleAfterMs` (the previous owner is presumed dead). A just-failed run keeps its started_at, so it
  *  waits `staleAfterMs` before it can be reclaimed (pass 0 to retry at once). Two concurrent sweeps cannot both get
  *  true: the second UPDATE re-checks the row after the first commits and finds it fresh. */
@@ -86,11 +87,9 @@ export async function claimRun(
       eq(techAuditSourceRuns.snapshotId, snapshotId),
       eq(techAuditSourceRuns.source, source),
       inArray(techAuditSourceRuns.status, opts.includeMissing ? ['pending', 'failed', 'missing'] : ['pending', 'failed']),
-      // Re-checking absent sources is only for drafts: a published snapshot must not change under its readers.
-      ...(opts.includeMissing
-        ? [inArray(techAuditSourceRuns.snapshotId, db.select({ id: techAuditSnapshots.id }).from(techAuditSnapshots)
-            .where(and(eq(techAuditSnapshots.id, snapshotId), eq(techAuditSnapshots.status, 'draft'))))]
-        : []),
+      // Drafts only, whatever includeMissing says: a snapshot published since the caller read it must not be claimed.
+      inArray(techAuditSourceRuns.snapshotId, db.select({ id: techAuditSnapshots.id }).from(techAuditSnapshots)
+        .where(and(eq(techAuditSnapshots.id, snapshotId), eq(techAuditSnapshots.status, 'draft')))),
       or(
         isNull(techAuditSourceRuns.startedAt),
         sql`${techAuditSourceRuns.startedAt} < now() - (${Math.floor(staleAfterMs)} * interval '1 millisecond')`,
