@@ -24,6 +24,7 @@ import { parseTalkwalkerExport } from '@/lib/organic-social/social-listening/exp
 import { buildWorkbook } from '@/lib/organic-social/social-listening/test-workbook'
 import { NOT_READY_TEXT } from '@/lib/organic-social/social-listening/view-model'
 import { SocialListeningSection } from './section'
+import frames from '../design/frames.module.css'
 
 const SETTING = { enabled: true, brandTopic: 'Made Up Brand', industryTopic: 'Made Up Industry', industrySample: 10 }
 const client = (sl: unknown = SETTING) => ({
@@ -345,6 +346,18 @@ describe('notes on the graphs', () => {
 
 // Unit F (plan 2026-11-24, F11): the authors and cards the team picks for the month, and the order.
 describe('authors the team picks', () => {
+  // Found measuring against staging (2026-11-25): the two per-mention columns made the table 1155px, wider than the PDF's
+  // 979px page, so the PDF cut columns off. The table takes its own sizing class (frames.module.css, authorsTable), so the
+  // kit table every other part uses is unchanged.
+  test('the authors table carries its own fitting class, in every view', async () => {
+    for (const o of [{}, { role: 'CLIENT_VIEWER' as const, email: null }, { exporting: true }]) {
+      const { container, unmount } = await show(o)
+      const table = [...container.querySelectorAll('table')].find((t) => /Reach per mention/.test(t.textContent ?? ''))!
+      expect(table.className.split(' ')).toContain(frames.authorsTable)
+      unmount()
+    }
+  })
+
   const pick = (kind: 'author' | 'card', key: string, state: 'shown' | 'hidden') => ({ id: `p-${key}`, kind, key, state, at: '2026-11-03T10:00:00.000Z' })
   const withPicks = (picks: unknown[]) => h.getSlMonth.mockResolvedValue({ ...monthData([up(parsed('brand')), up(parsed('industry'))]), picks })
   const authors = (c: HTMLElement) => [...c.querySelectorAll('table tbody tr td:first-child b')].map((b) => b.textContent)
