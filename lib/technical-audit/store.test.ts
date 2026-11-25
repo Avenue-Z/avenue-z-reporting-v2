@@ -99,6 +99,8 @@ describe('claimRun', () => {
     await pg.exec(`UPDATE tech_audit_source_runs SET started_at = now() - interval '11 minutes' WHERE source = 'sf'`)
     expect(await store.claimRun(id, 'sf', 600_000)).toBe(true)
     await store.failRun(CLIENT, id, 'sf', 'failed', 'boom')
+    // Backdate so the zero-window claim is stale even if now() ties started_at on PGlite.
+    await pg.exec(`UPDATE tech_audit_source_runs SET started_at = now() - interval '1 second' WHERE source = 'sf'`)
     expect(await store.claimRun(id, 'sf', 0)).toBe(true)
   })
   test('includeMissing makes a missing run claimable under the same stale rule', async () => {
