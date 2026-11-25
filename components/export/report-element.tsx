@@ -9,7 +9,6 @@ import { OrganicSocialReport } from '@/components/report-sections/organic-social
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
-// The directory's index, explicitly: the old technical-audit.tsx beside it still resolves first until Task 14 deletes it.
 import { TechnicalAuditPage } from '@/components/report-sections/peec-ai/technical-audit'
 import { PaidMediaOverviewReport } from '@/components/report-sections/paid-media/overview'
 import { PaidSearchReport } from '@/components/report-sections/paid-search'
