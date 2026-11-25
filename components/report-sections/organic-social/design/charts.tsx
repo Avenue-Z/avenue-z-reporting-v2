@@ -273,7 +273,7 @@ export function CountColumns({ points, aria }: { points: { label: string; value:
 
 /** Two lines with every point labelled (positive + neutral above, negative below); a month with no data breaks the line. */
 export function PointLines({ months, series }: { months: string[]; series: { name: string; vals: (number | null)[]; color: string; below?: boolean }[] }) {
-  const W = 480, H = 240, L = 34, R = 16, T = 22, B = 28
+  const W = 960, H = 240, L = 34, R = 16, T = 22, B = 28
   // A single month sits in the middle rather than on the left axis.
   const x = (i: number) => (months.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (months.length - 1))
   const y = (v: number) => T + (H - T - B) * (1 - v / 100)

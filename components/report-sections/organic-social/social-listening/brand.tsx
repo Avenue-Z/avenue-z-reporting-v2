@@ -6,10 +6,11 @@ import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import type { SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import type { SlTile, SlTopicView } from '@/lib/organic-social/social-listening/view-model'
 import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, YtdColumns } from '../design/charts'
-import { SlCard, SlSection } from '../design/frames'
+import { SlBoxLabel, SlCard, SlSection } from '../design/frames'
 import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
 import s from '../design/kit.module.css'
+import f from '../design/frames.module.css'
 
 export type TopicPageProps = {
   view: SlTopicView
@@ -58,6 +59,13 @@ export function ytdSpan(points: { month: string; value: unknown }[], month: stri
 export function AnalysisOnly({ title, show, box }: { title: string; show: boolean; box: ReactNode }) {
   if (!show || !box) return null
   return <SlSection title={title}><div data-export-block="">{box}</div></SlSection>
+}
+
+/** The top conversation themes box, inside the Themes section under a small label (2026-11-24: it is part of themes, not
+ *  a section of its own). Same rule as AnalysisOnly: staff always, a client only with approved text. */
+export function ConversationThemes({ show, box }: { show: boolean; box: ReactNode }) {
+  if (!show || !box) return null
+  return <div className={f.item} data-export-block=""><SlBoxLabel>Top conversation themes</SlBoxLabel>{box}</div>
 }
 
 const lastDay = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()
@@ -114,14 +122,16 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
           </SlSection>
 
           <SlSection title="Sentiment">
-            <div className={`${s.grid} ${s.g2}`}>
+            {/* The two donuts stay side by side, as on the approved tab; each box sits under its card, and the pair row lines
+                the cards up to one height and the boxes up to one line (frames.module.css .pair). */}
+            <div className={`${s.grid} ${s.g2} ${f.pair}`}>
               <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} bodyClassName={s.donutWrap}>
                 <Donut counts={r.sentiment.counts} />
                 <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
               </SlCard>
               {view.show.owned && r.owned && (
                 <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={s.donutWrap}
-                  note="Drops posts from the brand's own accounts, so this is what everyone else said.">
+                  note="Excludes results from the brand's owned channels">
                   <Donut counts={r.owned.counts} />
                   <Legend counts={r.owned.counts} pct={r.owned.pct} />
                 </SlCard>
@@ -136,19 +146,17 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
             <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['b-ytd']}>
               <YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
             </SlCard>
-            <div className={`${s.grid} ${s.g2}`}>
-              <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']}>
-                <PointLines months={posNeuPoints.map((p) => p.month)} series={[
-                  { name: 'Positive + neutral', vals: posNeuPoints.map((p) => p.value), color: SENTIMENT_COLORS.pos },
-                  { name: 'Negative', vals: ytd.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
-                ]} />
+            <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']}>
+              <PointLines months={posNeuPoints.map((p) => p.month)} series={[
+                { name: 'Positive + neutral', vals: posNeuPoints.map((p) => p.value), color: SENTIMENT_COLORS.pos },
+                { name: 'Negative', vals: ytd.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
+              ]} />
+            </SlCard>
+            {r.reddit && (
+              <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']}>
+                <YtdColumns points={fromFirst(r.reddit)} aria="Reddit sentiment by month" />
               </SlCard>
-              {r.reddit && (
-                <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']}>
-                  <YtdColumns points={fromFirst(r.reddit)} aria="Reddit sentiment by month" />
-                </SlCard>
-              )}
-            </div>
+            )}
           </SlSection>
 
           <SlSection title="Media types">
@@ -171,9 +179,8 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
             <TrendsBlock lists={view.trends.lists} draft={view.trends.draft} clientSlug={clientSlug} range={range} caps={caps} />
           </SlCard>
         )}
+        <ConversationThemes show={view.show.conv} box={boxes['b-conv']} />
       </SlSection>
-
-      <AnalysisOnly title="Top conversation themes" show={view.show.conv} box={boxes['b-conv']} />
 
       {r && r.influencers.length > 0 && (
         <SlSection title="Top influencers">

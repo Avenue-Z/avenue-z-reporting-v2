@@ -48,7 +48,7 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 | D8 | F11 | A hidden author is hidden from the overview cards too |
 | D9 | F12 | Trends stay typed; check staging first |
 | D10 | F5 | The appendix carries over to clients with no new approval; Savannah can still edit it |
-| D11 | F1, F13 | Every chart card on its own full-width row, no cards side by side |
+| D11 | F1, F13 | Every chart card on its own full-width row, except the brand donut pair (share of sentiment, without brand-owned), which stays side by side as on the approved tab with each box under its card and the row aligned (corrected 2026-11-24 after I saw the full-width donuts) |
 | D12 | F15 | Savannah switches the industry theme widget to sentiment colours and re-exports |
 | D13 | Phase 3 | Parked |
 | D14 | Shape | Deliverable branch, one PR per unit |
