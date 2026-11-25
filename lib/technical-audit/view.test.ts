@@ -106,6 +106,21 @@ describe('loadTechAuditView', () => {
     expect(team?.runs[0]).toMatchObject({ source: 'sf', status: 'failed' })
   })
 
+  test('client view has no staff or timestamp keys on snapshots or runs', async () => {
+    all = [snap('2026-11-01', 'published', { publishedBy: 'a@b.c', publishedAt: new Date(1) }), snap('2026-10-01')]
+    const v = await loadTechAuditView('x', undefined, 'client', NOW)
+    for (const s of [v!.selected, v!.previous!]) {
+      for (const k of ['publishedBy', 'publishedAt', 'createdAt', 'updatedAt', 'sfRunFolderId', 'clientId']) expect(s).not.toHaveProperty(k)
+    }
+    for (const k of ['uploadedBy', 'startedAt', 'finishedAt', 'createdAt', 'updatedAt', 'attempts', 'lastError', 'id', 'snapshotId']) {
+      expect(v!.runs[0]).not.toHaveProperty(k)
+    }
+    expect(v!.runs[0]).toEqual({ source: 'sf', status: 'failed' })
+    const team = await loadTechAuditView('x', undefined, 'team', NOW)
+    expect(team!.selected.publishedBy).toBe('a@b.c')
+    expect(team!.selected).not.toHaveProperty('createdAt')
+  })
+
   test('exposes crawlSettingsChanged and an empty issues list', async () => {
     all = [snap('2026-11-01', 'published', { crawlSettingsChanged: true })]
     const v = await loadTechAuditView('x', undefined, 'team', NOW)

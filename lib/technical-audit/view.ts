@@ -5,13 +5,25 @@ import { getSnapshotBundle, getSnapshots } from './store'
 import type { IssueRow, MetricsRow, RunRow, SnapshotRow } from './store'
 
 export type Viewer = 'team' | 'client'
-export type ViewRun = Omit<RunRow, 'lastError'> & { lastError?: string | null }
+export type ViewRun = { source: RunRow['source']; status: RunRow['status']; lastError?: string | null }
+/** Client-safe snapshot projection: no staff names, no row timestamps. publishedBy/publishedAt are team only. */
+export type ViewSnapshot = {
+  id: string
+  snapshotDate: string
+  status: 'draft' | 'published'
+  sfCrawlDate: string | null
+  ahrefsCrawlDate: string | null
+  gscExportDate: string | null
+  crawlSettingsChanged: boolean
+  publishedBy?: string | null
+  publishedAt?: Date | null
+}
 export type SeriesPoint = { date: string; value: number | null }
 
 export interface TechAuditView {
-  snapshots: { id: string; date: string; status: string }[]
-  selected: SnapshotRow
-  previous: SnapshotRow | null
+  snapshots: { id: string; date: string; status: 'draft' | 'published' }[]
+  selected: ViewSnapshot
+  previous: ViewSnapshot | null
   metrics: MetricsRow | null
   prevMetrics: MetricsRow | null
   series: Record<KpiKey, SeriesPoint[]>
@@ -25,6 +37,16 @@ export interface TechAuditView {
 
 const STALE_DAYS = 35
 const DAY_MS = 86_400_000
+
+const asStatus = (v: string): 'draft' | 'published' => (v === 'published' ? 'published' : 'draft')
+
+function toViewSnapshot(s: SnapshotRow, viewer: Viewer): ViewSnapshot {
+  const base: ViewSnapshot = {
+    id: s.id, snapshotDate: s.snapshotDate, status: asStatus(s.status), sfCrawlDate: s.sfCrawlDate,
+    ahrefsCrawlDate: s.ahrefsCrawlDate, gscExportDate: s.gscExportDate, crawlSettingsChanged: s.crawlSettingsChanged,
+  }
+  return viewer === 'team' ? { ...base, publishedBy: s.publishedBy, publishedAt: s.publishedAt } : base
+}
 
 function daysBetween(date: string, now: Date): number {
   return Math.floor((now.getTime() - new Date(`${date}T00:00:00Z`).getTime()) / DAY_MS)
@@ -59,17 +81,14 @@ export async function loadTechAuditView(
     KPI_DEFS.map((d) => [d.key, oldestFirst.map((s) => ({ date: s.snapshotDate, value: kpiValue(d.key, metricsOf(s)) }))]),
   ) as Record<KpiKey, SeriesPoint[]>
 
-  const runs: ViewRun[] = (bundles.get(selected.id)?.runs ?? []).map((r) => {
-    if (viewer === 'team') return r
-    const { lastError: _omit, ...rest } = r
-    return rest
-  })
+  const runs: ViewRun[] = (bundles.get(selected.id)?.runs ?? []).map((r) =>
+    viewer === 'team' ? { source: r.source, status: r.status, lastError: r.lastError } : { source: r.source, status: r.status })
 
   const newest = visible[0].snapshotDate
   return {
-    snapshots: visible.map((s) => ({ id: s.id, date: s.snapshotDate, status: s.status })),
-    selected,
-    previous,
+    snapshots: visible.map((s) => ({ id: s.id, date: s.snapshotDate, status: asStatus(s.status) })),
+    selected: toViewSnapshot(selected, viewer),
+    previous: previous ? toViewSnapshot(previous, viewer) : null,
     metrics: metricsOf(selected),
     prevMetrics: metricsOf(previous),
     series,
