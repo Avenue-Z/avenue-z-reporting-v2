@@ -121,3 +121,12 @@ test('only the AEO Informed Social page takes aeo and aeoMin; every other body i
   const fromElsewhere = bulkRequest(page('organic-social', 'organic-aeo-informed'), { ...RANGES, fromSection: 'organic-social' })
   expect('aeo' in fromElsewhere || 'aeoMin' in fromElsewhere).toBe(false)
 })
+
+test('only the Social Listening page takes slCols; every other body is unchanged', () => {
+  const withCols = { ...RANGES, fromSection: 'organic-social', slCols: 'b-ytd' }
+  expect(bulkRequest(page('organic-social', 'organic-social-listening'), withCols)).toMatchObject({ subsection: 'organic-social-listening', slCols: 'b-ytd' })
+  for (const p of [page('organic-social'), page('organic-social', 'organic-aeo-informed'), page('peec-ai'), page('paid-media', 'meta'), page('executive-overview')]) {
+    expect('slCols' in bulkRequest(p, withCols), p.key).toBe(false)
+  }
+  expect('slCols' in bulkRequest(page('organic-social', 'organic-social-listening'), { ...RANGES, fromSection: 'organic-social' })).toBe(false)
+})

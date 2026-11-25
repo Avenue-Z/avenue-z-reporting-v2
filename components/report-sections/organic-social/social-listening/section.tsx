@@ -12,6 +12,7 @@ import { monthOf, viewerForRole } from '@/lib/organic-social/reporting-months'
 import { SL_BRAND_BOX_IDS, SL_INDUSTRY_BOX_IDS, SL_VIEW_PREFIX, slBoxLabels, slBoxViewKey, type SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import { slCapabilities } from '@/lib/organic-social/social-listening/capabilities'
 import { logMalformedSocialListeningSetting, parseSocialListeningSetting, socialListeningSettingProblem, hasSocialListeningTab } from '@/lib/organic-social/social-listening/setting'
+import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
 import { getSlMonth } from '@/lib/organic-social/social-listening/store'
 import type { SlMonthData, SlTopic } from '@/lib/organic-social/social-listening/types'
 import { buildTopicView, NOT_READY_TEXT, servedMonths, topicPills } from '@/lib/organic-social/social-listening/view-model'
@@ -33,8 +34,11 @@ const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
  * and prints brand then industry (the export calls this once per topic; an industry topic with nothing to show renders
  * nothing).
  */
-export async function SocialListeningSection({ clientSlug, servedRange, role, email, topic, exporting, preview = false }: {
+export async function SocialListeningSection({ clientSlug, servedRange, role, email, topic, exporting, preview = false, cols = [] }: {
   clientSlug: string; servedRange: string; role: unknown; email: string | null | undefined; topic: SlTopic; exporting: boolean
+  /** The charts set to columns (slcols, plan 2026-11-24 Unit C); every other toggle chart starts on its line. The PDF prints the
+   *  same choice. */
+  cols?: readonly SlToggleChart[]
   /** Staff's "Preview as client" (slview=client): the page renders exactly what the client sees. Ignored for a client role
    *  (always the client view) and in the PDF (always the client view, no toggle). */
   preview?: boolean
@@ -116,7 +120,7 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
         label={view.state === 'missing' ? `Upload the ${shown} export for ${view.monthTitle}` : `Upload a new ${shown} export for ${view.monthTitle}`} />
     : view.state === 'missing' ? <Slot text={`No ${shown} export for ${view.monthTitle} yet.`} /> : null
 
-  const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName }
+  const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName, cols, exporting }
   const topics = setting.industryTopic ? `Talkwalker topics: ${setting.brandTopic}, and ${setting.industryTopic}` : `Talkwalker topic: ${setting.brandTopic}`
   return (
     <div className={s.root}>

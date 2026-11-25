@@ -7,6 +7,7 @@ import type { ExportPage } from './pages'
 import type { ExportRequest } from './request'
 import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import { AEO_TAB_ID } from '@/lib/organic-social/aeo-tab/setting'
+import { SOCIAL_LISTENING_TAB_ID } from '@/lib/organic-social/social-listening/setting'
 
 /** One page's request body, before the button adds the requester's timezone. */
 export type PageRequest = Omit<ExportRequest, 'tz'>
@@ -25,6 +26,8 @@ export interface BulkRanges {
   /** The AEO Informed Social tab's range and min, set only when the export starts from that tab. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The Social Listening tab's charts set to columns (slcols), set only when the export starts from that tab with a chart on its columns. */
+  slCols?: string
 }
 
 export type PageResult = { ok: true; pdf: ArrayBuffer; filename: string } | { ok: false; error: string }
@@ -43,6 +46,8 @@ export function bulkRequest(page: ExportPage, r: BulkRanges): PageRequest {
     // Only the AEO Informed Social page takes the range and min the export was started with; every other body is as it was.
     ...(page.subsection === AEO_TAB_ID && r.aeo ? { aeo: r.aeo } : {}),
     ...(page.subsection === AEO_TAB_ID && r.aeoMin ? { aeoMin: r.aeoMin } : {}),
+    // Only the Social Listening page takes the charts set to columns the export was started with.
+    ...(page.subsection === SOCIAL_LISTENING_TAB_ID && r.slCols ? { slCols: r.slCols } : {}),
   }
 }
 
