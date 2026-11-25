@@ -1,0 +1,15 @@
+{
+  "healthscores": [
+    {
+      "project_id": 9371114,
+      "date": "2026-11-18T16:42:47Z",
+      "status": "Completed",
+      "health_score": 61,
+      "urls_with_errors": 1013,
+      "urls_with_warnings": 1039,
+      "urls_with_notices": 603,
+      "total": 2620,
+      "target_mode": "subdomains"
+    }
+  ]
+}
