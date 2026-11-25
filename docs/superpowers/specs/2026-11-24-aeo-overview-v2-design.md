@@ -86,7 +86,8 @@ everything a "v2 layout" needs:
      `extraParts` entries that name v1 or v2 Overview parts (bespoke parts and unrelated keys stay);
   3. stops on any client with a `frozen` snapshot and prints it, so Paul decides per client (a frozen client would
      otherwise stay on v1).
-  It runs read-only first (prints the diff), then with `--apply`. The template row is insert-if-absent, so editing
+  It runs read-only first (prints the diff), then with `--apply`. Today only Renaissance has the AEO Overview in production
+  (Tina, 25 Nov), so the first flip touches one client's config; the script stays general for clients added later. The template row is insert-if-absent, so editing
   `template.ts` alone changes nothing in production (memory: report-part rollout gotchas). Update `template.ts` too so
   fresh environments match.
 - **Cleanup PR:** delete v1 parts no template or config references (`guard.test.ts` lists what is still referenced).
@@ -185,15 +186,19 @@ KPI catalog:
 |---|---|---|---|---|
 | AI visibility | Share of tracked AI answers that mention the brand | `brandRankings` (exists) | visibility report (exists) | pts |
 | AI share of voice | Brand mentions ÷ all tracked brand mentions | `brandRankings` (exists) | exists | pts |
-| AI visibility rank | Rank among tracked brands by visibility (open question Q2) | current exists; prior derivable | derivable from per-brand rows | places |
+| AI visibility rank | Rank among tracked brands by visibility, e.g. "#9 of 29" (Tina, Q2) | current exists; prior derivable | derivable from per-brand rows | places |
 | Used as a source % | Share of answers that retrieved an owned domain (Peec "retrieved") | own-domain row of `topDomains` (derivable) | citation report; note Profound's `retrieved` field is actually citation share — confirm metric | pts |
 | Sentiment | Perception score | `brandRankings` (exists) | `lib/profound/sentiment.ts` (overview currently hardcodes 0) | points |
 | AI search sessions | GA4 sessions from AI referrers | exists (`isAiSource`) | same | % |
 | Share of traffic from AI | AI sessions ÷ all sessions | **new GA4 query** for total sessions (today's query is `sessionSource` with limit 150, so it can't be summed reliably) | same | pts |
-| AI search leads | Lead key events from AI sessions (open question Q4) | **new GA4 query** (keyEvents by sessionSource) | same | % |
+| AI search leads | GA4 conversions (key events) from AI sessions; Tina, Q4: default to GA4 "conversions", per-client customization later | **new GA4 query** (`keyEvents` by `sessionSource`; GA4 renamed `conversions` to key events) | same | % |
 | AI search CVR | AI leads ÷ AI sessions | from the two above | same | pts |
 
-Open question Q1 (Tina): today's strip has **Citation Share**, which isn't in the 9. Drop it or add it as a 10th.
+**Citation Share** (on today's strip) is not in the 9. Tina did not answer Q1 directly (her comment on that line is about
+leaderboards, now in 02 below), so v2 follows her list of 9 and drops it, unless she says otherwise.
+
+Starting KPIs per client are set by Melena (AEO) at each client's rollout (Tina, 25 Nov); the default five above apply
+until then.
 
 ### 02 · Visibility vs Competitors
 
@@ -203,10 +208,9 @@ Open question Q1 (Tina): today's strip has **Citation Share**, which isn't in th
   **Show competitors** switch.
 - Competitors on: the client's line (heavier, can't be unchecked) plus checked competitors. Default: client plus the top 4
   competitors by visibility. Cap around 8 visible lines with a warning.
-- Competitors off: the client's current line vs a previous line (gray), hidden when deltas are off / no comparison.
-  The chart is always year-to-date (`lib/peec/client.ts:405-412`) while the comparison range follows the date picker, so
-  what "previous" means here is **open question Q6**. This is the one place exempt from "every prior figure uses the
-  selected comparison range" until Q6 is answered.
+- Competitors off (Tina, Q6 = option b): the client's single year-to-date line, with the selected period shaded and its
+  comparison period shaded in a lighter tone. The comparison shading is hidden when deltas are off or there is no
+  comparison. No second line and no extra fetch; the chart stays year-to-date (`lib/peec/client.ts:405-412`).
 - Keep the Daily / Weekly / Monthly / Quarterly control and the year-to-date window.
 - Data: per-brand lines are derivable. Peec trend rows carry `brand` (today filtered to the client and pooled competitors,
   `lib/peec/client.ts`); Profound's YTD visibility report already uses dimensions `date × asset_name`.
@@ -216,13 +220,17 @@ Open question Q1 (Tina): today's strip has **Citation Share**, which isn't in th
 
 - Columns: #, Brand, Visibility, Δ, Share of voice, Δ, Used as a source %, Δ. Position removed. Client row highlighted.
   "See all N rows" stays.
+- **Client row pinned when outside the leaderboard** (Tina, 25 Nov): when the table shows only the top N rows and the
+  client isn't among them, add the client as a last row with its real rank (e.g. "#14"), visually set apart, so the reader
+  sees how far the client is from making the list. Applies to any brand leaderboard on the page that shows a top N.
 - Used as a source % per brand: **new call** for Peec (`GET /brands` returns each brand's `domains`; join to the domain
   report's `retrieved`), as already done in `lib/aeo-outbound/pull.ts`. Profound: no brand→domain mapping in code today;
   needs a mapping (Profound asset domains, or per-client config). Builder confirms with a live call.
 
 ### 03 · Performance by AI Model
 
-- One speedometer per AI model the client tracks (grid wraps). Scale 0–100% (open question Q3 for share of voice).
+- One speedometer per AI model the client tracks (grid wraps). True 0–100% scale for every metric, share of voice
+  included (Tina, Q3).
   A tick marks the competitor average on that model.
 - Under each gauge: the value, a change line ("↓ 3.1 pts vs previous period", hidden when deltas are off), and
   "Competitor avg 46.2%".
@@ -268,16 +276,18 @@ Open question Q1 (Tina): today's strip has **Citation Share**, which isn't in th
 - Data, Peec: `lib/peec/url-citations.ts` has url, title, classification, citation count and rate; the API row's
   `retrievals` / `retrieval_count` are dropped today (derivable for Used as a source %). Prior values need a second call
   for the prior window (as `competitor-gaps` does).
-- Data, Profound: nothing URL-level in code. **Needs a live call first** to confirm the citations report accepts a URL
-  dimension. If it doesn't, Profound clients show this section at domain level and the gap is reported to Tina.
+- Data, Profound: nothing URL-level in code yet, but Tina confirms Profound provides page-level data (25 Nov). The builder
+  finds the right report/dimension with a live call; no domain-level fallback is planned.
 
-## 7. Prompt scope (open question Q5)
+## 7. Prompt scope (decided, Tina, 25 Nov)
 
-The brief proposes visibility, SoV, rank, used as a source %, the matrix and prompt performance on **non-branded prompts
-only**, and sentiment on **branded only** (as agreed for AMU). Nothing filters on branded/non-branded today. For Peec it is
-feasible (each prompt's tags are fetched); Profound has no equivalent in code. Turning it on changes Renaissance's headline
-numbers from what the client has seen. **Tina decides** whether v2 adopts it. If yes, it applies to every metric on the page
-at once (anti-goal: mixed prompt sets).
+- **Peec: all prompts.** The team doesn't put branded prompts into Peec, so no filter is needed and Renaissance's numbers
+  don't change.
+- **Profound: filter by prompt type.** Avenue Z's default Profound config marks non-branded prompts as type
+  **"Visibility"** and branded prompts as type **"Sentiment"**. Visibility, share of voice, rank, used as a source %, the
+  topic matrix and prompt performance use Visibility-type prompts; sentiment uses Sentiment-type prompts. Nothing in
+  `lib/profound` filters on prompt type today; the builder confirms with a live call how the reports API exposes it
+  (filter field name) before the first Profound slice. Avenue Z (Profound) is the test client.
 
 ## 8. Slices (one feature PR + one review-record PR each, in this order)
 
@@ -287,27 +297,38 @@ at once (anti-goal: mixed prompt sets).
 | 2 | 02 Visibility vs Competitors: per-brand trend chart; brand table v2 (+ Peec `/brands` join; Profound mapping) | 1 |
 | 3 | 04 Topics & Prompts: topic matrix; Prompt Performance (Peec derivations; Profound new calls) | 1 |
 | 4 | 05 Cited Sources: URL table (Peec; Profound after the live check) | 1 |
-| 5 | 03 Performance by AI Model: gauges (needs Q3) | 1 |
-| 6 | 01 Snapshot KPIs: catalog, tiles, staff-only editor + storage, new GA4 queries (needs Q1, Q2, Q4) | 1 |
+| 5 | 03 Performance by AI Model: gauges | 1 |
+| 6 | 01 Snapshot KPIs: catalog, tiles, staff-only editor + storage, new GA4 queries | 1 |
 | 7 | Flip script (`scripts/flip-aeo-overview-v2.ts`, section 4) in its own PR; run read-only, then `--apply` after Tina's sign-off | 2–6 |
 | 8 | Cleanup: delete unreferenced v1 parts and their goldens | 7 |
 
-Slices 2–6 are independent once slice 1 lands. KPIs and gauges are last because they wait on Tina's answers.
+Slices 2–6 are independent once slice 1 lands. Profound work in each slice applies the prompt-type rule in section 7.
 
-## 9. Open questions for Tina
+## 9. Tina's answers (25 Nov 2026) and what's still open
 
-- **Q1.** Citation Share: drop it, or add it as a 10th KPI?
-- **Q2.** AI visibility rank: rank among tracked brands ("#9 of 29") or the AMU style ("#1 in 13 of 41 topics")?
-- **Q3.** Share-of-voice gauge: true 0–100% scale (small values look nearly empty) or a lower fixed max?
-- **Q4.** AI search leads: GA4 key events, or the CRM when a client has one connected?
-- **Q5.** Non-branded-only prompt scope (section 7): adopt it in v2?
-- **Q6.** Trend chart with competitors off: the chart covers the year to date, but the comparison follows the date
-  picker. What should the gray "previous" line be?
-  (a) the same Jan 1–today span last year: the natural reading of "grown this year", but most clients have no tracking
-  from last year, so the line would be missing or partial (on staging, Renaissance's YTD chart starts Jan 19, 2026);
-  (b) keep one YTD line and shade the selected period and its comparison period on it;
-  (c) make the chart follow the date picker instead of YTD, and draw the comparison window as the gray line (the title
-  would change). Claude's recommendation: (b), which works for every client and matches "current vs previous period".
+Answered in the returned "Decisions for Approval — AEO Overview Page" (comments and inline TF notes):
+
+| # | Question | Answer |
+|---|---|---|
+| Q2 | AI visibility rank | Rank among tracked brands |
+| Q3 | Share-of-voice gauge scale | True 0–100% |
+| Q4 | AI search leads source | GA4 "conversions" (key events) by default; per-client customization later |
+| Q5 | Prompt scope | Peec: all prompts. Profound: Visibility-type vs Sentiment-type prompts (section 7) |
+| Q6 | Trend chart "previous" | Option (b): one YTD line, selected and comparison periods shaded |
+| — | Rollout | Confirmed; Renaissance is the only client on the AEO Overview in production today |
+| — | Profound URL-level data | Profound provides page-level data |
+| — | Removals | Confirmed, including the competitor gap list |
+| — | Provider per client | One primary tool per client; Renaissance = Peec, Avenue Z = Profound |
+| — | Starting KPIs | Melena sets them per client at rollout |
+| new | Leaderboards | Pin the client as a last row with its rank when it falls outside a top-N list (section 6, 02) |
+
+Still open:
+
+- **Q1, Citation Share:** not answered directly. v2 drops it (follows her 9); confirm with Tina in passing.
+- **"Staged as a new page":** Tina's note on rollout says the work "can be staged as a new page to help keep the live
+  Renaissance report safe". Section 4 already keeps the live page untouched (v2 shows only on staging until the flip).
+  If she means a separate, internal-only v2 page in production next to the live one, that's a different rollout; to
+  confirm with her before slice 1.
 
 ## 10. Edge cases
 
@@ -317,10 +338,11 @@ Slices 2–6 are independent once slice 1 lands. KPIs and gauges are last becaus
 - Long prompts and URLs wrap; never truncate.
 - PDF export respects the current toggles (compare range, deltas, selected competitors, matrix mode). Toggle state that
   lives only client-side (checkboxes) must be in the URL or it won't reach the export render.
-- A client with both Peec and Profound keeps the provider tabs; each tab renders the v2 page from its own provider.
+- One provider per client (Tina, 25 Nov): each client has a primary tool, Peec or Profound. v2 is built and tested for a
+  single provider; nothing new is built for clients with both. The existing provider tabs are left as they are.
 - A model filter (`models`) still applies wherever it does today; parts that can't honor it say so, as `kpi-cards` does now.
 
-## 11. Acceptance (whole feature, checked on staging for Renaissance and for one Profound client)
+## 11. Acceptance (whole feature, checked on staging for Renaissance (Peec) and Avenue Z (Profound))
 
 - Five numbered sections with eyebrow, headline, description and a section nav.
 - KPI strip: up to 5 tiles; editor visible to staff only; 9-KPI catalog; max 5 enforced; saved per client.

@@ -6,6 +6,29 @@ This covers Tina's Overview brief and mockup (23 Nov 2026), for every AEO client
 
 ---
 
+## ✅ Resolutions — 25 Nov 2026
+
+From Tina Fleming's inline notes (TF) and comments on the doc. Items marked **Changed** alter the design.
+
+| # | Decision | Resolution |
+|---|---|---|
+| 1 | One switch at the end | **Confirmed.** "Can be staged as a new page to help keep the live Renaissance report safe." Renaissance is the only client on this page today. Open: whether "new page" means a separate internal page in production (to confirm). |
+| 2 | Five numbered sections | **Confirmed.** |
+| 3 | Compare to and Δ columns | **Confirmed.** |
+| 4 | KPIs team-only, per client, default five | **Confirmed.** Rank = rank among tracked brands. Leads = GA4 "conversions" (key events) by default, custom per client later. Melena sets each client's KPIs at rollout. Citation Share: not answered directly; we follow the list of 9 and drop it. |
+| 4 | Leaderboards | **Changed (new):** when the client isn't in a top-N list, show it as the last row with its rank. |
+| 5 | Trend chart "previous" | **(b)**: one line for the year, selected and comparison periods shaded. |
+| 6 | Brand table | **Confirmed.** |
+| 7 | Speedometer scale | **Keep the true scale.** |
+| 8 | Topic matrix and Prompt Performance | **Confirmed.** |
+| 9 | URLs instead of domains | **Confirmed. Changed:** Profound provides page-level data, so no domain-level fallback. |
+| 10 | Remove competitor sections | **Removal confirmed.** |
+| 11 | Prompt scope | **Changed:** Peec uses all prompts (branded prompts aren't put in Peec). Profound uses "Visibility"-type prompts for visibility metrics and "Sentiment"-type prompts for sentiment. |
+| 12 | Smaller assumptions | **Changed:** one primary tool per client (Peec or Profound), so nothing is built for clients with both. |
+| — | Profound test client | Renaissance is Peec; Avenue Z is Profound. Future clients' tools will be provided. |
+
+---
+
 ### ⚠️ 1. Clients keep today's page until the whole new page is signed off
 
 We build the new page next to the current one. Renaissance sees it on staging first, filling in section by section, while no client sees anything new. Once you sign off, every AEO client switches at once. Nobody ever sees a half-old, half-new page; the trade-off is that nothing reaches clients until the last section is done.
