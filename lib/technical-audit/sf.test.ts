@@ -47,6 +47,10 @@ describe('parseSfIssuesOverview', () => {
     const r = parseSfIssuesOverview('Issue Name,Issue Type,Issue Priority,URLs\nA,Issue,High,SECRET-VALUE\n', '2026-11-01')
     expect(r).toEqual({ ok: false, reason: "Non-numeric value in column 'URLs'" })
   })
+  it('refuses a file where no row has a recognised Issue Type', () => {
+    const r = parseSfIssuesOverview('Issue Name,Issue Type,Issue Priority,URLs\nA,Problème,High,3\nB,Avertissement,Low,2\n', '2026-11-01')
+    expect(r).toEqual({ ok: false, reason: "No recognised 'Issue Type' values" })
+  })
   it('skips rows with an unknown Issue Type', () => {
     const r = parseSfIssuesOverview('Issue Name,Issue Type,Issue Priority,URLs\nA,Info,High,3\nB,Issue,High,2\n', '2026-11-01')
     expect(r.ok && r.value.issues).toHaveLength(1)

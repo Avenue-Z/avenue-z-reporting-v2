@@ -130,5 +130,6 @@ export function parseSfIssuesOverview(csv: string, crawlDate: string): Parsed<Sf
       urlCount: n,
     })
   }
+  if (rows.length > 1 && issues.length === 0) return { ok: false, reason: "No recognised 'Issue Type' values" }
   return { ok: true, value: { crawlDate, issueTypes, urls, issues } }
 }
