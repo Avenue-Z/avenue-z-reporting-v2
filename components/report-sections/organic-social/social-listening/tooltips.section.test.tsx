@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock('@/components/report-sections/commentary/monthly', () => ({ monthlyCommentary: vi.fn(async () => null) }))
 // Every lookup answers, so a tile or card that never looks the table up is the one without a hint.
 vi.mock('@/lib/organic-social/social-listening/tooltips', () => ({
-  slTileTooltip: (topic: string, title: string) => `tile ${topic} ${title}`,
+  slTileTooltip: (topic: string, tile: string) => `tile ${topic} ${tile}`,
   slCardTooltip: (box: string) => `card ${box}`,
 }))
 

@@ -6,9 +6,10 @@
 // doc in one commit. Plain data, safe in server and client code.
 import type { SlBoxId } from './boxes'
 import type { SlTopic } from './types'
+import type { SlTileId } from './view-model'
 
-/** A tile is keyed by its topic and its title as the page prints it ("brand:Results"); a chart card by its analysis box id
- *  ("b-daily"), which is fixed (boxes.ts). */
+/** A tile is keyed by its topic and its fixed tile id ("brand:results", view-model.ts SlTileId); a chart card by its
+ *  analysis box id ("b-daily", boxes.ts). Never by title text, which a copy change could alter (plan review round 1). */
 export type SlTooltipTable = { tiles: ReadonlyMap<string, string>; cards: ReadonlyMap<SlBoxId, string> }
 
 export const SL_TOOLTIPS: SlTooltipTable = {
@@ -17,8 +18,8 @@ export const SL_TOOLTIPS: SlTooltipTable = {
 }
 
 /** The text for a tile, or undefined (no hint). */
-export function slTileTooltip(topic: SlTopic, title: string, table: SlTooltipTable = SL_TOOLTIPS): string | undefined {
-  return table.tiles.get(`${topic}:${title}`)
+export function slTileTooltip(topic: SlTopic, tile: SlTileId, table: SlTooltipTable = SL_TOOLTIPS): string | undefined {
+  return table.tiles.get(`${topic}:${tile}`)
 }
 
 /** The text for a chart card, or undefined (no hint). */

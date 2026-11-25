@@ -161,7 +161,7 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
             <div className={`${s.grid} ${s.g4}`}>
               {r.tiles.map((t) => {
                 const v = tileValue(t)
-                return <Kpi key={t.title} title={t.title} value={v.value} sub={v.sub} delta={t.change} label={label} tooltip={slTileTooltip('brand', t.title)} />
+                return <Kpi key={t.title} title={t.title} value={v.value} sub={v.sub} delta={t.change} label={label} tooltip={slTileTooltip('brand', t.id)} />
               })}
             </div>
             {boxes['b-kpis']}
