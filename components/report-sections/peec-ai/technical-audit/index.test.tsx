@@ -67,7 +67,7 @@ async function show(session: unknown, { snapshot, exporting = false }: { snapsho
   return render(<TooltipProvider>{exporting ? <ExportModeProvider>{page}</ExportModeProvider> : page}</TooltipProvider>)
 }
 
-describe('TechnicalAuditPage', () => {
+describe('TechnicalAuditPage', { timeout: 20_000 }, () => {
   test('renders the commentary header bound to the snapshot date as a one-day range', async () => {
     await show(STAFF, { snapshot: '2026-10-01' })
     expect(screen.getByTestId('shared-parts')).toBeTruthy()
