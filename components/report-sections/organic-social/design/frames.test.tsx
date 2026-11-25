@@ -37,7 +37,9 @@ describe('SlCard', () => {
     // The note stays in the card; the box is the card's next sibling, never inside it.
     expect(card.querySelector('p')?.textContent).toBe('A note line.')
     expect(card.querySelector('[data-box]')).toBeNull()
-    expect(box.getAttribute('data-box')).toBe('b-x')
+    // The box sits in its own cell, so an empty box's button keeps its width in an aligned pair row.
+    expect(box.className).toMatch(/box/)
+    expect(box.querySelector('[data-box]')?.getAttribute('data-box')).toBe('b-x')
   })
 
   test('a box of null (a client with no approved text) renders the card alone, as without a box', () => {

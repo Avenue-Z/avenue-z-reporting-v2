@@ -122,17 +122,21 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
           </SlSection>
 
           <SlSection title="Sentiment">
-            <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} bodyClassName={`${s.donutWrap} ${f.donutBody}`}>
-              <Donut counts={r.sentiment.counts} />
-              <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
-            </SlCard>
-            {view.show.owned && r.owned && (
-              <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={`${s.donutWrap} ${f.donutBody}`}
-                note="Excludes results from the brand's owned channels.">
-                <Donut counts={r.owned.counts} />
-                <Legend counts={r.owned.counts} pct={r.owned.pct} />
+            {/* The two donuts stay side by side, as on the approved tab; each box sits under its card, and the pair row lines
+                the cards up to one height and the boxes up to one line (frames.module.css .pair). */}
+            <div className={`${s.grid} ${s.g2} ${f.pair}`}>
+              <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} bodyClassName={s.donutWrap}>
+                <Donut counts={r.sentiment.counts} />
+                <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
               </SlCard>
-            )}
+              {view.show.owned && r.owned && (
+                <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={s.donutWrap}
+                  note="Excludes results from the brand's owned channels.">
+                  <Donut counts={r.owned.counts} />
+                  <Legend counts={r.owned.counts} pct={r.owned.pct} />
+                </SlCard>
+              )}
+            </div>
             <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['b-cross']}>
               <HBars rows={r.cross} />
             </SlCard>

@@ -61,37 +61,43 @@ beforeEach(() => {
 })
 afterEach(() => { warn.mockRestore() })
 
-describe.each(['brand', 'industry'] as const)('%s topic layout', (topic) => {
-  test('no chart card shares a row: no two-column grid holds a card', async () => {
-    const root = await page({ topic })
-    const twoCol = Array.from(root.querySelectorAll('div[class]')).filter((d) => cls(d, 'g2'))
-    for (const grid of twoCol) expect(grid.querySelector('h3')).toBeNull()
+/** The two-column rows that hold chart cards, each as the titles of its cards. */
+const pairedRows = (root: Element) => Array.from(root.querySelectorAll('div[class]')).filter((d) => cls(d, 'g2') && d.querySelector('h3'))
+  .map((row) => ({ row, titles: Array.from(row.querySelectorAll('h3')).map((h) => h.textContent) }))
+
+describe('rows', () => {
+  test('brand: the two donuts stay side by side, as on the approved tab, in an aligned pair row; nothing else is paired', async () => {
+    const rows = pairedRows(await page())
+    expect(rows.map((r) => r.titles)).toEqual([['Share of sentiment', 'Without brand-owned channels']])
+    expect(cls(rows[0].row, 'pair')).toBe(true)
+  })
+
+  test('industry: no chart card shares a row', async () => {
+    const root = await page({ topic: 'industry' })
+    expect(pairedRows(root)).toEqual([])
     expect(cards(root).length).toBeGreaterThan(3)
   })
 
+  test('brand donuts keep the approved markup inside the card (no width cap); the lone industry donut keeps the half-card width', async () => {
+    const donutBody = (root: Element) => cardTitled(root, 'Share of sentiment')!.querySelector('ul')!.parentElement!
+    const brand = donutBody(await page())
+    expect(cls(brand, 'donutWrap')).toBe(true)
+    expect(cls(brand, 'donutBody')).toBe(false)
+    const industry = donutBody(await page({ topic: 'industry' }))
+    expect(cls(industry, 'donutWrap')).toBe(true)
+    expect(cls(industry, 'donutBody')).toBe(true)
+  })
+})
+
+describe.each(['brand', 'industry'] as const)('%s topic layout', (topic) => {
   test('every analysis box of a chart card sits under its card, outside it, in one export block with it', async () => {
     const root = await page({ topic })
     for (const card of cards(root)) {
       expect(card.querySelector('[data-box]')).toBeNull()
-      const box = card.nextElementSibling
-      if (box?.hasAttribute('data-box')) {
-        expect(card.hasAttribute('data-export-block')).toBe(false)
-        expect(card.parentElement!.hasAttribute('data-export-block')).toBe(true)
-      }
-    }
-    // Every chart card in this staff view has its box (staff always get "+ Add analysis").
-    const boxed = cards(root).filter((c) => c.nextElementSibling?.hasAttribute('data-box'))
-    expect(boxed.length).toBe(cards(root).length)
-  })
-
-  test('a donut card keeps the donut and its legend at the approved half-card width, so the numbers sit by their labels', async () => {
-    const root = await page({ topic })
-    const donutCards = cards(root).filter((c) => c.querySelector('svg circle') && c.querySelector('ul'))
-    expect(donutCards.length).toBeGreaterThan(0)
-    for (const card of donutCards) {
-      const body = card.querySelector('ul')!.parentElement!
-      expect(cls(body, 'donutWrap')).toBe(true)
-      expect(cls(body, 'donutBody')).toBe(true)
+      const cell = card.nextElementSibling
+      expect(cell?.querySelector('[data-box]')).not.toBeNull()
+      expect(card.hasAttribute('data-export-block')).toBe(false)
+      expect(card.parentElement!.hasAttribute('data-export-block')).toBe(true)
     }
   })
 
@@ -117,7 +123,7 @@ describe('industry month-by-month card (Q3: stays until Savannah answers)', () =
     const root = await page({ topic: 'industry' })
     const card = cardTitled(root, 'Sentiment, ')
     expect(card).toBeDefined()
-    expect(card!.nextElementSibling?.getAttribute('data-box')).toBe('i-ytd')
+    expect(card!.nextElementSibling?.querySelector('[data-box]')?.getAttribute('data-box')).toBe('i-ytd')
   })
 
   test('the conversation box still shows for staff when the month has no industry upload', async () => {

@@ -35,7 +35,7 @@ export function SlCard({ title, meta, note, box, children, bodyClassName }: {
   return (
     <div className={f.item} data-export-block="">
       <div className={s.card}>{parts}</div>
-      {box}
+      <div className={f.box}>{box}</div>
     </div>
   )
 }
