@@ -126,7 +126,7 @@ Fixtures mirror the shapes recorded in the probes doc (projects: `healthscores[{
   - `pickAhrefsCrawl`: `('2026-11-11T16:55:16Z', '2026-11-12')` → true; `('2026-11-01T00:00:00Z', '2026-11-12')` → false; `('2026-11-13T00:00:00Z', '2026-11-12')` → false.
   - `parseAhrefsProjects` on fixture with `'2026-11-18'` → `{ ok: true, value: { crawlDate: '2026-11-18T16:42:47Z', healthScore: 61 } }`; with `'2026-12-01'` → `ok: false`.
   - `parseAhrefsIssues drops zero-crawled rows and suffixes not-indexable duplicates`.
-  - `fetchAhrefs retries once on 429 then succeeds` and `throws Ahrefs 401 without retry` (mock `fetch`).
+  - `fetchAhrefs retries once on 429 then succeeds`, `throws Ahrefs 401 without retry`, and `aborts after 15 s` (fake timers; mock `fetch` that never resolves).
 - [ ] **Step 2:** Run `npx vitest run lib/technical-audit/ahrefs.test.ts` — Expected: FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run — Expected: PASS.
@@ -144,6 +144,7 @@ Fixtures mirror the shapes recorded in the probes doc (projects: `healthscores[{
 - `completeRun(snapshotId, source, raw: Uint8Array, write: { metrics?: Partial<TechAuditMetricsInsert>; issues?: SourceIssue[]; snapshot?: Partial<TechAuditSnapshotInsert> }): Promise<void>` — one transaction: replace that source's issue rows, upsert metrics, update snapshot dates/score, set run `complete`.
 - `failRun(snapshotId, source, status: 'failed' | 'missing', reason: string): Promise<void>`.
 - `setSnapshotStatus(snapshotId: string, status: 'draft' | 'published', by: string): Promise<void>`.
+- Row types: `SnapshotRow = typeof techAuditSnapshots.$inferSelect`, `TechAuditSnapshotInsert` / `TechAuditMetricsInsert` = the tables' `$inferInsert`.
 - `getSnapshots(clientId: string, opts: { publishedOnly: boolean }): Promise<SnapshotRow[]>` newest first, and `getSnapshotBundle(snapshotId: string): Promise<{ snapshot; runs; metrics; issues }>`.
 - `getOverrides(clientId: string)` / `setOverride(clientId, issueKey, patch: { hidden?: boolean; note?: string | null }, by: string)`.
 
@@ -163,7 +164,7 @@ Fixtures mirror the shapes recorded in the probes doc (projects: `healthscores[{
 **Interfaces:**
 - Consumes: Tasks 2–4.
 - Produces: `runSweep(deps: SweepDeps, now: Date): Promise<SweepReport>` where `SweepDeps` bundles the Task 2–4 functions plus `listClients(): Promise<{ id; slug; sfDriveFolderId: string | null; ahrefsProjectId: string | null }[]>` (injected for tests); `SweepReport = { brands: number; created: number; completed: string[]; failed: { slug: string; date: string; source: TaSource; reason: string }[]; staleCrawl: string[] }`. Brands processed with `mapWithConcurrency(brands, 4, …)`; each brand's work wrapped so one throw never rejects the batch.
-- Rules: discover → `ensureSnapshot` for each run on/after the client's newest snapshot (first run for a brand: only the latest folder); for each draft snapshot with `sf`/`ahrefs` claimable: SF → `fetchIssuesOverview` (null → `failRun(…, 'missing', 'Issues Overview not in this crawl’s export')`), Ahrefs → `fetchAhrefs`; parse failure → `missing` with reason; thrown error → `failed` with message. No folder newer than 35 days → slug in `staleCrawl`. Each failure logs `[tech-audit] <slug> <date> <source> <reason>`.
+- Rules: discover → `ensureSnapshot` for every run folder newer than the client's newest snapshot (first run for a brand: all existing folders, so history builds; older months will mostly have SF `missing` and Ahrefs from its dated past crawls); for each draft snapshot with `sf`/`ahrefs` claimable: SF → `fetchIssuesOverview` (null → `failRun(…, 'missing', 'Issues Overview not in this crawl’s export')`), Ahrefs → `fetchAhrefs`; parse failure → `missing` with reason; thrown error → `failed` with message. No folder newer than 35 days → slug in `staleCrawl`. Each failure logs `[tech-audit] <slug> <date> <source> <reason>`.
 - Route: `GET`, `dynamic = 'force-dynamic'`, `maxDuration = 300`, `Authorization: Bearer ${CRON_SECRET}` exactly as `app/api/health/sweep/route.ts`; returns the report JSON.
 
 - [ ] **Step 1: Write the failing tests:**
@@ -249,9 +250,9 @@ Fixtures mirror the shapes recorded in the probes doc (projects: `healthscores[{
 - `KPI_DEFS` — six entries `{ key: 'health' | 'sf_issue_types' | 'indexed' | 'not_indexed' | 'cwv_poor_mobile' | 'cwv_good_pct_mobile'; label; better: 'higher' | 'lower'; unit: 'pts' | 'count' | 'pct' }` per spec Appendix A.1.
 - `kpiValue(key, metrics): number | null` (`cwv_good_pct_mobile` = good / (poor + ni + good) × 100; null when any input null or total 0).
 - `kpiDelta(cur: number | null, prev: number | null): number | null` and `deltaTone(key, delta): 'good' | 'bad' | 'flat' | null`.
-- `loadTechAuditView(clientSlug: string, snapshotParam: string | undefined, viewer: 'team' | 'client'): Promise<TechAuditView | null>` → `{ snapshots: { id; date; status }[]; selected; previous | null; metrics; prevMetrics; series: Record<KpiKey, { date: string; value: number | null }[]>; runs; checklist (team only); issues (Task 11 fills later; empty array until then) }`. Client viewer: published only; unknown/draft param → latest published; `null` when none.
+- `loadTechAuditView(clientSlug: string, snapshotParam: string | undefined, viewer: 'team' | 'client'): Promise<TechAuditView | null>` → `{ snapshots: { id; date; status }[]; selected; previous | null; metrics; prevMetrics; series: Record<KpiKey, { date: string; value: number | null }[]>; runs; checklist (team only; commentary state `'none'` until Task 13); issues (Task 12 fills; empty array until then); staleSince: string | null (newest snapshot date when > 35 days old, team only); crawlSettingsChanged: boolean }`. Client viewer: published only; unknown/draft param → latest published; `null` when none.
 
-- [ ] **Step 1: Write the failing tests:** `kpiValue returns null when GSC is missing`; `kpiDelta is null when either side is null`; `deltaTone: lower-is-better KPI going down is good`; `client viewer requesting a draft date gets the latest published`; `previous is the snapshot immediately before the selected one`; `series keeps nulls as gaps`.
+- [ ] **Step 1: Write the failing tests:** `kpiValue returns null when GSC is missing`; `staleSince is set when the newest snapshot is 36 days old and null at 30`; `kpiDelta is null when either side is null`; `deltaTone: lower-is-better KPI going down is good`; `client viewer requesting a draft date gets the latest published`; `previous is the snapshot immediately before the selected one`; `series keeps nulls as gaps`.
 - [ ] **Step 2–4:** FAIL → implement → PASS.
 - [ ] **Step 5: Commit** `feat(technical-audit): view model and KPIs`.
 
@@ -267,8 +268,9 @@ Fixtures mirror the shapes recorded in the probes doc (projects: `healthscores[{
 - Produces: `TechnicalAuditPage({ clientSlug, snapshot }: { clientSlug: string; snapshot?: string })`; `ExportRequest.snapshot?: string` (validated `^\d{4}-\d{2}-\d{2}$`).
 - Wiring: all three render sites call `TechnicalAuditPage` with the `snapshot` search param; `technical-audit` is excluded from the date-picker condition and from `usesPageRange` in both routes; the snapshot select navigates by replacing `snapshot=` in the URL.
 - Blank GSC tile copy (exact): team `Upload the GSC report to fill this tile`; client `Not available for this month`. Tile ⓘ text names the source path from brief §2.3.
+- Header shows `Compared with: <prev date>` or `Baseline — first snapshot`, one data-as-of line per source (SF crawl, Ahrefs crawl, GSC export) with status dot, a `Crawl settings changed` flag when set, and (team only) `No crawl since <date>` when `staleSince` is set.
 
-- [ ] **Step 1: Write the failing tests:** `renders the checklist for staff and not for clients`; `GSC tiles show the team/client blank copy when not uploaded`; `CWV tile renders mobile and desktop together`; `parseExportRequest keeps a valid snapshot and drops an invalid one`; `client export of a draft date renders the latest published snapshot`.
+- [ ] **Step 1: Write the failing tests:** `renders the checklist for staff and not for clients`; `shows No crawl since for a stale brand (team only)`; `GSC tiles show the team/client blank copy when not uploaded`; `CWV tile renders mobile and desktop together`; `parseExportRequest keeps a valid snapshot and drops an invalid one`; `client export of a draft date renders the latest published snapshot`.
 - [ ] **Step 2–4:** FAIL → implement (brand-coherence skill first; each section in `ReportErrorBoundary`) → PASS.
 - [ ] **Step 5:** `npm run typecheck && npm test && npm run check:rsc && npm run lint && npm run build` (build in this real checkout, not a symlinked one). Then run the dev server and check `/dashboard/renaissance/reports?section=peec-ai&subsection=technical-audit` in the browser (team) — no date picker, checklist visible, tiles render or show blank copy.
 - [ ] **Step 6: Commit** `feat(technical-audit): snapshot page header, health tiles and trends`. Open **PR 3** into `dev`.
@@ -333,7 +335,9 @@ Fixtures mirror the shapes recorded in the probes doc (projects: `healthscores[{
 - `CommentarySection` branch: `viewKey === 'peec-ai:technical-audit'` and `requestedRange` of the form `D,D` → `snapshotCommentary`.
 - `CommentaryPanel` / `CommentaryEditor` new optional prop `periodLabel?: string` — when set the editor hides both date inputs, shows the label (`Snapshot: Nov 1, 2026`), and always saves `defaultPeriod`.
 
-- [ ] **Step 1: Write the failing tests:** `shows only entries for the selected snapshot`; `client sees nothing without an approved entry`; `editor with periodLabel has no date inputs and saves the snapshot date`; `isCommentaryViewKey accepts peec-ai:technical-audit`.
+- Also: `loadTechAuditView` now reads `getCommentaryForView(client.id, 'peec-ai:technical-audit')` for the selected snapshot and passes `'none' | 'draft' | 'approved'` to `buildChecklist`.
+
+- [ ] **Step 1: Write the failing tests:** `shows only entries for the selected snapshot`; `checklist reports draft commentary for the snapshot`; `client sees nothing without an approved entry`; `editor with periodLabel has no date inputs and saves the snapshot date`; `isCommentaryViewKey accepts peec-ai:technical-audit`.
 - [ ] **Step 2–4:** FAIL → implement → PASS.
 - [ ] **Step 5: Commit** `feat(technical-audit): snapshot-bound commentary`.
 
