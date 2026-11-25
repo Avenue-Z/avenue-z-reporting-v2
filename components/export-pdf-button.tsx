@@ -22,6 +22,8 @@ export interface ServerExport {
   /** The AEO Informed Social tab's range and min competitors, on that tab only. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The Technical Audit tab's snapshot date, on that tab only. */
+  snapshot?: string
 }
 
 interface ExportPdfButtonProps {

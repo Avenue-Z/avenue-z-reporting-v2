@@ -121,3 +121,11 @@ test('only the AEO Informed Social page takes aeo and aeoMin; every other body i
   const fromElsewhere = bulkRequest(page('organic-social', 'organic-aeo-informed'), { ...RANGES, fromSection: 'organic-social' })
   expect('aeo' in fromElsewhere || 'aeoMin' in fromElsewhere).toBe(false)
 })
+
+// The Technical Audit snapshot the export started from goes to that page only; every other body is as it was.
+test('the Technical Audit page takes the snapshot the export started from, and only it', () => {
+  const r = { ...RANGES, snapshot: '2026-10-01' }
+  expect(bulkRequest(page('peec-ai', 'technical-audit'), r)).toEqual({ ...BODY, section: 'peec-ai', subsection: 'technical-audit', snapshot: '2026-10-01' })
+  expect(bulkRequest(page('peec-ai', 'pr-influence'), r)).toEqual({ ...BODY, section: 'peec-ai', subsection: 'pr-influence' })
+  expect(bulkRequest(page('peec-ai', 'technical-audit'), RANGES)).toEqual({ ...BODY, section: 'peec-ai', subsection: 'technical-audit' })
+})
