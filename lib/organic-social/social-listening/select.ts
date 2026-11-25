@@ -3,7 +3,7 @@
 // and 8): which upload a month shows, which one it presented to the client (decision D5), and the mapping from the
 // store's cache-safe rows to the shared shapes in ./types. No I/O, safe in tests.
 
-import type { SlExport, SlHistory, SlMonth, SlMonthData, SlPost, SlPostGroup, SlSentiment, SlTopic, SlTrend, SlTrendLists, SlTrends, SlUpload } from './types'
+import type { SlExport, SlHistory, SlHistoryAuthor, SlHistoryMedia, SlMonth, SlMonthData, SlPost, SlPostGroup, SlSentiment, SlTopic, SlTrend, SlTrendLists, SlTrends, SlUpload } from './types'
 
 /** The upload rows of one (month, topic). The caller filters; these never look at month or topic. */
 export type UploadRow = SlUpload
@@ -73,6 +73,9 @@ export type HistoryRowJson = {
   pos: number; neu: number; neg: number
   redditPos: number | null; redditNeu: number | null; redditNeg: number | null
   source: string
+  /** Absent on a row cached before the columns existed (2026-11-24); checked by toSlHistory either way. */
+  media?: unknown
+  authors?: unknown
 }
 
 export type PostRowJson = {
@@ -114,7 +117,40 @@ export function toSlHistory(row: HistoryRowJson): SlHistory {
     redditNeu: row.redditNeu,
     redditNeg: row.redditNeg,
     source: row.source,
+    media: historyMedia(row.media),
+    authors: historyAuthors(row.authors),
   }
+}
+
+const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0
+const isText = (v: unknown): v is string => typeof v === 'string' && v.length > 0
+
+/** A report's media counts exactly as entered (a list of { media, count }, each name once, each count a whole number of 0 or
+ *  more), else null. All or nothing: a partly readable list would compare some types with a baseline that is wrong, so a
+ *  bad value is read as no baseline (the change then falls back to last month's upload, or n/a). */
+export function historyMedia(raw: unknown): SlHistoryMedia[] | null {
+  if (!Array.isArray(raw)) return null
+  const out: SlHistoryMedia[] = []
+  const seen = new Set<string>()
+  for (const e of raw) {
+    const m = (e ?? {}) as Record<string, unknown>
+    if (!isText(m.media) || !isCount(m.count) || seen.has(m.media)) return null
+    seen.add(m.media)
+    out.push({ media: m.media, count: m.count })
+  }
+  return out
+}
+
+/** A report's top authors exactly as entered, else null (all or nothing, as historyMedia). */
+export function historyAuthors(raw: unknown): SlHistoryAuthor[] | null {
+  if (!Array.isArray(raw)) return null
+  const out: SlHistoryAuthor[] = []
+  for (const e of raw) {
+    const a = (e ?? {}) as Record<string, unknown>
+    if (!isText(a.authorId) || typeof a.name !== 'string' || typeof a.network !== 'string' || !isCount(a.posts)) return null
+    out.push({ authorId: a.authorId, name: a.name, network: a.network, posts: a.posts })
+  }
+  return out
 }
 
 /** `imageIds` in display order (the store reads them oldest first). */

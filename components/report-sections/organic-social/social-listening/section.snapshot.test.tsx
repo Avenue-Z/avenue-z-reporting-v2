@@ -41,7 +41,7 @@ const up = (id: string, data: SlExport): SlUpload => ({ id, month: data.month, t
 const monthData = (): SlMonthData => ({ uploads: [up('u-brand', parsed('brand')), up('u-industry', parsed('industry'))], history: [], posts: [], trends: null })
 const HISTORY_OCT_BRAND: SlHistory = {
   month: '2026-10', topic: 'brand', results: 500, uniqueAuthors: 300, engagement: 6000, potentialReach: 400000000,
-  pos: 60, neu: 30, neg: 10, redditPos: null, redditNeu: null, redditNeg: null, source: 'history-sheet (made up)',
+  pos: 60, neu: 30, neg: 10, redditPos: null, redditNeu: null, redditNeg: null, source: 'history-sheet (made up)', media: null, authors: null,
 }
 const POST: SlPost = {
   id: 'p-1', month: '2026-10', group: 'social', platform: 'Instagram', author: 'Made Up Author', url: 'https://example.com/post/1',

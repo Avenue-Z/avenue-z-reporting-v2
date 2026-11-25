@@ -15,7 +15,7 @@ const up = (data: SlExport, beforeOpen = true, at = '2026-11-02T12:00:00Z'): SlU
   ({ id: `u${n++}`, month: data.month, topic: data.topic, data, beforeOpen, uploadedAt: new Date(at) })
 const hist = (month: string, topic: SlTopic, p: { pos: number; neu: number; neg: number }, results = 100): SlHistory => ({
   month, topic, results, uniqueAuthors: 50, engagement: 200, potentialReach: 9000, ...p,
-  redditPos: null, redditNeu: null, redditNeg: null, source: 'report',
+  redditPos: null, redditNeu: null, redditNeg: null, source: 'report', media: null, authors: null,
 })
 const post = (over: Partial<SlPost>): SlPost => ({
   id: `p${n++}`, month: '2026-10', group: 'social', platform: 'X', author: 'someone', url: null, engagements: 1,
@@ -138,6 +138,20 @@ describe('sections', () => {
       { media: 'X', count: 6, pct: 60, change: 100, color: '#60FDFF' },
       { media: 'Threads', count: 4, pct: 40, change: null, color: '#9CA3AF' },
     ])
+  })
+  test("media types compare with the delivered report's counts when its row has them, and say so (D4)", () => {
+    const now = exp('brand', '2026-10', { pos: 10, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 6, neu: 0, neg: 0 }, { media: 'Blogs', pos: 4, neu: 0, neg: 0 }] })
+    const prevUpload = exp('brand', '2026-09', { pos: 3, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 3, neu: 0, neg: 0 }] })
+    const report = { ...hist('2026-09', 'brand', { pos: 80, neu: 15, neg: 5 }), media: [{ media: 'X', count: 4 }, { media: 'Blogs', count: 2 }] }
+    const r = buildTopicView(input({ data: data({ uploads: [up(now), up(prevUpload, true, '2026-10-02T00:00:00Z')], history: [report] }) })).ready!
+    expect(r.media.map((m) => [m.media, m.change])).toEqual([['X', 50], ['Blogs', 100]])
+    expect(r.mediaVs).toBe('report')
+  })
+  test('media types say what they compare with: the export when only an upload, nothing when neither', () => {
+    const now = exp('brand', '2026-10', { pos: 10, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 10, neu: 0, neg: 0 }] })
+    const prevUpload = exp('brand', '2026-09', { pos: 3, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 3, neu: 0, neg: 0 }] })
+    expect(buildTopicView(input({ data: data({ uploads: [up(now), up(prevUpload, true, '2026-10-02T00:00:00Z')] }) })).ready!.mediaVs).toBe('export')
+    expect(buildTopicView(input({ data: data({ uploads: [up(now)] }) })).ready!.mediaVs).toBeNull()
   })
   test('year to date for brand: all, positive plus neutral, Reddit; gaps stay gaps', () => {
     const r = buildTopicView(input({ data: data({ uploads: [up(exp('brand', '2026-10', { pos: 60, neu: 30, neg: 10 }))], history: [hist('2026-08', 'brand', { pos: 50, neu: 40, neg: 10 })] }) })).ready!

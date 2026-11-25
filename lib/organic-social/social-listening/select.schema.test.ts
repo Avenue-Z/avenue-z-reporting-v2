@@ -22,7 +22,18 @@ test('0030 exists and holds its place in the journal', () => {
   expect(file).toBe('0030_social_listening.sql')
   const journal = JSON.parse(readFileSync(join(dir, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] }
   expect(journal.entries[30]?.tag).toBe('0030_social_listening')
-  expect(journal.entries).toHaveLength(31)
+  // 0031 follows it (2026-11-24, Unit D: the report's media counts and top authors).
+  expect(journal.entries[31]?.tag).toBe('0031_sl_history_media_authors')
+  expect(journal.entries).toHaveLength(32)
+})
+
+test('0031 only adds two nullable jsonb columns to the history rows', () => {
+  const s0031 = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('0031_'))!), 'utf8')
+  const stmts = s0031.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)
+  expect(stmts).toEqual([
+    'ALTER TABLE "social_listening_history" ADD COLUMN "media" jsonb;',
+    'ALTER TABLE "social_listening_history" ADD COLUMN "authors" jsonb;',
+  ])
 })
 
 test('it creates exactly the five tables and touches no other table', () => {

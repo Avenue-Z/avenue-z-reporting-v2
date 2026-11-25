@@ -37,8 +37,11 @@ beforeAll(async () => {
   pg = new PGlite({ serializers: { 17: (x: unknown) => String(x) }, parsers: { 17: (x: string) => x } })
   await pg.exec(`CREATE TYPE "commentary_status" AS ENUM ('draft', 'approved'); CREATE TABLE "clients" ("id" uuid PRIMARY KEY, "slug" text NOT NULL DEFAULT 'a-client', "dash_social_config" jsonb, "hidden_reports" text[] NOT NULL DEFAULT '{}', "enabled_reports" text[] NOT NULL DEFAULT '{organic-social}');`)
   const dir = join(process.cwd(), 'drizzle')
-  const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('0030_'))!), 'utf8')
-  for (const s of sql.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)) await pg.exec(s)
+  // 0030 creates the tables; 0031 adds the delivered report's media counts and top authors to the history rows (2026-11-24).
+  for (const prefix of ['0030_', '0031_']) {
+    const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith(prefix))!), 'utf8')
+    for (const s of sql.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)) await pg.exec(s)
+  }
   const schema = await import('@/lib/db/schema')
   h.db = drizzle(pg, { schema }) as unknown as Record<string, unknown>
   store = await import('./store')
@@ -201,5 +204,24 @@ describe('trends', () => {
     expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a', seen: lists('older') })).toBe(false)
     expect((await store.getSlMonth(CLIENT, ['2026-11'])).trends!.approved).toBeNull()
     expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a', seen: lists('newer') })).toBe(true)
+  })
+})
+
+// Unit D (plan 2026-11-24): migration 0031's two nullable columns on the delivered report rows.
+describe('history media and authors', () => {
+  const insertHistory = (media: string | null, authors: string | null) => pg.exec(
+    `INSERT INTO "social_listening_history" ("client_id","month","topic","results","pos","neu","neg","source","media","authors")
+     VALUES ('${CLIENT}','2026-10-01','brand',100,70,20,10,'delivered-deck 2026-10',${media === null ? 'NULL' : `'${media}'`},${authors === null ? 'NULL' : `'${authors}'`})`)
+
+  test("a report row's media counts and top authors come back with the page read", async () => {
+    await insertHistory('[{"media":"X","count":12},{"media":"Blogs","count":3}]', '[{"authorId":"a1","name":"Made Up","network":"Instagram","posts":4}]')
+    const [h] = (await store.getSlMonth(CLIENT, ['2026-10'])).history
+    expect(h.media).toEqual([{ media: 'X', count: 12 }, { media: 'Blogs', count: 3 }])
+    expect(h.authors).toEqual([{ authorId: 'a1', name: 'Made Up', network: 'Instagram', posts: 4 }])
+  })
+  test('a row without them reads as before, with both null', async () => {
+    await insertHistory(null, null)
+    const [h] = (await store.getSlMonth(CLIENT, ['2026-10'])).history
+    expect(h).toMatchObject({ pos: 70, media: null, authors: null })
   })
 })

@@ -73,7 +73,14 @@ export type SlHistory = {
   redditNeu: number | null
   redditNeg: number | null
   source: string
+  /** The delivered report's count per media type (plan 2026-11-24, Unit D): last month's baseline for the media change, so it
+   *  compares with what the client saw. Null when not entered. */
+  media: SlHistoryMedia[] | null
+  /** The delivered report's top authors with their post counts (Unit D's column, read by Unit F). Null when not entered. */
+  authors: SlHistoryAuthor[] | null
 }
+export type SlHistoryMedia = { media: string; count: number }
+export type SlHistoryAuthor = { authorId: string; name: string; network: string; posts: number }
 
 /** A featured post as the page sees it (spec section 8). */
 export type SlPostGroup = 'social' | 'forum' | 'web'

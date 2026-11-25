@@ -2,12 +2,12 @@
 // results over time, sentiment, year to date, media types, themes, trends, top conversation themes, top influencers, most
 // relevant posts, key takeaways, keyword appendix. Renders a view-model.ts SlTopicView and decides nothing itself.
 import type { ReactNode } from 'react'
-import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
+import { SENTIMENT_COLORS, mediaColor } from '@/lib/organic-social/social-listening/colors'
 import type { SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import type { SlTile, SlTopicView } from '@/lib/organic-social/social-listening/view-model'
 import type { YtdPoint } from '@/lib/organic-social/social-listening/compare'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
-import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, PosNeuColumns, YtdColumns } from '../design/charts'
+import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, PosNeuColumns, SentimentByMedia, YtdColumns } from '../design/charts'
 import { SlBoxLabel, SlCard, SlSection } from '../design/frames'
 import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
@@ -197,8 +197,12 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
           </SlSection>
 
           <SlSection title="Media types">
-            <SlCard title="Share of media types" meta={`Change vs the ${monthName(prevKey(view.month))} export`} box={boxes['b-media']}>
+            {/* The change compares with last month as the client saw it: the delivered report's counts, else its export (D4). */}
+            <SlCard title="Share of media types" meta={`Change vs the ${monthName(prevKey(view.month))} ${r.mediaVs === 'export' ? 'export' : 'report'}`} box={boxes['b-media']}>
               <MediaShare rows={r.media} />
+            </SlCard>
+            <SlCard title="Share of media types by sentiment" meta="Where each sentiment came from" box={boxes['b-mediasent']}>
+              <SentimentByMedia rows={r.cross} colorFor={mediaColor} />
             </SlCard>
           </SlSection>
         </>

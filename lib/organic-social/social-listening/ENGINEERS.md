@@ -94,7 +94,10 @@ the file and image sizes too.
 
 ## Switching it on (each step needs Thomas's go)
 
-1. Apply migration `drizzle/0030_social_listening.sql` (five new tables, nothing else changes) on the database.
+1. Apply migration `drizzle/0030_social_listening.sql` (five new tables, nothing else changes) on the database, then
+   `drizzle/0031_sl_history_media_authors.sql` (two nullable jsonb columns on `social_listening_history`, 2026-11-24). **0031
+   must be on a database before code from 2026-11-24 or later runs against it:** the page reads both columns, so without
+   them the tab errors.
 2. Set `dash_social_config.socialListening` for the client, for example
    `{ "enabled": true, "brandTopic": "<brand topic name>", "industryTopic": "<industry topic name>", "industrySample": 10 }`.
    The topic names must equal the first item of each export's filter line (rule V5). The client must be on locked months.
@@ -113,3 +116,14 @@ the file and image sizes too.
 `~/.claude/organic-social-work/social-listening/real-export-check.mts` runs the parser on the real October exports and
 compares every field with the earlier independent parse. Run it after any parser change. It holds client data, so it
 never comes into this repo.
+
+## A delivered report's media counts and top authors (2026-11-24, Unit D)
+
+Every month-over-month change compares with what the client saw. For media types that is the delivered report's count per
+type, stored on the report's history row (`media`), with last month's export only as the fallback (`mediaBaseline`,
+`compare.ts`). When a type appears that was not split out last month, `Other` reads n/a, because that type's results were
+inside last month's `Other`. The report's top five authors (`authors`) are stored the same way for the author change.
+
+Enter them with `scripts/sl-enter-report.ts`, from a private file of the deck's numbers (never in this repo). It runs only
+against the database host you name, checks every media name and author against that month's upload, prints what it would
+write, and writes only with `--apply`, only into empty columns. Each write needs Thomas's go on the exact values.
