@@ -5,6 +5,7 @@
 import { describe, expect, test, vi } from 'vitest'
 import { fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { RECOMMENDATIONS_LABELS } from '@/lib/commentary/labels'
 import { CommentaryPanel } from './commentary-panel'
 import { ExportModeProvider } from '@/components/export/export-mode'
 import type { CommentaryCapabilities, CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
@@ -35,6 +36,8 @@ const HISTORY: CommentaryPeriodHistory[] = [{
 type Who = { caps: CommentaryCapabilities; entries: CommentaryEntry[]; history: CommentaryPeriodHistory[]; initialId: string; clientEntryId: string | null }
 const APPROVER: Who = { caps: { canEdit: true, canApprove: true }, entries: [DRAFT, APPROVED], history: HISTORY, initialId: DRAFT.id, clientEntryId: APPROVED.id }
 const EDITOR: Who = { caps: { canEdit: true, canApprove: false }, entries: [DRAFT, APPROVED], history: [], initialId: DRAFT.id, clientEntryId: APPROVED.id }
+// Nothing written yet: the empty box an editor sees (round 3, Task 8 changes it under the kit only).
+const EMPTY: Who = { caps: { canEdit: true, canApprove: true }, entries: [], history: [], initialId: null as unknown as string, clientEntryId: null }
 const CLIENT: Who = { caps: { canEdit: false, canApprove: false }, entries: [APPROVED], history: [], initialId: APPROVED.id, clientEntryId: APPROVED.id }
 
 export function panel(who: Who, extra: Record<string, unknown> = {}): ReactNode {
@@ -58,6 +61,7 @@ describe('without look, the panel is exactly as before', () => {
     ['an editor who is not an approver', () => draw(panel(EDITOR))],
     ['a client', () => draw(panel(CLIENT))],
     ['the PDF export', () => draw(panel(APPROVER), true)],
+    ['an editor with nothing written yet (recorded before round 3)', () => draw(panel(EMPTY))],
   ])('%s', (_name, make) => {
     expect(clockFree(make().innerHTML)).toMatchSnapshot()
   })
@@ -78,6 +82,8 @@ describe('with look="kit", the panel reads and behaves exactly as before, on the
     // The kit really drew: its colours on the box, the formatted body in the kit's body style, no old frame left.
     const box = kitted.querySelector('section')!
     expect(box.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(box.classList.contains(kit.tight)).toBe(true)
     expect(kitted.querySelector(`.${kit.commBody}`)).not.toBeNull()
     expect(kitted.querySelector('section.rounded-lg.border')).toBeNull()
   })
@@ -104,5 +110,45 @@ describe('with look="kit", the panel reads and behaves exactly as before, on the
     expect(approver.querySelector(`.${kit.approved}`)?.textContent).toBe('Approved')
     expect(approver.querySelector(`.${kit.edited}`)?.textContent).toBe('Client sees from Nov 12')
     expect(draw(panel(APPROVER, { look: 'kit' })).querySelector(`.${kit.whoTag}`)?.textContent).toBe('Draft')
+  })
+})
+
+// Round 3, Task 8 (plan docs/superpowers/plans/2026-11-24-os-design-round3.md), an addition beyond round 2's approved
+// scope: on the kit, a box with nothing written is only the artifact's dashed "+ Add" button (the same one Social
+// Listening's empty box draws, kit.module.css .addAnalysis). A client never gets it: the server returns nothing for a
+// client with nothing approved (index.tsx, monthly.tsx). Without the look the box is the snapshot recorded above.
+describe('with look="kit", a box with nothing written is only the dashed add button', () => {
+  const buttons = (c: HTMLElement) => [...c.querySelectorAll('button')]
+  test('an editor sees one dashed "+ Add insights" button, in the kit\'s colours, and nothing else', () => {
+    const c = draw(panel(EMPTY, { look: 'kit' }))
+    expect(buttons(c).map((b) => [b.textContent, b.className])).toEqual([['+ Add insights', `${kit.tbtn} ${kit.addAnalysis}`]])
+    expect(c.textContent).toBe('+ Add insights')
+    const wrap = c.firstElementChild!
+    expect(wrap.className).toBe(`mb-8 ${kit.root} ${kit.tight}`)
+    expect(c.querySelector('section')).toBeNull()
+  })
+  test('the Recommendations box says its own words', () => {
+    const c = draw(panel(EMPTY, { look: 'kit', labels: RECOMMENDATIONS_LABELS }))
+    expect(buttons(c).map((b) => b.textContent)).toEqual(['+ Add recommendations'])
+  })
+  test('clicking it opens the editor exactly as Add does today', () => {
+    const kitted = draw(panel(EMPTY, { look: 'kit' }))
+    fireEvent.click(buttons(kitted)[0])
+    const old = draw(panel(EMPTY))
+    fireEvent.click(buttons(old).find((b) => b.textContent?.trim() === 'Add insights')!)
+    expect(kitted.querySelector('section')!.textContent).toContain('Cancel')
+    expectSameValues(old, kitted)
+  })
+  test('with history to open, an approver keeps the full panel', () => {
+    const c = draw(panel({ ...EMPTY, history: HISTORY }, { look: 'kit' }))
+    expect(c.querySelector('section')).not.toBeNull()
+    expect(buttons(c).some((b) => b.textContent?.includes('History ('))).toBe(true)
+  })
+  test('an editor who cannot approve never sees history, so gets the dashed button', () => {
+    const c = draw(panel({ ...EMPTY, caps: { canEdit: true, canApprove: false }, history: HISTORY }, { look: 'kit' }))
+    expect(buttons(c).map((b) => b.textContent)).toEqual(['+ Add insights'])
+  })
+  test('with an entry written, the kit box is the full panel, as before', () => {
+    expect(draw(panel(EDITOR, { look: 'kit' })).querySelector('section')).not.toBeNull()
   })
 })

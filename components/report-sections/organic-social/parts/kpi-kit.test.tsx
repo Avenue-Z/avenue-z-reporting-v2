@@ -117,6 +117,8 @@ describe.each(VIEWS)('kpi-check-in@2 reads exactly as @1, for %s', (_who, view, 
     // The kit really drew: its colours on the block, a kit card for every old card, none of the old frame left, and the
     // rings themselves untouched (the same svgs, the same labels).
     expect(kitted.firstElementChild?.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(kitted.firstElementChild?.classList.contains(kit.tight)).toBe(true)
     expect(kitted.querySelectorAll(`.${kit.card}`).length).toBe(old.querySelectorAll(OLD_CARD).length)
     expect(kitted.querySelectorAll(`.${kit.card}`).length).toBeGreaterThan(0)
     expect(kitted.querySelector(OLD_CARD)).toBeNull()

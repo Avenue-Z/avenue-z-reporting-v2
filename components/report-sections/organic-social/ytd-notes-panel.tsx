@@ -7,7 +7,8 @@ import { NOTE_MAX_CHARS } from '@/lib/organic-social/chart-notes/limits'
 import type { ChartAnnotation } from '@/lib/organic-social/annotations'
 import type { YtdGraphNotes, YtdNoteControls, YtdNoteRow } from './parts/ytd-notes'
 import { NoteActions } from './note-actions'
-import { PILL as BUTTON } from './pill'
+import { field, noteBox, noteButton, type ControlLook } from './control-look'
+import kit from './design/kit.module.css'
 import { useExportMode } from '@/components/export/export-mode'
 
 const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
@@ -27,11 +28,13 @@ export function ytdSavedLine(label: string, had: Had, canApprove: boolean): stri
 /** The notes under one YTD graph (spec 2026-10-06-os-ytd-notes-design.md). A viewer who cannot edit sees each approved
  *  note the chart cannot show on a point as a line, and nothing when there is none; this part uses no hooks, so it
  *  renders anywhere. An editor gets the Add annotation form and every noted month with the daily graphs' buttons. */
-export function YtdNotesPanel({ notes, title }: { notes: YtdGraphNotes; title: string }) {
+/** `look="kit"` (round 3, set by the kit YTD version, parts/ytd-kit.tsx): the kit's pill, buttons and fields on the
+ *  editor's controls. Absent: exactly as before. */
+export function YtdNotesPanel({ notes, title, look }: { notes: YtdGraphNotes; title: string; look?: ControlLook }) {
   // In the PDF export it prints what a client sees, whoever exports: the editor's wrapper is no-print, which does
   // nothing there (the export renders in screen media).
   if (useExportMode()) return <ExportYtdNotes notes={notes} title={title} />
-  if (notes.controls) return <EditorPanel notes={notes} controls={notes.controls} title={title} />
+  if (notes.controls) return <EditorPanel notes={notes} controls={notes.controls} title={title} look={look} />
   if (notes.panel.length === 0) return null
   return (
     <ul aria-label={`Notes on ${title}`} className="space-y-1 text-xs text-text-muted">
@@ -74,7 +77,7 @@ const asAnnotation = (r: YtdNoteRow): ChartAnnotation => ({
   ...(r.editor ? { noteEditor: r.editor } : {}),
 })
 
-function EditorPanel({ notes, controls, title }: { notes: YtdGraphNotes; controls: YtdNoteControls; title: string }) {
+function EditorPanel({ notes, controls, title, look }: { notes: YtdGraphNotes; controls: YtdNoteControls; title: string; look: ControlLook }) {
   const [form, setForm] = useState<{ fixed?: string; initial?: string } | null>(null)
   const [saved, setSavedState] = useState<string | null>(null)
   // The line after a save clears after SAVED_LINE_MS, as on the daily graphs (trends.tsx), so it never outlives what it
@@ -99,11 +102,11 @@ function EditorPanel({ notes, controls, title }: { notes: YtdGraphNotes; control
 
   return (
     <div className="no-print space-y-2">
-      <button type="button" className={BUTTON} aria-expanded={!!form} onClick={() => { setSaved(null); setForm((f) => (f ? null : {})) }}>
+      <button type="button" className={look === 'kit' ? kit.pill : noteButton(undefined)} aria-expanded={!!form} onClick={() => { setSaved(null); setForm((f) => (f ? null : {})) }}>
         Add annotation
       </button>
       {form && (
-        <MonthForm key={form.fixed ?? 'new'} controls={controls} fixed={form.fixed} initial={form.initial} rows={rows}
+        <MonthForm key={form.fixed ?? 'new'} look={look} controls={controls} fixed={form.fixed} initial={form.initial} rows={rows}
           onClose={() => setForm(null)}
           onSaved={(key, had) => {
             setForm(null)
@@ -119,7 +122,7 @@ function EditorPanel({ notes, controls, title }: { notes: YtdGraphNotes; control
               <span className="font-bold text-white">{r.label}</span>
               {r.text !== null && <span className="text-white">{r.text}</span>}
               {r.editor?.draft && <span className="text-text-muted">{`Draft: ${r.editor.draft.text}`}</span>}
-              <NoteActions annotation={asAnnotation(r)} controls={controls} compact onEdit={onEdit} saving={justSaved.has(r.key)} />
+              <NoteActions {...(look ? { look } : {})} annotation={asAnnotation(r)} controls={controls} compact onEdit={onEdit} saving={justSaved.has(r.key)} />
             </li>
           ))}
         </ul>
@@ -129,8 +132,9 @@ function EditorPanel({ notes, controls, title }: { notes: YtdGraphNotes; control
 }
 
 /** Add a month's note, or edit one (fixed to that month). Always saves a draft, on the month's 1st, with no posts. */
-function MonthForm({ controls, fixed, initial, rows, onClose, onSaved }: {
+function MonthForm({ controls, fixed, initial, rows, onClose, onSaved, look }: {
   controls: YtdNoteControls
+  look: ControlLook
   fixed?: string
   initial?: string
   rows: Map<string, YtdNoteRow>
@@ -163,14 +167,14 @@ function MonthForm({ controls, fixed, initial, rows, onClose, onSaved }: {
   }
 
   return (
-    <div role="group" aria-label="Note" className="w-full space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-3">
+    <div role="group" aria-label="Note" className={noteBox(look, '')}>
       {fixed ? (
         <p className="text-[11px] text-text-muted">{`Note for ${labelOf(fixed)}`}</p>
       ) : (
         <label className="flex items-center gap-2 text-[11px] text-text-muted">
           Month
           <select aria-label="Month" value={key} disabled={pending} onChange={(e) => setKey(e.target.value)}
-            className="rounded-md border border-white/[0.12] bg-bg-surface px-2 py-1 text-xs text-white">
+            className={field(look, 'rounded-md border border-white/[0.12] bg-bg-surface px-2 py-1 text-xs text-white')}>
             <option value="">Pick a month</option>
             {controls.months.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
           </select>
@@ -184,11 +188,11 @@ function MonthForm({ controls, fixed, initial, rows, onClose, onSaved }: {
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <input aria-label="Note text" className={`${FIELD} min-w-[12rem] flex-1`} value={text}
+        <input aria-label="Note text" className={`${field(look, FIELD)} min-w-[12rem] flex-1`} value={text}
           maxLength={NOTE_MAX_CHARS} onChange={(e) => setText(e.target.value)} placeholder="What happened this month?" />
         <span className="text-[11px] text-text-muted" aria-live="polite">{[...text].length}/{NOTE_MAX_CHARS}</span>
-        <button type="button" className={BUTTON} onClick={save} disabled={!canSave}>Save draft</button>
-        <button type="button" className={BUTTON} onClick={onClose} disabled={pending}>Cancel</button>
+        <button type="button" className={noteButton(look)} onClick={save} disabled={!canSave}>Save draft</button>
+        <button type="button" className={noteButton(look)} onClick={onClose} disabled={pending}>Cancel</button>
       </div>
       {error && <p role="alert" className="text-[11px] text-red-400">{error}</p>}
     </div>

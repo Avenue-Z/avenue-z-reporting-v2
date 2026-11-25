@@ -99,6 +99,8 @@ describe.each(VIEWS)('the posts with the kit read exactly as today, for %s', (_w
     expectSameValues(old, kitted)
     // The kit really drew: its colours on the block, its frame on every card, and no old frame left.
     expect(kitted.firstElementChild?.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(kitted.firstElementChild?.classList.contains(kit.tight)).toBe(true)
     const cards = kitted.querySelectorAll(`.${pk.frame}`)
     expect(cards.length).toBeGreaterThan(0)
     expect(cards.length).toBe(old.querySelectorAll('.rounded-xl.border').length)
@@ -120,6 +122,18 @@ describe('the posts with the kit', () => {
     }
     expectSameValues(old, kitted)
     expect(visibleValues(kitted).some((v) => v.startsWith('Views / Impr.') && v.endsWith('↓'))).toBe(true)
+  })
+  // Round 3 (plan docs/superpowers/plans/2026-11-24-os-design-round3.md, Task 5): the staff designation toggle is the kit's
+  // small button inside the kit's cards, and today's pill everywhere else.
+  test.each(PAIRS)('%s: the designation toggles are the kit\'s buttons, and only on the kit', async (_name, oldV, kitV, ctx, client) => {
+    getClientBySlug.mockResolvedValue(client)
+    const toggles = (c: HTMLElement) => [...c.querySelectorAll('button')].filter((b) => b.textContent?.endsWith('· change'))
+    const old = toggles(draw(await serve(oldV.render({ ...ctx, role: 'INTERNAL_ADMIN' }, r(oldV.id, oldV.version))), false))
+    const kitted = toggles(draw(await serve(kitV.render({ ...ctx, role: 'INTERNAL_ADMIN' }, r(kitV.id, kitV.version))), false))
+    expect(old.length).toBeGreaterThan(0)
+    expect(kitted.length).toBe(old.length)
+    for (const b of old) expect(b.classList.contains(kit.tbtn)).toBe(false)
+    for (const b of kitted) expect(b.className).toBe(`whitespace-nowrap ${kit.tbtn}`)
   })
   test('the Influencer totals are kit tiles, on the page and in the PDF\'s first block', async () => {
     getClientBySlug.mockResolvedValue(TAB_CLIENT)

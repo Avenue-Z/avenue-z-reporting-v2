@@ -172,10 +172,36 @@ describe.each(VIEWS)('ytd-review@5 reads exactly as @2, for %s', (_who, view, ex
 })
 
 describe('ytd-review@5', () => {
+  // Round 3 (plan docs/superpowers/plans/2026-11-24-os-design-round3.md, Task 4): the notes panel's controls take the kit's
+  // look under @5 only; @2 hands it none, so every client not on the kit keeps today's panel. @1 (the no-sheet fallback)
+  // draws no notes panel, so the sheet case is the one with panels.
+  test('hands every notes panel the kit look, and @2 none', async () => {
+    const [, ctx, arrange] = CASES[0]
+    const panels = (node: unknown, found: Record<string, unknown>[] = []): Record<string, unknown>[] => {
+      const el = node as ReactElement<Record<string, unknown>> | null
+      if (!el || typeof el !== 'object') return found
+      if (Array.isArray(el)) { for (const k of el) panels(k, found); return found }
+      if ((el.type as { name?: string } | undefined)?.name === 'YtdNotesPanel') found.push(el.props)
+      const kids = (el.props as { children?: unknown } | undefined)?.children
+      for (const k of Array.isArray(kids) ? kids : [kids]) panels(k, found)
+      return found
+    }
+    const staff = { ...ctx, role: 'INTERNAL_ADMIN', email: 'writer@avenuez.com' }
+    arrange()
+    const old = panels(await resolveSection(ytdReviewV2.render(staff, r)))
+    arrange()
+    const kitted = panels(await resolveSection(ytdReviewV5.render(staff, r)))
+    expect(old.length).toBeGreaterThan(0)
+    expect(kitted.length).toBe(old.length)
+    for (const p of old) expect(p).not.toHaveProperty('look')
+    expect(kitted).toEqual(old.map((p) => ({ ...p, look: 'kit' })))
+  })
   test('draws the kit: the block inside the kit colours, each card a kit card, never the old chart card', async () => {
     CASES[0][2]()
     const c = draw(await resolveSection(ytdReviewV5.render(SEPT, r)), false)
     expect(c.firstElementChild?.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(c.firstElementChild?.classList.contains(kit.tight)).toBe(true)
     expect(c.querySelectorAll(`.${kit.card}`)).toHaveLength(2)
     expect(c.querySelector('div.rounded-lg.px-6.py-5')).toBeNull()
   })

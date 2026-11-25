@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveChartNoteAction, deleteChartNoteDraftAction, revokeChartNoteAction } from '@/app/actions/chart-notes'
 import type { ChartAnnotation, NoteControls } from '@/lib/organic-social/annotations'
-import { CARD_PILL as BUTTON } from './pill'
+import { cardButton, type ControlLook } from './control-look'
 
 /** A card's note buttons, for someone who can edit: add or edit the note, delete a draft, and for an
  *  approver, approve a draft or revoke an approved note. Each action re-checks the session. The form
@@ -12,14 +12,17 @@ import { CARD_PILL as BUTTON } from './pill'
  *  words are shorter to fit; the accessible names stay the same everywhere. While `saving` (a note saved on this
  *  page whose refreshed answer has not arrived), Approve, Revoke and Delete wait: this card still shows the
  *  previous answer, so they would act on it. Edit stays, since it opens what was just saved. */
-export function NoteActions({ annotation, controls, compact, onEdit, saving }: {
+export function NoteActions({ annotation, controls, compact, onEdit, saving, look }: {
   annotation: ChartAnnotation
   /** Only the two fields read here, so the YTD notes panel can pass its own controls (ytd-notes-panel.tsx). */
   controls: Pick<NoteControls, 'clientSlug' | 'canApprove'>
   compact?: boolean
   onEdit: (day: string, initial?: { text: string; postIds: number[] }) => void
   saving?: boolean
+  /** The kit look (round 3): the kit's small buttons, still never printed or wrapped. Absent: exactly as before. */
+  look?: ControlLook
 }) {
+  const BUTTON = cardButton(look)
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()

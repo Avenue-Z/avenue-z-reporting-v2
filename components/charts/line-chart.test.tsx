@@ -681,6 +681,19 @@ describe('the default chart, pinned before the shaded and frameless options (des
 describe('shaded and frameless: the Organic Social design kit look, opt-in (design overhaul decision (b))', () => {
   const D = [{ d: '2026-08-01', a: 3, b: 5 }, { d: '2026-08-02', a: 6, b: 4 }, { d: '2026-08-03', a: 4, b: 7 }]
   const KEYS = [{ key: 'a', color: '#60FDFF', label: 'A' }, { key: 'b', color: '#39A0FF', label: 'B' }]
+  // Round 3, Task 7 (plan docs/superpowers/plans/2026-11-24-os-design-round3.md): the kit's grid is the artifact's, 4/4
+  // dashes at 8% white (design/kit.module.css .gridLine); every other chart keeps 3/3 at 6%.
+  const gridLines = (c: HTMLElement) => [...c.querySelectorAll('.recharts-cartesian-grid line')].map((l) => [l.getAttribute('stroke-dasharray'), l.getAttribute('stroke')])
+  test('shaded draws the kit\'s grid: 4/4 dashes at 8% white', () => {
+    const lines = gridLines(render(<LineChart data={D} xKey="d" yKeys={KEYS} shaded frameless />).container)
+    expect(lines.length).toBeGreaterThan(3)
+    for (const l of lines) expect(l).toEqual(['4 4', 'rgba(255,255,255,0.08)'])
+  })
+  test('without shaded, the grid is today\'s: 3/3 dashes at 6% white', () => {
+    const lines = gridLines(render(<LineChart data={D} xKey="d" yKeys={KEYS} />).container)
+    expect(lines.length).toBeGreaterThan(3)
+    for (const l of lines) expect(l).toEqual(['3 3', 'rgba(255,255,255,0.06)'])
+  })
   beforeEach(() => { areaProps.length = 0 })
   const framed = (c: HTMLElement) => (c.firstElementChild as HTMLElement).className.includes('rounded-lg border')
 

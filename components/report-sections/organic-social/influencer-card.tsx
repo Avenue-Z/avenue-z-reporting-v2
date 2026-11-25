@@ -48,7 +48,7 @@ export function InfluencerCard({ post, clientSlug, canEdit, sortKey, look }: {
           {post.url
             ? <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-cyan hover:underline">View post</a>
             : <span />}
-          {canEdit && <DesignationToggle clientSlug={clientSlug} postId={post.id} value={post.sourceType} />}
+          {canEdit && <DesignationToggle clientSlug={clientSlug} postId={post.id} value={post.sourceType} {...(look ? { look } : {})} />}
         </div>
       </div>
     </div>
