@@ -111,6 +111,14 @@ describe('claimRun', () => {
     await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), {})
     expect(await store.claimRun(id, 'sf', 0, { includeMissing: true })).toBe(false) // complete stays closed
   })
+  test('includeMissing never claims a run on a published snapshot', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await store.failRun(CLIENT, id, 'sf', 'missing', 'no file')
+    await store.setSnapshotStatus(CLIENT, id, 'published', 'paul@example.com')
+    expect(await store.claimRun(id, 'sf', 0, { includeMissing: true })).toBe(false)
+    await store.setSnapshotStatus(CLIENT, id, 'draft', 'paul@example.com')
+    expect(await store.claimRun(id, 'sf', 0, { includeMissing: true })).toBe(true)
+  })
   test('rejects a non-finite or negative staleness window', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
     await expect(store.claimRun(id, 'sf', Number.NaN)).rejects.toThrow('staleAfterMs')
