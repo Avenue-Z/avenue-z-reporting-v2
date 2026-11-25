@@ -12,6 +12,8 @@ import {
   approveNote, findChartNote, findOpenDraft, insertDraft, isOpenDraftConflict,
   revokeNote, softDeleteDraft, updateDraft, type NoteKey,
 } from '@/lib/organic-social/chart-notes/mutations'
+import { checkSlNoteInput, isSlMonthNoteChart, SL_NOTES_CHANNEL, slNoteEarliest, type SlNoteChart } from '@/lib/organic-social/social-listening/notes'
+import { hasSocialListeningTab } from '@/lib/organic-social/social-listening/setting'
 import type { NoteChart } from '@/lib/organic-social/annotations'
 import type { DashChannel } from '@/lib/organic-social/metrics'
 
@@ -43,6 +45,9 @@ export async function saveChartNoteAction(input: {
   const v = await viewer()
   if (!v.canEdit) return FORBIDDEN
   if (typeof input.clientSlug !== 'string' || !input.clientSlug.trim()) return { ok: false, error: 'invalid client' }
+  // A Social Listening note takes its own path before any Organic Social check (plan 2026-11-24, Unit E), so the Organic
+  // Social key checks never learn its channel or charts.
+  if (input.channel === SL_NOTES_CHANNEL) return saveSlNote(input, v.email!)
   const valid = validateNoteInput(input, todayUtc())
   if (!valid.ok) return { ok: false, error: valid.error! }
 
@@ -75,6 +80,45 @@ export async function saveChartNoteAction(input: {
   } catch (e) {
     // Two people (or one double click) opening a draft on the same day: the index keeps one.
     if (isOpenDraftConflict(e)) return { ok: false, error: 'A draft is already open on this day. Reload to see it.' }
+    throw e
+  }
+  updateTag('db')
+  return { ok: true }
+}
+
+const SL_OFF: Result = { ok: false, error: 'Social Listening is not on for this client.' }
+
+/** A Social Listening note (plan 2026-11-24, Unit E): its own key check (social-listening/notes.ts), the client's Social
+ *  Listening tab in place of notesOn (the tab needs locked months, setting.ts, so approve, revoke and delete, which check
+ *  notesOn, hold for it too), the first reporting month as the bound, then the same draft insert or edit as above. A
+ *  failed write logs the client, chart and day, never the text. Not exported: a 'use server' module exports only actions. */
+async function saveSlNote(input: { clientSlug: string; channel: string; chart: string; day: string; body: string; postIds: number[] }, by: string): Promise<Result> {
+  const valid = checkSlNoteInput(input, todayUtc())
+  if (!valid.ok) return valid
+  const chart = input.chart as SlNoteChart
+  const client = await getClientBySlug(input.clientSlug)
+  if (!client) return { ok: false, error: 'client not found' }
+  if (!hasSocialListeningTab(client)) return SL_OFF
+  const months = parseReportingMonths(client.dashSocialConfig?.reportingMonths)
+  if (!months.ok) return SL_OFF
+  if (input.day < slNoteEarliest(chart, months.cfg.firstMonth)) {
+    return { ok: false, error: isSlMonthNoteChart(chart) ? "That month is before this client's first reporting year." : "That day is before this client's first reporting month." }
+  }
+
+  // The table's channel and chart columns are text; NoteKey names the Organic Social values only.
+  const key = { clientId: client.id, channel: SL_NOTES_CHANNEL, chart, day: input.day } as unknown as NoteKey
+  const body = input.body.trim()
+  const where = `slug=${input.clientSlug} chart=${chart} day=${input.day}`
+  try {
+    const open = await findOpenDraft(key)
+    if (!open || !(await updateDraft(open.id, { body, postIds: [], by }))) await insertDraft({ ...key, body, postIds: [], by })
+  } catch (e) {
+    if (isOpenDraftConflict(e)) {
+      console.warn(`[social-listening] note save refused, a draft is already open ${where}`)
+      return { ok: false, error: 'A draft is already open on this day. Reload to see it.' }
+    }
+    const code = typeof e === 'object' && e !== null && typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : 'none'
+    console.error(`[social-listening] note save failed ${where} code=${code}`)
     throw e
   }
   updateTag('db')

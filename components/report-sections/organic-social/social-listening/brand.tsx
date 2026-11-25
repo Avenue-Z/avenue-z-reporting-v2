@@ -7,11 +7,13 @@ import type { SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import type { SlTile, SlTopicView } from '@/lib/organic-social/social-listening/view-model'
 import type { YtdPoint } from '@/lib/organic-social/social-listening/compare'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
-import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, PosNeuColumns, SentimentByMedia, YtdColumns } from '../design/charts'
+import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, PosNeuColumns, SentimentByMedia, YtdColumns, type ChartMark } from '../design/charts'
 import { SlBoxLabel, SlCard, SlSection } from '../design/frames'
 import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
 import { ChartToggle, type ChartView } from './chart-toggle'
+import { SlNotesPanel } from './notes-panel'
+import { buildSlChartNotes, type SlChartNotes, type SlNoteChart, type SlNoteSource } from '@/lib/organic-social/social-listening/notes'
 import s from '../design/kit.module.css'
 import f from '../design/frames.module.css'
 
@@ -28,6 +30,14 @@ export type TopicPageProps = {
   cols: readonly SlToggleChart[]
   /** The PDF export: a toggle chart draws only its chosen view, with no buttons, whatever the client context. */
   exporting: boolean
+  /** The team's notes on the line graphs (Unit E), read once by the section; absent when there are none to show or the read
+   *  failed, and the graphs then draw exactly as without notes. */
+  notes?: SlNoteSource
+}
+
+/** One graph's notes, keyed by what the graph draws. Nothing to show without a source. */
+export function notesFor(source: SlNoteSource | undefined, chart: SlNoteChart, keys: readonly string[]): SlChartNotes {
+  return source ? buildSlChartNotes(source.rows, { chart, keys, caps: source.caps, clientSlug: source.clientSlug, today: source.today }) : { marks: [], panel: [] }
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -77,9 +87,9 @@ export function Toggled({ id, cols, exporting, line, columns }: {
 
 /** A year to date sentiment split as three lines, positive, neutral and negative by month, as both decks draw it (plan
  *  2026-11-24, F8): the line view of YtdColumns' points. A month with no data breaks the line, as on the columns. */
-export function SentimentLines({ points }: { points: YtdPoint[] }) {
+export function SentimentLines({ points, marks }: { points: YtdPoint[]; marks?: readonly ChartMark[] }) {
   return (
-    <PointLines months={points.map((p) => p.month)} series={[
+    <PointLines marks={marks} months={points.map((p) => p.month)} series={[
       { name: 'Positive', vals: points.map((p) => p.value?.pos ?? null), color: SENTIMENT_COLORS.pos },
       { name: 'Neutral', vals: points.map((p) => p.value?.neu ?? null), color: SENTIMENT_COLORS.neu },
       { name: 'Negative', vals: points.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
@@ -127,11 +137,18 @@ export function networkLabel(raw: string): string {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : raw
 }
 
-export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName, cols, exporting }: TopicPageProps) {
+export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName, cols, exporting, notes }: TopicPageProps) {
   const r = view.ready
   const label = vsLabel(view.month)
   const posNeuPoints = r ? fromFirst(r.posNeu, r.ytd) : []
   const ytd = r ? fromFirst(r.ytd) : []
+  const reddit = r?.reddit ? fromFirst(r.reddit) : []
+  const n = {
+    daily: notesFor(notes, 'sl-b-daily', r ? r.daily.map((d) => d.day) : []),
+    ytd: notesFor(notes, 'sl-b-ytd', ytd.map((p) => p.month)),
+    posneu: notesFor(notes, 'sl-b-posneu', posNeuPoints.map((p) => p.month)),
+    reddit: notesFor(notes, 'sl-b-reddit', reddit.map((p) => p.month)),
+  }
   return (
     <div className={s.view}>
       {upload}
@@ -149,7 +166,8 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
 
           <SlSection>
             <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['b-daily']}>
-              <LineChart days={r.daily} color="#60FDFF" id="sl-gb" />
+              <LineChart days={r.daily} color="#60FDFF" id="sl-gb" marks={n.daily.marks} />
+              <SlNotesPanel notes={n.daily} title="Results over time" />
             </SlCard>
           </SlSection>
 
@@ -176,22 +194,25 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
 
           <SlSection title="Year to date" line={`Earlier months as presented in each month's report; ${monthName(view.month)} from this export`}>
             <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['b-ytd']}>
-              <Toggled id="b-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={ytd} />}
-                columns={<YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />} />
+              <Toggled id="b-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={ytd} marks={n.ytd.marks} />}
+                columns={<YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} marks={n.ytd.marks} />} />
+              <SlNotesPanel notes={n.ytd} title="Sentiment, year to date" />
             </SlCard>
             <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']}>
               <Toggled id="b-posneu" cols={cols} exporting={exporting}
                 line={<PointLines months={posNeuPoints.map((p) => p.month)} series={[
                   { name: 'Positive + neutral', vals: posNeuPoints.map((p) => p.value), color: SENTIMENT_COLORS.pos },
                   { name: 'Negative', vals: ytd.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
-                ]} />}
+                ]} marks={n.posneu.marks} />}
                 columns={<PosNeuColumns months={posNeuPoints.map((p) => p.month)} posNeu={posNeuPoints.map((p) => p.value)}
-                  neg={ytd.map((p) => p.value?.neg ?? null)} />} />
+                  neg={ytd.map((p) => p.value?.neg ?? null)} marks={n.posneu.marks} />} />
+              <SlNotesPanel notes={n.posneu} title="Positive + neutral combined" />
             </SlCard>
             {r.reddit && (
               <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']}>
-                <Toggled id="b-reddit" cols={cols} exporting={exporting} line={<SentimentLines points={fromFirst(r.reddit)} />}
-                  columns={<YtdColumns points={fromFirst(r.reddit)} aria="Reddit sentiment by month" />} />
+                <Toggled id="b-reddit" cols={cols} exporting={exporting} line={<SentimentLines points={reddit} marks={n.reddit.marks} />}
+                  columns={<YtdColumns points={reddit} aria="Reddit sentiment by month" marks={n.reddit.marks} />} />
+                <SlNotesPanel notes={n.reddit} title="Reddit sentiment" />
               </SlCard>
             )}
           </SlSection>

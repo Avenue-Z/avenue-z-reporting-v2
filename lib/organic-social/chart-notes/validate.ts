@@ -47,7 +47,7 @@ export function isSeenNote(seen: unknown): seen is { text: string; postIds: numb
  *  paragraph separators U+2028 and U+2029, so a note stays one line of plain text (the last two
  *  groups added in Paul's review of #273, C10). A code point check rather than a regex, which
  *  eslint's no-control-regex would flag. */
-function hasControl(text: string): boolean {
+export function hasControl(text: string): boolean {
   return [...text].some((c) => {
     const n = c.codePointAt(0)!
     return n < 32 || (n >= 127 && n <= 159) || n === 0x2028 || n === 0x2029

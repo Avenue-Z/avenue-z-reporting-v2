@@ -14,6 +14,11 @@ import { slCapabilities } from '@/lib/organic-social/social-listening/capabiliti
 import { logMalformedSocialListeningSetting, parseSocialListeningSetting, socialListeningSettingProblem, hasSocialListeningTab } from '@/lib/organic-social/social-listening/setting'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
 import { getSlMonth } from '@/lib/organic-social/social-listening/store'
+import { SL_NOTES_CHANNEL, type SlNoteSource } from '@/lib/organic-social/social-listening/notes'
+import { getChartNotes } from '@/lib/organic-social/chart-notes/select'
+import { noteCapabilities } from '@/lib/organic-social/chart-notes/permissions'
+import { todayUtc } from '@/lib/organic-social/chart-notes/validate'
+import type { DashChannel } from '@/lib/organic-social/metrics'
 import type { SlMonthData, SlTopic } from '@/lib/organic-social/social-listening/types'
 import { buildTopicView, NOT_READY_TEXT, servedMonths, topicPills } from '@/lib/organic-social/social-listening/view-model'
 import { monthlyCommentary } from '@/components/report-sections/commentary/monthly'
@@ -120,7 +125,21 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
         label={view.state === 'missing' ? `Upload the ${shown} export for ${view.monthTitle}` : `Upload a new ${shown} export for ${view.monthTitle}`} />
     : view.state === 'missing' ? <Slot text={`No ${shown} export for ${view.monthTitle} yet.`} /> : null
 
-  const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName, cols, exporting }
+  // The notes on the line graphs (Unit E), read once, only when there are graphs to draw. A client, a preview and the PDF get
+  // approved notes only; staff edit and approve as on the Organic Social notes (CHART_NOTES_APPROVERS). Fails closed: a failed
+  // read draws the graphs as without notes, with one log line that carries no message and no note text.
+  let notes: SlNoteSource | undefined
+  if (view.ready) {
+    try {
+      // The table's channel column is text; getChartNotes names the Dash channels only.
+      const rows = await getChartNotes(client.id, SL_NOTES_CHANNEL as string as DashChannel)
+      notes = { rows, caps: clientView ? { canEdit: false, canApprove: false } : noteCapabilities(role, email), clientSlug, today: todayUtc() }
+    } catch {
+      console.error(`[social-listening] notes unreadable slug=${clientSlug}; showing none`)
+    }
+  }
+
+  const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName, cols, exporting, notes }
   const topics = setting.industryTopic ? `Talkwalker topics: ${setting.brandTopic}, and ${setting.industryTopic}` : `Talkwalker topic: ${setting.brandTopic}`
   return (
     <div className={s.root}>

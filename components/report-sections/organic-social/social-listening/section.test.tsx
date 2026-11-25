@@ -7,11 +7,12 @@ import type { SlExport, SlMonthData, SlTopic, SlUpload } from '@/lib/organic-soc
 import type { CommentaryEntry } from '@/lib/commentary/types'
 
 const h = vi.hoisted(() => ({
-  getClientBySlug: vi.fn(), getCommentaryForViewPrefix: vi.fn(), getSlMonth: vi.fn(),
+  getClientBySlug: vi.fn(), getCommentaryForViewPrefix: vi.fn(), getSlMonth: vi.fn(), getChartNotes: vi.fn(),
   clock: { value: { today: '2026-11-19', lastCompleteUtcDay: '2026-11-18', liveDayInProgress: false } },
 }))
 vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getClientBySlug: h.getClientBySlug, getCommentaryForViewPrefix: h.getCommentaryForViewPrefix }))
 vi.mock('@/lib/organic-social/social-listening/store', () => ({ getSlMonth: h.getSlMonth }))
+vi.mock('@/lib/organic-social/chart-notes/select', () => ({ getChartNotes: h.getChartNotes }))
 vi.mock('@/lib/organic-social/locked-range', async (orig) => ({ ...(await orig<object>()), requestClock: () => h.clock.value }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => '/x', useSearchParams: () => new URLSearchParams() }))
 // Each analysis box is a marker naming its key; the commentary panel has its own tests.
@@ -60,6 +61,7 @@ beforeEach(() => {
   h.getClientBySlug.mockResolvedValue(client())
   h.getCommentaryForViewPrefix.mockResolvedValue([])
   h.getSlMonth.mockResolvedValue(monthData([up(parsed('brand')), up(parsed('industry'))]))
+  h.getChartNotes.mockResolvedValue([])
   h.clock.value = { today: '2026-11-19', lastCompleteUtcDay: '2026-11-18', liveDayInProgress: false }
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
@@ -267,5 +269,65 @@ describe('the artifact\'s details', () => {
     h.getSlMonth.mockResolvedValue(monthData([up(parsed('brand'))]))
     await show()
     expect(screen.getByText('Sentiment, October')).toBeTruthy()
+  })
+})
+
+// Unit E (plan 2026-11-24, F6): notes on the line graphs, read once under Social Listening's own channel.
+describe('notes on the graphs', () => {
+  const at = new Date('2026-11-02T10:00:00Z')
+  const note = (over: Record<string, unknown>) => ({
+    id: 'n1', clientId: 'client-uuid', channel: 'SOCIAL_LISTENING', chart: 'sl-b-daily', day: '2026-10-05', body: 'AMA went live', postIds: [],
+    status: 'approved', createdBy: 'w@avenuez.com', updatedBy: 'w@avenuez.com', approvedBy: 'a@avenuez.com',
+    createdAt: at, updatedAt: at, approvedAt: at, deletedAt: null, deletedBy: null, ...over,
+  })
+  const marks = (c: HTMLElement) => [...c.querySelectorAll('[data-note-mark] title')].map((e) => e.textContent)
+
+  test('no note: no mark anywhere and no notes list, for a client', async () => {
+    const { container } = await show({ role: 'CLIENT_VIEWER', email: null })
+    expect(h.getChartNotes).toHaveBeenCalledWith('client-uuid', 'SOCIAL_LISTENING')
+    expect(marks(container)).toEqual([])
+    expect(screen.queryByRole('list', { name: /^Notes on/ })).toBeNull()
+  })
+
+  test('a client sees an approved note as a mark and a numbered line; never a draft, never a control', async () => {
+    h.getChartNotes.mockResolvedValue([note({}), note({ id: 'd1', day: '2026-10-09', body: 'Draft text', status: 'draft', approvedAt: null, approvedBy: null })])
+    const { container } = await show({ role: 'CLIENT_VIEWER', email: null })
+    expect(marks(container)).toEqual(['1. Oct 5: AMA went live'])
+    expect(screen.getByRole('list', { name: 'Notes on Results over time' }).textContent).toBe('1Oct 5: AMA went live')
+    expect(container.textContent).not.toContain('Draft text')
+    expect(screen.queryByRole('button', { name: 'Add annotation' })).toBeNull()
+  })
+
+  test('a month note marks its year to date graph in the chosen view; the PDF prints it with no controls', async () => {
+    h.getChartNotes.mockResolvedValue([note({ chart: 'sl-b-ytd', day: '2026-10-01', body: 'AMA month' })])
+    const line = await show({ exporting: true })
+    expect(marks(line.container)).toEqual(['1. Oct: AMA month'])
+    line.unmount()
+    const cols = await show({ exporting: true, cols: ['b-ytd'] })
+    expect(marks(cols.container)).toEqual(['1. Oct: AMA month'])
+    expect(screen.queryByRole('button', { name: 'Add annotation' })).toBeNull()
+  })
+
+  test('staff get Add annotation on the four brand graphs, and their drafts', async () => {
+    h.getChartNotes.mockResolvedValue([note({ id: 'd1', day: '2026-10-09', body: 'Draft text', status: 'draft', approvedAt: null, approvedBy: null })])
+    await show()
+    expect(screen.getAllByRole('button', { name: 'Add annotation' })).toHaveLength(4)
+    expect(screen.getByText('Draft: Draft text')).toBeTruthy()
+  })
+
+  test('industry: a note on its own Results over time graph only', async () => {
+    h.getChartNotes.mockResolvedValue([note({ chart: 'sl-i-daily', body: 'Industry event' }), note({ id: 'n2', body: 'Brand only' })])
+    const { container } = await show({ topic: 'industry', role: 'CLIENT_VIEWER', email: null })
+    expect(marks(container)).toEqual(['1. Oct 5: Industry event'])
+  })
+
+  test('a failed read draws the graphs as without notes and logs one line with no text', async () => {
+    h.getChartNotes.mockRejectedValue(new Error('down AMA'))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { container } = await show()
+    expect(marks(container)).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Add annotation' })).toBeNull()
+    expect(err).toHaveBeenCalledWith('[social-listening] notes unreadable slug=a-client; showing none')
+    err.mockRestore()
   })
 })

@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getClientBySlug: h.getClientBySlug, getCommentaryForViewPrefix: h.getCommentaryForViewPrefix }))
 vi.mock('@/lib/organic-social/social-listening/store', () => ({ getSlMonth: h.getSlMonth }))
+vi.mock('@/lib/organic-social/chart-notes/select', () => ({ getChartNotes: async () => [] }))
 vi.mock('@/lib/organic-social/locked-range', async (orig) => ({ ...(await orig<object>()), requestClock: () => h.clock.value }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => '/x', useSearchParams: () => new URLSearchParams() }))
 // Each analysis box is a marker naming its key: the box's own look is pinned by its own tests, and stays Social Listening's.

@@ -335,3 +335,90 @@ test('revoke: a YTD note checks its own month for an open draft', async () => {
   expect(await revokeChartNoteAction('a-client', ID)).toEqual({ ok: true })
   expect(m.findOpenDraft).toHaveBeenCalledWith({ clientId: 'client-uuid', channel: 'INSTAGRAM', chart: 'ytd-views', day: '2026-08-01' })
 })
+
+// Notes on the Social Listening graphs (plan 2026-11-24, Unit E). They branch before the Organic Social checks: their own
+// key check, and the client's Social Listening tab in place of notesOn. Every other channel takes the path above unchanged.
+const SL_ON = { ...ON, dashSocialConfig: { ...ON.dashSocialConfig, socialListening: { enabled: true, brandTopic: 'Made Up Brand' } }, hiddenReports: [] }
+const SL = { clientSlug: 'a-client', channel: 'SOCIAL_LISTENING', chart: 'sl-b-daily', day: '2026-09-14', body: '  AMA went live  ', postIds: [] as number[] }
+test('save: a Social Listening day note is stored under its own channel and chart, trimmed, with no posts', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  expect(await saveChartNoteAction(SL)).toEqual({ ok: true })
+  expect(m.insertDraft).toHaveBeenCalledWith({
+    clientId: 'client-uuid', channel: 'SOCIAL_LISTENING', chart: 'sl-b-daily', day: '2026-09-14', body: 'AMA went live', postIds: [], by: 'writer@avenuez.com',
+  })
+  expect(updateTag).toHaveBeenCalledWith('db')
+})
+test('save: a Social Listening month note sits on its 1st, from January of the first reporting year', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  expect(await saveChartNoteAction({ ...SL, chart: 'sl-b-ytd', day: '2026-01-01' })).toEqual({ ok: true })
+  expect(await saveChartNoteAction({ ...SL, chart: 'sl-b-reddit', day: '2025-12-01' })).toEqual({ ok: false, error: "That month is before this client's first reporting year." })
+  expect(await saveChartNoteAction({ ...SL, chart: 'sl-b-posneu', day: '2026-02-14' })).toEqual({ ok: false, error: 'invalid day' })
+  expect(m.insertDraft).toHaveBeenCalledTimes(1)
+})
+test("save: a Social Listening day note before the client's first reporting month is refused, nothing read or written", async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  expect(await saveChartNoteAction({ ...SL, day: '2026-07-31' })).toEqual({ ok: false, error: "That day is before this client's first reporting month." })
+  expect(m.findOpenDraft).not.toHaveBeenCalled()
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+test('save: a Social Listening chart under a Dash channel, and a Dash chart under Social Listening, are refused before any read', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  expect(await saveChartNoteAction({ ...SL, channel: 'INSTAGRAM' })).toEqual({ ok: false, error: 'invalid chart' })
+  expect(await saveChartNoteAction({ ...SL, chart: 'followers' })).toEqual({ ok: false, error: 'invalid chart' })
+  expect(await saveChartNoteAction({ ...SL, chart: 'ytd-views', day: '2026-09-01' })).toEqual({ ok: false, error: 'invalid chart' })
+  expect(await saveChartNoteAction({ ...SL, postIds: [11] })).toEqual({ ok: false, error: 'A note on a Social Listening graph has no posts.' })
+  expect(getClientBySlug).not.toHaveBeenCalled()
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+test('save: a client without the Social Listening tab is refused, even on locked months with notes on', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(getClientBySlug).mockResolvedValue(ON as never)
+  expect(await saveChartNoteAction(SL)).toEqual({ ok: false, error: 'Social Listening is not on for this client.' })
+  vi.mocked(getClientBySlug).mockResolvedValue({ ...SL_ON, hiddenReports: ['organic-social-listening'] } as never)
+  expect(await saveChartNoteAction(SL)).toEqual({ ok: false, error: 'Social Listening is not on for this client.' })
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+test('save: a client role is refused a Social Listening note too', async () => {
+  as('CLIENT_ADMIN', 'approver@avenuez.com')
+  expect(await saveChartNoteAction(SL)).toEqual(FORBIDDEN)
+  for (const w of writes()) expect(w).not.toHaveBeenCalled()
+})
+test('save: a Social Listening note edits the open draft of that day, and a lost race is the clear message, logged without the text', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  vi.mocked(m.findOpenDraft).mockResolvedValueOnce({ id: ID } as never)
+  expect(await saveChartNoteAction(SL)).toEqual({ ok: true })
+  expect(m.findOpenDraft).toHaveBeenCalledWith({ clientId: 'client-uuid', channel: 'SOCIAL_LISTENING', chart: 'sl-b-daily', day: '2026-09-14' })
+  expect(m.updateDraft).toHaveBeenCalledWith(ID, { body: 'AMA went live', postIds: [], by: 'writer@avenuez.com' })
+  expect(m.insertDraft).not.toHaveBeenCalled()
+
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  vi.mocked(m.insertDraft).mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505', constraint: 'chart_notes_one_open_draft' }))
+  expect(await saveChartNoteAction(SL)).toEqual({ ok: false, error: 'A draft is already open on this day. Reload to see it.' })
+  expect(warn).toHaveBeenCalledWith('[social-listening] note save refused, a draft is already open slug=a-client chart=sl-b-daily day=2026-09-14')
+  expect(JSON.stringify(warn.mock.calls)).not.toContain('AMA')
+  warn.mockRestore()
+})
+test('save: a Social Listening note whose write fails logs the client, chart and day, never the text, and still throws', async () => {
+  as('INTERNAL_ANALYST')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.mocked(m.insertDraft).mockRejectedValueOnce(Object.assign(new Error('boom AMA went live'), { code: '08006' }))
+  await expect(saveChartNoteAction(SL)).rejects.toThrow('boom')
+  expect(err).toHaveBeenCalledWith('[social-listening] note save failed slug=a-client chart=sl-b-daily day=2026-09-14 code=08006')
+  err.mockRestore()
+})
+test('approve, revoke and delete work on a Social Listening note, which checks its own day for an open draft', async () => {
+  as('INTERNAL_ADMIN', 'approver@avenuez.com')
+  vi.mocked(getClientBySlug).mockResolvedValue(SL_ON as never)
+  vi.mocked(m.findChartNote).mockResolvedValue({ ...ROW, channel: 'SOCIAL_LISTENING', chart: 'sl-b-ytd', day: '2026-09-01', status: 'approved' } as never)
+  expect(await approveChartNoteAction('a-client', ID, { text: 'AMA went live', postIds: [] })).toEqual({ ok: true })
+  expect(await revokeChartNoteAction('a-client', ID)).toEqual({ ok: true })
+  expect(m.findOpenDraft).toHaveBeenCalledWith({ clientId: 'client-uuid', channel: 'SOCIAL_LISTENING', chart: 'sl-b-ytd', day: '2026-09-01' })
+  vi.mocked(m.findChartNote).mockResolvedValue({ ...ROW, channel: 'SOCIAL_LISTENING', chart: 'sl-b-ytd', day: '2026-09-01' } as never)
+  expect(await deleteChartNoteDraftAction('a-client', ID)).toEqual({ ok: true })
+})
