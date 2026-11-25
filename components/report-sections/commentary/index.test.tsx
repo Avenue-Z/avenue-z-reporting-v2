@@ -159,3 +159,20 @@ describe('CommentarySection: labels and the Recommendations key', () => {
     }
   })
 })
+
+describe('CommentarySection: Technical Audit snapshot branch', () => {
+  beforeEach(() => { captured = null })
+
+  test('a D,D range on peec-ai:technical-audit renders the snapshot-bound box', async () => {
+    const row = { ...ENTRIES[0], id: 'snap', viewKey: 'peec-ai:technical-audit', periodStart: '2026-11-01', periodEnd: '2026-11-01' }
+    rows.byKey = { 'peec-ai:technical-audit': [row, { ...row, id: 'other', periodStart: '2026-10-01', periodEnd: '2026-10-01' }] }
+    try {
+      mockAuth.mockResolvedValue({ user: { email: 'editor@avenuez.com' } })
+      const { CommentarySection } = await import('./index')
+      render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai:technical-audit', requestedRange: '2026-11-01,2026-11-01' }))
+      const props = captured as unknown as { entries: { id: string }[]; periodLabel: string }
+      expect(props.entries.map((e) => e.id)).toEqual(['snap'])
+      expect(props.periodLabel).toBe('Snapshot: Nov 1, 2026')
+    } finally { rows.byKey = null }
+  })
+})

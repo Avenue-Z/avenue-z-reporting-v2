@@ -66,3 +66,15 @@ test('the export heading is the box title: Insights by default, Recommendations 
   expect(screen.getByRole('heading', { name: 'Recommendations' })).toBeTruthy()
   expect(screen.queryByRole('heading', { name: 'Insights' })).toBeNull()
 })
+
+test('a snapshot export prints the snapshot label instead of a repeated date range', () => {
+  const SNAP = entry('s', 'approved', '2026-11-01', '2026-11-01', 'Snapshot note.')
+  render(
+    <ExportModeProvider>
+      <CommentaryPanel clientSlug="c" viewKey="peec-ai:technical-audit" entries={[SNAP]} initialId="s" clientEntryId="s"
+        capabilities={staff} history={[]} periodLabel="Snapshot: Nov 1, 2026" />
+    </ExportModeProvider>,
+  )
+  expect(screen.getByText('Snapshot: Nov 1, 2026')).toBeTruthy()
+  expect(screen.queryByText(/Reporting period/)).toBeNull()
+})

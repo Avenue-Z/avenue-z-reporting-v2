@@ -56,6 +56,7 @@ export function CommentaryPanel({
   entryNotes,
   labels = INSIGHTS_LABELS,
   look,
+  periodLabel,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
@@ -73,6 +74,9 @@ export function CommentaryPanel({
   /** The design kit's look (commentary@2 and recommendations@2, Organic Social only; CommentarySection decides): the kit's
    *  frame, label, buttons, badges and body style. Every behaviour is the same. Absent: exactly as before. */
   look?: 'kit'
+  /** A snapshot-bound box (Technical Audit): names the one snapshot the box is for, e.g. 'Snapshot: Nov 1, 2026'. The
+   *  editor hides its date inputs and saves `defaultPeriod`; the entry shows this in place of the period range. */
+  periodLabel?: string
 }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
@@ -88,7 +92,7 @@ export function CommentaryPanel({
   const selected = entries.find((e) => e.id === selectedId) ?? null
   const exportMode = useExportMode()
 
-  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} title={labels.title} {...(look ? { look } : {})} />
+  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} title={labels.title} periodLabel={periodLabel} {...(look ? { look } : {})} />
   const K = look === 'kit'
 
   function refresh() {
@@ -130,7 +134,7 @@ export function CommentaryPanel({
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
           {editing === 'new' && (
-            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} defaultPeriod={defaultPeriod} outline={labels.outline} />
+            <CommentaryEditor key="new" clientSlug={clientSlug} viewKey={viewKey} onDone={handleSaved} defaultPeriod={defaultPeriod} outline={labels.outline} periodLabel={periodLabel} />
           )}
 
           {editing !== 'new' && entries.length > 1 && (
@@ -152,7 +156,7 @@ export function CommentaryPanel({
           {editing !== 'new' && selected && editing !== selected.id && (
             <article className="space-y-3">
               <div className="flex flex-wrap items-center gap-3 text-xs">
-                <span className="text-text-muted">Reporting period: {fmt(selected.periodStart)} – {fmt(selected.periodEnd)}</span>
+                <span className="text-text-muted">{periodLabel ?? `Reporting period: ${fmt(selected.periodStart)} – ${fmt(selected.periodEnd)}`}</span>
                 {entryNotes?.[selected.id] && (
                   <span className={K ? kit.edited : 'rounded bg-white/10 px-2 py-0.5 font-semibold text-text-muted'}>{entryNotes[selected.id]}</span>
                 )}
@@ -192,7 +196,7 @@ export function CommentaryPanel({
           )}
 
           {editing !== 'new' && selected && editing === selected.id && (
-            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} outline={labels.outline} />
+            <CommentaryEditor key={selected.id} clientSlug={clientSlug} viewKey={viewKey} entry={selected} onDone={handleSaved} outline={labels.outline} defaultPeriod={defaultPeriod} periodLabel={periodLabel} />
           )}
 
           {capabilities.canApprove && history.length > 0 && (
@@ -246,13 +250,13 @@ export function CommentaryPanel({
 /** Commentary as the PDF export prints it: what the client sees, whoever exports. The client's entry is worked out
  *  server-side with the client's own rules (index.tsx; monthly.tsx for a locked month, where a whole-month entry wins),
  *  not from `initialId`, which for staff is the newest entry including drafts. None, nothing. No controls; one block. */
-function ExportCommentary({ entry: shown, title, look }: { entry: CommentaryEntry | null; title: string; look?: 'kit' }) {
+function ExportCommentary({ entry: shown, title, look, periodLabel }: { entry: CommentaryEntry | null; title: string; look?: 'kit'; periodLabel?: string }) {
   if (!shown) return null
   const K = look === 'kit'
   return (
     <section data-export-block="" className={K ? `${kit.root} ${bx.box} mb-8 space-y-3 p-4` : 'mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4'}>
       <h2 className={K ? `${kit.lbl} ${bx.lblClient}` : 'text-sm font-extrabold text-white'}>{title}</h2>
-      <p className="text-xs text-text-muted">Reporting period: {fmt(shown.periodStart)} – {fmt(shown.periodEnd)}</p>
+      <p className="text-xs text-text-muted">{periodLabel ?? `Reporting period: ${fmt(shown.periodStart)} – ${fmt(shown.periodEnd)}`}</p>
       <div
         className={K ? kit.commBody : 'text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1'}
         dangerouslySetInnerHTML={{ __html: shown.bodyHtml }}
