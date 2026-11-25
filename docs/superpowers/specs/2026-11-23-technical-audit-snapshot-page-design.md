@@ -108,7 +108,7 @@ GSC estimates (rejected by Tina); **automatic SF + Ahrefs, uploaded GSC (chosen)
    - Screaming Frog ✓ / missing (with reason, e.g. "Issues Overview not in this crawl's export")
    - Ahrefs ✓ / missing / failed (reason)
    - **Upload GSC Page indexing** — not yet uploaded → upload button + how-to ("Search Console → Indexing →
-     Pages → All known pages → Export → Download CSV; upload the .zip")
+     Pages → All known pages → Export → Download Excel; upload the .xlsx")
    - **Upload GSC Core Web Vitals — mobile** and **— desktop** (same pattern, per device)
    - Review the issues list
    - Commentary: none / draft / approved
@@ -180,7 +180,8 @@ resumable per (snapshot, source); one failure never blocks another.
 3. **Ahrefs.** `/site-audit/projects` (`date` = snapshot date) → health score + crawl date, taking the latest
    completed crawl on or before the snapshot date within 7 days; none → `missing`. Then `/site-audit/issues`
    for that crawl. Backoff on 429/5xx; 401/403 → `failed` with reason.
-4. **GSC uploads (team view).** Server action per file, modeled on `uploadSocialListeningExport`: auth (staff),
+4. **GSC uploads (team view).** The GSC **Excel** export (.xlsx; parsed with the SheetJS `xlsx` package the
+   app already uses for Social Listening). Server action per file, modeled on `uploadSocialListeningExport`: auth (staff),
    size check, parse, validate (report type matches the slot — Page indexing vs CWV, and device for CWV;
    property matches the brand when the export names it), transactional write replacing that slot,
    `revalidate`. A wrong file is refused with a named reason and writes nothing. `gsc_export_date` = the
@@ -233,7 +234,7 @@ timestamps / badge — as shipped. No commentary: team view "Add commentary"; cl
 | Publish with GSC missing | Allowed after a warning; tiles stay blank. |
 | Missed monthly crawl | No snapshot; team warning after 35 days. |
 | Ahrefs crawl > 7 days before the SF run | Ahrefs `missing`. |
-| Sweep re-runs / overlaps | Idempotent; lock as `/api/lock-sweep`. |
+| Sweep re-runs / overlaps | Idempotent; each source run is claimed atomically (`UPDATE … WHERE status IN (pending, failed) … RETURNING`) so two sweeps never work the same row. |
 | Canonical-map Sheet unreachable | Repo copy; logged. |
 | Snapshot param not found / unpublished for a client | Latest published. |
 
