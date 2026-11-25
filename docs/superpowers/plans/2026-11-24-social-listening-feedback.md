@@ -38,7 +38,7 @@ Paths use the same prefixes as the feedback list: `SL/`, `KIT/`, `LIB/`.
 | # | Item | Decision |
 |---|---|---|
 | D1 | F3 | It was on Share of sentiment and is gone. Try to reproduce on October data; if it doesn't come back, close it |
-| D2 | F8 | Positive + neutral: no toggle, full width |
+| D2 | F8 | Positive + neutral: full width, with the toggle too, as Savannah's list asks (changed 2026-11-24; its columns view is positive + neutral under negative, a column a month) |
 | D3 | F8, F14 | Clients get the toggle; the PDF prints whichever view is on screen |
 | D4 | F9, F11 | Every comparison works against what the client saw. November's baseline is the delivered October deck, stored once on October's history row (media counts and top five authors added) |
 | D15 | All | The client first sees the tab with November. October is a stored baseline, never a client page, so no October upload is swapped and September's media and authors are not needed |

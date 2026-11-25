@@ -7,7 +7,7 @@ import type { SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import type { SlTile, SlTopicView } from '@/lib/organic-social/social-listening/view-model'
 import type { YtdPoint } from '@/lib/organic-social/social-listening/compare'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
-import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, YtdColumns } from '../design/charts'
+import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, PosNeuColumns, YtdColumns } from '../design/charts'
 import { SlBoxLabel, SlCard, SlSection } from '../design/frames'
 import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
@@ -180,10 +180,13 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
                 columns={<YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />} />
             </SlCard>
             <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']}>
-              <PointLines months={posNeuPoints.map((p) => p.month)} series={[
-                { name: 'Positive + neutral', vals: posNeuPoints.map((p) => p.value), color: SENTIMENT_COLORS.pos },
-                { name: 'Negative', vals: ytd.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
-              ]} />
+              <Toggled id="b-posneu" cols={cols} exporting={exporting}
+                line={<PointLines months={posNeuPoints.map((p) => p.month)} series={[
+                  { name: 'Positive + neutral', vals: posNeuPoints.map((p) => p.value), color: SENTIMENT_COLORS.pos },
+                  { name: 'Negative', vals: ytd.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
+                ]} />}
+                columns={<PosNeuColumns months={posNeuPoints.map((p) => p.month)} posNeu={posNeuPoints.map((p) => p.value)}
+                  neg={ytd.map((p) => p.value?.neg ?? null)} />} />
             </SlCard>
             {r.reddit && (
               <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']}>

@@ -250,6 +250,43 @@ export function YtdColumns({ points, aria }: { points: YtdPoint[]; aria: string 
   )
 }
 
+/** Positive + neutral's columns view (plan 2026-11-24, Unit C; Savannah's list asks for the toggle on all three year to date
+ *  charts): one column a month, positive + neutral at the bottom, negative on top, each share printed when there is room, the
+ *  last month in bold. Each column is scaled to its own two shares, as YtdColumns is, since whole percents can sum to 99 or
+ *  101. A month with no data has no column. */
+export function PosNeuColumns({ months, posNeu, neg }: { months: string[]; posNeu: (number | null)[]; neg: (number | null)[] }) {
+  const W = 960, H = 250, L = 8, R = 8, T = 8, B = 28
+  const n = Math.max(months.length, 1)
+  const slot = (W - L - R) / n, bw = Math.min(64, slot * 0.62)
+  const out: ReactNode[] = []
+  months.forEach((m, i) => {
+    const cx = L + slot * i + slot / 2
+    const a = posNeu[i], b = neg[i]
+    if (a !== null && a !== undefined && b !== null && b !== undefined) {
+      const tot = a + b || 1
+      let yb = H - B
+      ;([[a, SC.pos], [b, SC.neg]] as const).forEach(([v, color], j) => {
+        const h = ((H - B - T) * v) / tot
+        const ytop = yb - h
+        out.push(<rect key={`r${i}${j}`} x={cx - bw / 2} y={ytop} width={bw} height={Math.max(h - 1, 0)} rx={3} style={{ fill: color }} />)
+        if (h >= 16) out.push(<text key={`v${i}${j}`} className={s.tSeg} x={cx} y={ytop + h / 2 + 4} fontSize={11} textAnchor="middle">{v}</text>)
+        yb = ytop
+      })
+    }
+    out.push(<text key={`m${i}`} className={s.tMuted} x={cx} y={H - 8} fontSize={12} textAnchor="middle" fontWeight={i === months.length - 1 ? 800 : 400}>{monthShort(m)}</text>)
+  })
+  const aria = `Positive + neutral and negative by month: ${months.map((m, i) => {
+    const a = posNeu[i], b = neg[i]
+    return a === null || a === undefined || b === null || b === undefined ? `${monthShort(m)} no data` : `${monthShort(m)} ${a}% and ${b}%`
+  }).join(', ')}`
+  return (
+    <>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{out}</svg>
+      <Key items={[{ name: 'Positive + neutral', color: SC.pos }, { name: 'Negative', color: SC.neg }]} />
+    </>
+  )
+}
+
 /** Year-to-date counts as columns, one per month, each labelled with its value: the shape of YtdColumns for a count
  *  (followers, views) rather than sentiment shares (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md, Task 6).
  *  Scaled to the largest value. A month with no data is a gap (no column, its month still labelled), never a 0. */

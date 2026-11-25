@@ -15,11 +15,12 @@ export function parseSlPreview(raw: unknown): boolean {
 }
 
 /** The charts with a Line / Columns toggle (plan docs/superpowers/plans/2026-11-24-social-listening-feedback.md, Unit C), named by
- *  their analysis box ids, in page order. Every one starts on the line. Positive + neutral has no toggle (decision D2). */
-export const SL_TOGGLE_CHARTS = ['b-ytd', 'b-reddit', 'i-ytd', 'i-sentday'] as const
+ *  their analysis box ids, in page order. Every one starts on the line. Positive + neutral has one too, as Savannah's list asks
+ *  (decision D2, changed 2026-11-24). */
+export const SL_TOGGLE_CHARTS = ['b-ytd', 'b-posneu', 'b-reddit', 'i-ytd', 'i-sentday'] as const
 export type SlToggleChart = (typeof SL_TOGGLE_CHARTS)[number]
 
-// My own bound: four ids and their commas are well under it; anything longer is not a value the page wrote.
+// My own bound: five ids and their commas are well under it; anything longer is not a value the page wrote.
 const MAX_SLCOLS = 200
 
 /** `slcols` lists the charts set to columns, comma-separated. Known ids are kept once each, in page order; anything else is

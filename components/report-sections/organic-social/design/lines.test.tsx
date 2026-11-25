@@ -2,7 +2,7 @@
 // three lines, as the October deck draws them. The year to date line view reuses PointLines (tested through the page).
 import { describe, expect, test } from 'vitest'
 import { render } from '@testing-library/react'
-import { DailyLines } from './charts'
+import { DailyLines, PosNeuColumns } from './charts'
 
 const day = (d: number, pos: number, neu: number, neg: number) => ({ day: `2026-10-${String(d).padStart(2, '0')}`, pos, neu, neg })
 
@@ -30,5 +30,23 @@ describe('DailyLines', () => {
   test('its label names the chart for a screen reader', () => {
     const { container } = render(<DailyLines rows={[day(1, 1, 1, 1)]} />)
     expect(container.querySelector('svg')!.getAttribute('aria-label')).toBe('Results per day by sentiment, as lines')
+  })
+})
+
+// Positive + neutral's columns view (Savannah's list asks for the toggle on all three year to date charts): one column a
+// month, positive + neutral at the bottom in the positive colour, negative on top, each share printed, a gap month empty.
+describe('PosNeuColumns', () => {
+  const months = ['2026-08', '2026-09', '2026-10']
+  test('a column per month with data, positive + neutral under negative, each share printed, a key for both', () => {
+    const { container } = render(<PosNeuColumns months={months} posNeu={[91, null, 87]} neg={[9, null, 13]} />)
+    const rects = Array.from(container.querySelectorAll('rect'))
+    expect(rects).toHaveLength(4)
+    const [aug, augNeg] = rects
+    expect(aug.style.fill.toUpperCase()).toBe('#60FF80')
+    expect(augNeg.style.fill.toUpperCase()).toBe('#FF4444')
+    expect(Number(augNeg.getAttribute('y'))).toBeLessThan(Number(aug.getAttribute('y')))
+    expect(Array.from(container.querySelectorAll('text')).map((t) => t.textContent)).toEqual(['91', '9', 'Aug', 'Sep', '87', '13', 'Oct'])
+    expect(container.textContent).toContain('Positive + neutral')
+    expect(container.querySelector('svg')!.getAttribute('aria-label')).toBe('Positive + neutral and negative by month: Aug 91% and 9%, Sep no data, Oct 87% and 13%')
   })
 })

@@ -135,14 +135,22 @@ describe('line views and the toggle', () => {
   const toggleOf = (card: Element) => Array.from(card.querySelectorAll('button')).map((b) => `${b.textContent}:${b.getAttribute('aria-pressed')}`)
   const ariaOf = (card: Element) => card.querySelector('svg[role="img"]')?.getAttribute('aria-label') ?? ''
 
-  test('brand: Sentiment year to date and Reddit start on the line, with the toggle; positive + neutral has no toggle', async () => {
+  test('brand: Sentiment year to date, positive + neutral and Reddit start on the line, with the toggle', async () => {
     const root = await page()
     for (const title of ['Sentiment, ', 'Reddit sentiment']) {
       const card = cardTitled(root, title)!
       expect(toggleOf(card)).toEqual(['Line:true', 'Columns:false'])
       expect(ariaOf(card)).toMatch(/^Positive: /)
     }
-    expect(toggleOf(cardTitled(root, 'Positive + neutral combined')!)).toEqual([])
+    const posneu = cardTitled(root, 'Positive + neutral combined')!
+    expect(toggleOf(posneu)).toEqual(['Line:true', 'Columns:false'])
+    expect(ariaOf(posneu)).toMatch(/^Positive \+ neutral: /)
+  })
+
+  test('positive + neutral set to columns: one column a month, positive + neutral under negative', async () => {
+    const posneu = cardTitled(await page({ cols: ['b-posneu'] }), 'Positive + neutral combined')!
+    expect(toggleOf(posneu)).toEqual(['Line:false', 'Columns:true'])
+    expect(ariaOf(posneu)).toMatch(/^Positive \+ neutral and negative by month/)
   })
 
   test('industry: sentiment over time and the month-by-month chart start on the line, with the toggle', async () => {
