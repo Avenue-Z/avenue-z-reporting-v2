@@ -30,6 +30,9 @@ import { IndustryPage } from './industry'
 import { PreviewToggle, TopicPills } from './pills'
 import { UploadControl } from './upload'
 import { SlAnalysis } from './analysis'
+import { CarriedAppendix } from './carried-appendix'
+import { carriedEntry, hasOwnEntry, isCarriedBox } from '@/lib/organic-social/social-listening/carried'
+import { canApproveCommentary, canEditCommentary } from '@/lib/commentary/permissions'
 import s from '../design/kit.module.css'
 
 const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
@@ -89,8 +92,12 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   // A box has client text when a client would open on an approved entry for this month (the same rule the commentary
   // panel prints in the PDF).
   const clientMonths = lockedRangeFor(client, 'CLIENT_VIEWER', servedRange, clock)?.months ?? []
+  const boxRows = (id: SlBoxId) => entries.filter((e) => e.viewKey === slBoxViewKey(id))
+  // A keyword appendix with no approved entry this month carries the newest earlier approved one (Unit G), so a client sees
+  // the section and its text with no new approval.
   const approvedBoxes = new Set<SlBoxId>(
-    [...SL_BRAND_BOX_IDS, ...SL_INDUSTRY_BOX_IDS].filter((id) => clientMonthEntry(entries.filter((e) => e.viewKey === slBoxViewKey(id)), month, clientMonths) !== null),
+    [...SL_BRAND_BOX_IDS, ...SL_INDUSTRY_BOX_IDS].filter((id) => clientMonthEntry(boxRows(id), month, clientMonths) !== null
+      || (isCarriedBox(id) && carriedEntry(boxRows(id), month) !== null)),
   )
 
   const pills = topicPills({ month, data, setting, clientView })
@@ -112,7 +119,16 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
 
   const view = buildTopicView({ topic: shown, month, live, clientView, setting, data, approvedBoxes, sort })
   const boxes: Partial<Record<SlBoxId, ReactNode>> = {}
+  // The commentary rights a box gives this viewer, as monthlyCommentary works them out (a preview and the PDF are a client).
+  const boxCaps = clientView ? { canEdit: false, canApprove: false } : { canEdit: canEditCommentary(email ?? null), canApprove: canApproveCommentary(email ?? null) }
   for (const id of shown === 'brand' ? SL_BRAND_BOX_IDS : SL_INDUSTRY_BOX_IDS) {
+    if (isCarriedBox(id) && !hasOwnEntry(boxRows(id), month, { clientView, caps: boxCaps, clientMonths })) {
+      const carried = carriedEntry(boxRows(id), month)
+      if (carried) {
+        boxes[id] = <CarriedAppendix clientSlug={clientSlug} viewKey={slBoxViewKey(id)} entry={carried} month={month} capabilities={boxCaps} labels={slBoxLabels(id)} />
+        continue
+      }
+    }
     if (clientView && !approvedBoxes.has(id)) continue
     // A preview renders each box as the client would see it: approved text only, no controls.
     boxes[id] = await monthlyCommentary({
