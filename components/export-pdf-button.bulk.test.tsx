@@ -143,6 +143,22 @@ test('a failed page is listed with its reason; Try again re-exports only that pa
   expect(downloads[0].bytes).toEqual([1, 2, 3])
 })
 
+// jsdom has no layout, so this pins the rule: the popover never outgrows the window, the page list gives way first,
+// and a long failure list scrolls on its own. Without it Try again sat below the window with no way to reach it.
+test('the picker fits the window, so Try again stays reachable with many failures', async () => {
+  answer(PAGES.map((p) => p.key))
+  render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
+  const dialog = open()
+  fireEvent.click(box('All pages'))
+  fireEvent.click(screen.getByRole('button', { name: 'Export 3 pages' }))
+  const failures = await screen.findByRole('alert')
+  expect(dialog.className).toContain('max-h-(--radix-popover-content-available-height)')
+  expect(dialog.className).toContain('flex-col')
+  expect(screen.getByText('Pages to export').nextElementSibling?.className).toContain('min-h-0')
+  expect(failures.className).toContain('overflow-y-auto')
+  expect(screen.getByRole('button', { name: 'Try again' }).closest('.shrink-0')).not.toBeNull()
+})
+
 test('Download the ones that worked merges only the successes, in order', async () => {
   answer(['peec-ai:'])
   render(<ExportPdfButton {...props} serverExport={serverExport} bulk={bulk()} />)
