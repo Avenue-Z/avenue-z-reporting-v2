@@ -3,18 +3,24 @@ import type { AhrefsResult, Parsed, SourceIssue } from './types'
 const BASE = 'https://api.ahrefs.com/v3'
 const TIMEOUT_MS = 15_000
 const DEFAULT_RETRY_MS = 2_000
-const MAX_RETRY_MS = 30_000
+const MAX_RETRY_MS = 5_000
+const TOTAL_BUDGET_MS = 35_000
+const MAX_BODY_BYTES = 5 * 1024 * 1024
 const WINDOW_DAYS = 7
 const DAY_MS = 86_400_000
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
+const CRAWL_RE = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/
+const SNAPSHOT_RE = /^\d{4}-\d{2}-\d{2}$/
+
 /** True when the crawl's UTC day is on or before the snapshot day and no more than 7 days earlier. */
 export function pickAhrefsCrawl(crawlDate: string, snapshotDate: string): boolean {
+  if (!CRAWL_RE.test(crawlDate) || !SNAPSHOT_RE.test(snapshotDate)) return false
   const crawl = Date.parse(crawlDate)
-  const snap = Date.parse(snapshotDate.slice(0, 10))
+  const snap = Date.parse(snapshotDate)
   if (Number.isNaN(crawl) || Number.isNaN(snap)) return false
-  const diffDays = (snap - Math.floor(crawl / DAY_MS) * DAY_MS) / DAY_MS
+  const diffDays = Math.floor(snap / DAY_MS) - Math.floor(crawl / DAY_MS)
   return diffDays >= 0 && diffDays <= WINDOW_DAYS
 }
 
@@ -58,33 +64,85 @@ function retryDelayMs(header: string | null): number {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
-async function attempt(url: string, key: string): Promise<Response> {
+type Attempt = { status: number; retryAfter: string | null; data?: unknown }
+
+async function readBody(res: Response, race: <T>(p: Promise<T>) => Promise<T>): Promise<string> {
+  const declared = Number(res.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    void res.body?.cancel().catch(() => undefined)
+    throw new Error('Ahrefs response too large')
+  }
+  if (!res.body) return race(res.text())
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await race(reader.read())
+    if (done) break
+    total += value.byteLength
+    if (total > MAX_BODY_BYTES) {
+      void reader.cancel().catch(() => undefined)
+      throw new Error('Ahrefs response too large')
+    }
+    chunks.push(value)
+  }
+  const dec = new TextDecoder()
+  return chunks.map((c) => dec.decode(c, { stream: true })).join('') + dec.decode()
+}
+
+/** One request; a single deadline covers headers, body read and JSON.parse. */
+async function attempt(url: string, key: string, timeoutMs: number): Promise<Attempt> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  const aborted = new Promise<never>((_, rej) =>
+    ctrl.signal.addEventListener('abort', () => rej(new Error('Ahrefs timeout'))),
+  )
+  aborted.catch(() => undefined)
+  const race = <T,>(p: Promise<T>): Promise<T> => Promise.race([p, aborted])
   try {
-    return await fetch(url, { headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' }, signal: ctrl.signal })
-  } catch {
-    // Never forward the underlying message: it may echo request headers.
-    throw new Error(ctrl.signal.aborted ? 'Ahrefs timeout' : 'Ahrefs request failed')
+    let res: Response
+    try {
+      res = await race(
+        fetch(url, { headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' }, signal: ctrl.signal }),
+      )
+    } catch (e) {
+      // Never forward the underlying message: it may echo request headers.
+      throw new Error(ctrl.signal.aborted ? 'Ahrefs timeout' : 'Ahrefs request failed')
+    }
+    if (!res.ok) {
+      void res.body?.cancel().catch(() => undefined)
+      return { status: res.status, retryAfter: res.headers.get('Retry-After') }
+    }
+    const text = await readBody(res, race).catch((e: unknown) => {
+      if (e instanceof Error && e.message.startsWith('Ahrefs ')) throw e
+      throw new Error(ctrl.signal.aborted ? 'Ahrefs timeout' : 'Ahrefs request failed')
+    })
+    try {
+      return { status: res.status, retryAfter: null, data: JSON.parse(text) }
+    } catch {
+      throw new Error('Ahrefs invalid JSON response')
+    }
   } finally {
     clearTimeout(timer)
+    ctrl.abort()
   }
 }
 
-/** GET with a single retry on 429/5xx. Errors carry only the status. */
+/** GET with a single retry on 429/5xx inside a total budget. Errors carry only the status. */
 async function ahrefsGet(path: string, params: Record<string, string>, key: string): Promise<unknown> {
   const url = `${BASE}/${path}?${new URLSearchParams(params).toString()}`
-  let res = await attempt(url, key)
-  if (res.status === 429 || res.status >= 500) {
-    await sleep(res.status === 429 ? retryDelayMs(res.headers.get('Retry-After')) : DEFAULT_RETRY_MS)
-    res = await attempt(url, key)
+  const start = Date.now()
+  let r = await attempt(url, key, Math.min(TIMEOUT_MS, TOTAL_BUDGET_MS))
+  if (r.status === 429 || r.status >= 500) {
+    const delay = r.status === 429 ? retryDelayMs(r.retryAfter) : DEFAULT_RETRY_MS
+    const remaining = TOTAL_BUDGET_MS - (Date.now() - start) - delay
+    if (remaining > 0) {
+      await sleep(delay)
+      r = await attempt(url, key, Math.min(TIMEOUT_MS, remaining))
+    }
   }
-  if (!res.ok) throw new Error(`Ahrefs ${res.status}`)
-  try {
-    return await res.json()
-  } catch {
-    throw new Error('Ahrefs invalid JSON response')
-  }
+  if (r.status < 200 || r.status >= 300) throw new Error(`Ahrefs ${r.status}`)
+  return r.data
 }
 
 export async function fetchAhrefs(
