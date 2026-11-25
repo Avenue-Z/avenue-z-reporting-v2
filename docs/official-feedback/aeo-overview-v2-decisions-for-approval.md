@@ -12,7 +12,7 @@ From Tina Fleming's inline notes (TF) and comments on the doc. Items marked **Ch
 
 | # | Decision | Resolution |
 |---|---|---|
-| 1 | One switch at the end | **Confirmed.** "Can be staged as a new page to help keep the live Renaissance report safe." Renaissance is the only client on this page today. Open: whether "new page" means a separate internal page in production (to confirm). |
+| 1 | One switch at the end | **Confirmed.** "Can be staged as a new page to help keep the live Renaissance report safe." Renaissance is the only client on this page today. v2 stays on staging and is promoted only after the account lead approves (Paul, 25 Nov). |
 | 2 | Five numbered sections | **Confirmed.** |
 | 3 | Compare to and Δ columns | **Confirmed.** |
 | 4 | KPIs team-only, per client, default five | **Confirmed.** Rank = rank among tracked brands. Leads = GA4 "conversions" (key events) by default, custom per client later. Melena sets each client's KPIs at rollout. Citation Share: not answered directly; we follow the list of 9 and drop it. |

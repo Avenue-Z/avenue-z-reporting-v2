@@ -20,7 +20,7 @@ The AEO Overview reads as one endless scroll of charts. Tina wants:
 - more actionable tables: full prompt text, URLs instead of domains, and every delta sortable;
 - strategists able to choose which headline KPIs a client sees, without a deploy.
 
-Success: Tina QAs the full v2 page for Renaissance on staging, signs it off, and every AEO client moves to it with one
+Success: Tina QAs the full v2 page for Renaissance on staging, the account lead approves it, and every AEO client moves to it with one
 config change. No client sees a half-redesigned page along the way.
 
 ## 2. Goals, non-goals, anti-goals
@@ -76,7 +76,8 @@ everything a "v2 layout" needs:
   Removed parts are listed in `hidden`. v1 files are not touched (`MAINTAINING.md`, "Making a new version").
 - Each slice's PR adds its parts to the registry only. It changes no template and no client config.
 - **Staging:** after a slice reaches staging, the Renaissance row in the **staging** Neon branch gets its override updated
-  (hidden + extraParts + versions + order) so Tina sees v2 grow. Production config is not touched until sign-off.
+  (hidden + extraParts + versions + order) so Tina sees v2 grow. Production config is not touched until the account lead approves (Paul, 25 Nov: changes stay in staging and are not
+  promoted until the account lead signs off).
 - **Flip (decided, Claude's call):** `promoteToTemplate` can't do it. `computePromotion`
   (`lib/report-sections/mutations.ts:138`) only moves the version of a part already in the template: it can't add new ids,
   drop hidden ones or reorder, and it copies from a client's production config. So the flip is a reviewed one-off script
@@ -299,7 +300,7 @@ until then.
 | 4 | 05 Cited Sources: URL table (Peec; Profound after the live check) | 1 |
 | 5 | 03 Performance by AI Model: gauges | 1 |
 | 6 | 01 Snapshot KPIs: catalog, tiles, staff-only editor + storage, new GA4 queries | 1 |
-| 7 | Flip script (`scripts/flip-aeo-overview-v2.ts`, section 4) in its own PR; run read-only, then `--apply` after Tina's sign-off | 2–6 |
+| 7 | Flip script (`scripts/flip-aeo-overview-v2.ts`, section 4) in its own PR; run read-only, then `--apply` after the account lead's approval | 2–6 |
 | 8 | Cleanup: delete unreferenced v1 parts and their goldens | 7 |
 
 Slices 2–6 are independent once slice 1 lands. Profound work in each slice applies the prompt-type rule in section 7.
@@ -325,10 +326,8 @@ Answered in the returned "Decisions for Approval — AEO Overview Page" (comment
 Still open:
 
 - **Q1, Citation Share:** not answered directly. v2 drops it (follows her 9); confirm with Tina in passing.
-- **"Staged as a new page":** Tina's note on rollout says the work "can be staged as a new page to help keep the live
-  Renaissance report safe". Section 4 already keeps the live page untouched (v2 shows only on staging until the flip).
-  If she means a separate, internal-only v2 page in production next to the live one, that's a different rollout; to
-  confirm with her before slice 1.
+- **"Staged as a new page" (resolved, Paul, 25 Nov):** read as "keep the live Renaissance report safe". v2 lives only
+  on staging and is not promoted until the account lead approves; no separate production page.
 
 ## 10. Edge cases
 
