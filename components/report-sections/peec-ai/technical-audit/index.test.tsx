@@ -12,12 +12,13 @@ vi.mock('recharts', async (orig) => ({
   ResponsiveContainer: ({ children }: { children: ReactElement<{ width?: number; height?: number }> }) => cloneElement(children, { width: 800, height: 300 }),
 }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => '/x' }))
-vi.mock('@/app/actions/tech-audit', () => ({ publishSnapshot: vi.fn(), unpublishSnapshot: vi.fn(), uploadGscExport: vi.fn() }))
+vi.mock('@/app/actions/tech-audit', () => ({ publishSnapshot: vi.fn(), unpublishSnapshot: vi.fn(), uploadGscExport: vi.fn(), setIssueOverride: vi.fn() }))
+vi.mock('@/lib/technical-audit/issue-map', () => ({ loadIssueMap: async () => new Map() }))
 
 const h = vi.hoisted(() => ({ auth: vi.fn(), getSnapshots: vi.fn(), getSnapshotBundle: vi.fn() }))
 vi.mock('@/auth', () => ({ auth: () => h.auth() }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: async () => ({ id: 'c1', slug: 'acme' }) }))
-vi.mock('@/lib/technical-audit/store', () => ({ getSnapshots: h.getSnapshots, getSnapshotBundle: h.getSnapshotBundle }))
+vi.mock('@/lib/technical-audit/store', () => ({ getSnapshots: h.getSnapshots, getSnapshotBundle: h.getSnapshotBundle, getOverrides: async () => [] }))
 
 import { TechnicalAuditPage } from './index'
 
