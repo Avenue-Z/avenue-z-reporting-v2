@@ -19,7 +19,8 @@ import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
-import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
+// The directory's index, explicitly: the old technical-audit.tsx beside it still resolves first until Task 14 deletes it.
+import { TechnicalAuditPage } from '@/components/report-sections/peec-ai/technical-audit/index'
 import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
 import { ExecutiveOverviewReport } from '@/components/report-sections/executive-overview'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
@@ -63,6 +64,8 @@ function getReportComponent(
   // The Social Listening tab's sl= (its open pill), handed to the section on that tab only.
   sl: SlTopic = 'brand',
   slPreview = false,
+  // The Technical Audit tab's snapshot= (a snapshot date), handed to that tab only.
+  snapshot?: string,
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -92,7 +95,7 @@ function getReportComponent(
     case 'peec-ai':
       if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (subsection === 'content-impact')  return <ContentImpactReport audience="internal" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
-      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
+      if (subsection === 'technical-audit') return <TechnicalAuditPage clientSlug={clientSlug} snapshot={snapshot} />
       return <PeecAIReport audience="internal" clientSlug={clientSlug} dateRange={dateRange} models={models} />
     case 'paid-media':
       if (subsection === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
@@ -133,11 +136,11 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; snapshot?: string }>
 }) {
   const { clientSlug } = await params
   await requireStaff()
-  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam } = await searchParams
+  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, snapshot: snapshotParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
@@ -223,7 +226,7 @@ export default async function ReportPage({
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
   if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
-    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)
+    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, snapshotParam)
     return (
       <HealthProbe
         surface="dashboard"
@@ -255,10 +258,13 @@ export default async function ReportPage({
   // the header below shows a date picker: Executive Overview, Pacing etc. keep their own window, so a
   // ?dateRange carried over in the URL must not be stamped on them. Mirrors the picker conditions;
   // lib/export-period.pages.test.tsx holds stamp ⇔ picker.
+  // The Technical Audit tab is a monthly snapshot chosen by its own select (snapshot=), so it has no date picker and
+  // stamps no period (spec 2026-11-23 §4).
+  const techAuditTab = activeSection === 'peec-ai' && subsection === 'technical-audit'
   const usesPageRange =
     ((activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && subsection !== 'search-console') ||
     activeSection === 'paid-media' || activeSection === 'organic-social' ||
-    (activeSection === 'peec-ai' && (!subsection || !!AEO_SUBSECTION_NAMES[subsection]))
+    (activeSection === 'peec-ai' && (!subsection || !!AEO_SUBSECTION_NAMES[subsection]) && !techAuditTab)
 
   return (
     <TooltipProvider delayDuration={150} skipDelayDuration={50}>
@@ -268,10 +274,10 @@ export default async function ReportPage({
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
         )}
-        {/* All AEO pages (Overview + PR Influence, Content Impact, Technical
-            Audit) honor the page date range, comparing against the previous
-            period of equal length. */}
-        {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && (
+        {/* The AEO pages (Overview, PR Influence, Content Impact) honor the page
+            date range, comparing against the previous period of equal length.
+            Technical Audit picks a snapshot instead. */}
+        {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && !techAuditTab && (
           <Suspense fallback={null}>
             <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
           </Suspense>
@@ -307,6 +313,8 @@ export default async function ReportPage({
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
                 // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
                 ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
+                // The Technical Audit tab's snapshot, on that tab only (the route drops one that isn't a date).
+                ...(techAuditTab && snapshotParam ? { snapshot: snapshotParam } : {}),
               } }
             : {})}
           // Bulk export (spec 2026-10-14-bulk-pdf-export-design): the client's exportable pages, this one pre-selected,
@@ -322,6 +330,8 @@ export default async function ReportPage({
             lockedMonths: hasReportingMonths(client),
             // Started from the AEO tab: its page in the bulk export takes the same range and min (lib/export/bulk.ts).
             ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
+            // Started from the Technical Audit tab: its page in the bulk export prints the same snapshot.
+            ...(techAuditTab && snapshotParam ? { snapshot: snapshotParam } : {}),
           }} />
       </StickyReportHeader>
 
@@ -337,8 +347,8 @@ export default async function ReportPage({
             identically to a plain Overview visit, or it forces a needless remount
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)}
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}${techAuditTab ? `:snapshot=${snapshotParam ?? ''}` : ''}`} fallback={<SectionSkeleton />}>
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, snapshotParam)}
         </Suspense>
       </ReportErrorBoundary>
     </TooltipProvider>

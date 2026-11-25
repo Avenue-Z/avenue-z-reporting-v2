@@ -8,6 +8,8 @@ import type { ExportRequest } from './request'
 import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import { AEO_TAB_ID } from '@/lib/organic-social/aeo-tab/setting'
 
+const TECH_AUDIT_TAB_ID = 'technical-audit'
+
 /** One page's request body, before the button adds the requester's timezone. */
 export type PageRequest = Omit<ExportRequest, 'tz'>
 
@@ -25,6 +27,8 @@ export interface BulkRanges {
   /** The AEO Informed Social tab's range and min, set only when the export starts from that tab. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The Technical Audit tab's snapshot, set only when the export starts from that tab. */
+  snapshot?: string
 }
 
 export type PageResult = { ok: true; pdf: ArrayBuffer; filename: string } | { ok: false; error: string }
@@ -43,6 +47,8 @@ export function bulkRequest(page: ExportPage, r: BulkRanges): PageRequest {
     // Only the AEO Informed Social page takes the range and min the export was started with; every other body is as it was.
     ...(page.subsection === AEO_TAB_ID && r.aeo ? { aeo: r.aeo } : {}),
     ...(page.subsection === AEO_TAB_ID && r.aeoMin ? { aeoMin: r.aeoMin } : {}),
+    // Only the Technical Audit page takes the snapshot it was started from.
+    ...(page.subsection === TECH_AUDIT_TAB_ID && r.snapshot ? { snapshot: r.snapshot } : {}),
   }
 }
 
