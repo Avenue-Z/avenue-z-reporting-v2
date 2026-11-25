@@ -4,7 +4,7 @@
 // so every rule about who sees what, and every number and change, is tested here. No I/O.
 import { monthTitle } from '../reporting-months'
 import type { SlBoxId } from './boxes'
-import { brandThemeColor, mediaColor } from './colors'
+import { brandThemeColor, mediaColor, themeTone } from './colors'
 import { authorBaseline, authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries, type SlPct, type YtdPoint } from './compare'
 import { MAX_IMAGES, MAX_POSTS } from './posts'
 import { applyPicks, perMention, sortAuthors, type SlAuthorSort } from './picks'
@@ -59,6 +59,10 @@ export type SlReadyView = {
   posNeu: { month: SlMonth; value: number | null }[]
   reddit: YtdPoint[] | null
   themes: { theme: string; share: number; color: string }[]
+  /** How the cloud's colours read (Unit H, F15): by sentiment (brand always; industry once every theme's colour is one of the
+   *  five sentiment colours, which Savannah's widget change gives), or decoration (an industry export with any other colour,
+   *  as every industry export is today). */
+  themeColors: 'sentiment' | 'decoration'
   influencers: SlAuthorRow[]
   overview: SlOverviewCard[]
 }
@@ -145,6 +149,9 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
     ...i, change: aChanges.get(i.authorId) ?? null, shown: picked.authors.get(i.authorId) ?? false,
     reachPer: perMention(i.reach, i.posts), engagementPer: perMention(i.engagement, i.posts),
   }))
+  // Unit H: the industry cloud reads sentiment only when the export's colours are all sentiment colours; one stray colour
+  // means the widget was not set to sentiment, and the colours stay decoration.
+  const bySentiment = topic === 'brand' || (d.themes.length > 0 && d.themes.every((t) => themeTone(t.color) !== null))
   const cards: SlOverviewCard[] = (d.overview ?? []).map((c) => ({ ...c, shown: picked.cards.get(c.label) ?? true }))
   return {
     results: d.results,
@@ -161,7 +168,8 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
     ytd,
     posNeu: topic === 'brand' ? ytd.map((p) => ({ month: p.month, value: p.value ? posNeu(p.value) : null })) : [],
     reddit: topic === 'brand' ? ytdSeries(d, data.history, data.uploads, 'reddit') : null,
-    themes: d.themes.map((t) => ({ theme: t.theme, share: t.share, color: topic === 'brand' ? brandThemeColor(t.color) : t.color })),
+    themes: d.themes.map((t) => ({ theme: t.theme, share: t.share, color: bySentiment ? brandThemeColor(t.color) : t.color })),
+    themeColors: bySentiment ? 'sentiment' : 'decoration',
     influencers: sortAuthors(clientView ? authors.filter((a) => a.shown) : authors, sort),
     overview: clientView ? cards.filter((c) => c.shown) : cards,
   }
