@@ -105,6 +105,7 @@ export async function uploadGscExport(form: FormData): Promise<Result> {
 
   const { metrics, issues, exportDate } = parsed.value
   try {
+    // No requireDraft: a staff re-upload to a published month goes live immediately.
     await completeRun(client.id, snapshotId, slot satisfies TaSource, bytes, {
       metrics, issues, snapshot: { gscExportDate: exportDate ?? new Date().toISOString().slice(0, 10) },
     })

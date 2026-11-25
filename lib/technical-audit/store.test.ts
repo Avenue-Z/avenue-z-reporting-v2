@@ -206,6 +206,23 @@ describe('completeRun', () => {
     await expect(store.completeRun(CLIENT, id, 'sf', new Uint8Array(2_097_153), {})).rejects.toThrow('raw file too large')
     await expect(store.completeRun(CLIENT, '33333333-3333-4333-8333-333333333333', 'sf', new Uint8Array([1]), {})).rejects.toThrow('run not found')
   })
+  test('requireDraft: refuses a snapshot published since the caller read it, and writes nothing', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await store.setSnapshotStatus(CLIENT, id, 'published', 'p@x.com')
+    await expect(store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { issues: [issue()], metrics: { sfUrlsIssue: 1 } }, { requireDraft: true }))
+      .rejects.toThrow('run not found')
+    expect(await count('tech_audit_source_issues')).toBe(0)
+    expect(await count('tech_audit_metrics')).toBe(0)
+    expect(await count('tech_audit_source_runs', `source = 'sf' AND status = 'complete'`)).toBe(0)
+  })
+  test('requireDraft writes to a draft; without it a published snapshot is still written (staff GSC re-upload)', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { issues: [issue()] }, { requireDraft: true })
+    expect(await count('tech_audit_source_issues')).toBe(1)
+    await store.setSnapshotStatus(CLIENT, id, 'published', 'p@x.com')
+    await store.completeRun(CLIENT, id, 'gsc_indexing', new Uint8Array([1]), { issues: [issue({ source: 'gsc_indexing' })] })
+    expect(await count('tech_audit_source_runs', `source = 'gsc_indexing' AND status = 'complete'`)).toBe(1)
+  })
   test('keeps the raw bytes it was given', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
     await store.completeRun(CLIENT, id, 'sf', new Uint8Array([9, 8, 7]), {})

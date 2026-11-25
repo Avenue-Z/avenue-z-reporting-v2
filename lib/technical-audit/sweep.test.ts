@@ -237,6 +237,31 @@ describe('runSweep', () => {
     expect(modes['c1-2026-09-26']).toBe(false) // 60 days old
   })
 
+  test('every sweep write requires the snapshot to still be a draft; a refused write is a failed run', async () => {
+    const opts: unknown[] = []
+    const h = harness({}, { alpha: [RUN] })
+    const orig = h.deps.completeRun
+    h.deps.completeRun = async (...args) => { opts.push(args[5]); return orig(...args) }
+    await runSweep(h.deps, NOW)
+    expect(opts).toEqual([{ requireDraft: true }, { requireDraft: true }])
+
+    const refused = harness({ completeRun: async () => { throw new Error('run not found') } }, { alpha: [RUN] })
+    const report = await runSweep(refused.deps, NOW)
+    expect(refused.failed).toEqual([
+      { source: 'sf', status: 'failed', reason: 'database error' },
+      { source: 'ahrefs', status: 'failed', reason: 'database error' },
+    ])
+    expect(report.completed).toEqual([])
+  })
+
+  test('a stale brand is logged with its last crawl date', async () => {
+    const h = harness({}, { alpha: [{ date: '2026-10-25', folderId: 'x' }], beta: [{ date: '2026-09-01', folderId: 'y' }] })
+    await runSweep(h.deps, NOW)
+    const lines = warn.mock.calls.map(([l]) => String(l))
+    expect(lines).toContain('[tech-audit] beta 2026-11-25 sf no crawl since 2026-09-01')
+    expect(lines.some((l) => l.startsWith('[tech-audit] alpha') && l.includes('no crawl'))).toBe(false)
+  })
+
   test('log lines carry no newlines from the reason', async () => {
     const h = harness({ fetchAhrefs: async () => { throw new Error('bad\n[tech-audit] forged') } }, { alpha: [RUN] })
     await runSweep(h.deps, NOW)

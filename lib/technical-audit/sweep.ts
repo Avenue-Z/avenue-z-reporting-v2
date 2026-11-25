@@ -89,7 +89,10 @@ export async function runSweep(deps: SweepDeps, now: Date): Promise<SweepReport>
       }
       if (runs) try {
         const newest = runs[runs.length - 1]?.date
-        if (!newest || newest < isoDay(now.getTime() - STALE_DAYS * DAY_MS)) report.staleCrawl.push(client.slug)
+        if (!newest || newest < isoDay(now.getTime() - STALE_DAYS * DAY_MS)) {
+          report.staleCrawl.push(client.slug)
+          console.warn(`[tech-audit] ${client.slug} ${today} sf no crawl since ${newest ?? 'never'}`)
+        }
         const known = await deps.getSnapshots(client.id, { publishedOnly: false })
         const latestKnown = known.reduce<string | null>((m, s) => (m === null || s.snapshotDate > m ? s.snapshotDate : m), null)
         for (const run of runs.filter((r) => latestKnown === null || r.date > latestKnown).slice(0, MAX_NEW_PER_BRAND)) {
@@ -155,7 +158,7 @@ export async function runSweep(deps: SweepDeps, now: Date): Promise<SweepReport>
             },
             issues,
             snapshot: { sfCrawlDate: date },
-          }))
+          }, { requireDraft: true }))
         }
       }
 
@@ -175,7 +178,7 @@ export async function runSweep(deps: SweepDeps, now: Date): Promise<SweepReport>
             metrics: { ahrefsHealthScore: healthScore },
             issues,
             snapshot: { ahrefsCrawlDate: crawlDate, ahrefsHealthScore: healthScore },
-          }))
+          }, { requireDraft: true }))
         }
       }
     }

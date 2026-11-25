@@ -102,7 +102,8 @@ export async function claimRun(
 /** Persist a parsed source in one transaction: replace that source's issue rows, upsert its metrics columns, update
  *  the snapshot's dates/score, and mark the run complete (keeping `raw`). Re-running for the same source converges on
  *  the same rows. Only the keys present in `metrics` are written (null is a real value, undefined is "not mine"), so
- *  one source never wipes another's columns. */
+ *  one source never wipes another's columns. `requireDraft` (the sweep) writes nothing and throws `run not found`
+ *  when the snapshot has been published since the caller claimed the run. */
 export async function completeRun(
   clientId: string,
   snapshotId: string,
@@ -113,6 +114,7 @@ export async function completeRun(
     issues?: SourceIssue[]
     snapshot?: Partial<TechAuditSnapshotInsert>
   },
+  opts: { requireDraft?: boolean } = {},
 ): Promise<void> {
   if (raw.byteLength > RAW_MAX_BYTES) throw new Error('raw file too large')
   const scope = ISSUE_SCOPE[source]
@@ -128,6 +130,7 @@ export async function completeRun(
       eq(techAuditSourceRuns.snapshotId, snapshotId),
       eq(techAuditSourceRuns.source, source),
       eq(techAuditSnapshots.clientId, clientId),
+      ...(opts.requireDraft ? [eq(techAuditSnapshots.status, 'draft')] : []),
     ))
     .limit(1)
   if (!run) throw new Error('run not found')
