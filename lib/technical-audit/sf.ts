@@ -15,10 +15,11 @@ const ISSUES_FILE = /^issues_overview.*\.csv$/i
 export function parseRunFolderName(name: string): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})_\d{6}$/.exec(name)
   if (!m) return null
-  const mo = Number(m[2])
-  const d = Number(m[3])
-  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null
-  return `${m[1]}-${m[2]}-${m[3]}`
+  const date = `${m[1]}-${m[2]}-${m[3]}`
+  // Round-trip through Date so 2026-02-31 (which would make ensureSnapshot throw every day) is refused.
+  const parsed = new Date(`${date}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return null
+  return date
 }
 
 async function readCapped(res: Response, signal: AbortSignal): Promise<Uint8Array> {
@@ -49,7 +50,13 @@ async function readCapped(res: Response, signal: AbortSignal): Promise<Uint8Arra
 
 // One deadline covers the request AND the body read; the body is consumed here so nothing can stall after it.
 async function driveFetch(url: string, mode: 'json' | 'bytes'): Promise<unknown> {
-  const token = await googleToken([SCOPE])
+  let token: string
+  try {
+    token = await googleToken([SCOPE])
+  } catch {
+    // Never the raw text: a malformed key's JSON.parse error can echo the key itself.
+    throw new Error('Google auth error')
+  }
   const ctrl = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_, reject) => {

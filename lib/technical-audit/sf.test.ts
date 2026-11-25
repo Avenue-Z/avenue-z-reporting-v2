@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('./google', () => ({ googleToken: vi.fn(async () => 'tok-secret') }))
 
 import { fetchIssuesOverview, listSfRuns, parseRunFolderName, parseSfIssuesOverview } from './sf'
+import { googleToken } from './google'
 
 const fixture = readFileSync(join(__dirname, '__fixtures__', 'sf-issues-overview.csv'), 'utf-8')
 
@@ -16,6 +17,12 @@ describe('parseRunFolderName', () => {
     expect(parseRunFolderName('Renaissance')).toBeNull()
     expect(parseRunFolderName('2026-11-01')).toBeNull()
     expect(parseRunFolderName('2026-13-45_030106')).toBeNull()
+  })
+  it('rejects impossible calendar dates', () => {
+    expect(parseRunFolderName('2026-02-31_030106')).toBeNull()
+    expect(parseRunFolderName('2026-04-31_030106')).toBeNull()
+    expect(parseRunFolderName('2025-02-29_030106')).toBeNull()
+    expect(parseRunFolderName('2028-02-29_030106')).toBe('2028-02-29')
   })
 })
 
@@ -77,6 +84,14 @@ describe('Drive calls', () => {
     expect(u1.searchParams.get('includeItemsFromAllDrives')).toBe('true')
     expect(u1.searchParams.get('pageSize')).toBe('1000')
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get('pageToken')).toBe('p2')
+  })
+
+  it('a Google auth failure surfaces as a fixed message, never its raw text', async () => {
+    vi.mocked(googleToken).mockRejectedValueOnce(new SyntaxError('Unexpected token } in JSON at position 1: "private_key": "-----BEGIN'))
+    vi.stubGlobal('fetch', vi.fn())
+    const err = await listSfRuns('f1').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect((err as Error).message).toBe('Google auth error')
   })
 
   it('rejects a folder id that could break out of the query', async () => {
