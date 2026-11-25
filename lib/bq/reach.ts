@@ -48,25 +48,32 @@ async function pulledOnImpl(platform: ReachPlatform): Promise<string> {
   })
   return (newest as string[]).reduce((a, b) => (b < a ? b : a))
 }
-/** The oldest of the platform's newest pulls: a page is as fresh as its stalest reach table. */
-export const reachPulledOn = cached('bigquery', 'reachPulledOn', pulledOnImpl, { ttlSeconds: 3600, version: 'v1' })
+/**
+ * The oldest of the platform's newest pulls: a page is as fresh as its stalest reach table.
+ * Not health-critical, as reachRows: a reach failure (an error, or an empty or unreadable pull date) already
+ * degrades to "—", a page notice and a bq_fallback line, so it must not raise the page-down alert.
+ */
+export const reachPulledOn = cached('bigquery', 'reachPulledOn', pulledOnImpl, { ttlSeconds: 3600, version: 'v1', healthCritical: false })
 
 const WINDOW = 'cast(ACCOUNT_ID as string) = @account and start_date = date(@start) and end_date = date(@end)'
 const str = (v: unknown) => (v == null ? '' : String(v)) // NULL reach is '' as live returns it (rule 6)
 interface ReachRow extends ReachValue { adId: string; pulledOn: string | null }
 
 async function rowsImpl(platform: ReachPlatform, byAd: boolean, account: string, start: string, end: string): Promise<ReachRow[]> {
-  // Presets sharing dates (this_year, year_to_date) are one pull's equal rows: take one, never sum.
+  // Presets sharing dates (this_year, year_to_date) carry equal values: take one, never sum. If one of them
+  // missed a night it is older, so the account row takes the freshest; the per-ad row keeps an ad's oldest
+  // pull, so any stale copy reads as delayed rather than being hidden by a fresh one.
   const sql = byAd
     ? `select cast(AD_ID as string) as ad_id, any_value(reach) as reach, any_value(frequency) as frequency, min(cast(pulled_on as string)) as pulled_on from ${martRef(TABLES.meta[1])}\nwhere ${WINDOW}\ngroup by 1`
-    : `select reach, frequency, cast(pulled_on as string) as pulled_on from ${martRef(TABLES[platform][0])}\nwhere ${WINDOW} and CAMPAIGN_ID is null\norder by range_key limit 1`
+    : `select reach, frequency, cast(pulled_on as string) as pulled_on from ${martRef(TABLES[platform][0])}\nwhere ${WINDOW} and CAMPAIGN_ID is null\norder by pulled_on desc, range_key limit 1`
   const rows = await bqRows(sql, { account, start, end })
   return rows.map((r) => ({ adId: str(r.ad_id), reach: str(r.reach), frequency: str(r.frequency), pulledOn: r.pulled_on == null ? null : String(r.pulled_on) }))
 }
 // Only the lookup is cached, never a state: a delayed or failed answer is asked again on the next render.
 const reachRows = cached('bigquery', 'reachRows', rowsImpl, {
   ttlSeconds: 3600,
-  version: 'v1',
+  version: 'v2', // v2: the freshest of equal-date rows, not the alphabetical first
+  healthCritical: false,
   extractTags: ([, , account, start, end]) => ({ client: account, dateRange: `${start},${end}` }),
 })
 

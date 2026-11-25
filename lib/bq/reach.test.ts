@@ -155,3 +155,46 @@ describe('reachNotice', () => {
     expect(reachNotice(undefined)).toBeNull()
   })
 })
+
+/** Answers the row lookup in the order its SQL asks for, so the ORDER BY, not the fixture's order, picks the row. */
+function ordered(rows: Record<string, unknown>[]) {
+  vi.mocked(bqRows).mockImplementation(async (sql: string) => {
+    if (sql.includes(PULLED)) return [{ d: '2026-11-24' }]
+    const order = /order by (.+) limit 1$/.exec(sql)?.[1] ?? ''
+    const keys = order.split(',').map((k) => k.trim().split(/\s+/))
+    const sorted = [...rows].sort((a, b) => {
+      for (const [k, dir] of keys) {
+        const c = String(a[k]).localeCompare(String(b[k])) * (dir === 'desc' ? -1 : 1)
+        if (c) return c
+      }
+      return 0
+    })
+    return sorted.slice(0, 1)
+  })
+}
+
+describe('presets that share dates (Thomas, #513)', () => {
+  test('this_year and year_to_date from different pulls: the fresh row wins over the stale one, whatever the names', async () => {
+    ordered([
+      { range_key: 'this_year', reach: 1, frequency: 1, pulled_on: '2026-11-20' },
+      { range_key: 'year_to_date', reach: 2490623, frequency: 2.023, pulled_on: '2026-11-24' },
+    ])
+    expect(await accountReach('meta', '1480350426850960', '2026-01-01', '2026-11-23')).toEqual({ reach: '2490623', frequency: '2.023' })
+    ordered([
+      { range_key: 'this_year', reach: 2490623, frequency: 2.023, pulled_on: '2026-11-24' },
+      { range_key: 'year_to_date', reach: 1, frequency: 1, pulled_on: '2026-11-20' },
+    ])
+    expect(await accountReach('meta', '1480350426850960', '2026-01-01', '2026-11-23')).toEqual({ reach: '2490623', frequency: '2.023' })
+  })
+  test('the account lookup orders by pulled_on desc, then range_key, so the answer is the freshest and deterministic', async () => {
+    marts({ rows: [] })
+    await accountReach('linkedin', '503368877', '2026-01-01', '2026-11-23')
+    expect(lookups()[0]).toMatch(/order by pulled_on desc, range_key limit 1$/)
+  })
+  test("the per-ad lookup keeps an ad's OLDEST pull (min), so any stale copy reads as delayed, never hidden by a fresh one", async () => {
+    marts({ rows: [] })
+    await adReach('1480350426850960', '2026-01-01', '2026-11-23')
+    expect(lookups()[0]).toContain('min(cast(pulled_on as string)) as pulled_on')
+    expect(lookups()[0]).not.toMatch(/max\(cast\(pulled_on/)
+  })
+})
