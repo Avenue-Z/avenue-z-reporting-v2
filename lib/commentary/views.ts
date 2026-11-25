@@ -65,7 +65,7 @@ export function resolveCommentaryView(slug: string, subsection?: string | null):
       if (!subsection) return 'peec-ai'
       if (subsection === 'pr-influence') return 'peec-ai:pr-influence'
       if (subsection === 'content-impact') return 'peec-ai:content-impact'
-      return null // technical-audit and any other AEO sub-tab: out of scope
+      return null // other AEO sub-tabs: out of scope (technical-audit reads its own view key directly)
     case 'organic-social':
       return 'organic-social'
     case 'meta-ads':

@@ -38,6 +38,8 @@ const ROUTES = [
   'api/perf/boundary',
   'api/shopify/callback',
   'api/shopify/install',
+  // Technical Audit snapshot cron: authed by Authorization: Bearer CRON_SECRET, same as api/health/sweep.
+  'api/tech-audit/sweep',
   // Social Listening screenshots (Organic Social): checks the session, the client and the post itself, outside the proxy
   // matcher; 404 for anything the viewer may not see (lib/organic-social/social-listening/image-access.ts).
   'api/social-listening/image/[id]',

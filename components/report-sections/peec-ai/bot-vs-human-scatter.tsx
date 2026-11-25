@@ -48,8 +48,7 @@ const QUADRANT_FILL: Record<string, string> = {
 // urlJoinKey() output (lib/url.ts): lowercased, protocol/host/www stripped,
 // trailing slash trimmed. For a GA4 pagePath (the common case, e.g.
 // "/blog/post-1") that leaves a bare path with no host, so `clientDomain` is
-// threaded in from the parent (same pattern as PageOverlapTable in
-// technical-audit-tables.tsx) to build an absolute URL. If the path is
+// threaded in from the parent to build an absolute URL. If the path is
 // already absolute, open it as-is. If there is no path, or no owned
 // clientDomain to build an absolute URL from, the click is a no-op rather
 // than opening a broken link or a foreign placeholder domain.
