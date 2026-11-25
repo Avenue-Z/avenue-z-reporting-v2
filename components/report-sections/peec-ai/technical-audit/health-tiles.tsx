@@ -12,8 +12,16 @@ const AMBER = '#FFFC60'
 const GREEN = '#60FF80'
 const NEUTRAL = '#60FDFF'
 const TRACK = 'rgba(255,255,255,0.1)'
-/** Speedometer bands for the Ahrefs Health Score (0–100). */
-const GAUGE_BANDS = [{ from: 0, to: 60, color: RED }, { from: 60, to: 80, color: AMBER }, { from: 80, to: 100, color: GREEN }] as const
+/** Speedometer bands for the Ahrefs Health Score (0–100): red below 50, amber 50 to 79, green from 80. */
+const GAUGE_BANDS = [
+  { band: 'red', from: 0, to: 50, color: RED },
+  { band: 'amber', from: 50, to: 80, color: AMBER },
+  { band: 'green', from: 80, to: 100, color: GREEN },
+] as const
+
+export function gaugeBand(v: number): (typeof GAUGE_BANDS)[number]['band'] {
+  return (GAUGE_BANDS.find((b) => v < b.to) ?? GAUGE_BANDS[GAUGE_BANDS.length - 1]).band
+}
 
 const TEAM_BLANK = 'Upload the GSC report to fill this tile'
 const CLIENT_BLANK = 'Not available for this month'
@@ -63,8 +71,14 @@ function Delta({ kpi, cur, prev, unit, previousDate }: {
   )
 }
 
-function NoData() {
-  return <p className="text-sm text-text-muted">No data for this snapshot</p>
+/** An empty Ahrefs or SF tile. The team also sees why (the run's reason); a client sees the line alone. */
+function NoData({ reason, viewer }: { reason?: string | null; viewer: Viewer }) {
+  return (
+    <div>
+      <p className="text-sm text-text-muted">No data for this snapshot</p>
+      {viewer === 'team' && reason && <p className="mt-1 text-xs" style={{ color: RED }}>{reason}</p>}
+    </div>
+  )
 }
 
 /** A GSC slot with no upload: the team is told to upload it, a client (and the PDF) that it isn't available. */
@@ -77,7 +91,7 @@ function Blank({ viewer }: { viewer: Viewer }) {
 function Bar({ value, max, color, faint = false, label }: { value: number; max: number; color: string; faint?: boolean; label: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0
   return (
-    <div className="flex items-center gap-2" aria-label={label}>
+    <div className="flex items-center gap-2" role="img" aria-label={label}>
       <div className="h-2 flex-1 rounded-full" style={{ background: TRACK }}>
         <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: color, opacity: faint ? 0.35 : 1 }} />
       </div>
@@ -86,12 +100,14 @@ function Bar({ value, max, color, faint = false, label }: { value: number; max: 
   )
 }
 
-function HealthScore({ m, prev, previousDate }: { m: ViewMetrics | null; prev: ViewMetrics | null; previousDate: string | null }) {
+type TileProps = { m: ViewMetrics | null; prev: ViewMetrics | null; previousDate: string | null; viewer: Viewer }
+
+function HealthScore({ m, prev, previousDate, viewer, reason }: TileProps & { reason?: string | null }) {
   const v = m?.ahrefsHealthScore ?? null
   return (
     <Tile title="Site health score" source="Ahrefs Site Audit"
-      info="Ahrefs → Site Audit → Overview → Health Score: the share of crawled internal URLs with no errors, 0 to 100.">
-      {v === null ? <NoData /> : (
+      info="Ahrefs Site Audit > Overview > Health Score. The share of crawled internal URLs with no errors, 0 to 100.">
+      {v === null ? <NoData reason={reason} viewer={viewer} /> : (
         <div className="flex flex-col items-center gap-1">
           <svg viewBox="0 0 120 70" className="w-full max-w-60" role="img" aria-label={`Health score ${v} of 100`}>
             {GAUGE_BANDS.map((b) => <path key={b.from} d={arc(b.from, b.to)} fill="none" stroke={b.color} strokeOpacity={0.35} strokeWidth={10} />)}
@@ -106,7 +122,7 @@ function HealthScore({ m, prev, previousDate }: { m: ViewMetrics | null; prev: V
   )
 }
 
-function CrawlIssues({ m, prev, previousDate }: { m: ViewMetrics | null; prev: ViewMetrics | null; previousDate: string | null }) {
+function CrawlIssues({ m, prev, previousDate, viewer, reason }: TileProps & { reason?: string | null }) {
   const rows = [
     { label: 'Issues', color: RED, cur: m?.sfIssueTypesIssue ?? null, prev: prev?.sfIssueTypesIssue ?? null, urls: m?.sfUrlsIssue ?? null },
     { label: 'Warnings', color: AMBER, cur: m?.sfIssueTypesWarning ?? null, prev: prev?.sfIssueTypesWarning ?? null, urls: m?.sfUrlsWarning ?? null },
@@ -116,8 +132,8 @@ function CrawlIssues({ m, prev, previousDate }: { m: ViewMetrics | null; prev: V
   const max = Math.max(1, ...rows.flatMap((r) => [r.cur ?? 0, r.prev ?? 0]))
   return (
     <Tile title="Crawl issues by type" source="Screaming Frog Issues Overview"
-      info="Screaming Frog → Reports → Issues Overview. Bars count issue types, not URLs; the lighter bar is the previous snapshot.">
-      {empty ? <NoData /> : (
+      info="Screaming Frog > Issues tab. Bars count issue types, not URLs; the lighter bar is the previous snapshot.">
+      {empty ? <NoData reason={reason} viewer={viewer} /> : (
         <>
           <div className="flex flex-col gap-3">
             {rows.map((r) => (
@@ -146,11 +162,11 @@ const indexedPct = (m: ViewMetrics | null): number | null => {
   return known === 0 ? null : (m.gscIndexed / known) * 100
 }
 
-function Indexing({ m, prev, previousDate, viewer }: { m: ViewMetrics | null; prev: ViewMetrics | null; previousDate: string | null; viewer: Viewer }) {
+function Indexing({ m, prev, previousDate, viewer }: TileProps) {
   const pct = indexedPct(m)
   return (
     <Tile title="Indexing coverage" source="GSC Page indexing upload"
-      info="Search Console → Indexing → Pages → All known pages. Indexed pages as a share of all known URLs.">
+      info="GSC > Indexing > Pages. Indexed pages as a share of all known URLs.">
       {pct === null || !m ? <Blank viewer={viewer} /> : (
         <div className="flex flex-col items-center gap-1">
           <svg viewBox="0 0 120 70" className="w-full max-w-60" role="img" aria-label={`${pct.toFixed(1)}% of known URLs indexed`}>
@@ -197,10 +213,10 @@ function CwvDevice({ name, cur, prev, previousDate, viewer }: { name: string; cu
   )
 }
 
-function CoreWebVitals({ m, prev, previousDate, viewer }: { m: ViewMetrics | null; prev: ViewMetrics | null; previousDate: string | null; viewer: Viewer }) {
+function CoreWebVitals({ m, prev, previousDate, viewer }: TileProps) {
   return (
     <Tile title="Core Web Vitals" source="GSC Core Web Vitals uploads"
-      info="Search Console → Experience → Core Web Vitals → Mobile and Desktop reports. URL counts by status: Poor, Needs improvement, Good.">
+      info="GSC > Experience > Core Web Vitals. Mobile and Desktop reports; URL counts by status: Poor, Needs improvement, Good.">
       {/* Side by side, mobile first, rather than a toggle, so both print in the PDF. */}
       <div className="grid grid-cols-2 gap-6">
         <CwvDevice name="Mobile" cur={cwvOf(m, 'mobile')} prev={cwvOf(prev, 'mobile')} previousDate={previousDate} viewer={viewer} />
@@ -210,19 +226,21 @@ function CoreWebVitals({ m, prev, previousDate, viewer }: { m: ViewMetrics | nul
   )
 }
 
-export function HealthTiles({ metrics, prevMetrics, previousDate, viewer }: {
+export function HealthTiles({ metrics, prevMetrics, previousDate, viewer, reasons }: {
   metrics: ViewMetrics | null
   prevMetrics: ViewMetrics | null
   previousDate: string | null
   viewer: Viewer
+  /** Why the Ahrefs or SF run left its tile empty (the run's lastError); shown to the team only. */
+  reasons: { sf?: string | null; ahrefs?: string | null }
 }) {
-  const p = { m: metrics, prev: prevMetrics, previousDate }
+  const p = { m: metrics, prev: prevMetrics, previousDate, viewer }
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <HealthScore {...p} />
-      <CrawlIssues {...p} />
-      <Indexing {...p} viewer={viewer} />
-      <CoreWebVitals {...p} viewer={viewer} />
+      <HealthScore {...p} reason={reasons.ahrefs} />
+      <CrawlIssues {...p} reason={reasons.sf} />
+      <Indexing {...p} />
+      <CoreWebVitals {...p} />
     </div>
   )
 }

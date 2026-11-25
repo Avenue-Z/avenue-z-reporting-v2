@@ -116,6 +116,22 @@ describe('TechnicalAuditPage', () => {
     expect(document.body.textContent).not.toContain('Nov 1, 2026')
   })
 
+  // The PDF follows client visibility whoever exports it: rendered as the export page renders it.
+  test('a staff export of a draft date prints the latest published snapshot, as a client sees it', async () => {
+    all = [snap('2026-11-01', 'draft'), snap('2026-10-01'), snap('2026-09-01')]
+    h.auth.mockResolvedValue(STAFF)
+    const { exportReportElement } = await import('@/components/export/report-element')
+    const el = exportReportElement({ section: 'peec-ai', subsectionId: 'technical-audit', channel: null, view: null, pageTitle: 'x' },
+      { clientSlug: 'acme', dateRange: 'last_30_days', compareRange: null, models: null, snapshot: '2026-11-01' })
+    const page = await TechnicalAuditPage(el.props as Parameters<typeof TechnicalAuditPage>[0])
+    render(<TooltipProvider><ExportModeProvider>{page}</ExportModeProvider></TooltipProvider>)
+    expect(screen.getByText('Oct 1, 2026 (latest)')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('(draft)')
+    expect(document.body.textContent).not.toContain('Nov 1, 2026')
+    expect(screen.queryByText('Before you publish')).toBeNull()
+    expect(screen.queryByText('Upload the GSC report to fill this tile')).toBeNull()
+  })
+
   test('the first snapshot is the baseline', async () => {
     all = [snap('2026-11-01')]
     await show(CLIENT)

@@ -45,8 +45,9 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
     case 'peec-ai':
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (view.subsectionId === 'content-impact')  return <ContentImpactReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
-      // The requester's session picks the viewer, so a client's export of a draft date prints the latest published snapshot.
-      if (view.subsectionId === 'technical-audit') return <TechnicalAuditPage clientSlug={clientSlug} snapshot={snapshot} />
+      // Always the client view, whoever exports (as Social Listening): published snapshots only, so a draft date prints the
+      // latest published one, and no staff-only parts.
+      if (view.subsectionId === 'technical-audit') return <TechnicalAuditPage clientSlug={clientSlug} snapshot={snapshot} exporting />
       return <PeecAIReport audience="client" clientSlug={clientSlug} dateRange={dateRange} models={models} />
     case 'paid-media':
       if (view.subsectionId === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />

@@ -24,8 +24,12 @@ function checklistRuns(runs: ViewRun[]) {
   })
 }
 
-export async function TechnicalAuditPage({ clientSlug, snapshot }: { clientSlug: string; snapshot?: string }) {
-  const viewer = isTechAuditStaff(await auth()) ? 'team' : 'client'
+/** `exporting`: the PDF export, which always renders the client view whoever exports it (published snapshots only,
+ *  no checklist, client copy), as the other exported reports do. */
+const runReason = (runs: ViewRun[], source: string) => runs.find((r) => r.source === source)?.lastError ?? null
+
+export async function TechnicalAuditPage({ clientSlug, snapshot, exporting = false }: { clientSlug: string; snapshot?: string; exporting?: boolean }) {
+  const viewer = !exporting && isTechAuditStaff(await auth()) ? 'team' : 'client'
   const view = await loadTechAuditView(clientSlug, snapshot, viewer)
 
   if (!view) {
@@ -47,7 +51,7 @@ export async function TechnicalAuditPage({ clientSlug, snapshot }: { clientSlug:
           sfCrawlDate={selected.sfCrawlDate}
           ahrefsCrawlDate={selected.ahrefsCrawlDate}
           gscExportDate={selected.gscExportDate}
-          runs={view.runs}
+          runs={view.runs.map((r) => ({ source: r.source, status: r.status }))}
           crawlSettingsChanged={view.crawlSettingsChanged}
           staleSince={view.staleSince}
         />
@@ -70,7 +74,8 @@ export async function TechnicalAuditPage({ clientSlug, snapshot }: { clientSlug:
       <ReportErrorBoundary sectionName="Health scores">
         <section className="flex flex-col gap-4">
           <SectionHeader icon={Gauge} title="01 · Health scores" subtitle="How healthy is the site right now?" />
-          <HealthTiles metrics={view.metrics} prevMetrics={view.prevMetrics} previousDate={previous?.snapshotDate ?? null} viewer={viewer} />
+          <HealthTiles metrics={view.metrics} prevMetrics={view.prevMetrics} previousDate={previous?.snapshotDate ?? null} viewer={viewer}
+            reasons={{ sf: runReason(view.runs, 'sf'), ahrefs: runReason(view.runs, 'ahrefs') }} />
         </section>
       </ReportErrorBoundary>
 

@@ -7,6 +7,7 @@ import { useExportMode } from '@/components/export/export-mode'
 import type { ViewRun } from '@/lib/technical-audit/view'
 import { fmtDate } from './format'
 
+type SourceRun = Pick<ViewRun, 'source' | 'status'>
 type Dot = 'ok' | 'problem' | 'partial' | 'none'
 const DOT: Record<Dot, { color: string; label: string }> = {
   ok: { color: '#60FF80', label: 'complete' },
@@ -15,13 +16,13 @@ const DOT: Record<Dot, { color: string; label: string }> = {
   none: { color: '#8A8A8A', label: 'not available' },
 }
 
-function runDot(runs: ViewRun[], source: string): Dot {
+function runDot(runs: SourceRun[], source: string): Dot {
   const status = runs.find((r) => r.source === source)?.status
   return status === 'complete' ? 'ok' : status === 'failed' ? 'problem' : status === 'missing' ? 'partial' : 'none'
 }
 
 /** GSC is three uploads: all in is ok, any failed is a problem, some in is partial. */
-function gscDot(runs: ViewRun[]): Dot {
+function gscDot(runs: SourceRun[]): Dot {
   const dots = ['gsc_indexing', 'gsc_cwv_mobile', 'gsc_cwv_desktop'].map((s) => runDot(runs, s))
   if (dots.every((d) => d === 'ok')) return 'ok'
   if (dots.includes('problem')) return 'problem'
@@ -36,7 +37,7 @@ export interface SnapshotHeaderProps {
   sfCrawlDate: string | null
   ahrefsCrawlDate: string | null
   gscExportDate: string | null
-  runs: ViewRun[]
+  runs: SourceRun[]
   crawlSettingsChanged: boolean
   /** Set for team viewers only (loadTechAuditView). */
   staleSince: string | null

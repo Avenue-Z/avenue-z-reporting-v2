@@ -85,7 +85,9 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
       const drift = routeName === 'dashboard' && nameOf(report.type) === 'PaidMediaOverviewReport'
       // The export always renders the client audience, whoever exports, so the dashboard's internal audience differs by design (spec R-14).
       const audience = routeName === 'dashboard' && ['PeecAIReport', 'ContentImpactReport'].includes(nameOf(report.type)) ? { audience: 'client' } : {}
-      expect(element.props).toEqual({ ...(drift ? { ...report.props, compareRange: Q.compareRange } : report.props), ...audience })
+      // Likewise Technical Audit: the export renders the client view whoever exports (exporting), on both routes.
+      const exporting = nameOf(report.type) === 'TechnicalAuditPage' ? { exporting: true } : {}
+      expect(element.props).toEqual({ ...(drift ? { ...report.props, compareRange: Q.compareRange } : report.props), ...audience, ...exporting })
       expect(view.pageTitle).toBe(button.props.pageTitle)
       // Every resolved tab of these sections uses the page range, so the export always stamps a period, except Technical
       // Audit, a monthly snapshot with no date picker (spec 2026-11-23 §4).
@@ -124,7 +126,7 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
     expect(report.props).toEqual({ clientSlug: 'c', snapshot: '2026-10-01' })
     const element = exportReportElement(resolveExportView(CLIENT as ExportViewClient, 'peec-ai', 'technical-audit'), { ...params, snapshot: '2026-10-01' })
-    expect(element.props).toEqual(report.props)
+    expect(element.props).toEqual({ ...report.props, exporting: true })
     expect(button.props.serverExport).toMatchObject({ subsection: 'technical-audit', snapshot: '2026-10-01' })
     expect((button.props.bulk as BulkExport).snapshot).toBe('2026-10-01')
     expect(findElements(r.element, (e) => nameOf(e.type) === 'GA4DatePicker')).toHaveLength(0)
