@@ -38,7 +38,7 @@ export function IssueRowControls({ clientSlug, issueKey, hidden, note }: {
           {hidden ? 'Unhide' : 'Hide'}
         </button>
         {!editing && (
-          <button type="button" disabled={pending} onClick={() => { setDraft(note ?? ''); setEditing(true) }} className={BTN} style={{ background: '#3a3a3a' }}>
+          <button type="button" disabled={pending} onClick={() => { setDraft(note ?? ''); setError(null); setEditing(true) }} className={BTN} style={{ background: '#3a3a3a' }}>
             {note ? 'Edit note' : 'Add note'}
           </button>
         )}
@@ -58,7 +58,7 @@ export function IssueRowControls({ clientSlug, issueKey, hidden, note }: {
             <button type="button" disabled={pending} onClick={() => save({ note: draft }, () => setEditing(false))} className={BTN} style={{ background: '#60FF80', color: '#000' }}>
               Save note
             </button>
-            <button type="button" disabled={pending} onClick={() => setEditing(false)} className={BTN} style={{ background: '#3a3a3a' }}>
+            <button type="button" disabled={pending} onClick={() => { setError(null); setEditing(false) }} className={BTN} style={{ background: '#3a3a3a' }}>
               Cancel
             </button>
             <span className="text-xs text-text-muted">{draft.length}/{NOTE_MAX}</span>

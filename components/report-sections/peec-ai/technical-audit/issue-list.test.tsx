@@ -36,7 +36,7 @@ describe('IssueList', () => {
 
   it('numbers visible rows 1..n and uses the exact headers', () => {
     render(<IssueList clientSlug="acme" issues={issues} viewer="team" />)
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['#', 'Issue', 'Severity', 'URLs affected', 'Sources'])
+    expect(within(screen.getAllByRole('table')[0]).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['#', 'Issue', 'Severity', 'URLs affected', 'Sources'])
     const rows = within(screen.getAllByRole('table')[0]).getAllByRole('row').slice(1)
     expect(rows.map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual(['1', '2'])
   })
@@ -84,5 +84,31 @@ describe('IssueList', () => {
     await waitFor(() => expect(setIssueOverride).toHaveBeenCalledWith({ clientSlug: 'acme', issueKey: 'A', note: 'hi' }))
     expect((await screen.findByRole('alert')).textContent).toBe('nope')
     expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('renders the source detail line for a three-source row', () => {
+    const detail: ViewIssue['detail'] = [
+      { source: 'ahrefs', nativeName: '4XX page', urlCount: 132 },
+      { source: 'sf', nativeName: 'Internal Client Error (4xx)', urlCount: 148 },
+      { source: 'gsc_indexing', nativeName: 'Not found (404)', urlCount: 121 },
+    ]
+    render(<IssueList clientSlug="acme" issues={[issue('Broken pages', { detail, sources: ['ahrefs', 'sf', 'gsc_indexing'] })]} viewer="client" />)
+    expect(screen.getByText('Ahrefs: 4XX page (132) · SF: Internal Client Error (4xx) (148) · GSC: Not found (404) (121)')).toBeTruthy()
+  })
+
+  it('shows the detail line and headers in the hidden block for the team', () => {
+    render(<IssueList clientSlug="acme" issues={[issue('H', { hidden: true })]} viewer="team" />)
+    expect(screen.getByText('SF: H (10)')).toBeTruthy()
+    expect(screen.getAllByRole('columnheader', { hidden: true })).toHaveLength(5)
+  })
+
+  it('clears the inline error when the editor is cancelled', async () => {
+    setIssueOverride.mockResolvedValue({ ok: false, error: 'nope' })
+    render(<IssueList clientSlug="acme" issues={[issue('A')]} viewer="team" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save note' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

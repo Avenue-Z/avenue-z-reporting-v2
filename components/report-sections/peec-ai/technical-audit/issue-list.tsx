@@ -11,6 +11,8 @@ import { IssueRowControls } from './issue-row-controls'
 const SOURCE_LABEL: Record<TaIssueSource, string> = {
   ahrefs: 'Ahrefs', sf: 'Screaming Frog', gsc_indexing: 'GSC Indexing', gsc_cwv: 'GSC CWV',
 }
+/** Short source labels for the per-issue detail line. */
+const DETAIL_LABEL: Record<TaIssueSource, string> = { ahrefs: 'Ahrefs', sf: 'SF', gsc_indexing: 'GSC', gsc_cwv: 'GSC CWV' }
 const SOURCE_FILTERS: { value: TaIssueSource | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
   ...(Object.keys(SOURCE_LABEL) as TaIssueSource[]).map((value) => ({ value, label: SOURCE_LABEL[value] })),
@@ -22,6 +24,17 @@ const SEVERITY_COLOR: Record<Severity, string> = { high: '#FF4444', medium: '#FF
 const SELECT = 'rounded-xl border border-white/10 bg-bg-surface px-3 py-2 text-sm text-white'
 const TH = 'px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-text-muted'
 
+function HeadRow() {
+  return (
+    <thead>
+      <tr>
+        <th className={TH}>#</th><th className={TH}>Issue</th><th className={TH}>Severity</th>
+        <th className={TH}>URLs affected</th><th className={TH}>Sources</th>
+      </tr>
+    </thead>
+  )
+}
+
 function IssueRow({ issue, index, clientSlug, team }: { issue: ViewIssue; index?: number; clientSlug: string; team: boolean }) {
   return (
     <tr className="border-t border-white/[0.06] align-top" data-export-block="">
@@ -32,6 +45,9 @@ function IssueRow({ issue, index, clientSlug, team }: { issue: ViewIssue; index?
           {team && issue.needsMapping && (
             <span className="ml-2 rounded-full border border-white/10 px-2 py-0.5 text-xs font-normal text-text-muted">Needs mapping</span>
           )}
+        </p>
+        <p className="mt-0.5 text-xs text-text-muted">
+          {issue.detail.map((d) => `${DETAIL_LABEL[d.source]}: ${d.nativeName} (${d.urlCount})`).join(' · ')}
         </p>
         {issue.note && (
           <p className="mt-1 whitespace-pre-wrap text-xs text-text-muted">
@@ -82,12 +98,7 @@ export function IssueList({ clientSlug, issues, viewer }: { clientSlug: string; 
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr>
-                <th className={TH}>#</th><th className={TH}>Issue</th><th className={TH}>Severity</th>
-                <th className={TH}>URLs affected</th><th className={TH}>Sources</th>
-              </tr>
-            </thead>
+            <HeadRow />
             <tbody>
               {visible.map((i, n) => <IssueRow key={i.key} issue={i} index={n + 1} clientSlug={clientSlug} team={team} />)}
             </tbody>
@@ -100,6 +111,7 @@ export function IssueList({ clientSlug, issues, viewer }: { clientSlug: string; 
           <summary className="cursor-pointer text-sm font-bold text-text-muted">Hidden by strategist ({hidden.length})</summary>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full">
+              <HeadRow />
               <tbody>{hidden.map((i) => <IssueRow key={i.key} issue={i} clientSlug={clientSlug} team />)}</tbody>
             </table>
           </div>

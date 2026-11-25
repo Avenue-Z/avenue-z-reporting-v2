@@ -6,7 +6,7 @@ import { getOverrides, getSnapshotBundle, getSnapshots } from './store'
 import type { OverrideRow, RunRow, SnapshotRow } from './store'
 import { loadIssueMap } from './issue-map'
 import { mergeIssues, type MergedIssue } from './issues'
-import type { SourceIssue } from './types'
+import type { SourceIssue, TaIssueSource } from './types'
 
 export type Viewer = 'team' | 'client'
 export type ViewRun = { source: RunRow['source']; status: RunRow['status']; lastError?: string | null }
@@ -62,6 +62,8 @@ function toViewSnapshot(s: SnapshotRow, viewer: Viewer): ViewSnapshot {
   return viewer === 'team' ? { ...base, publishedBy: s.publishedBy, publishedAt: s.publishedAt } : base
 }
 
+const isIssueSource = (v: string): v is TaIssueSource => v === 'ahrefs' || v === 'sf' || v === 'gsc_indexing' || v === 'gsc_cwv'
+
 function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaited<ReturnType<typeof loadIssueMap>>, viewer: Viewer): ViewIssue[] {
   const byKey = new Map(overrides.map((o) => [o.issueKey, o]))
   return mergeIssues(rows, map).flatMap((m): ViewIssue[] => {
@@ -113,10 +115,13 @@ export async function loadTechAuditView(
     viewer === 'team' ? { source: r.source, status: r.status, lastError: r.lastError } : { source: r.source, status: r.status })
 
   const [overrides, issueMap] = await Promise.all([getOverrides(client.id), loadIssueMap()])
-  const issueRows: SourceIssue[] = (bundles.get(selected.id)?.issues ?? []).map((i) => ({
-    source: i.source as SourceIssue['source'], nativeName: i.nativeIssueName, nativeSeverity: i.nativeSeverity,
-    urlCount: i.urlCount, ...(i.device ? { device: i.device as NonNullable<SourceIssue['device']> } : {}),
-  }))
+  const issueRows = (bundles.get(selected.id)?.issues ?? []).flatMap((i): SourceIssue[] => {
+    if (!isIssueSource(i.source)) return []
+    return [{
+      source: i.source, nativeName: i.nativeIssueName, nativeSeverity: i.nativeSeverity, urlCount: i.urlCount,
+      ...(i.device === 'mobile' || i.device === 'desktop' ? { device: i.device } : {}),
+    }]
+  })
 
   const newest = visible[0].snapshotDate
   return {
