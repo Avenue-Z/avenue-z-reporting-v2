@@ -129,3 +129,43 @@ describe('industry month-by-month card (Q3: stays until Savannah answers)', () =
     expect(root.querySelector('[data-box="i-conv"]')).not.toBeNull()
   })
 })
+
+// Unit C (plan 2026-11-24, F8, F14, D2, D3): the Line / Columns toggle.
+describe('line views and the toggle', () => {
+  const toggleOf = (card: Element) => Array.from(card.querySelectorAll('button')).map((b) => `${b.textContent}:${b.getAttribute('aria-pressed')}`)
+  const ariaOf = (card: Element) => card.querySelector('svg[role="img"]')?.getAttribute('aria-label') ?? ''
+
+  test('brand: Sentiment year to date and Reddit start on the line, with the toggle; positive + neutral has no toggle', async () => {
+    const root = await page()
+    for (const title of ['Sentiment, ', 'Reddit sentiment']) {
+      const card = cardTitled(root, title)!
+      expect(toggleOf(card)).toEqual(['Line:true', 'Columns:false'])
+      expect(ariaOf(card)).toMatch(/^Positive: /)
+    }
+    expect(toggleOf(cardTitled(root, 'Positive + neutral combined')!)).toEqual([])
+  })
+
+  test('industry: sentiment over time and the month-by-month chart start on the line, with the toggle', async () => {
+    const root = await page({ topic: 'industry' })
+    expect(toggleOf(cardTitled(root, 'Sentiment over time')!)).toEqual(['Line:true', 'Columns:false'])
+    expect(ariaOf(cardTitled(root, 'Sentiment over time')!)).toBe('Results per day by sentiment, as lines')
+    expect(toggleOf(cardTitled(root, 'Sentiment, ')!)).toEqual(['Line:true', 'Columns:false'])
+  })
+
+  test('a chart the URL set to columns starts on its columns, which are the chart as it was before', async () => {
+    const root = await page({ cols: ['b-ytd', 'b-reddit'] })
+    const ytd = cardTitled(root, 'Sentiment, ')!
+    expect(toggleOf(ytd)).toEqual(['Line:false', 'Columns:true'])
+    expect(ariaOf(ytd)).toMatch(/^Brand sentiment by month, /)
+    expect(ariaOf(cardTitled(root, 'Reddit sentiment')!)).toBe('Reddit sentiment by month')
+    const industry = await page({ topic: 'industry', cols: ['i-sentday'] })
+    expect(ariaOf(cardTitled(industry, 'Sentiment over time')!)).toBe('Results per day by sentiment')
+  })
+
+  test('the PDF prints the view the URL named, with no toggle buttons', async () => {
+    const root = await page({ exporting: true, cols: ['b-ytd'] })
+    expect(ariaOf(cardTitled(root, 'Sentiment, ')!)).toMatch(/^Brand sentiment by month, /)
+    expect(ariaOf(cardTitled(root, 'Reddit sentiment')!)).toMatch(/^Positive: /)
+    expect(root.querySelectorAll('button')).toHaveLength(0)
+  })
+})

@@ -15,3 +15,6 @@
 /* The cell an analysis box sits in under its card: a column, so an empty box's "+ Add analysis" keeps its own width and
    a written box fills the row, in a plain stack and in a .pair row alike. */
 .box { display: flex; flex-direction: column; min-width: 0; }
+
+/* The Line / Columns toggle on a Social Listening chart (Unit C): the kit's pills, on the right above the chart. */
+.toggle { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }

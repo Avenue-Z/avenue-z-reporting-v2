@@ -19,6 +19,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { ExportModeProvider, ExportReadyReporter } from '@/components/export/export-mode'
 import { exportReportElement } from '@/components/export/report-element'
 import { parseAeoMin, parseAeoRange } from '@/lib/organic-social/aeo-tab/params'
+import { parseSlCols } from '@/lib/organic-social/social-listening/params'
 import { aeoExportPeriodLabel } from '@/lib/organic-social/aeo-tab/stamp'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +50,9 @@ export default async function ReportExportPage({
   // The AEO Informed Social tab's range and min, as the report pages read them (unreadable: Month and 2); used on that tab only.
   const aeo = parseAeoRange(str(sp.aeo))
   const aeoMin = parseAeoMin(str(sp.aeomin))
-  const report = exportReportElement(view, { clientSlug, dateRange, compareRange, models: parseModelsParam(str(sp.models)), aeo, aeoMin })
+  // The Social Listening tab's charts set to columns, as the page showed them; used on that tab only.
+  const slCols = parseSlCols(str(sp.slcols))
+  const report = exportReportElement(view, { clientSlug, dateRange, compareRange, models: parseModelsParam(str(sp.models)), aeo, aeoMin, slCols })
   // The period stamped is the range the report serves: Organic Social's locked month for an opted-in client (the
   // same lookup OrganicSocialBody makes), else the requested range. No month to serve, no period. The Executive
   // Overview has no picker and mixes windows (30 days, year to date, as of today), so it stamps none, as its live

@@ -331,6 +331,34 @@ export function DailyStack({ rows }: { rows: ({ day: string } & Record<K, number
   return <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Results per day by sentiment">{g}</svg>
 }
 
+/** Industry sentiment over time as three lines, one per sentiment, as the October deck draws it (plan 2026-11-24, Unit C): the
+ *  line view of DailyStack's data. Scaled to the largest single sentiment on any day, not the day's total. */
+export function DailyLines({ rows }: { rows: ({ day: string } & Record<K, number>)[] }) {
+  const W = 960, H = 240, L = 48, R = 16, T = 24, B = 30
+  if (rows.length === 0) return null
+  const max = Math.max(1, ...rows.flatMap((r) => KEYS.map((k) => r[k])))
+  const step = niceStep((max * 1.15) / 4), top = step * Math.ceil((max * 1.15) / step)
+  const x = (i: number) => L + (i * (W - L - R)) / Math.max(rows.length - 1, 1)
+  const y = (v: number) => T + (H - T - B) * (1 - v / top)
+  const g: ReactNode[] = []
+  for (let v = 0; v <= top + 1e-9; v += step) {
+    g.push(<line key={`g${v}`} className={s.gridLine} x1={L} x2={W - R} y1={y(v)} y2={y(v)} />)
+    g.push(<text key={`t${v}`} className={s.tMuted} x={L - 8} y={y(v) + 4} fontSize={11} textAnchor="end">{short(v)}</text>)
+  }
+  rows.forEach((r, i) => {
+    if (i % 7 === 0 || i === rows.length - 1) g.push(<text key={`x${i}`} className={s.tMuted} x={x(i)} y={H - 8} fontSize={11} textAnchor="middle">{dayLabel(r.day)}</text>)
+  })
+  KEYS.forEach((k) => g.push(
+    <polyline key={k} points={rows.map((r, i) => `${x(i).toFixed(1)},${y(r[k]).toFixed(1)}`).join(' ')} fill="none" stroke={SC[k]} strokeWidth={2.5} strokeLinejoin="round" />,
+  ))
+  return (
+    <>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Results per day by sentiment, as lines">{g}</svg>
+      <Key items={SENT_KEY} />
+    </>
+  )
+}
+
 /** The cloud shows the top themes by share, as the mockup's (24 brand, 25 industry in October). */
 export const CLOUD_MAX = 25
 

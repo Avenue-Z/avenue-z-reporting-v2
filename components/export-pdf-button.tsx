@@ -22,6 +22,8 @@ export interface ServerExport {
   /** The AEO Informed Social tab's range and min competitors, on that tab only. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The Social Listening tab's charts set to columns (slcols), on that tab only, when a chart is on its columns. */
+  slCols?: string
 }
 
 interface ExportPdfButtonProps {

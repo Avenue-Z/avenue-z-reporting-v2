@@ -5,10 +5,13 @@ import type { ReactNode } from 'react'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import type { SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import type { SlTile, SlTopicView } from '@/lib/organic-social/social-listening/view-model'
+import type { YtdPoint } from '@/lib/organic-social/social-listening/compare'
+import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
 import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, YtdColumns } from '../design/charts'
 import { SlBoxLabel, SlCard, SlSection } from '../design/frames'
 import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
+import { ChartToggle, type ChartView } from './chart-toggle'
 import s from '../design/kit.module.css'
 import f from '../design/frames.module.css'
 
@@ -21,6 +24,10 @@ export type TopicPageProps = {
   /** The upload control or the live-month line, in place of a missing upload (staff only). */
   upload: ReactNode
   topicName: string
+  /** The charts set to columns (slcols); every other toggle chart starts on its line (plan 2026-11-24, Unit C). */
+  cols: readonly SlToggleChart[]
+  /** The PDF export: a toggle chart draws only its chosen view, with no buttons, whatever the client context. */
+  exporting: boolean
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -53,6 +60,31 @@ export function fromFirst<T extends { value: unknown }>(points: T[], by: { value
 export function ytdSpan(points: { month: string; value: unknown }[], month: string): string {
   const first = fromFirst(points)[0]?.month ?? month
   return first === month ? monthName(month) : `${monthName(first)} to ${monthName(month)}`
+}
+
+/** A toggle chart's first view: columns when the URL set it to columns (slcols), else the line. */
+export const viewOf = (cols: readonly SlToggleChart[], id: SlToggleChart): ChartView => (cols.includes(id) ? 'columns' : 'line')
+
+/** A chart with the Line / Columns toggle. On screen, the client toggle; in the PDF, only the chosen view, drawn on the
+ *  server, so the export never depends on the client knowing it is an export. */
+export function Toggled({ id, cols, exporting, line, columns }: {
+  id: SlToggleChart; cols: readonly SlToggleChart[]; exporting: boolean; line: ReactNode; columns: ReactNode
+}) {
+  const initial = viewOf(cols, id)
+  if (exporting) return <>{initial === 'columns' ? columns : line}</>
+  return <ChartToggle id={id} initial={initial} line={line} columns={columns} />
+}
+
+/** A year to date sentiment split as three lines, positive, neutral and negative by month, as both decks draw it (plan
+ *  2026-11-24, F8): the line view of YtdColumns' points. A month with no data breaks the line, as on the columns. */
+export function SentimentLines({ points }: { points: YtdPoint[] }) {
+  return (
+    <PointLines months={points.map((p) => p.month)} series={[
+      { name: 'Positive', vals: points.map((p) => p.value?.pos ?? null), color: SENTIMENT_COLORS.pos },
+      { name: 'Neutral', vals: points.map((p) => p.value?.neu ?? null), color: SENTIMENT_COLORS.neu },
+      { name: 'Negative', vals: points.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
+    ]} />
+  )
 }
 
 /** An analysis-only section: staff always (the box's "+ Add analysis"), a client only with approved text. */
@@ -95,7 +127,7 @@ export function networkLabel(raw: string): string {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : raw
 }
 
-export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName }: TopicPageProps) {
+export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName, cols, exporting }: TopicPageProps) {
   const r = view.ready
   const label = vsLabel(view.month)
   const posNeuPoints = r ? fromFirst(r.posNeu, r.ytd) : []
@@ -144,7 +176,8 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
 
           <SlSection title="Year to date" line={`Earlier months as presented in each month's report; ${monthName(view.month)} from this export`}>
             <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['b-ytd']}>
-              <YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
+              <Toggled id="b-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={ytd} />}
+                columns={<YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />} />
             </SlCard>
             <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']}>
               <PointLines months={posNeuPoints.map((p) => p.month)} series={[
@@ -154,7 +187,8 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
             </SlCard>
             {r.reddit && (
               <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']}>
-                <YtdColumns points={fromFirst(r.reddit)} aria="Reddit sentiment by month" />
+                <Toggled id="b-reddit" cols={cols} exporting={exporting} line={<SentimentLines points={fromFirst(r.reddit)} />}
+                  columns={<YtdColumns points={fromFirst(r.reddit)} aria="Reddit sentiment by month" />} />
               </SlCard>
             )}
           </SlSection>

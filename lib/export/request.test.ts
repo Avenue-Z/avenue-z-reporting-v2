@@ -93,3 +93,18 @@ test.each([['YTD'], ['year'], [3], [['ytd']], ['']])('an aeo of %j is refused', 
 test.each([[0], [6], [2.5], ['3'], [Number.NaN]])('an aeoMin of %j is refused', (aeoMin) => {
   expect(parseExportRequest({ ...ok, aeoMin })).toBeNull()
 })
+
+// The Social Listening toggle (plan 2026-11-24, Unit C): the charts set to columns travel to the export page.
+test('the Social Listening tab\'s slCols pass through, and the export path carries them', () => {
+  const r = parseExportRequest({ ...ok, subsection: 'organic-social-listening', slCols: 'b-ytd,i-sentday' })
+  expect(r).toEqual({ ...ok, subsection: 'organic-social-listening', slCols: 'b-ytd,i-sentday' })
+  expect(exportPagePath(r!)).toBe('/export/renaissance/organic-social?dateRange=custom%3A2026-09-01%2C2026-09-30&subsection=organic-social-listening&slcols=b-ytd%2Ci-sentday&tz=America%2FNew_York')
+})
+test('without slCols a request has no slCols key and its path is unchanged', () => {
+  const r = parseExportRequest(ok)!
+  expect('slCols' in r).toBe(false)
+  expect(parseExportRequest({ ...ok, slCols: null })).toEqual(ok)
+})
+test.each([['x'], ['b-ytd,b-ytd'], ['b-reddit,b-ytd'], [''], [3], [['b-ytd']]])('an slCols of %j is refused', (slCols) => {
+  expect(parseExportRequest({ ...ok, slCols })).toBeNull()
+})

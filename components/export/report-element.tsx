@@ -6,6 +6,7 @@ import type { AEOModel } from '@/lib/peec/models'
 import type { ExportView } from '@/lib/export/report-view'
 import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import { OrganicSocialReport } from '@/components/report-sections/organic-social'
+import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
@@ -27,9 +28,11 @@ export interface ExportViewParams {
   /** The AEO Informed Social tab's range and min competitors; Month and 2 when absent, as on the page. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The Social Listening tab's charts set to columns (slcols); every other toggle chart prints its line. */
+  slCols?: readonly SlToggleChart[]
 }
 
-export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models, aeo, aeoMin }: ExportViewParams): ReactElement {
+export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models, aeo, aeoMin, slCols }: ExportViewParams): ReactElement {
   switch (view.section) {
     case 'organic-social':
       // Locked months resolve inside OrganicSocialReport from the raw range, as on the page.
@@ -38,7 +41,7 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
       // The Social Listening tab prints the client's view, brand then industry, whichever pill was open (spec 2026-11-19 R2-5).
       return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={view.channel} view={view.view}
         {...(view.view === 'aeo-informed' ? { aeo: aeo ?? 'month', aeoMin: aeoMin ?? 2, aeoDeadlineMs: AEO_EXPORT_DEADLINE_MS } : {})}
-        {...(view.view === 'social-listening' ? { exporting: true } : {})} />
+        {...(view.view === 'social-listening' ? { exporting: true, ...(slCols?.length ? { slCols } : {}) } : {})} />
     case 'peec-ai':
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (view.subsectionId === 'content-impact')  return <ContentImpactReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />

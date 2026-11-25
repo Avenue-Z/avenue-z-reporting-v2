@@ -2,14 +2,14 @@
 // (results, then the three shares with their points changes), results over time, share of sentiment, sentiment year to
 // date (each chart card on a row of its own since 2026-11-24), sentiment over time, sentiment by media type, keyword
 // themes with the top conversation themes box, key takeaways, keyword appendix. Server component.
-import { AnalysisOnly, ConversationThemes, SourceLine, fmt, fromFirst, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
-import { Cloud, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from '../design/charts'
+import { AnalysisOnly, ConversationThemes, SentimentLines, SourceLine, Toggled, fmt, fromFirst, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
+import { Cloud, DailyLines, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from '../design/charts'
 import { SlCard, SlSection } from '../design/frames'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import s from '../design/kit.module.css'
 import f from '../design/frames.module.css'
 
-export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps) {
+export function IndustryPage({ view, boxes, upload, topicName, cols, exporting }: TopicPageProps) {
   const r = view.ready
   const label = vsLabel(view.month)
   return (
@@ -46,12 +46,13 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
                 <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
               </SlCard>
               <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
-                <YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
+                <Toggled id="i-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={fromFirst(r.ytd)} />}
+                  columns={<YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />} />
               </SlCard>
             </div>
             <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']}>
-              <DailyStack rows={r.dailyBySentiment} />
-              <Key items={[{ name: 'Positive', color: SENTIMENT_COLORS.pos }, { name: 'Neutral', color: SENTIMENT_COLORS.neu }, { name: 'Negative', color: SENTIMENT_COLORS.neg }]} />
+              <Toggled id="i-sentday" cols={cols} exporting={exporting} line={<DailyLines rows={r.dailyBySentiment} />}
+                columns={<><DailyStack rows={r.dailyBySentiment} /><Key items={[{ name: 'Positive', color: SENTIMENT_COLORS.pos }, { name: 'Neutral', color: SENTIMENT_COLORS.neu }, { name: 'Negative', color: SENTIMENT_COLORS.neg }]} /></>} />
             </SlCard>
             <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['i-cross']}>
               <HBars rows={r.cross} />
