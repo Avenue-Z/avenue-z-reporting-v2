@@ -21,8 +21,8 @@ test('names exactly the kit versions the registry holds', () => {
 })
 
 // Labels cannot prove this: platform-headlines @1 to @3 and ytd-review @1 to @4 share one label each. Every kit version
-// calls its wrapped version's render when it runs (tiles-kit.tsx:53, trends-kit.tsx:64, posts-kit.tsx:80,
-// ytd-kit.tsx:92, kpi-kit.tsx:75), so the test spies on exactly that render and on none of its siblings.
+// calls its wrapped version's render when it runs (every kit file builds its versions with kitOf,
+// parts/kit-swap.tsx:52), so the test spies on exactly that render and on none of its siblings.
 test.each(entries(KIT_WRAPS))('%s@%i renders exactly the version it wraps, @%i', (id, kit, old) => {
   const wrapped = PRE_KIT_PARTS[id]?.[old]
   expect(wrapped).toBeDefined()

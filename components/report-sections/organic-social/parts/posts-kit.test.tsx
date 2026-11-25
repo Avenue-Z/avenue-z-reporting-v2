@@ -42,6 +42,7 @@ const POSTS = [
 ]
 const IG = { clientSlug: 'client-a', dateRange: 'custom:2026-08-01,2026-08-31', compareRange: 'custom:2026-07-01,2026-07-31', channel: 'INSTAGRAM' as const, view: null }
 const INFLUENCER_TAB = { ...IG, channel: null, view: 'influencer' as const }
+const OVERVIEW = { ...IG, channel: null }
 // The Instagram tab keeps its influencer row (the Influencer tab hidden); the influencer tab's client has the tab.
 const IG_CLIENT = { id: 'c1', slug: 'client-a', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' } }, hiddenReports: ['organic-influencer'] }
 const TAB_CLIENT = { id: 'c1', slug: 'client-a', dashSocialConfig: { brandId: 1, ownHandles: { instagram: 'brand_handle' } }, reportSectionConfig: { 'organic-social:platform': { versions: { 'top-content': 3 } } } }
@@ -64,6 +65,19 @@ async function serve(node: ReactNode): Promise<ReactNode> {
 const draw = (node: ReactNode, exporting: boolean) =>
   render(exporting ? <ExportModeProvider>{node}</ExportModeProvider> : <>{node}</>).container
 const r = (id: string, version: number) => ({ id, version, label: 'x' })
+/** Every post read so far, in full. JSON drops a function, so an injected live fetch is run and recorded by what it asks
+ *  Dash for (fetchTopContent's arguments, the author and UGC options among them). */
+async function postReads(): Promise<unknown[]> {
+  type Injected = { fetchLive?: (s: string, d: string, c: unknown) => Promise<unknown> } | undefined
+  const out: unknown[] = []
+  for (const [slug, range, channel, injected] of fetchTopContentFrozen.mock.calls as unknown as [string, string, unknown, Injected][]) {
+    if (!injected) { out.push([slug, range, channel, null]); continue }
+    fetchTopContent.mockClear()
+    await injected.fetchLive?.(slug, range, channel)
+    out.push([slug, range, channel, Object.keys(injected).sort(), fetchTopContent.mock.calls])
+  }
+  return out
+}
 
 const PAIRS = [
   ['top-content@4 from @3 (an outline client\'s Instagram tab)', topContentV3, topContentV4, IG, IG_CLIENT],
@@ -123,30 +137,39 @@ describe('the posts with the kit', () => {
   test.each([
     ['the Influencer tab, platform top-content@3 moved to @4 (the outline rule)', influencerPostsV1, influencerPostsV2, INFLUENCER_TAB, 3, 4, {}],
     ['a top-content@2 tab with a saved handle, moved to @5 (the author rule)', topContentV2, topContentV5, IG, 2, 5, { hiddenReports: ['organic-influencer'] }],
+    // Overview keeps the template's @2 gallery while the platform tabs move, and its split follows the platform pin (#507).
+    ['Overview\'s top-content@2 gallery while the platform moves from @3 to @4 (the outline rule)', topContentV2, topContentV2, OVERVIEW, 3, 4, {}],
   ] as const)('%s', async (_name, oldV, kitV, ctx, from, to, extra) => {
     const pinned = (v: number) => ({ ...TAB_CLIENT, ...extra, reportSectionConfig: { 'organic-social:platform': { versions: { 'top-content': v } } } })
     const serveAt = async (v: number, part: typeof oldV | typeof kitV) => {
       getClientBySlug.mockResolvedValue(pinned(v))
       for (const f of [fetchTopContentFrozen, getDesignations]) f.mockClear()
       const c = draw(await serve(part.render({ ...ctx, role: 'INTERNAL_ADMIN' }, r(part.id, part.version))), false)
-      return { c, reads: JSON.stringify([fetchTopContentFrozen.mock.calls, getDesignations.mock.calls]) }
+      return { c, reads: JSON.stringify([await postReads(), getDesignations.mock.calls]) }
     }
     const today = await serveAt(from, oldV)
     const moved = await serveAt(to, kitV)
+    expect(visibleValues(today.c).length).toBeGreaterThan(20)
     expectSameValues(today.c, moved.c)
     expect(moved.reads).toBe(today.reads)
   })
   test('asks exactly what the old versions ask: the same post read, client read and designations', async () => {
-    const calls = () => JSON.stringify([fetchTopContentFrozen.mock.calls.map((c) => c.slice(0, 3)), getClientBySlug.mock.calls, getDesignations.mock.calls])
+    // The whole post read, including the injected live fetch that marks the author split apart from the designations
+    // split (#507: the 4th argument was dropped here before).
+    const calls = async () => JSON.stringify([await postReads(), getClientBySlug.mock.calls, getDesignations.mock.calls])
+    let injected = 0
     for (const [, oldV, kitV, ctx, client] of PAIRS) {
       getClientBySlug.mockResolvedValue(client)
       for (const f of [fetchTopContentFrozen, getClientBySlug, getDesignations]) f.mockClear()
       await serve(oldV.render({ ...ctx, role: 'INTERNAL_ADMIN' }, r(oldV.id, oldV.version)))
-      const was = calls()
+      injected += fetchTopContentFrozen.mock.calls.filter((c) => c[3] !== undefined).length
+      const was = await calls()
       for (const f of [fetchTopContentFrozen, getClientBySlug, getDesignations]) f.mockClear()
       await serve(kitV.render({ ...ctx, role: 'INTERNAL_ADMIN' }, r(kitV.id, kitV.version)))
-      expect(calls()).toBe(was)
+      expect(await calls()).toBe(was)
     }
+    // Some pair really reads through the author split, so the comparison above covers the 4th argument.
+    expect(injected).toBeGreaterThan(0)
   })
   test('a failed post read shows exactly the card the old version shows', async () => {
     for (const [, oldV, kitV, ctx, client] of PAIRS) {

@@ -7,8 +7,7 @@
 // awaits the real @2 section and redraws only those three in that tree (kitYtd). The client read, the sheet read, the
 // Dash months, the notes, the gap lines, the logs and the fallback cards are the old code, not a copy of it. Unpublished:
 // pinned per client, never promoted into the shared template or frozen into a snapshot.
-import { Fragment, Suspense, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
-import type { PartImpl } from '@/lib/report-sections/types'
+import { Fragment, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { ChartCard } from '@/components/charts/chart-card'
 import { LineChart } from '@/components/charts/line-chart'
 import { BarChart } from '@/components/charts/bar-chart'
@@ -18,9 +17,9 @@ import { SlCard } from '../design/frames'
 import kit from '../design/kit.module.css'
 import { YtdReviewSection } from './ytd-review'
 import { ytdReviewV2 } from './ytd-review-sheet'
+import { kitOf, redrawnSections } from './kit-swap'
 
 type El = ReactElement<Record<string, unknown>>
-type Section = (props: never) => Promise<ReactNode>
 
 /** One element of a returned YTD tree in kit form. Only host elements and fragments are walked into; any other
  *  component (the notes panel, a fallback card) is left exactly as it is. */
@@ -61,33 +60,8 @@ async function KitYtdV1Section(props: { ctx: OrganicSocialCtx }) {
   return kitYtdBlock(await YtdReviewSection(props))
 }
 
-const kitSections = new Map<Section, Section>()
-/** The kit form of a section, made once per section and kept, so a re-render never remounts the block. */
-function kitSectionFor(section: Section): Section {
-  let kitted = kitSections.get(section)
-  if (!kitted) {
-    kitted = async (props: never) => kitYtdBlock(await section(props))
-    kitSections.set(section, kitted)
-  }
-  return kitted
-}
-
-/** @2's rendered element, `<Suspense fallback><Section ctx/></Suspense>`, with its section in kit form; the fallback and
- *  the props are kept exactly. */
-function withKitSection(node: ReactNode): ReactNode {
-  if (!isValidElement(node) || node.type !== Suspense) return node
-  const { fallback, children } = node.props as { fallback: ReactNode; children: ReactNode }
-  if (!isValidElement(children) || typeof children.type !== 'function') return node
-  const Kit = kitSectionFor(children.type as Section) as unknown as (p: object) => ReactNode
-  return <Suspense fallback={fallback}><Kit {...(children.props as object)} /></Suspense>
-}
+/** Each section's kit form, made once per section (kit-swap.tsx), so a re-render never remounts the block. */
+const { kitFor } = redrawnSections(kitYtdBlock)
 
 /** The YTD Review from the team's sheet (with @1 as its no-sheet fallback), on the design kit. */
-export const ytdReviewV5: PartImpl<OrganicSocialCtx> = {
-  id: ytdReviewV2.id,
-  version: 5,
-  published: false,
-  defaultLabel: ytdReviewV2.defaultLabel,
-  // @2's render takes ctx only (it reads no resolved part), so it passes straight through.
-  render: (ctx, resolved) => withKitSection(ytdReviewV2.render(ctx, resolved)),
-}
+export const ytdReviewV5 = kitOf(ytdReviewV2, 5, kitFor)
