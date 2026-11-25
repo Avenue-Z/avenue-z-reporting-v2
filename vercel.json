@@ -12,6 +12,10 @@
     {
       "path": "/api/lock-sweep",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/tech-audit/sweep",
+      "schedule": "20 6 * * *"
     }
   ]
 }
