@@ -395,7 +395,7 @@ function emptyOverview(): ProfoundOverview {
   }
 }
 
-async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string): Promise<ProfoundOverview> {
+async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string, compareMode: 'previous_period' | 'previous_year' = 'previous_period'): Promise<ProfoundOverview> {
   let yourBrand: string
   let categoryId: string
   let yourDomain: string | null = null
@@ -420,7 +420,7 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string):
   // immediately-preceding period of equal length (matches the other AEO pages).
   const range = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(range)
-  const compareDates = deriveCompareRange(range, 'previous_period') ?? mainDates
+  const compareDates = deriveCompareRange(range, compareMode) ?? mainDates
   const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
   const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 

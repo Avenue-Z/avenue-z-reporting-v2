@@ -19,3 +19,14 @@ export function compareSuffix(c: AeoCompare): string {
   if (c === 'previous_year') return 'vs same period last year'
   return ''
 }
+
+/** v1 layouts ignore the URL params entirely so their cache keys and markup stay unchanged. */
+export function overviewCompare(
+  isV2: boolean,
+  compareRange: string | null | undefined,
+  deltas: string | null | undefined,
+): { compare: AeoCompare; showDeltas: boolean; fetchMode: 'previous_period' | 'previous_year' } {
+  if (!isV2) return { compare: 'previous_period', showDeltas: true, fetchMode: 'previous_period' }
+  const compare = parseAeoCompare(compareRange)
+  return { compare, showDeltas: parseShowDeltas(deltas, compare), fetchMode: fetchCompareMode(compare) }
+}
