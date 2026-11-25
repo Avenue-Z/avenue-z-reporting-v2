@@ -225,6 +225,13 @@
       "when": 1795583610714,
       "tag": "0031_sl_history_media_authors",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795586138646,
+      "tag": "0032_sl_picks",
+      "breakpoints": true
     }
   ]
 }

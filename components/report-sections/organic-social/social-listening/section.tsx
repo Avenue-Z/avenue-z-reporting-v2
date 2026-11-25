@@ -13,6 +13,7 @@ import { SL_BRAND_BOX_IDS, SL_INDUSTRY_BOX_IDS, SL_VIEW_PREFIX, slBoxLabels, slB
 import { slCapabilities } from '@/lib/organic-social/social-listening/capabilities'
 import { logMalformedSocialListeningSetting, parseSocialListeningSetting, socialListeningSettingProblem, hasSocialListeningTab } from '@/lib/organic-social/social-listening/setting'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
+import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import { getSlMonth } from '@/lib/organic-social/social-listening/store'
 import { SL_NOTES_CHANNEL, type SlNoteSource } from '@/lib/organic-social/social-listening/notes'
 import { getChartNotes } from '@/lib/organic-social/chart-notes/select'
@@ -39,11 +40,13 @@ const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
  * and prints brand then industry (the export calls this once per topic; an industry topic with nothing to show renders
  * nothing).
  */
-export async function SocialListeningSection({ clientSlug, servedRange, role, email, topic, exporting, preview = false, cols = [] }: {
+export async function SocialListeningSection({ clientSlug, servedRange, role, email, topic, exporting, preview = false, cols = [], sort = 'posts' }: {
   clientSlug: string; servedRange: string; role: unknown; email: string | null | undefined; topic: SlTopic; exporting: boolean
   /** The charts set to columns (slcols, plan 2026-11-24 Unit C); every other toggle chart starts on its line. The PDF prints the
    *  same choice. */
   cols?: readonly SlToggleChart[]
+  /** The authors table's order (slsort, Unit F); posts when absent. The PDF prints the same order. */
+  sort?: SlAuthorSort
   /** Staff's "Preview as client" (slview=client): the page renders exactly what the client sees. Ignored for a client role
    *  (always the client view) and in the PDF (always the client view, no toggle). */
   preview?: boolean
@@ -107,7 +110,7 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   // In the export the industry call prints nothing when industry has nothing a client would see.
   if (exporting && topic === 'industry' && shown !== 'industry') return null
 
-  const view = buildTopicView({ topic: shown, month, live, clientView, setting, data, approvedBoxes })
+  const view = buildTopicView({ topic: shown, month, live, clientView, setting, data, approvedBoxes, sort })
   const boxes: Partial<Record<SlBoxId, ReactNode>> = {}
   for (const id of shown === 'brand' ? SL_BRAND_BOX_IDS : SL_INDUSTRY_BOX_IDS) {
     if (clientView && !approvedBoxes.has(id)) continue
@@ -139,7 +142,7 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
     }
   }
 
-  const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName, cols, exporting, notes }
+  const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName, cols, exporting, notes, sort }
   const topics = setting.industryTopic ? `Talkwalker topics: ${setting.brandTopic}, and ${setting.industryTopic}` : `Talkwalker topic: ${setting.brandTopic}`
   return (
     <div className={s.root}>

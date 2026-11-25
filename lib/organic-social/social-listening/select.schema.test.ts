@@ -24,7 +24,9 @@ test('0030 exists and holds its place in the journal', () => {
   expect(journal.entries[30]?.tag).toBe('0030_social_listening')
   // 0031 follows it (2026-11-24, Unit D: the report's media counts and top authors).
   expect(journal.entries[31]?.tag).toBe('0031_sl_history_media_authors')
-  expect(journal.entries).toHaveLength(32)
+  // 0032 follows that (Unit F: the month's author and card picks).
+  expect(journal.entries[32]?.tag).toBe('0032_sl_picks')
+  expect(journal.entries).toHaveLength(33)
 })
 
 test('0031 only adds two nullable jsonb columns to the history rows', () => {
@@ -106,4 +108,11 @@ test('bytea values round-trip through the hex text form and a driver Buffer', as
   expect(byteaFromDriver(Buffer.from(bytes))).toEqual(bytes)
   expect(() => byteaFromDriver('ffd8')).toThrow()
   expect(() => byteaFromDriver(42)).toThrow()
+})
+
+test('0032 only creates the picks table, its foreign key and its index', () => {
+  const s0032 = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('0032_'))!), 'utf8')
+  const stmts = s0032.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)
+  expect(stmts.map((s) => s.split('(')[0].trim().split(' ').slice(0, 3).join(' '))).toEqual(['CREATE TABLE "social_listening_picks"', 'ALTER TABLE "social_listening_picks"', 'CREATE INDEX "social_listening_picks_client_month_idx"'])
+  expect(s0032).not.toMatch(/DROP|ALTER TABLE "(?!social_listening_picks)/)
 })

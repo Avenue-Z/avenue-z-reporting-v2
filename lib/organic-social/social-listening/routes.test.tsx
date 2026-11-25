@@ -93,6 +93,44 @@ for (const [name, Route, base] of ROUTES) {
   })
 }
 
+// Unit F (plan 2026-11-24, D7): slsort takes the same path as slcols.
+for (const [name, Route, base] of ROUTES) {
+  describe(`${name}: slsort`, () => {
+    test('the Social Listening tab gets the sort, and the export button and bulk export carry it', async () => {
+      as('CLIENT_VIEWER')
+      const r = await runRoute(spa(Route, { section: 'organic-social', subsection: TAB, dateRange: SEP, slsort: 'reach' }))
+      if (!('element' in r)) throw new Error(`unexpected redirect ${r.redirect}`)
+      expect(sectionOf(r.element)).toMatchObject({ view: 'social-listening', slSort: 'reach' })
+      const button = buttonOf(r.element)
+      expect(button?.serverExport).toMatchObject({ slSort: 'reach' })
+      expect(button?.bulk).toMatchObject({ slSort: 'reach' })
+    })
+
+    test('posts, or anything unknown, passes nothing anywhere; another tab never gets it', async () => {
+      as('CLIENT_VIEWER')
+      for (const slsort of [undefined, 'posts', 'nope']) {
+        const r = await runRoute(spa(Route, { section: 'organic-social', subsection: TAB, dateRange: SEP, ...(slsort === undefined ? {} : { slsort }) }))
+        if (!('element' in r)) throw new Error('unexpected redirect')
+        expect(sectionOf(r.element)).not.toHaveProperty('slSort')
+        expect(buttonOf(r.element)?.serverExport ?? {}).not.toHaveProperty('slSort')
+        expect(buttonOf(r.element)?.bulk ?? {}).not.toHaveProperty('slSort')
+      }
+      const ig = await runRoute(spa(Route, { section: 'organic-social', subsection: 'organic-instagram', dateRange: SEP, slsort: 'reach' }))
+      if (!('element' in ig)) throw new Error('unexpected redirect')
+      expect(sectionOf(ig.element)).not.toHaveProperty('slSort')
+      expect(buttonOf(ig.element)?.serverExport ?? {}).not.toHaveProperty('slSort')
+    })
+
+    test('the locked-month redirect keeps slsort and drops an unknown one', async () => {
+      as('CLIENT_VIEWER')
+      expect(await redirectOf(spa(Route, { section: 'organic-social', subsection: TAB, dateRange: LIVE, slsort: 'engagement' })))
+        .toBe(`${base}?section=organic-social&subsection=${TAB}&slsort=engagement&dateRange=${ENC_SEP}`)
+      expect(await redirectOf(spa(Route, { section: 'organic-social', subsection: TAB, dateRange: LIVE, slsort: 'x' })))
+        .toBe(`${base}?section=organic-social&subsection=${TAB}&dateRange=${ENC_SEP}`)
+    })
+  })
+}
+
 test('portal: the no-section redirect keeps slcols with its subsection', async () => {
   as('CLIENT_VIEWER')
   expect(await redirectOf(spa(PortalSpa as Route, { subsection: TAB, dateRange: SEP, slcols: 'i-ytd' })))

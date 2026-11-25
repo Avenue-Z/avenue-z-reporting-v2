@@ -130,3 +130,11 @@ test('only the Social Listening page takes slCols; every other body is unchanged
   }
   expect('slCols' in bulkRequest(page('organic-social', 'organic-social-listening'), { ...RANGES, fromSection: 'organic-social' })).toBe(false)
 })
+
+test('only the Social Listening page takes slSort; every other body is unchanged', () => {
+  const withSort = { ...RANGES, fromSection: 'organic-social', slSort: 'engagement' as const }
+  expect(bulkRequest(page('organic-social', 'organic-social-listening'), withSort)).toMatchObject({ subsection: 'organic-social-listening', slSort: 'engagement' })
+  for (const p of [page('organic-social'), page('organic-social', 'organic-aeo-informed'), page('peec-ai'), page('executive-overview')]) {
+    expect('slSort' in bulkRequest(p, withSort), p.key).toBe(false)
+  }
+})

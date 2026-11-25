@@ -331,3 +331,44 @@ describe('notes on the graphs', () => {
     err.mockRestore()
   })
 })
+
+// Unit F (plan 2026-11-24, F11): the authors and cards the team picks for the month, and the order.
+describe('authors the team picks', () => {
+  const pick = (kind: 'author' | 'card', key: string, state: 'shown' | 'hidden') => ({ id: `p-${key}`, kind, key, state, at: '2026-11-03T10:00:00.000Z' })
+  const withPicks = (picks: unknown[]) => h.getSlMonth.mockResolvedValue({ ...monthData([up(parsed('brand')), up(parsed('industry'))]), picks })
+  const authors = (c: HTMLElement) => [...c.querySelectorAll('table tbody tr td:first-child b')].map((b) => b.textContent)
+
+  test('a client sees only the authors and cards left shown, and no Show or Hide', async () => {
+    withPicks([pick('author', 'reddit:2002', 'hidden'), pick('card', 'Most active site', 'hidden')])
+    const { container } = await show({ role: 'CLIENT_VIEWER', email: null })
+    expect(authors(container)).toEqual(['Test Author One'])
+    expect(screen.getByText('Top 1 author')).toBeTruthy()
+    expect(container.textContent).not.toContain('site-a.example')
+    expect(screen.queryByRole('button', { name: /^(Hide|Show) / })).toBeNull()
+    expect(screen.getByRole('group', { name: 'Sort authors by' })).toBeTruthy()
+  })
+
+  test('staff see every author and card, the hidden ones marked, with Show or Hide', async () => {
+    withPicks([pick('author', 'reddit:2002', 'hidden'), pick('card', 'Most active site', 'hidden')])
+    const { container } = await show()
+    expect(authors(container)).toEqual(['Test Author One', 'Test Author Two'])
+    expect(screen.getByText('1 of 2 shown to the client')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Show Test Author Two for this month' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Show Most active site for this month' })).toBeTruthy()
+    expect(screen.getByText('Hidden from the client')).toBeTruthy()
+  })
+
+  test('the PDF prints what the client sees, in the chosen order, with no buttons', async () => {
+    withPicks([pick('author', 'instagram:1001', 'hidden')])
+    const { container } = await show({ exporting: true, sort: 'reach' })
+    expect(authors(container)).toEqual(['Test Author Two'])
+    expect(screen.queryByRole('group', { name: 'Sort authors by' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^(Hide|Show) / })).toBeNull()
+  })
+
+  test('the table has reach and engagement per mention, as every deck does', async () => {
+    await show({ role: 'CLIENT_VIEWER', email: null })
+    const heads = [...document.querySelectorAll('table thead th')].map((t) => t.textContent)
+    expect(heads).toEqual(['Author', 'Network', 'Posts', 'vs Sep', 'Sentiment', 'Reach', 'Reach per mention', 'Engagement', 'Engagement per mention'])
+  })
+})

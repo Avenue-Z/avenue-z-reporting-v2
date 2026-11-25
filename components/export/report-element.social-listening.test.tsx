@@ -24,3 +24,11 @@ test('the Social Listening export takes the charts set to columns; without them,
   const ig = exportReportElement({ section: 'organic-social', subsectionId: 'organic-instagram', channel: 'INSTAGRAM', view: null, pageTitle: 'x' }, { ...params, slCols: ['b-ytd'] })
   expect(ig.props).not.toHaveProperty('slCols')
 })
+
+test('the Social Listening export takes the authors order; posts, and every other tab, pass nothing', () => {
+  const v = { section: 'organic-social', subsectionId: 'organic-social-listening', channel: null, view: 'social-listening', pageTitle: 'Social Listening' } as const
+  expect(exportReportElement(v, { ...params, slSort: 'reach' }).props).toMatchObject({ exporting: true, slSort: 'reach' })
+  expect(exportReportElement(v, { ...params, slSort: 'posts' }).props).not.toHaveProperty('slSort')
+  const ig = exportReportElement({ section: 'organic-social', subsectionId: 'organic-instagram', channel: 'INSTAGRAM', view: null, pageTitle: 'x' }, { ...params, slSort: 'reach' })
+  expect(ig.props).not.toHaveProperty('slSort')
+})

@@ -118,4 +118,9 @@ export type SlMonthData = {
   history: SlHistory[]
   posts: SlPost[]
   trends: SlTrends | null
+  /** The served month's author and card picks (Unit F). Absent reads as none: a month nobody picked looks as before. */
+  picks?: SlPick[]
 }
+
+/** One stored pick for the served month (picks.ts): an author by its id, or an overview card by its label. */
+export type SlPick = { id: string; kind: 'author' | 'card'; key: string; state: 'shown' | 'hidden'; at: string }

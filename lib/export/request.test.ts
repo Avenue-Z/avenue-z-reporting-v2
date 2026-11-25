@@ -108,3 +108,14 @@ test('without slCols a request has no slCols key and its path is unchanged', () 
 test.each([['x'], ['b-ytd,b-ytd'], ['b-reddit,b-ytd'], [''], [3], [['b-ytd']]])('an slCols of %j is refused', (slCols) => {
   expect(parseExportRequest({ ...ok, slCols })).toBeNull()
 })
+
+// Unit F (plan 2026-11-24, D7): the authors table's order.
+test("the Social Listening tab's slSort passes through, and the export path carries it", () => {
+  const r = parseExportRequest({ ...ok, subsection: 'organic-social-listening', slSort: 'reach' })
+  expect(r).toEqual({ ...ok, subsection: 'organic-social-listening', slSort: 'reach' })
+  expect(exportPagePath(r!)).toBe('/export/renaissance/organic-social?dateRange=custom%3A2026-09-01%2C2026-09-30&subsection=organic-social-listening&slsort=reach&tz=America%2FNew_York')
+  expect('slSort' in parseExportRequest(ok)!).toBe(false)
+})
+test.each([['posts'], ['REACH'], [''], [3], [['reach']]])('an slSort of %j is refused', (slSort) => {
+  expect(parseExportRequest({ ...ok, slSort })).toBeNull()
+})

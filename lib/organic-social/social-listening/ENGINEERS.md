@@ -97,7 +97,9 @@ the file and image sizes too.
 1. Apply migration `drizzle/0030_social_listening.sql` (five new tables, nothing else changes) on the database, then
    `drizzle/0031_sl_history_media_authors.sql` (two nullable jsonb columns on `social_listening_history`, 2026-11-24). **0031
    must be on a database before code from 2026-11-24 or later runs against it:** the page reads both columns, so without
-   them the tab errors.
+   them the tab errors. Then `drizzle/0032_sl_picks.sql` (one new table, `social_listening_picks`: the authors and overview
+   cards the team shows or hides each month, Unit F). **0032 must be on a database before Unit F's code runs against it:**
+   the page reads the table on every Social Listening render.
 2. Set `dash_social_config.socialListening` for the client, for example
    `{ "enabled": true, "brandTopic": "<brand topic name>", "industryTopic": "<industry topic name>", "industrySample": 10 }`.
    The topic names must equal the first item of each export's filter line (rule V5). The client must be on locked months.

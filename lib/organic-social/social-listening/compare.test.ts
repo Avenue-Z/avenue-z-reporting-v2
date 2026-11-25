@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, uploadMediaCounts, ytdSeries } from './compare'
+import { authorBaseline, authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, uploadMediaCounts, ytdSeries } from './compare'
 import type { SlExport, SlHistory, SlTopic, SlUpload } from './types'
 
 // Made-up numbers only (the repo is public).
@@ -199,23 +199,44 @@ describe('mediaChanges', () => {
   })
 })
 
+// The baseline from last month's presented upload, as authorBaseline gives it when there is no history row.
+const baseOf = (prev: SlExport | null) => (prev ? authorBaseline(prev.month, prev.topic, [], [up(prev, true, '2026-11-01T00:00:00Z')]) : null)
 describe('authorChanges', () => {
   const inf = (authorId: string, name: string, posts: number) => ({ authorId, name, network: 'X', posts, reach: 1, engagement: 1, pos: posts, neu: 0, neg: 0 })
   test('posts difference, matched by author id, not name', () => {
     const prev = exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'Old name', 4), inf('b2', 'Same name', 9)] })
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'New name', 7), inf('c3', 'Same name', 2)] })
-    expect(authorChanges(now, prev)).toEqual(new Map([['a1', 3], ['c3', null]]))
+    expect(authorChanges(now, baseOf(prev))).toEqual(new Map([['a1', 3], ['c3', null]]))
   })
   test('no upload or no influencers last month: every change is n/a; no influencers now: empty', () => {
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'x', 1)] })
     expect(authorChanges(now, null)).toEqual(new Map([['a1', null]]))
-    expect(authorChanges(now, exp('2026-10', { pos: 1, neu: 0, neg: 0 }))).toEqual(new Map([['a1', null]]))
+    expect(authorChanges(now, baseOf(exp('2026-10', { pos: 1, neu: 0, neg: 0 })))).toEqual(new Map([['a1', null]]))
     expect(authorChanges(exp('2026-11', { pos: 1, neu: 0, neg: 0 }), null)).toEqual(new Map())
   })
   test('an author id from the file is a Map key, never an object key: "__proto__" is an ordinary id (#477)', () => {
     const prev = exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 'x', 4)] })
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 'x', 7), inf('constructor', 'y', 1)] })
-    expect(authorChanges(now, prev)).toEqual(new Map([['__proto__', 3], ['constructor', null]]))
+    expect(authorChanges(now, baseOf(prev))).toEqual(new Map([['__proto__', 3], ['constructor', null]]))
+  })
+})
+
+// Unit F (plan 2026-11-24, D4): the posts change compares with the authors the delivered report showed, when its row has them.
+describe('authorBaseline', () => {
+  const inf = (authorId: string, posts: number) => ({ authorId, name: authorId, network: 'X', posts, reach: 1, engagement: 1, pos: posts, neu: 0, neg: 0 })
+  const octUpload = up(exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 4), inf('b2', 9)] }), true, '2026-11-02T00:00:00Z')
+  const row = (authors: SlHistory['authors']): SlHistory => ({
+    month: '2026-10', topic: 'brand', results: 1, uniqueAuthors: null, engagement: null, potentialReach: null, pos: 100, neu: 0, neg: 0,
+    redditPos: null, redditNeu: null, redditNeg: null, source: 'delivered-deck', media: null, authors,
+  })
+  test("the delivered report's authors when its row has them, else last month's upload, else nothing", () => {
+    expect(authorBaseline('2026-10', 'brand', [row([{ authorId: 'a1', name: 'a1', network: 'X', posts: 6 }])], [octUpload])).toEqual(new Map([['a1', 6]]))
+    expect(authorBaseline('2026-10', 'brand', [row(null)], [octUpload])).toEqual(new Map([['a1', 4], ['b2', 9]]))
+    expect(authorBaseline('2026-10', 'brand', [], [])).toBeNull()
+  })
+  test('an author the report did not show reads as new, though the upload had it', () => {
+    const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 8), inf('b2', 9)] })
+    expect(authorChanges(now, authorBaseline('2026-10', 'brand', [row([{ authorId: 'a1', name: 'a1', network: 'X', posts: 6 }])], [octUpload]))).toEqual(new Map([['a1', 2], ['b2', null]]))
   })
 })
 

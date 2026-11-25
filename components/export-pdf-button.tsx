@@ -24,6 +24,8 @@ export interface ServerExport {
   aeoMin?: number
   /** The Social Listening tab's charts set to columns (slcols), on that tab only, when a chart is on its columns. */
   slCols?: string
+  /** The Social Listening authors table's order (slsort), on that tab only, when it is reach or engagement. */
+  slSort?: 'reach' | 'engagement'
 }
 
 interface ExportPdfButtonProps {

@@ -1,5 +1,5 @@
-import { expect, test } from 'vitest'
-import { SL_TOGGLE_CHARTS, formatSlCols, isSlColsValue, parseSlCols, parseSlPreview, parseSlTopic } from './params'
+import { describe, expect, test } from 'vitest'
+import { SL_TOGGLE_CHARTS, formatSlCols, formatSlSort, isSlColsValue, isSlSortValue, parseSlCols, parseSlPreview, parseSlSort, parseSlTopic } from './params'
 
 test('sl=industry is Industry; anything else is Brand', () => {
   expect(parseSlTopic('industry')).toBe('industry')
@@ -31,4 +31,22 @@ test('formatSlCols writes the param back, or nothing when every chart is on the 
 test('an export request takes only an exact, clean slcols value', () => {
   for (const ok of ['b-ytd', 'b-ytd,b-reddit', 'b-posneu', 'b-ytd,b-posneu,b-reddit,i-ytd,i-sentday']) expect(isSlColsValue(ok)).toBe(true)
   for (const bad of ['', 'b-ytd,b-ytd', 'b-reddit,b-ytd', 'b-posneu,b-ytd', 'x', 'b-ytd,', 3, null, ['b-ytd']]) expect(isSlColsValue(bad)).toBe(false)
+})
+
+// Unit F (plan 2026-11-24, D7): the authors table's order.
+describe('slsort', () => {
+  test('reach and engagement are kept; anything else, or nothing, is posts', () => {
+    expect(parseSlSort('reach')).toBe('reach')
+    expect(parseSlSort('engagement')).toBe('engagement')
+    for (const raw of [undefined, null, '', 'posts', 'Reach', 'reach,engagement', ['reach'], 5]) expect(parseSlSort(raw)).toBe('posts')
+  })
+  test('posts is left out of the URL; the others are written as they are', () => {
+    expect(formatSlSort('posts')).toBeNull()
+    expect(formatSlSort('reach')).toBe('reach')
+  })
+  test('an export takes only a value the page writes', () => {
+    expect(isSlSortValue('engagement')).toBe(true)
+    expect(isSlSortValue('posts')).toBe(false)
+    expect(isSlSortValue('REACH')).toBe(false)
+  })
 })

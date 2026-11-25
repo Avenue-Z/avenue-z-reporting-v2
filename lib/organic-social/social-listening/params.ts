@@ -1,6 +1,7 @@
 // lib/organic-social/social-listening/params.ts
 // The Social Listening tab's URL param (spec docs/superpowers/specs/2026-11-19-social-listening-tab-design.md, section 4).
 import type { SlTopic } from './types'
+import type { SlAuthorSort } from './picks'
 
 /** `sl=industry` opens the Industry pill; anything else, or nothing, is Brand (the default, which the pills leave out of
  *  the URL). The PDF ignores it and prints brand then industry (R2-5). */
@@ -42,4 +43,20 @@ export function formatSlCols(cols: readonly SlToggleChart[]): string | null {
  *  what the route already cleaned, so anything else is refused, as the AEO values are (lib/export/request.ts). */
 export function isSlColsValue(raw: unknown): raw is string {
   return typeof raw === 'string' && raw.length > 0 && formatSlCols(parseSlCols(raw)) === raw
+}
+
+/** `slsort` orders the authors table (plan 2026-11-24, Unit F, D7): `reach` or `engagement`, most first. Anything else, or
+ *  nothing, is posts (the default, which the page leaves out of the URL). The PDF prints the order on screen. */
+export function parseSlSort(raw: unknown): SlAuthorSort {
+  return raw === 'reach' || raw === 'engagement' ? raw : 'posts'
+}
+
+/** The param's value, or null for posts (left out of the URL). */
+export function formatSlSort(sort: SlAuthorSort): string | null {
+  return sort === 'posts' ? null : sort
+}
+
+/** An export request takes only a value the page writes: `reach` or `engagement`. */
+export function isSlSortValue(raw: unknown): raw is 'reach' | 'engagement' {
+  return raw === 'reach' || raw === 'engagement'
 }

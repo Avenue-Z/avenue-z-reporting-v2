@@ -194,13 +194,22 @@ export function mediaChanges(now: SlExport, before: ReadonlyMap<string, number> 
   return new Map([...counts].map(([m, n]) => [m, newType && m === OTHER ? null : tileChange(n, before?.get(m)) ?? null]))
 }
 
-/** Each influencer's change in posts against the previous month's presented upload, matched by `authorId` (a name
- *  can change, an id does not). Null ("new") when the author was not in last month's list or there is no list. Keyed
- *  by author id in a Map, for the same reason as `mediaChanges`. */
-export function authorChanges(now: SlExport, prev: SlExport | null): Map<string, number | null> {
-  const before = new Map((prev?.influencers ?? []).map((i) => [i.authorId, i.posts]))
+/** Last month's posts per author, from what the client saw (plan 2026-11-24, D4, Unit F): the delivered report's top authors
+ *  when its history row has them (entered by Unit D's script, matched to that month's upload ids by name and network), else
+ *  last month's presented upload. Null when neither exists. Keyed by author id in a Map (#477). */
+export function authorBaseline(month: SlMonth, topic: SlTopic, history: readonly SlHistory[], uploads: readonly SlUpload[]): Map<string, number> | null {
+  const h = historyRow(month, topic, history)
+  if (h?.authors) return new Map(h.authors.map((a) => [a.authorId, a.posts]))
+  const u = presentedOf(month, topic, uploads)
+  return u ? new Map((u.data.influencers ?? []).map((i) => [i.authorId, i.posts])) : null
+}
+
+/** Each influencer's change in posts against last month's posts (`authorBaseline`), matched by `authorId` (a name can
+ *  change, an id does not). Null ("new") when the author was not in last month's list or there is no list. Keyed by author
+ *  id in a Map, for the same reason as `mediaChanges`. */
+export function authorChanges(now: SlExport, before: ReadonlyMap<string, number> | null): Map<string, number | null> {
   return new Map((now.influencers ?? []).map((i) => {
-    const p = before.get(i.authorId)
+    const p = before?.get(i.authorId)
     return [i.authorId, p === undefined ? null : i.posts - p]
   }))
 }

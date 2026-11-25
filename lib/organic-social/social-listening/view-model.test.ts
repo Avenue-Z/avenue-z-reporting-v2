@@ -231,3 +231,53 @@ describe('analysis-only sections, posts and trends by viewer (spec sections 5 an
     expect(staff.trends).toEqual({ lists: lists('approved'), draft: { lists: lists('draft'), status: 'draft' } })
   })
 })
+
+// Unit F (plan 2026-11-24, F11, D6 to D8, Q4): the authors the team picks, the order, the per mention columns.
+describe('authors and cards', () => {
+  const a = (i: number, over: Record<string, unknown> = {}) => ({
+    authorId: `id-${i}`, name: `Author ${i}`, network: 'SOCIALMEDIA_INSTAGRAM', posts: 20 - i, pos: 1, neu: 0, neg: 0, reach: 1000 * (i + 1), engagement: 7 - i, ...over,
+  })
+  const SEVEN = Array.from({ length: 7 }, (_, i) => a(i))
+  const CARDS = [
+    { label: 'Most active author', who: 'Author 0', network: 'Instagram', value: 12, unit: 'Posts' },
+    { label: 'Most active site', who: 'site.example', network: 'Forums', value: 4, unit: 'Posts' },
+  ]
+  const oct = exp('brand', '2026-10', { pos: 60, neu: 30, neg: 10 }, { influencers: SEVEN, overview: CARDS })
+  const view = (over: Partial<SlViewInput> = {}, picks: SlMonthData['picks'] = []) =>
+    buildTopicView(input({ data: data({ uploads: [up(oct)], picks }), ...over })).ready!
+  const hide = (key: string, kind: 'author' | 'card' = 'author') => ({ id: `k-${key}`, kind, key, state: 'hidden' as const, at: '2026-11-03T10:00:00.000Z' })
+
+  test('a month with no picks: a client sees the first 5 in export order and every card; staff see all 7 marked', () => {
+    expect(view({ clientView: true }).influencers.map((i) => i.authorId)).toEqual(['id-0', 'id-1', 'id-2', 'id-3', 'id-4'])
+    expect(view({ clientView: true }).overview.map((c) => c.label)).toEqual(['Most active author', 'Most active site'])
+    expect(view().influencers.map((i) => [i.authorId, i.shown])).toEqual(SEVEN.map((x, i) => [x.authorId, i < 5]))
+  })
+
+  test('a month with one hide shows the other four, and the hidden author takes its card with it for a client only', () => {
+    expect(view({ clientView: true }, [hide('id-0')]).influencers.map((i) => i.authorId)).toEqual(['id-1', 'id-2', 'id-3', 'id-4'])
+    expect(view({ clientView: true }, [hide('id-0')]).overview.map((c) => c.label)).toEqual(['Most active site'])
+    expect(view({}, [hide('id-0')]).overview.map((c) => [c.label, c.shown])).toEqual([['Most active author', false], ['Most active site', true]])
+  })
+
+  test('picks apply to the served month only: they come from the month read, which the store keys by the served month', () => {
+    expect(view({ clientView: true }, []).influencers).toHaveLength(5)
+  })
+
+  test('the sort changes the order only: reach or engagement, most first; posts by default', () => {
+    expect(view({ clientView: true }).influencers.map((i) => i.authorId)).toEqual(['id-0', 'id-1', 'id-2', 'id-3', 'id-4'])
+    expect(view({ clientView: true, sort: 'reach' }).influencers.map((i) => i.authorId)).toEqual(['id-4', 'id-3', 'id-2', 'id-1', 'id-0'])
+    expect(view({ clientView: true, sort: 'engagement' }).influencers.map((i) => i.authorId)).toEqual(['id-0', 'id-1', 'id-2', 'id-3', 'id-4'])
+  })
+
+  test('reach and engagement per mention are the totals over the posts', () => {
+    const first = view({ clientView: true }).influencers[0]
+    expect([first.reachPer, first.engagementPer]).toEqual([1000 / 20, 7 / 20])
+  })
+
+  test("the posts change compares with the delivered report's authors when October's row has them", () => {
+    const nov = exp('brand', '2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [a(0, { posts: 9 }), a(1, { posts: 9 })] })
+    const row = { ...hist('2026-10', 'brand', { pos: 60, neu: 30, neg: 10 }), authors: [{ authorId: 'id-0', name: 'Author 0', network: 'Instagram', posts: 4 }] }
+    const r = buildTopicView(input({ month: '2026-11', data: data({ uploads: [up(oct), up(nov)], history: [row] }) })).ready!
+    expect(r.influencers.map((i) => [i.authorId, i.change])).toEqual([['id-0', 5], ['id-1', null]])
+  })
+})
