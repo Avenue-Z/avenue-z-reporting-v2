@@ -22,6 +22,7 @@ export type CommentaryViewKey =
   | 'peec-ai'
   | 'peec-ai:pr-influence'
   | 'peec-ai:content-impact'
+  | 'peec-ai:technical-audit'
   | 'paid-search'
   | 'meta-ads'
   | 'linkedin-ads'
@@ -115,6 +116,8 @@ export const COMMENTARY_VIEWS: Record<CommentaryViewKey, { label: string; owner:
   'peec-ai': { label: 'AEO Overview', owner: 'Melena' },
   'peec-ai:pr-influence': { label: 'AEO PR Influence', owner: 'Alyssa' },
   'peec-ai:content-impact': { label: 'AEO Content Impact', owner: 'Danielle' },
+  // The monthly Technical Audit snapshot page: one entry per snapshot (period start = end = the snapshot date).
+  'peec-ai:technical-audit': { label: 'AEO Technical Audit', owner: 'AEO' },
   'paid-search': { label: 'Paid Search', owner: 'Amir' },
   'meta-ads': { label: 'Meta Advertising', owner: 'Greg' },
   'linkedin-ads': { label: 'LinkedIn Advertising', owner: 'Greg' },

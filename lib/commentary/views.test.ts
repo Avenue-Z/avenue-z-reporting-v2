@@ -7,10 +7,16 @@ describe('isCommentaryViewKey', () => {
     for (const k of Object.keys(COMMENTARY_VIEWS)) expect(isCommentaryViewKey(k)).toBe(true)
   })
   test('rejects non-canonical keys', () => {
-    for (const k of ['ga4', 'exec-summary', 'peec-ai:technical-audit', 'paid-media', '', 'commentary']) {
+    for (const k of ['ga4', 'exec-summary', 'paid-media', '', 'commentary']) {
       expect(isCommentaryViewKey(k)).toBe(false)
     }
   })
+})
+
+test('isCommentaryViewKey accepts peec-ai:technical-audit', () => {
+  expect(isCommentaryViewKey('peec-ai:technical-audit')).toBe(true)
+  expect(COMMENTARY_VIEWS['peec-ai:technical-audit']).toEqual({ label: 'AEO Technical Audit', owner: 'AEO' })
+  expect(recommendationsViewKeyFor('peec-ai:technical-audit')).toBeNull()
 })
 
 describe('resolveCommentaryView', () => {
