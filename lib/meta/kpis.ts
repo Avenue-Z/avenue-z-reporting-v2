@@ -1,9 +1,7 @@
 import { metaQuery, resolveCompareIso } from './base'
 import type { Kpi } from '@/lib/paid-search/types'
 import { DASH } from '@/lib/paid-media/format'
-
-// No suffix: an unavailable Frequency reads "—", not "—x".
-const NO_REACH = { value: DASH, delta: undefined, suffix: undefined, tooltip: 'Reach and frequency are shown for the preset date ranges only.' }
+import { REACH_STATE_KEY, REACH_TOOLTIP, type ReachState } from '@/lib/bq/reach'
 
 function n(row: Record<string, string>, id: string): number {
   return Number(row[id] || 0)
@@ -23,14 +21,19 @@ export function transformMetaKpis(
 
   const d = (id: string) => delta(n(totals, id), compare ? n(compare, id) : undefined)
   const cv = (id: string) => (compare ? n(compare, id) : undefined)
-  // Live rows always carry `reach`; a BigQuery row lacks it when the marts hold no reach for the window
-  // (only preset ranges are pulled). That is unavailable, not 0. An empty live result (`{}`) stays 0.
-  const noReach = Object.keys(totals).length > 0 && !('reach' in totals)
+  // Live rows always carry `reach`; a BigQuery row lacks it when its reach was not served, and says why
+  // (lib/bq/reach). That is "—", not 0. An empty live result (`{}`) stays 0. A compare row without reach
+  // gives no arrow: delta() reads its missing prior as 0.
+  const state = totals[REACH_STATE_KEY] as ReachState | undefined
+  // No suffix: an unavailable Frequency reads "—", not "—x".
+  const noReach = state && { value: DASH, delta: undefined, suffix: undefined, tooltip: REACH_TOOLTIP[state] }
+  // Only a stale or failed reach is told on the page; a custom range is told by the tooltip.
+  const reachState = state === 'delayed' || state === 'unavailable' ? state : undefined
 
   return [
     { key: 'spend', label: 'Spend', value: n(totals, 'cost'), format: 'money', delta: d('cost'), compareValue: cv('cost') },
     { key: 'impressions', label: 'Impressions', value: n(totals, 'impressions'), delta: d('impressions') },
-    { key: 'reach', label: 'Reach', value: n(totals, 'reach'), delta: d('reach'), ...(noReach && NO_REACH) },
+    { key: 'reach', label: 'Reach', value: n(totals, 'reach'), delta: d('reach'), ...noReach, ...(reachState && { reachState }) },
     {
       key: 'frequency',
       label: 'Frequency',
@@ -38,7 +41,7 @@ export function transformMetaKpis(
       suffix: 'x',
       delta: d('Frequency'),
       invertDelta: true,
-      ...(noReach && NO_REACH),
+      ...noReach,
     },
     {
       key: 'linkClicks',

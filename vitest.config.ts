@@ -42,6 +42,7 @@ export default defineConfig({
       'lib/meta/base.bq.test.ts',
       'lib/meta/geo.compare.test.ts',
       'lib/meta/kpis.test.ts',
+      'lib/meta/kpis.reach.test.ts',
       'lib/meta/creative.test.ts',
       'lib/salesforce/num.test.ts',
       'lib/salesforce/resolve-compare-iso.test.ts',
@@ -55,6 +56,7 @@ export default defineConfig({
       'lib/salesforce/base.timeout.test.ts',
       'lib/supermetrics/client.retry.test.ts',
       'lib/linkedin/kpis.dash.test.ts',
+      'lib/linkedin/kpis.reach.test.ts',
       'lib/auth/jwt-callback.test.ts',
       'lib/auth/service-cookie-marker.test.ts',
       // Paid Search regression guards (converted from node:assert scripts): the

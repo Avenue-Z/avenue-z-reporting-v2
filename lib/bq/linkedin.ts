@@ -3,13 +3,14 @@ import { bqRows, martRef } from './client'
 import { BqUnavailable } from './errors'
 import { assertCovers } from './freshness'
 import { toSmRows } from './googleads'
+import { REACH_STATE_KEY, accountReach } from './reach'
 
 const CAMPAIGN = 'mart_linkedin_campaign_performance'
 const CREATIVE = 'mart_linkedin_creative_performance'
 export const LI_FRESHNESS_TABLE = CAMPAIGN
 
-/** Declared GAPs (parity spec): never served from the marts. */
-export const LI_LIVE_ONLY: ReadonlySet<string> = new Set(['approximateUniqueImpressions', 'memberRegion'])
+/** Reach is not additive: the reach mart answers it for totals, for a window it holds a row for (C4). */
+const REACH = 'approximateUniqueImpressions'
 
 /** Supermetrics LIA field id → [output key, expression]. `Date` comes back keyed `date`, as LIA does. */
 const DIMS: Record<string, [string, string]> = {
@@ -35,7 +36,7 @@ const RATIOS: Record<string, [string, string, number]> = {
 
 export interface LiQuery { table: string; fields: string[] }
 
-export const isLinkedInDim = (f: string): boolean => f in DIMS
+const isLinkedInDim = (f: string): boolean => f in DIMS
 
 export function planLiQueries(fields: string[]): LiQuery[] {
   const bad = fields.filter((f) => !(f in DIMS) && !(f in SUMS) && !(f in RATIOS))
@@ -83,9 +84,18 @@ const readOne = cached('bigquery', 'readLinkedInMarts', readOneImpl, {
 
 /** Rows keyed exactly as linkedinQuery's Supermetrics rows. Throws BqUnavailable when the marts cannot answer exactly. */
 export async function readLinkedInMarts(accountId: string, fields: string[], startDate: string, endDate: string, maxRows?: number): Promise<Record<string, string>[]> {
-  const plan = planLiQueries(fields)
+  const reach = fields.includes(REACH)
+  if (reach && fields.some(isLinkedInDim)) throw new BqUnavailable('unsupported', 'LinkedIn reach is served for totals only')
+  const plan = planLiQueries(fields.filter((f) => f !== REACH))
   await assertCovers(LI_FRESHNESS_TABLE, endDate)
-  const results = await Promise.all(plan.map((q) => readOne(accountId, q, startDate, endDate, maxRows ?? null)))
-  if (results.length === 1) return results[0]
-  return [Object.assign({}, ...results.map((r) => r[0] ?? {}))]
+  // accountReach never throws: a stale or failed reach leaves the sums served, and never sends them live (rule 5).
+  const [results, r] = await Promise.all([
+    Promise.all(plan.map((q) => readOne(accountId, q, startDate, endDate, maxRows ?? null))),
+    reach ? accountReach('linkedin', accountId, startDate, endDate) : null,
+  ])
+  if (!r && results.length === 1) return results[0]
+  const row: Record<string, string> = Object.assign({}, ...results.map((x) => x[0] ?? {}))
+  if (typeof r === 'string') row[REACH_STATE_KEY] = r
+  else if (r) row[REACH] = r.reach // Frequency is derived from impressions in the transform; the mart's is unused.
+  return [row]
 }

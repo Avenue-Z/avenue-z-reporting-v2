@@ -10,6 +10,7 @@ import { PaidMediaFallback } from '@/components/report-sections/paid-media/fallb
 import { DataDelayedNotice } from '@/components/report-sections/paid-media/data-delayed-notice'
 import { metaWindow } from '@/lib/bq/meta-window'
 import { bqEnabled } from '@/lib/bq/backend'
+import { reachNotice } from '@/lib/bq/reach'
 
 async function safe<T>(p: Promise<T>): Promise<{ data?: T; error?: 'timeout' | 'error' }> {
   try {
@@ -54,6 +55,7 @@ export async function MetaAdsReport({
       <SharedPartsHeader viewKey="meta-ads" clientSlug={clientSlug} />
       <DataDelayedNotice notice={meta.notice} source="Meta" />
       <DataDelayedNotice notice={failedOnBq ? { kind: 'unavailable' } : null} source="Meta" />
+      <DataDelayedNotice notice={reachNotice(kpis.data)} source="Meta" />
       {kpis.data ? <KpiGrid kpis={kpis.data} /> : <PaidMediaFallback kind={kpis.error!} />}
       {creative.data ? <CreativeTable campaigns={creative.data} /> : <PaidMediaFallback kind={creative.error!} />}
       {geo.data ? <MetaGeoSection data={geo.data} /> : <PaidMediaFallback kind={geo.error!} />}

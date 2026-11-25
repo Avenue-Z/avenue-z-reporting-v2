@@ -30,18 +30,20 @@ beforeEach(() => {
 })
 
 describe('linkedinQuery backend', () => {
-  test('merges live reach into mart totals (Reach/Frequency stay live: declared GAP)', async () => {
-    vi.mocked(readLinkedInMarts).mockResolvedValue([{ spend: '100', impressions: '5000' }])
-    vi.mocked(parseSmRows).mockReturnValue([{ approximateUniqueImpressions: '2100' }])
+  test('reach comes from the marts with the sums; Supermetrics is never called (C4; C1 merged it in live)', async () => {
+    vi.mocked(readLinkedInMarts).mockResolvedValue([{ spend: '100', impressions: '5000', approximateUniqueImpressions: '2100' }])
     const rows = await linkedinQuery('renaissance', ['spend', 'impressions', 'approximateUniqueImpressions'], RANGE)
     expect(rows).toEqual([{ spend: '100', impressions: '5000', approximateUniqueImpressions: '2100' }])
-    expect(vi.mocked(smQuery).mock.calls[0][0].fields).toEqual(['approximateUniqueImpressions'])
+    expect(readLinkedInMarts).toHaveBeenCalledWith('503368877', ['spend', 'impressions', 'approximateUniqueImpressions'], '2026-09-01', '2026-09-30', undefined)
+    expect(smQuery).not.toHaveBeenCalled()
   })
-  test('reach missing for a long range stays empty, so the card shows —', async () => {
-    vi.mocked(readLinkedInMarts).mockResolvedValue([{ spend: '100' }])
-    vi.mocked(parseSmRows).mockReturnValue([{ approximateUniqueImpressions: '' }])
-    const [row] = await linkedinQuery('renaissance', ['spend', 'approximateUniqueImpressions'], RANGE)
-    expect(row.approximateUniqueImpressions).toBe('')
+  test('reach with a dimension is unsupported in the marts, so the query goes live as C1 falls back', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/bq/linkedin')>('@/lib/bq/linkedin')
+    vi.mocked(readLinkedInMarts).mockImplementation(actual.readLinkedInMarts)
+    vi.mocked(parseSmRows).mockReturnValue([{ date: '2026-09-01', approximateUniqueImpressions: '90' }])
+    expect(await linkedinQuery('renaissance', ['Date', 'approximateUniqueImpressions'], RANGE)).toEqual([{ date: '2026-09-01', approximateUniqueImpressions: '90' }])
+    expect(vi.mocked(smQuery).mock.calls[0][0].fields).toEqual(['Date', 'approximateUniqueImpressions'])
+    expect(JSON.parse(vi.mocked(console.warn).mock.calls[0][0] as string)).toMatchObject({ source: 'linkedin', reason: 'unsupported', served: 'live' })
   })
   test('geography (memberRegion, declared GAP) goes live without touching BigQuery', async () => {
     vi.mocked(parseSmRows).mockReturnValue([{ memberRegion: 'Florida', spend: '1' }])

@@ -46,6 +46,17 @@ describe('adsNoticeText for Meta (C2)', () => {
   })
 })
 
+describe('adsNoticeText for reach (C4)', () => {
+  test('a stale reach snapshot: the sums are shown, reach and frequency wait on the snapshot', () => {
+    expect(adsNoticeText({ kind: 'reach', reason: 'delayed' }, undefined, 'Meta'))
+      .toBe("Data delayed — Meta reach and frequency are waiting on today's snapshot, so they show — for now.")
+  })
+  test('a failed reach read', () => {
+    expect(adsNoticeText({ kind: 'reach', reason: 'unavailable' }, undefined, 'LinkedIn'))
+      .toBe("Data delayed — LinkedIn reach and frequency can't be loaded right now. Try again shortly.")
+  })
+})
+
 describe('DataDelayedNotice', () => {
   test('renders nothing without a notice', () => {
     expect(render(<DataDelayedNotice notice={null} />).container.innerHTML).toBe('')

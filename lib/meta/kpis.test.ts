@@ -18,6 +18,8 @@ const totals = {
   cost_per_landing_page_view: '1.92',
   action_post_engagement: '8000',
 }
+/** A BigQuery row whose reach was not served: the sums alone. */
+const sumsOnly = Object.fromEntries(Object.entries(totals).filter(([k]) => k !== 'reach' && k !== 'Frequency'))
 
 describe('transformMetaKpis', () => {
   test('core KPIs and derived rates', () => {
@@ -40,12 +42,31 @@ describe('transformMetaKpis', () => {
   })
 
   test('a BigQuery row without reach (a non-preset range) shows — for Reach and Frequency, never a 0', () => {
-    const { reach: _r, Frequency: _f, ...bq } = totals
+    const bq = { ...sumsOnly, _reach: 'preset-only' }
     const k = transformMetaKpis(bq, totals)
     const tooltip = 'Reach and frequency are shown for the preset date ranges only.'
     expect(k.find((c) => c.key === 'reach')).toEqual({ key: 'reach', label: 'Reach', value: DASH, delta: undefined, tooltip })
     expect(k.find((c) => c.key === 'frequency')).toEqual({ key: 'frequency', label: 'Frequency', value: DASH, suffix: undefined, delta: undefined, invertDelta: true, tooltip })
     expect(k.find((c) => c.key === 'spend')!.value).toBe(5000) // the sums still render
+  })
+
+  test.each([
+    ['delayed', "Reach and frequency are waiting on today's snapshot."],
+    ['unavailable', "Reach and frequency can't be loaded right now."],
+  ] as const)('%s reach (C4): — with its own tooltip, and the Reach tile carries the state for the page notice', (state, tooltip) => {
+    const k = transformMetaKpis({ ...sumsOnly, _reach: state }, totals)
+    expect(k.find((c) => c.key === 'reach')).toEqual({ key: 'reach', label: 'Reach', value: DASH, tooltip, reachState: state })
+    const f = k.find((c) => c.key === 'frequency')!
+    expect(f).toMatchObject({ value: DASH, tooltip })
+    expect(f.suffix).toBeUndefined()
+    expect(f.reachState).toBeUndefined()
+  })
+
+  test('a served reach beside a compare period without one (not a preset): the value, no arrow (C4)', () => {
+    const k = transformMetaKpis(totals, { ...sumsOnly, _reach: 'preset-only' })
+    expect(k.find((c) => c.key === 'reach')).toEqual({ key: 'reach', label: 'Reach', value: 120000 })
+    expect(k.find((c) => c.key === 'frequency')!.delta).toBeUndefined()
+    expect(k.find((c) => c.key === 'spend')!.delta).toBe(0) // the sums still compare
   })
 
   test('an empty live result keeps 0 for Reach and Frequency, as today', () => {
