@@ -24,6 +24,25 @@ describe('buildChecklist', () => {
     expect(items.map((i) => i.key).slice(-2)).toEqual(['review', 'commentary'])
   })
 
+  it('shows a missing Screaming Frog or Ahrefs run\'s reason as its detail', () => {
+    const items = buildChecklist({
+      ...base,
+      runs: [
+        { source: 'sf', status: 'missing', lastError: 'Issues Overview not in this crawl’s export' },
+        { source: 'ahrefs', status: 'missing', lastError: 'No completed Ahrefs crawl within 7 days before 2026-11-01' },
+      ],
+    })
+    expect(items.find((i) => i.key === 'sf')).toMatchObject({ state: 'todo', detail: 'Issues Overview not in this crawl’s export' })
+    expect(items.find((i) => i.key === 'ahrefs')).toMatchObject({ state: 'todo', detail: 'No completed Ahrefs crawl within 7 days before 2026-11-01' })
+  })
+
+  it('omits the Commentary item when the brand has not opted into commentary', () => {
+    const items = buildChecklist({ ...base, runs: [], commentaryEnabled: false })
+    expect(items.map((i) => i.key)).not.toContain('commentary')
+    expect(items.map((i) => i.key).at(-1)).toBe('review')
+    expect(buildChecklist({ ...base, runs: [], commentaryEnabled: true }).map((i) => i.key)).toContain('commentary')
+  })
+
   it('tracks commentary and review state', () => {
     const items = buildChecklist({ runs: [], commentary: 'approved', status: 'published' })
     expect(items.find((i) => i.key === 'commentary')?.state).toBe('done')

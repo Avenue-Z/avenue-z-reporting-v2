@@ -15,9 +15,9 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock('@/app/actions/tech-audit', () => ({ publishSnapshot: vi.fn(), unpublishSnapshot: vi.fn(), uploadGscExport: vi.fn(), setIssueOverride: vi.fn() }))
 vi.mock('@/lib/technical-audit/issue-map', () => ({ loadIssueMap: async () => new Map() }))
 
-const h = vi.hoisted(() => ({ auth: vi.fn(), getSnapshots: vi.fn(), getSnapshotBundle: vi.fn(), sharedParts: vi.fn() }))
+const h = vi.hoisted(() => ({ auth: vi.fn(), getSnapshots: vi.fn(), getSnapshotBundle: vi.fn(), sharedParts: vi.fn(), client: {} as Record<string, unknown> }))
 vi.mock('@/auth', () => ({ auth: () => h.auth() }))
-vi.mock('@/lib/db/queries', () => ({ getClientBySlug: async () => ({ id: 'c1', slug: 'acme' }), getCommentaryForView: async () => [] }))
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: async () => h.client, getCommentaryForView: async () => [] }))
 vi.mock('@/components/report-sections/shared/shared-parts-header', () => ({
   SharedPartsHeader: (props: object) => { h.sharedParts(props); return <div data-testid="shared-parts" /> },
 }))
@@ -51,6 +51,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-11-25T12:00:00Z'))
   all = [snap('2026-11-01'), snap('2026-10-01')]
+  h.client = { id: 'c1', slug: 'acme' }
   metricsFor = () => metrics()
   h.getSnapshots.mockImplementation(async (_c: string, o: { publishedOnly: boolean }) =>
     o.publishedOnly ? all.filter((s) => s.status === 'published') : all)
@@ -80,6 +81,15 @@ describe('TechnicalAuditPage', { timeout: 20_000 }, () => {
     cleanup()
     await show(CLIENT)
     expect(screen.queryByText('Before you publish')).toBeNull()
+  })
+
+  test('the checklist lists Commentary only when the brand has opted into it', async () => {
+    await show(STAFF)
+    expect(screen.queryByText('Commentary')).toBeNull()
+    cleanup()
+    h.client = { id: 'c1', slug: 'acme', reportSectionConfig: { 'peec-ai:technical-audit': { sharedParts: [{ id: 'commentary', version: 1 }] } } }
+    await show(STAFF)
+    expect(screen.getByText('Commentary')).toBeTruthy()
   })
 
   test('shows No crawl since for a stale brand (team only)', async () => {

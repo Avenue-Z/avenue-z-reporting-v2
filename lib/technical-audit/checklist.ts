@@ -32,9 +32,11 @@ export interface ChecklistInput {
   runs: { source: TaSource; status: TaRunStatus; lastError?: string | null }[]
   commentary: 'none' | 'draft' | 'approved'
   status: 'draft' | 'published'
+  /** False when the brand has not opted into commentary for this view: the Commentary item is left out. */
+  commentaryEnabled?: boolean
 }
 
-export function buildChecklist({ runs, commentary, status }: ChecklistInput): ChecklistItem[] {
+export function buildChecklist({ runs, commentary, status, commentaryEnabled = true }: ChecklistInput): ChecklistItem[] {
   const sources: TaSource[] = ['sf', 'ahrefs', ...GSC_SLOTS]
   const items: ChecklistItem[] = sources.map((key) => {
     const run = runs.find((r) => r.source === key)
@@ -43,6 +45,7 @@ export function buildChecklist({ runs, commentary, status }: ChecklistInput): Ch
     if (run?.status === 'failed') {
       return { key, label, state: 'problem', detail: run.lastError || 'The last run failed.' }
     }
+    if (run?.status === 'missing' && run.lastError && !isGscSlot(key)) return { key, label, state: 'todo', detail: run.lastError }
     return isGscSlot(key) ? { key, label, state: 'todo', detail: HOW_TO[key] } : { key, label, state: 'todo' }
   })
   items.push({
@@ -50,6 +53,7 @@ export function buildChecklist({ runs, commentary, status }: ChecklistInput): Ch
     label: 'Review the issues list',
     state: status === 'published' ? 'done' : 'todo',
   })
+  if (!commentaryEnabled) return items
   items.push(
     commentary === 'approved'
       ? { key: 'commentary', label: 'Commentary', state: 'done' }

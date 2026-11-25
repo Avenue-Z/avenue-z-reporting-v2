@@ -3,6 +3,7 @@
 // a client sees published snapshots only, and staff-only parts (checklist, stale flag) never print in the PDF.
 import { Gauge, ListChecks, TrendingUp } from 'lucide-react'
 import { auth } from '@/auth'
+import { getClientBySlug } from '@/lib/db/queries'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { buildChecklist } from '@/lib/technical-audit/checklist'
 import { isTechAuditStaff } from '@/lib/technical-audit/staff'
@@ -30,6 +31,12 @@ function checklistRuns(runs: ViewRun[]) {
  *  no checklist, client copy), as the other exported reports do. */
 const runReason = (runs: ViewRun[], source: string) => runs.find((r) => r.source === source)?.lastError ?? null
 
+/** Whether the brand has opted into commentary on this view, as SharedPartsHeader decides it. */
+async function commentaryEnabled(clientSlug: string): Promise<boolean> {
+  const client = await getClientBySlug(clientSlug) // React.cache-memoized
+  return client?.reportSectionConfig?.['peec-ai:technical-audit']?.sharedParts?.some((p) => p.id === 'commentary') ?? false
+}
+
 export async function TechnicalAuditPage({ clientSlug, snapshot, exporting = false }: { clientSlug: string; snapshot?: string; exporting?: boolean }) {
   const viewer = !exporting && isTechAuditStaff(await auth()) ? 'team' : 'client'
   const view = await loadTechAuditView(clientSlug, snapshot, viewer)
@@ -43,6 +50,7 @@ export async function TechnicalAuditPage({ clientSlug, snapshot, exporting = fal
   }
 
   const { selected, previous } = view
+  const checklistCommentary = viewer === 'team' && await commentaryEnabled(clientSlug)
   return (
     <div className="flex flex-col gap-6">
       <ReportErrorBoundary sectionName="Technical Audit header">
@@ -64,7 +72,10 @@ export async function TechnicalAuditPage({ clientSlug, snapshot, exporting = fal
           <PublishChecklist
             clientSlug={clientSlug}
             snapshotId={selected.id}
-            items={buildChecklist({ runs: checklistRuns(view.runs), commentary: view.commentary ?? 'none', status: selected.status })}
+            items={buildChecklist({
+              runs: checklistRuns(view.runs), commentary: view.commentary ?? 'none', status: selected.status,
+              commentaryEnabled: checklistCommentary,
+            })}
             status={selected.status}
           />
         </ReportErrorBoundary>
