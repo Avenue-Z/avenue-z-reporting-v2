@@ -51,7 +51,7 @@ export interface TechAuditView {
 }
 
 const STALE_DAYS = 35
-/** Most recent visible snapshots feeding the sparklines and trend chart. */
+/** Most recent published snapshots (plus a selected draft) feeding the sparklines and trend chart. */
 const SERIES_WINDOW = 24
 const BUNDLE_CONCURRENCY = 4
 const DAY_MS = 86_400_000
@@ -71,7 +71,9 @@ const isIssueSource = (v: string): v is TaIssueSource => v === 'ahrefs' || v ===
 function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaited<ReturnType<typeof loadIssueMap>>, viewer: Viewer): ViewIssue[] {
   const byKey = new Map(overrides.map((o) => [o.issueKey, o]))
   return mergeIssues(rows, map).flatMap((m): ViewIssue[] => {
-    const o = byKey.get(m.key)
+    // A row hidden or noted while unmapped was saved under `source:native`; it keeps that once the map gives it a
+    // canonical key. The canonical key's own override wins.
+    const o = byKey.get(m.key) ?? m.detail.map((d) => byKey.get(`${d.source}:${d.nativeName}`)).find(Boolean)
     const hidden = o?.hidden ?? false
     if (viewer === 'client' && hidden) return []
     const base: ViewIssue = {
@@ -108,10 +110,13 @@ export async function loadTechAuditView(
   if (visible.length === 0) return null
 
   const selected = visible.find((s) => s.snapshotDate === snapshotParam || s.id === snapshotParam) ?? visible[0]
-  const selectedIdx = visible.indexOf(selected)
-  const previous = visible[selectedIdx + 1] ?? null
+  // Both viewers compare against published months only, so the team previews exactly what the client will see once
+  // the selected snapshot is published: previous = latest published before it; series = published plus a selected draft.
+  const published = visible.filter((s) => s.status === 'published')
+  const previous = published.find((s) => s.snapshotDate < selected.snapshotDate) ?? null
 
-  const windowed = visible.slice(0, SERIES_WINDOW)
+  const windowed = (selected.status === 'published' ? published : [...published, selected]
+    .sort((a, b) => (a.snapshotDate < b.snapshotDate ? 1 : -1))).slice(0, SERIES_WINDOW)
   const toFetch = [...new Set([...windowed, selected, ...(previous ? [previous] : [])])]
   const bundles = new Map(
     await mapWithConcurrency(toFetch, BUNDLE_CONCURRENCY, async (s) => [s.id, await getSnapshotBundle(client.id, s.id)] as const),

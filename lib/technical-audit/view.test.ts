@@ -7,12 +7,14 @@ const h = vi.hoisted(() => ({
   getSnapshotBundle: vi.fn(),
   getOverrides: vi.fn(),
   getCommentaryForView: vi.fn(),
+  issueMap: new Map() as Map<string, { key: string; name: string }>,
 }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: h.getClientBySlug, getCommentaryForView: h.getCommentaryForView }))
 vi.mock('./store', () => ({ getSnapshots: h.getSnapshots, getSnapshotBundle: h.getSnapshotBundle, getOverrides: h.getOverrides }))
-vi.mock('./issue-map', () => ({ loadIssueMap: async () => new Map() }))
+vi.mock('./issue-map', () => ({ loadIssueMap: async () => h.issueMap }))
 
 import { loadTechAuditView } from './view'
+import { ISSUE_MAP_FALLBACK } from './issue-map-fallback'
 
 const snap = (date: string, status: 'draft' | 'published' = 'published', over: Partial<SnapshotRow> = {}): SnapshotRow => ({
   id: `id-${date}`, clientId: 'c1', snapshotDate: date, sfRunFolderId: null, sfCrawlDate: null, ahrefsCrawlDate: null,
@@ -37,6 +39,7 @@ const NOW = new Date('2026-11-25T12:00:00Z')
 
 beforeEach(() => {
   vi.clearAllMocks()
+  h.issueMap = new Map()
   all = [snap('2026-11-01'), snap('2026-10-01'), snap('2026-09-01')]
   healthByDate = { '2026-11-01': 90, '2026-10-01': null, '2026-09-01': 80 }
   h.getClientBySlug.mockResolvedValue({ id: 'c1' })
@@ -102,6 +105,29 @@ describe('loadTechAuditView', () => {
     const oldest = await loadTechAuditView('x', '2026-09-01', 'team', NOW)
     expect(oldest?.previous).toBeNull()
     expect(oldest?.prevMetrics).toBeNull()
+  })
+
+  test('team and client compare a published month against the same published month, skipping drafts', async () => {
+    all = [snap('2026-11-01'), ...['2026-10-01', '2026-09-01', '2026-08-01', '2026-07-01', '2026-06-01'].map((d) => snap(d, 'draft'))]
+    for (const viewer of ['team', 'client'] as const) {
+      const v = await loadTechAuditView('x', '2026-11-01', viewer, NOW)
+      expect(v?.previous, viewer).toBeNull()
+      expect(v?.prevMetrics, viewer).toBeNull()
+      expect(v?.series.health.map((p) => p.date), viewer).toEqual(['2026-11-01'])
+    }
+    all[1] = snap('2026-10-01') // Oct published
+    for (const viewer of ['team', 'client'] as const) {
+      const v = await loadTechAuditView('x', '2026-11-01', viewer, NOW)
+      expect(v?.previous?.snapshotDate, viewer).toBe('2026-10-01')
+      expect(v?.series.health.map((p) => p.date), viewer).toEqual(['2026-10-01', '2026-11-01'])
+    }
+  })
+
+  test('a team draft previews against the latest published month, with only itself added to the series', async () => {
+    all = [snap('2026-12-01', 'draft'), snap('2026-11-01', 'draft'), snap('2026-10-01'), snap('2026-09-01', 'draft'), snap('2026-08-01')]
+    const v = await loadTechAuditView('x', '2026-11-01', 'team', NOW)
+    expect(v?.previous?.snapshotDate).toBe('2026-10-01')
+    expect(v?.series.health.map((p) => p.date)).toEqual(['2026-08-01', '2026-10-01', '2026-11-01'])
   })
 
   test('series keeps nulls as gaps, oldest to newest', async () => {
@@ -176,6 +202,40 @@ describe('loadTechAuditView', () => {
       expect(v!.issues.map((i) => i.name)).toEqual(['Small problem'])
       const t = await loadTechAuditView('x', undefined, 'team', NOW)
       expect(t!.issues.map((i) => [i.name, i.hidden])).toEqual([['Big problem', true], ['Small problem', false]])
+    })
+
+    const ahrefsRow = (nativeIssueName: string, urlCount: number) =>
+      ({ id: nativeIssueName, snapshotId: 's', source: 'ahrefs', nativeIssueName, nativeSeverity: 'error', urlCount, device: null })
+    const withIssues = (rows: ReturnType<typeof ahrefsRow>[]) => h.getSnapshotBundle.mockImplementation(async (_c: string, id: string) => {
+      const snapshot = all.find((s) => s.id === id)
+      return snapshot ? { snapshot, runs: [], metrics: metrics(90), issues: rows } : null
+    })
+
+    test('a row hidden under its canonical key stays hidden when the page falls back to the built-in map', async () => {
+      // Hidden while the Sheet mapped "302 redirect" to its canonical key; now the Sheet is down.
+      h.getOverrides.mockResolvedValue([override('302-redirect', { hidden: true })])
+      h.issueMap = new Map(ISSUE_MAP_FALLBACK.map((r) => [`${r.source}:${r.native}`, { key: r.key, name: r.name }]))
+      withIssues([ahrefsRow('302 redirect', 500), ahrefsRow('Some other thing', 2)])
+      const v = await loadTechAuditView('x', undefined, 'client', NOW)
+      expect(v!.issues.map((i) => i.key)).toEqual(['ahrefs:Some other thing'])
+    })
+
+    test('a row hidden while unmapped stays hidden once the map gives it a canonical key', async () => {
+      h.getOverrides.mockResolvedValue([override('ahrefs:X', { hidden: true, note: 'known' })])
+      h.issueMap = new Map([['ahrefs:X', { key: 'x-key', name: 'X issue' }]])
+      withIssues([ahrefsRow('X', 500), ahrefsRow('Y', 2)])
+      const v = await loadTechAuditView('x', undefined, 'client', NOW)
+      expect(v!.issues.map((i) => i.key)).toEqual(['ahrefs:Y'])
+      const t = await loadTechAuditView('x', undefined, 'team', NOW)
+      expect(t!.issues.find((i) => i.key === 'x-key')).toMatchObject({ hidden: true, note: 'known' })
+    })
+
+    test('the canonical-key override wins over a contributor override', async () => {
+      h.getOverrides.mockResolvedValue([override('ahrefs:X', { hidden: true }), override('x-key', { hidden: false, note: 'shown' })])
+      h.issueMap = new Map([['ahrefs:X', { key: 'x-key', name: 'X issue' }]])
+      withIssues([ahrefsRow('X', 500)])
+      const v = await loadTechAuditView('x', undefined, 'client', NOW)
+      expect(v!.issues.map((i) => [i.key, i.note])).toEqual([['x-key', 'shown']])
     })
 
     test('client props carry no noteBy/noteAt; team keeps them', async () => {
