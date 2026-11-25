@@ -2,15 +2,17 @@
 // (results, then the three shares with their points changes), results over time, share of sentiment, sentiment year to
 // date (each chart card on a row of its own since 2026-11-24), sentiment over time, sentiment by media type, keyword
 // themes with the top conversation themes box, key takeaways, keyword appendix. Server component.
-import { AnalysisOnly, ConversationThemes, SentimentLines, SourceLine, Toggled, fmt, fromFirst, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
+import { AnalysisOnly, ConversationThemes, SentimentLines, SourceLine, Toggled, fmt, fromFirst, notesFor, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
+import { SlNotesPanel } from './notes-panel'
 import { Cloud, DailyLines, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from '../design/charts'
 import { SlCard, SlSection } from '../design/frames'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import s from '../design/kit.module.css'
 import f from '../design/frames.module.css'
 
-export function IndustryPage({ view, boxes, upload, topicName, cols, exporting }: TopicPageProps) {
+export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, notes }: TopicPageProps) {
   const r = view.ready
+  const daily = notesFor(notes, 'sl-i-daily', r ? r.daily.map((d) => d.day) : [])
   const label = vsLabel(view.month)
   return (
     <div className={s.view}>
@@ -32,7 +34,8 @@ export function IndustryPage({ view, boxes, upload, topicName, cols, exporting }
 
           <SlSection>
             <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['i-daily']}>
-              <LineChart days={r.daily} color="#A08BFF" id="sl-gi" />
+              <LineChart days={r.daily} color="#A08BFF" id="sl-gi" marks={daily.marks} />
+              <SlNotesPanel notes={daily} title="Results over time" />
             </SlCard>
           </SlSection>
 

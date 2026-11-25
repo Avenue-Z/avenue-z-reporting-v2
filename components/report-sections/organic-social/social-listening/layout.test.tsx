@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getClientBySlug: h.getClientBySlug, getCommentaryForViewPrefix: h.getCommentaryForViewPrefix }))
 vi.mock('@/lib/organic-social/social-listening/store', () => ({ getSlMonth: h.getSlMonth }))
+vi.mock('@/lib/organic-social/chart-notes/select', () => ({ getChartNotes: async () => [] }))
 vi.mock('@/lib/organic-social/locked-range', async (orig) => ({ ...(await orig<object>()), requestClock: () => h.clock.value }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => '/x', useSearchParams: () => new URLSearchParams() }))
 vi.mock('@/components/report-sections/commentary/monthly', () => ({
@@ -132,7 +133,8 @@ describe('industry month-by-month card (Q3: stays until Savannah answers)', () =
 
 // Unit C (plan 2026-11-24, F8, F14, D2, D3): the Line / Columns toggle.
 describe('line views and the toggle', () => {
-  const toggleOf = (card: Element) => Array.from(card.querySelectorAll('button')).map((b) => `${b.textContent}:${b.getAttribute('aria-pressed')}`)
+  // The toggle's own two buttons; a card also holds the notes' Add annotation for staff (Unit E).
+  const toggleOf = (card: Element) => Array.from(card.querySelectorAll('[aria-label="Chart view"] button')).map((b) => `${b.textContent}:${b.getAttribute('aria-pressed')}`)
   const ariaOf = (card: Element) => card.querySelector('svg[role="img"]')?.getAttribute('aria-label') ?? ''
 
   test('brand: Sentiment year to date, positive + neutral and Reddit start on the line, with the toggle', async () => {

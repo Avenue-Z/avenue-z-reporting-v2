@@ -115,7 +115,36 @@ export function Key({ items }: { items: { name: string; color: string }[] }) {
 const SENT_KEY = KEYS.map((k) => ({ name: NAME[k], color: SC[k] }))
 
 /** Results over time: the line, its fill, the grid and the peak labelled. */
-export function LineChart({ days, color, id }: { days: SlDay[]; color: string; id: string }) {
+/** An approved note drawn on a graph (plan 2026-11-24, Unit E): its day (yyyy-mm-dd) or month (yyyy-mm), its number, its
+ *  label and text. Built by lib/organic-social/social-listening/notes.ts. */
+export type ChartMark = { at: string; n: number; label: string; text: string }
+
+/** The marks drawn on one graph: for each note on a key the graph draws, a numbered dot at `top` over a dashed line down to
+ *  `bottom`, the note as its hover text (an SVG title). With no mark it renders nothing, so the graph is unchanged. */
+function NoteMarks({ marks, xOf, top, bottom }: { marks: readonly ChartMark[]; xOf: (at: string) => number | null; top: number; bottom: number }) {
+  if (marks.length === 0) return null
+  return (
+    <>
+      {marks.map((m) => {
+        const x = xOf(m.at)
+        if (x === null) return null
+        return (
+          <g key={`note-${m.at}`} data-note-mark="">
+            <title>{`${m.n}. ${m.label}: ${m.text}`}</title>
+            <line className={f.noteLine} x1={x} x2={x} y1={top + 9} y2={bottom} />
+            <circle className={f.noteDot} cx={x} cy={top} r={9} />
+            <text className={f.noteNum} x={x} y={top + 4} fontSize={11} textAnchor="middle">{m.n}</text>
+          </g>
+        )
+      })}
+    </>
+  )
+}
+
+/** The marks whose key the graph draws. */
+const drawnMarks = (marks: readonly ChartMark[] | undefined, keys: readonly string[]) => (marks ?? []).filter((m) => keys.includes(m.at))
+
+export function LineChart({ days, color, id, marks }: { days: SlDay[]; color: string; id: string; marks?: readonly ChartMark[] }) {
   const W = 960, H = 240, L = 48, R = 16, T = 24, B = 30
   const values = days.map((d) => d.results)
   if (values.length === 0) return null
@@ -143,6 +172,7 @@ export function LineChart({ days, color, id }: { days: SlDay[]; color: string; i
       <polyline points={pts} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
       <circle cx={x(pk)} cy={y(values[pk])} r={5} fill={color} stroke="#272727" strokeWidth={2} />
       <text className={s.tFg} x={x(pk)} y={y(values[pk]) - 12} fontSize={12} fontWeight={800} textAnchor={anchor}>{fmt(values[pk])} on {dayLabel(days[pk].day)}</text>
+      <NoteMarks marks={drawnMarks(marks, days.map((d) => d.day))} xOf={(at) => x(days.findIndex((d) => d.day === at))} top={11} bottom={H - B} />
     </svg>
   )
 }
@@ -253,8 +283,10 @@ export function MediaShare({ rows }: { rows: SlMediaRow[] }) {
 
 /** Year to date: one 100% column per month, each share printed inside when there is room; the last month in bold. A month
  *  with no data has no column. */
-export function YtdColumns({ points, aria }: { points: YtdPoint[]; aria: string }) {
-  const W = 960, H = 250, L = 8, R = 8, T = 8, B = 28
+export function YtdColumns({ points, aria, marks }: { points: YtdPoint[]; aria: string; marks?: readonly ChartMark[] }) {
+  const shown = drawnMarks(marks, points.map((p) => p.month))
+  // A noted graph leaves room above the columns for the marks' dots; without one the geometry is the mockup's.
+  const W = 960, H = 250, L = 8, R = 8, T = shown.length > 0 ? 26 : 8, B = 28
   const n = Math.max(points.length, 1)
   const slot = (W - L - R) / n, bw = Math.min(64, slot * 0.62)
   const out: ReactNode[] = []
@@ -276,7 +308,9 @@ export function YtdColumns({ points, aria }: { points: YtdPoint[]; aria: string 
   })
   return (
     <>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{out}</svg>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{out}
+        <NoteMarks marks={shown} xOf={(at) => L + slot * points.findIndex((p) => p.month === at) + slot / 2} top={11} bottom={H - B} />
+      </svg>
       <Key items={SENT_KEY} />
     </>
   )
@@ -286,8 +320,9 @@ export function YtdColumns({ points, aria }: { points: YtdPoint[]; aria: string 
  *  charts): one column a month, positive + neutral at the bottom, negative on top, each share printed when there is room, the
  *  last month in bold. Each column is scaled to its own two shares, as YtdColumns is, since whole percents can sum to 99 or
  *  101. A month with no data has no column. */
-export function PosNeuColumns({ months, posNeu, neg }: { months: string[]; posNeu: (number | null)[]; neg: (number | null)[] }) {
-  const W = 960, H = 250, L = 8, R = 8, T = 8, B = 28
+export function PosNeuColumns({ months, posNeu, neg, marks }: { months: string[]; posNeu: (number | null)[]; neg: (number | null)[]; marks?: readonly ChartMark[] }) {
+  const shown = drawnMarks(marks, months)
+  const W = 960, H = 250, L = 8, R = 8, T = shown.length > 0 ? 26 : 8, B = 28
   const n = Math.max(months.length, 1)
   const slot = (W - L - R) / n, bw = Math.min(64, slot * 0.62)
   const out: ReactNode[] = []
@@ -313,7 +348,9 @@ export function PosNeuColumns({ months, posNeu, neg }: { months: string[]; posNe
   }).join(', ')}`
   return (
     <>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{out}</svg>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{out}
+        <NoteMarks marks={shown} xOf={(at) => L + slot * months.indexOf(at) + slot / 2} top={11} bottom={H - B} />
+      </svg>
       <Key items={[{ name: 'Positive + neutral', color: SC.pos }, { name: 'Negative', color: SC.neg }]} />
     </>
   )
@@ -341,7 +378,7 @@ export function CountColumns({ points, aria }: { points: { label: string; value:
 }
 
 /** Two lines with every point labelled (positive + neutral above, negative below); a month with no data breaks the line. */
-export function PointLines({ months, series }: { months: string[]; series: { name: string; vals: (number | null)[]; color: string; below?: boolean }[] }) {
+export function PointLines({ months, series, marks }: { months: string[]; series: { name: string; vals: (number | null)[]; color: string; below?: boolean }[]; marks?: readonly ChartMark[] }) {
   const W = 960, H = 240, L = 34, R = 16, T = 22, B = 28
   // A single month sits in the middle rather than on the left axis.
   const x = (i: number) => (months.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (months.length - 1))
@@ -367,7 +404,9 @@ export function PointLines({ months, series }: { months: string[]; series: { nam
   const aria = series.map((sr) => `${sr.name}: ${months.map((m, i) => `${monthShort(m)} ${sr.vals[i] ?? 'no data'}${sr.vals[i] === null ? '' : '%'}`).join(', ')}`).join('; ')
   return (
     <>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{g}</svg>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria}>{g}
+        <NoteMarks marks={drawnMarks(marks, months)} xOf={(at) => x(months.indexOf(at))} top={11} bottom={H - B} />
+      </svg>
       <Key items={series.map((sr) => ({ name: sr.name, color: sr.color }))} />
     </>
   )
