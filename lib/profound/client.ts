@@ -417,7 +417,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string, 
   }
 
   // Scope every metric to the page date range; compare deltas against the
-  // immediately-preceding period of equal length (matches the other AEO pages).
+  // previous period of equal length by default (matches the other AEO pages);
+  // `compareMode` can select the same period last year instead.
   const range = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(range)
   const compareDates = deriveCompareRange(range, compareMode) ?? mainDates
@@ -492,7 +493,8 @@ async function getProfoundOverviewImpl(clientSlug?: string, dateRange?: string, 
   }
 
   // --- Domains ---
-  // Deltas compare the selected range against the immediately-preceding period.
+  // Deltas compare the selected range against the compare period (previous period by
+  // default; same period last year when `compareMode` is 'previous_year').
   const topDomains = buildTopDomains(domainsRes.data, priorDomainsRes.data)
   const totalCitations      = (domainsRes.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0)
   const totalCitationsPrior = (priorDomainsRes.data ?? []).reduce((s, r) => s + (r.metrics[1] ?? 0), 0)

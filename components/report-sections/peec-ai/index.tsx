@@ -34,7 +34,7 @@ type Overview = PeecOverview | ProfoundOverview
 
 const registry = mergeRegistries(PEEC_PARTS, BESPOKE_PARTS)
 
-function ProviderSection({
+export function ProviderSection({
   data,
   provider,
   models = null,
@@ -128,6 +128,7 @@ export async function PeecAIReport({
   const mainIso = `${mainDates.startDate},${mainDates.endDate}`
   const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
 
+  // The two-argument call (no compareMode) for previous_period is deliberate: it keeps v1 cache keys (JSON.stringify(args)) unchanged.
   const [peecRes, profoundRes, aiNowRes, aiPriorRes] = await Promise.allSettled([
     peecConfigured ? (fetchMode === 'previous_year' ? getPeecOverview(clientSlug, dateRange, fetchMode) : getPeecOverview(clientSlug, dateRange)) : Promise.resolve(null),
     profoundConfigured ? (fetchMode === 'previous_year' ? getProfoundOverview(clientSlug, dateRange, fetchMode) : getProfoundOverview(clientSlug, dateRange)) : Promise.resolve(null),

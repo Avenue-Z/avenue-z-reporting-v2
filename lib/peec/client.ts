@@ -371,7 +371,8 @@ async function fetchAllRows(
  *                    PEEC_AI_PROJECT_ID env var when omitted (backward-compatible).
  * @param dateRange   Optional page date range (e.g. 'last_30_days', 'this_month').
  *                    All metrics are scoped to this range; deltas compare against
- *                    the immediately-preceding period of equal length. Defaults to
+ *                    the previous period of equal length by default (or the same
+ *                    period last year when `compareMode` is 'previous_year'). Defaults to
  *                    'last_30_days' to match the other AEO pages.
  */
 // Cached per (clientSlug, dateRange) for 1 hour. Cache key derives from the
@@ -395,7 +396,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string, comp
 
   const yourBrand = resolvedYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
   // Scope every metric to the page date range; compare deltas against the
-  // immediately-preceding period of equal length (matches the other AEO pages).
+  // previous period of equal length by default (matches the other AEO pages);
+  // `compareMode` can select the same period last year instead.
   const range = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(range)
   const compareDates = deriveCompareRange(range, compareMode) ?? mainDates
@@ -505,7 +507,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string, comp
       })
   }
   // Deltas (retrievedDelta / Post-Launch AI Lift) compare the selected range
-  // against the immediately-preceding period of equal length.
+  // against the compare period (previous period by default; same period last year
+  // when `compareMode` is 'previous_year').
   const topDomains = buildTopDomains(domainsRes.data ?? [], domainsPriorRes.data ?? [])
   const totalCitations = (domainsRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0)
   const totalCitationsPrior = (domainsPriorRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0)

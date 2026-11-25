@@ -274,7 +274,9 @@ export default async function ReportPage({
             period of equal length. */}
         {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && (
           <Suspense fallback={null}>
-            <GA4DatePicker dateRange={dateRange} compareRange={subsection ? compareRange : (compareRange ?? 'previous_period')} explicitNone />
+            {subsection
+              ? <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+              : <GA4DatePicker dateRange={dateRange} compareRange={compareRange} defaultCompare="previous_period" explicitNone />}
           </Suspense>
         )}
         {activeSection === 'paid-media' && (

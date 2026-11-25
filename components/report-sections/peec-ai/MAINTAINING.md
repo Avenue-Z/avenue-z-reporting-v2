@@ -57,7 +57,7 @@ a client **only** through that client's `report_section_config['peec-ai']`:
 
 Apply it to **staging Neon only** until the account lead approves. The production flip is slice 7
 (spec section 4). Slice 1 adds no parts yet, so there is nothing to pin: the compare/deltas
-plumbing is live for every client but only honored on the v2 layout.
+plumbing is live for every client but only honored on the v2 layout (v1 pages, cache keys and export bodies are unchanged, and the picker only writes `compareRange` when the user changes Compare to).
 
 Staging override shape (`<...>` placeholders are filled in by the slice that adds the part; omit `versions`/`extraParts`/`order` until then). The three `hidden` entries are the removals every v2 layout makes; add
 the v1 part each later slice replaces as that slice lands, and list its replacement in
@@ -74,5 +74,5 @@ the v1 part each later slice replaces as that slice lands, and list its replacem
 }
 ```
 
-Reverting a client is deleting its `peec-ai` key. Edit with the SQL editor on the staging branch
+Before applying a staging override, save the client's current `peec-ai` override. Revert by restoring that saved value (or remove only the v2 entries); do not delete the key, which would also drop any pre-existing override. Edit with the SQL editor on the staging branch
 (see the Neon migrate and seed warnings: do not run `db:seed`, it overwrites `enabled_reports`).

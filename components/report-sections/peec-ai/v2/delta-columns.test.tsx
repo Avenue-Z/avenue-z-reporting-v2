@@ -54,3 +54,21 @@ test('falls back to default sort when the sorted column disappears', () => {
   expect(container.querySelector('thead svg.lucide-arrow-down')).not.toBeNull()
   expect(container.querySelectorAll('thead svg.lucide-arrow-up')).toHaveLength(0)
 })
+
+test('the no-data cell explains itself and Δ columns are not filterable', () => {
+  render(ui([NAME, VIS, delta()]))
+  expect(screen.getByText('–').getAttribute('title')).toBe('No comparison data')
+  expect(delta().filterable).toBe(false)
+})
+
+test('cycling the default column after the fallback starts from the effective direction', () => {
+  const extra = { defaultSortKey: 'vis', defaultSortDir: 'desc' as const }
+  const { container, rerender } = render(ui([NAME, VIS, delta()], ROWS, extra))
+  fireEvent.click(screen.getByRole('button', { name: 'Sort by Δ' }))
+  rerender(ui([NAME, VIS], ROWS, extra))
+  expect(order(container)).toEqual(['B', 'C', 'A']) // fallback: vis desc
+  // Effective direction is desc, so the next click clears the sort (not asc).
+  fireEvent.click(screen.getByRole('button', { name: 'Sort by Vis' }))
+  expect(order(container)).toEqual(['A', 'B', 'C'])
+  expect(container.querySelectorAll('thead svg.lucide-arrow-down, thead svg.lucide-arrow-up')).toHaveLength(0)
+})

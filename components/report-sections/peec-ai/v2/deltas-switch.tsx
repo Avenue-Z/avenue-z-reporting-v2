@@ -34,7 +34,7 @@ export function DeltasSwitch({ showDeltas, disabled }: { showDeltas: boolean; di
       >
         <span
           className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-            showDeltas ? 'translate-x-4' : ''
+            showDeltas && !disabled ? 'translate-x-4' : ''
           }`}
         />
       </button>

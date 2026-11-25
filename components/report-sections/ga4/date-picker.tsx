@@ -53,16 +53,20 @@ interface GA4DatePickerProps {
   compareRange: string | null
   /** AEO: No Comparison writes `compareRange=none` instead of dropping the param, so it survives a default. */
   explicitNone?: boolean
+  /** Display-only: the compare preset shown while `compareRange` is absent from the URL. Never written on its own. */
+  defaultCompare?: string
 }
 
-export function GA4DatePicker({ dateRange, compareRange, explicitNone = false }: GA4DatePickerProps) {
+export function GA4DatePicker({ dateRange, compareRange, explicitNone = false, defaultCompare }: GA4DatePickerProps) {
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
 
   const [open, setOpen]                     = useState(false)
   const [pendingDate, setPendingDate]       = useState(dateRange)
-  const [pendingCompare, setPendingCompare] = useState<string | null>(compareRange)
+  const effectiveCompare = compareRange ?? defaultCompare ?? null
+  const [pendingCompare, setPendingCompare] = useState<string | null>(effectiveCompare)
+  const [compareTouched, setCompareTouched] = useState(false)
   const [customOpen, setCustomOpen]         = useState(dateRange.startsWith('custom:'))
   const [pendingCalendar, setPendingCalendar] = useState<DateRange | undefined>(
     customToCalendarRange(dateRange),
@@ -71,7 +75,8 @@ export function GA4DatePicker({ dateRange, compareRange, explicitNone = false }:
   const handleOpenChange = (next: boolean) => {
     if (next) {
       setPendingDate(dateRange)
-      setPendingCompare(compareRange)
+      setPendingCompare(effectiveCompare)
+      setCompareTouched(false)
       setCustomOpen(dateRange.startsWith('custom:'))
       setPendingCalendar(customToCalendarRange(dateRange))
     }
@@ -98,15 +103,18 @@ export function GA4DatePicker({ dateRange, compareRange, explicitNone = false }:
     if (!canApply) return
     const params = new URLSearchParams(searchParams.toString())
     params.set('dateRange', pendingDate)
-    if (pendingCompare) params.set('compareRange', pendingCompare)
-    else if (explicitNone) params.set('compareRange', 'none')
-    else params.delete('compareRange')
+    // Untouched Compare to leaves the URL param exactly as it is (present stays, absent stays absent).
+    if (compareTouched) {
+      if (pendingCompare) params.set('compareRange', pendingCompare)
+      else if (explicitNone) params.set('compareRange', 'none')
+      else params.delete('compareRange')
+    }
     router.push(`${pathname}?${params.toString()}`)
     setOpen(false)
   }
 
   const dateLabel    = getDateLabel(dateRange)
-  const compareLabel = getCompareLabel(compareRange)
+  const compareLabel = getCompareLabel(effectiveCompare)
   const resolved     = formatResolvedRange(dateRange)
 
   return (
@@ -191,7 +199,7 @@ export function GA4DatePicker({ dateRange, compareRange, explicitNone = false }:
             {COMPARE_PRESETS.map((opt) => (
               <button
                 key={opt.value ?? 'none'}
-                onClick={() => setPendingCompare(opt.value)}
+                onClick={() => { setPendingCompare(opt.value); setCompareTouched(true) }}
                 className={cn(
                   'block w-full px-3 py-1.5 text-left text-[13px] transition-colors hover:bg-white/[0.05]',
                   (pendingCompare === 'none' ? null : pendingCompare) === opt.value ? 'font-semibold text-brand-cyan' : 'text-white/75',

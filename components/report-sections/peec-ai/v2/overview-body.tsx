@@ -27,7 +27,7 @@ export function OverviewBody({
             id={`aeo-section-${g.section}`}
             className={`scroll-mt-24 space-y-6 ${first ? '' : 'border-t border-white/10 pt-8'}`}
           >
-            <header>
+            <header data-export-keep-with-next="">
               <p className="font-mono text-xs uppercase tracking-widest text-text-muted">
                 {`${g.section} · ${meta.label}`}
               </p>

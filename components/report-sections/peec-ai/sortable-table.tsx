@@ -133,13 +133,15 @@ export function SortableTable<T>({
   const activeFilterCount = Object.values(filters).filter((v) => v.trim() !== '').length
 
   function cycleSort(key: string) {
-    if (sortKey !== key) {
+    // Cycle from what the table is actually showing (the fallback sort included), not the raw state.
+    if (effectiveSortKey !== key) {
       setSortKey(key)
       setSortDir('asc')
       return
     }
-    if (sortDir === 'asc')  { setSortDir('desc'); return }
-    if (sortDir === 'desc') { setSortKey(null); setSortDir(null); return }
+    if (effectiveSortDir === 'asc')  { setSortKey(key); setSortDir('desc'); return }
+    if (effectiveSortDir === 'desc') { setSortKey(null); setSortDir(null); return }
+    setSortKey(key)
     setSortDir('asc')
   }
 

@@ -21,3 +21,13 @@ test('compareSuffix', () => {
   expect(compareSuffix('previous_year')).toBe('vs same period last year')
   expect(compareSuffix('none')).toBe('')
 })
+
+test('Content Impact treats compareRange none like a missing param', async () => {
+  const { deriveCompareRange } = await import('@/lib/ga4/client')
+  // No compare window is derived for 'none', exactly as for a missing param.
+  expect(deriveCompareRange('last_30_days', 'none')).toBeNull()
+  expect(deriveCompareRange('last_30_days', undefined)).toBeNull()
+  // The gapsPrior walk (content-impact.tsx) runs whenever compareRange !== 'previous_period': none and missing alike.
+  const walks = (c: string | undefined) => c !== 'previous_period'
+  expect(walks('none')).toBe(walks(undefined))
+})

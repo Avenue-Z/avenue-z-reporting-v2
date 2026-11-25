@@ -24,13 +24,19 @@ export function deltaColumn<T>(opts: {
     tooltip,
     align: 'right',
     sortable: true,
+    filterable: false,
     // New rows have no comparable delta: null sinks them to the bottom in both directions.
     accessor: (row) => (isNew?.(row) ? null : accessor(row)),
     render: (row) => {
       const fresh = isNew?.(row) ?? false
       const value = accessor(row)
-      const tone = fresh ? 'neutral' : deltaTone(value, betterWhen)
-      return <span className={cn('tabular-nums', TONE_CLASS[tone])}>{formatDelta(value, unit, { isNew: fresh })}</span>
+      const tone = fresh ? 'neutral' : deltaTone(value, betterWhen, unit)
+      const text = formatDelta(value, unit, { isNew: fresh })
+      return (
+        <span className={cn('tabular-nums', TONE_CLASS[tone])} title={text === '–' ? 'No comparison data' : undefined}>
+          {text}
+        </span>
+      )
     },
   }
 }
