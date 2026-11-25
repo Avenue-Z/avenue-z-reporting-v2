@@ -1,4 +1,4 @@
-import { getClientBySlug } from '@/lib/db/queries'
+import { getClientBySlug, getCommentaryForView } from '@/lib/db/queries'
 import { mapWithConcurrency } from '@/lib/concurrency'
 import { KPI_DEFS, kpiValue, toViewMetrics } from './kpis'
 import type { KpiKey, ViewMetrics } from './kpis'
@@ -29,6 +29,8 @@ export type ViewIssue = Pick<MergedIssue, 'key' | 'name' | 'severity' | 'urls' |
   noteBy?: string
   noteAt?: string
 }
+/** Where the selected snapshot's commentary stands, for the publish checklist. */
+export type SnapshotCommentaryState = 'none' | 'draft' | 'approved'
 export type SeriesPoint = { date: string; value: number | null }
 
 export interface TechAuditView {
@@ -44,6 +46,8 @@ export interface TechAuditView {
   /** Newest snapshot date when it is more than STALE_DAYS old; team viewers only. */
   staleSince: string | null
   crawlSettingsChanged: boolean
+  /** Commentary state of the selected snapshot; team viewers only (undefined for clients). */
+  commentary?: SnapshotCommentaryState
 }
 
 const STALE_DAYS = 35
@@ -76,6 +80,14 @@ function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaite
     }
     return [viewer === 'team' && o?.note ? { ...base, noteBy: o.updatedBy, noteAt: o.updatedAt.toISOString() } : base]
   })
+}
+
+/** Commentary is bound to a snapshot by its single-day period (start = end = snapshot date); deleted entries don't count. */
+async function snapshotCommentaryState(clientId: string, snapshotDate: string): Promise<SnapshotCommentaryState> {
+  const entries = (await getCommentaryForView(clientId, 'peec-ai:technical-audit')).filter(
+    (e) => !e.deletedAt && e.periodStart === snapshotDate && e.periodEnd === snapshotDate)
+  if (entries.some((e) => e.status === 'approved')) return 'approved'
+  return entries.length > 0 ? 'draft' : 'none'
 }
 
 function daysBetween(date: string, now: Date): number {
@@ -135,5 +147,6 @@ export async function loadTechAuditView(
     issues: toViewIssues(issueRows, overrides, issueMap, viewer),
     staleSince: viewer === 'team' && daysBetween(newest, now) > STALE_DAYS ? newest : null,
     crawlSettingsChanged: selected.crawlSettingsChanged,
+    ...(viewer === 'team' ? { commentary: await snapshotCommentaryState(client.id, selected.snapshotDate) } : {}),
   }
 }

@@ -8,6 +8,7 @@ import { buildChecklist } from '@/lib/technical-audit/checklist'
 import { isTechAuditStaff } from '@/lib/technical-audit/staff'
 import { isTaSource, type TaRunStatus } from '@/lib/technical-audit/types'
 import { loadTechAuditView, type ViewRun } from '@/lib/technical-audit/view'
+import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 import { SectionHeader } from '../section-header'
 import { ChangeOverTime } from './change-over-time'
 import { HealthTiles } from './health-tiles'
@@ -60,17 +61,19 @@ export async function TechnicalAuditPage({ clientSlug, snapshot, exporting = fal
 
       {viewer === 'team' && (
         <ReportErrorBoundary sectionName="Before you publish">
-          {/* Commentary state is wired by Task 13b; until then the item reads "none". */}
           <PublishChecklist
             clientSlug={clientSlug}
             snapshotId={selected.id}
-            items={buildChecklist({ runs: checklistRuns(view.runs), commentary: 'none', status: selected.status })}
+            items={buildChecklist({ runs: checklistRuns(view.runs), commentary: view.commentary ?? 'none', status: selected.status })}
             status={selected.status}
           />
         </ReportErrorBoundary>
       )}
 
-      {/* Commentary part (spec §7) goes here: Task 13b. */}
+      {/* Snapshot-bound commentary (spec §5.2, §7): entries are keyed by the snapshot date as a one-day range. */}
+      <ReportErrorBoundary sectionName="Commentary">
+        <SharedPartsHeader viewKey="peec-ai:technical-audit" clientSlug={clientSlug} requestedRange={`${selected.snapshotDate},${selected.snapshotDate}`} />
+      </ReportErrorBoundary>
 
       <ReportErrorBoundary sectionName="Health scores">
         <section className="flex flex-col gap-4">

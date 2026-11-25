@@ -6,8 +6,9 @@ const h = vi.hoisted(() => ({
   getSnapshots: vi.fn(),
   getSnapshotBundle: vi.fn(),
   getOverrides: vi.fn(),
+  getCommentaryForView: vi.fn(),
 }))
-vi.mock('@/lib/db/queries', () => ({ getClientBySlug: h.getClientBySlug }))
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: h.getClientBySlug, getCommentaryForView: h.getCommentaryForView }))
 vi.mock('./store', () => ({ getSnapshots: h.getSnapshots, getSnapshotBundle: h.getSnapshotBundle, getOverrides: h.getOverrides }))
 vi.mock('./issue-map', () => ({ loadIssueMap: async () => new Map() }))
 
@@ -40,6 +41,7 @@ beforeEach(() => {
   healthByDate = { '2026-11-01': 90, '2026-10-01': null, '2026-09-01': 80 }
   h.getClientBySlug.mockResolvedValue({ id: 'c1' })
   h.getOverrides.mockResolvedValue([])
+  h.getCommentaryForView.mockResolvedValue([])
   h.getSnapshots.mockImplementation(async (_c: string, o: { publishedOnly: boolean }) =>
     o.publishedOnly ? all.filter((s) => s.status === 'published') : all)
   h.getSnapshotBundle.mockImplementation(async (_c: string, id: string) => {
@@ -186,5 +188,39 @@ describe('loadTechAuditView', () => {
       const t = await loadTechAuditView('x', undefined, 'team', NOW)
       expect(t!.issues.find((i) => i.name === 'Small problem')).toMatchObject({ noteBy: 'strategist@avenuez.com', noteAt: '2026-11-02T00:00:00.000Z' })
     })
+  })
+})
+
+describe('loadTechAuditView commentary state', () => {
+  const entry = (date: string, status: 'draft' | 'approved', over: Record<string, unknown> = {}) => ({
+    id: `e-${date}-${status}`, viewKey: 'peec-ai:technical-audit', bodyHtml: '<p>x</p>', periodStart: date, periodEnd: date,
+    status, updatedBy: 'a@avenuez.com', updatedAt: '2026-11-02', approvedBy: null, approvedAt: null, deletedAt: null, deletedBy: null, ...over,
+  })
+  const commentaryOf = async (viewer: 'team' | 'client' = 'team') => (await loadTechAuditView('x', '2026-11-01', viewer, NOW))?.commentary
+
+  test('checklist reports draft commentary for the snapshot', async () => {
+    h.getCommentaryForView.mockResolvedValue([entry('2026-11-01', 'draft')])
+    expect(await commentaryOf()).toBe('draft')
+    expect(h.getCommentaryForView).toHaveBeenCalledWith('c1', 'peec-ai:technical-audit')
+  })
+
+  test('an approved entry gives approved, even beside a draft', async () => {
+    h.getCommentaryForView.mockResolvedValue([entry('2026-11-01', 'draft'), entry('2026-11-01', 'approved')])
+    expect(await commentaryOf()).toBe('approved')
+  })
+
+  test('entries for another snapshot date, other ranges and deleted entries are ignored', async () => {
+    h.getCommentaryForView.mockResolvedValue([
+      entry('2026-10-01', 'approved'),
+      entry('2026-11-01', 'approved', { periodEnd: '2026-11-30' }),
+      entry('2026-11-01', 'approved', { deletedAt: '2026-11-03' }),
+    ])
+    expect(await commentaryOf()).toBe('none')
+  })
+
+  test('is not computed for client viewers', async () => {
+    h.getCommentaryForView.mockResolvedValue([entry('2026-11-01', 'approved')])
+    expect(await commentaryOf('client')).toBeUndefined()
+    expect(h.getCommentaryForView).not.toHaveBeenCalled()
   })
 })

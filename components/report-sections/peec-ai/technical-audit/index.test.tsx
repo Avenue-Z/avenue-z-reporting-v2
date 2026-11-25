@@ -15,9 +15,12 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock('@/app/actions/tech-audit', () => ({ publishSnapshot: vi.fn(), unpublishSnapshot: vi.fn(), uploadGscExport: vi.fn(), setIssueOverride: vi.fn() }))
 vi.mock('@/lib/technical-audit/issue-map', () => ({ loadIssueMap: async () => new Map() }))
 
-const h = vi.hoisted(() => ({ auth: vi.fn(), getSnapshots: vi.fn(), getSnapshotBundle: vi.fn() }))
+const h = vi.hoisted(() => ({ auth: vi.fn(), getSnapshots: vi.fn(), getSnapshotBundle: vi.fn(), sharedParts: vi.fn() }))
 vi.mock('@/auth', () => ({ auth: () => h.auth() }))
-vi.mock('@/lib/db/queries', () => ({ getClientBySlug: async () => ({ id: 'c1', slug: 'acme' }) }))
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: async () => ({ id: 'c1', slug: 'acme' }), getCommentaryForView: async () => [] }))
+vi.mock('@/components/report-sections/shared/shared-parts-header', () => ({
+  SharedPartsHeader: (props: object) => { h.sharedParts(props); return <div data-testid="shared-parts" /> },
+}))
 vi.mock('@/lib/technical-audit/store', () => ({ getSnapshots: h.getSnapshots, getSnapshotBundle: h.getSnapshotBundle, getOverrides: async () => [] }))
 
 import { TechnicalAuditPage } from './index'
@@ -65,6 +68,12 @@ async function show(session: unknown, { snapshot, exporting = false }: { snapsho
 }
 
 describe('TechnicalAuditPage', () => {
+  test('renders the commentary header bound to the snapshot date as a one-day range', async () => {
+    await show(STAFF, { snapshot: '2026-10-01' })
+    expect(screen.getByTestId('shared-parts')).toBeTruthy()
+    expect(h.sharedParts).toHaveBeenCalledWith({ viewKey: 'peec-ai:technical-audit', clientSlug: 'acme', requestedRange: '2026-10-01,2026-10-01' })
+  })
+
   test('renders the checklist for staff and not for clients', async () => {
     await show(STAFF)
     expect(screen.getByText('Before you publish')).toBeTruthy()
