@@ -24,10 +24,10 @@ export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, 
             <div className={`${s.grid} ${s.g4}`}>
               {r.tiles.map((t) => {
                 if (t.unit !== '%') {
-                  return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : short(t.value)} sub={t.value === null ? undefined : `${fmt(t.value)} exact`} delta={t.change} label={label} tooltip={slTileTooltip('industry', t.title)} />
+                  return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : short(t.value)} sub={t.value === null ? undefined : `${fmt(t.value)} exact`} delta={t.change} label={label} tooltip={slTileTooltip('industry', t.id)} />
                 }
                 return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : `${t.value}%`} delta={t.points} unit="pts" label={label}
-                  invert={t.title === 'Negative'} neutral={t.title === 'Neutral'} tooltip={slTileTooltip('industry', t.title)} />
+                  invert={t.title === 'Negative'} neutral={t.title === 'Neutral'} tooltip={slTileTooltip('industry', t.id)} />
               })}
             </div>
             {boxes['i-kpis']}

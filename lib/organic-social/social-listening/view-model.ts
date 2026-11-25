@@ -30,7 +30,9 @@ export type SlViewInput = {
   sort?: SlAuthorSort
 }
 
-export type SlTile = { title: string; value: number | null; change?: number; points?: number | null; unit?: '%' }
+/** A tile's fixed id (Unit B): the tooltip table is keyed by it, never by the title text a later copy change could alter. */
+export type SlTileId = 'results' | 'unique-authors' | 'engagement' | 'potential-reach' | 'positive' | 'neutral' | 'negative'
+export type SlTile = { id: SlTileId; title: string; value: number | null; change?: number; points?: number | null; unit?: '%' }
 export type SlMediaRow = { media: string; count: number; pct: number; change: number | null; color: string }
 export type SlCrossRow = { media: string; total: number } & SlSentimentCounts
 type Influencer = NonNullable<SlExport['influencers']>[number]
@@ -118,16 +120,16 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
 
   const tiles: SlTile[] = topic === 'brand'
     ? [
-        { title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
-        { title: 'Unique authors', value: d.uniqueAuthors ?? null, change: d.uniqueAuthors === undefined ? undefined : tileChange(d.uniqueAuthors, prev?.uniqueAuthors) },
-        { title: 'Engagement', value: d.engagement ?? null, change: d.engagement === undefined ? undefined : tileChange(d.engagement, prev?.engagement) },
-        { title: 'Potential reach', value: d.potentialReach ?? null, change: d.potentialReach === undefined ? undefined : tileChange(d.potentialReach, prev?.potentialReach) },
+        { id: 'results', title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
+        { id: 'unique-authors', title: 'Unique authors', value: d.uniqueAuthors ?? null, change: d.uniqueAuthors === undefined ? undefined : tileChange(d.uniqueAuthors, prev?.uniqueAuthors) },
+        { id: 'engagement', title: 'Engagement', value: d.engagement ?? null, change: d.engagement === undefined ? undefined : tileChange(d.engagement, prev?.engagement) },
+        { id: 'potential-reach', title: 'Potential reach', value: d.potentialReach ?? null, change: d.potentialReach === undefined ? undefined : tileChange(d.potentialReach, prev?.potentialReach) },
       ]
     : [
-        { title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
-        { title: 'Positive', value: sentPct.pos, points: change.pos, unit: '%' },
-        { title: 'Neutral', value: sentPct.neu, points: change.neu, unit: '%' },
-        { title: 'Negative', value: sentPct.neg, points: change.neg, unit: '%' },
+        { id: 'results', title: 'Results', value: d.results, change: tileChange(d.results, prev?.results) },
+        { id: 'positive', title: 'Positive', value: sentPct.pos, points: change.pos, unit: '%' },
+        { id: 'neutral', title: 'Neutral', value: sentPct.neu, points: change.neu, unit: '%' },
+        { id: 'negative', title: 'Negative', value: sentPct.neg, points: change.neg, unit: '%' },
       ]
 
   const mediaTotal = d.sentimentByMedia.reduce((a, r) => a + sum(r), 0)
