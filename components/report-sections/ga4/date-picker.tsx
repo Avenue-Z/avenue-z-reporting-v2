@@ -37,6 +37,7 @@ function getDateLabel(value: string): string {
 
 function getCompareLabel(value: string | null): string | null {
   if (!value) return null
+  if (value === 'none') return 'No Comparison'
   return COMPARE_PRESETS.find((p) => p.value === value)?.label ?? null
 }
 
@@ -50,9 +51,11 @@ function customToCalendarRange(value: string): DateRange | undefined {
 interface GA4DatePickerProps {
   dateRange: string
   compareRange: string | null
+  /** AEO: No Comparison writes `compareRange=none` instead of dropping the param, so it survives a default. */
+  explicitNone?: boolean
 }
 
-export function GA4DatePicker({ dateRange, compareRange }: GA4DatePickerProps) {
+export function GA4DatePicker({ dateRange, compareRange, explicitNone = false }: GA4DatePickerProps) {
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
@@ -96,6 +99,7 @@ export function GA4DatePicker({ dateRange, compareRange }: GA4DatePickerProps) {
     const params = new URLSearchParams(searchParams.toString())
     params.set('dateRange', pendingDate)
     if (pendingCompare) params.set('compareRange', pendingCompare)
+    else if (explicitNone) params.set('compareRange', 'none')
     else params.delete('compareRange')
     router.push(`${pathname}?${params.toString()}`)
     setOpen(false)
@@ -190,7 +194,7 @@ export function GA4DatePicker({ dateRange, compareRange }: GA4DatePickerProps) {
                 onClick={() => setPendingCompare(opt.value)}
                 className={cn(
                   'block w-full px-3 py-1.5 text-left text-[13px] transition-colors hover:bg-white/[0.05]',
-                  pendingCompare === opt.value ? 'font-semibold text-brand-cyan' : 'text-white/75',
+                  (pendingCompare === 'none' ? null : pendingCompare) === opt.value ? 'font-semibold text-brand-cyan' : 'text-white/75',
                 )}
               >
                 {opt.label}

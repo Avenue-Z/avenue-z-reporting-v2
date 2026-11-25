@@ -77,7 +77,7 @@ function SectionSkeleton() {
 // gap is exactly why AEO's date/model pickers were missing here until they were
 // hand-ported. TODO: extract a single shared report-render module that both the
 // dashboard and portal routes import, so they can't diverge again.
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null, view: OrganicView = null, aeo: AeoRange = 'month', aeoMin = 2, sl: SlTopic = 'brand', slPreview = false) {
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null, view: OrganicView = null, aeo: AeoRange = 'month', aeoMin = 2, sl: SlTopic = 'brand', slPreview = false, deltas: string | null = null) {
   switch (slug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -138,7 +138,7 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (subsection === 'content-impact')  return <ContentImpactReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
-      return <PeecAIReport audience="client" clientSlug={clientSlug} dateRange={dateRange} models={models} />
+      return <PeecAIReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} deltas={deltas} models={models} />
   }
 }
 
@@ -168,11 +168,11 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; deltas?: string }>
 }) {
   const { clientSlug } = await params
   await requirePortalAccess(clientSlug)
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, deltas: deltasParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
@@ -299,7 +299,7 @@ export default async function PortalReportPage({
             PR Influence and Content Impact (not Technical Performance). */}
         {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && (
           <Suspense fallback={null}>
-            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+            <GA4DatePicker dateRange={dateRange} compareRange={subsection ? compareRange : (compareRange ?? 'previous_period')} explicitNone />
           </Suspense>
         )}
         {activeSection === 'peec-ai' && (!subsection || subsection === 'pr-influence' || subsection === 'content-impact') && (
@@ -319,6 +319,8 @@ export default async function PortalReportPage({
                 dateRange: activeSection === 'executive-overview' ? 'last_30_days' : servedDateRange,
                 compareRange: activeSection === 'executive-overview' ? null : servedCompareRange,
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
+                // AEO Overview with Show deltas off: the PDF follows the page (every other body is unchanged).
+                ...(activeSection === 'peec-ai' && !subsection && deltasParam === 'off' ? { deltas: 'off' as const } : {}),
                 // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
                 ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
               } }
@@ -348,7 +350,7 @@ export default async function PortalReportPage({
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
         <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)}
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, deltasParam ?? null)}
         </Suspense>
       </ReportErrorBoundary>
 

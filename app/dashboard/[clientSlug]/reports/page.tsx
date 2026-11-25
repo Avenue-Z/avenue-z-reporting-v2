@@ -63,6 +63,7 @@ function getReportComponent(
   // The Social Listening tab's sl= (its open pill), handed to the section on that tab only.
   sl: SlTopic = 'brand',
   slPreview = false,
+  deltas: string | null = null,
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -93,7 +94,7 @@ function getReportComponent(
       if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (subsection === 'content-impact')  return <ContentImpactReport audience="internal" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
       if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
-      return <PeecAIReport audience="internal" clientSlug={clientSlug} dateRange={dateRange} models={models} />
+      return <PeecAIReport audience="internal" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} deltas={deltas} models={models} />
     case 'paid-media':
       if (subsection === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       if (subsection === 'linkedin')    return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
@@ -133,11 +134,11 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; deltas?: string }>
 }) {
   const { clientSlug } = await params
   await requireStaff()
-  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam } = await searchParams
+  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, deltas: deltasParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
@@ -223,7 +224,7 @@ export default async function ReportPage({
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
   if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
-    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)
+    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, deltasParam ?? null)
     return (
       <HealthProbe
         surface="dashboard"
@@ -273,7 +274,7 @@ export default async function ReportPage({
             period of equal length. */}
         {activeSection === 'peec-ai' && (!subsection || AEO_SUBSECTION_NAMES[subsection]) && (
           <Suspense fallback={null}>
-            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+            <GA4DatePicker dateRange={dateRange} compareRange={subsection ? compareRange : (compareRange ?? 'previous_period')} explicitNone />
           </Suspense>
         )}
         {activeSection === 'paid-media' && (
@@ -305,6 +306,8 @@ export default async function ReportPage({
                 dateRange: activeSection === 'executive-overview' ? 'last_30_days' : servedDateRange,
                 compareRange: activeSection === 'executive-overview' ? null : servedCompareRange,
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
+                // AEO Overview with Show deltas off: the PDF follows the page (every other body is unchanged).
+                ...(activeSection === 'peec-ai' && !subsection && deltasParam === 'off' ? { deltas: 'off' as const } : {}),
                 // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
                 ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
               } }
@@ -338,7 +341,7 @@ export default async function ReportPage({
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
         <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)}
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, deltasParam ?? null)}
         </Suspense>
       </ReportErrorBoundary>
     </TooltipProvider>

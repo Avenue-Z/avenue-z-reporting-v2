@@ -44,3 +44,35 @@ not referenced is safe to delete. Steady state is ~one version per part.
 Rendering a client reads **that client's own** `report_section_config`. There's no shared
 mutable state, so customizing client X can never affect client Y. `promoteToTemplate` is the
 only write that touches shared state (the template).
+
+## Overview v2 layout (staging)
+
+The redesigned AEO Overview is built as new parts (and new versions of existing parts) that reach
+a client **only** through that client's `report_section_config['peec-ai']`:
+
+- `extraParts`: new part ids the template doesn't have (`[{ "id": "...", "version": 1 }]`).
+- `versions`: pin an existing part to a new version (`{ "<part>": 2 }`).
+- `hidden`: part ids removed from the layout.
+- `order`: the final ordering of the ids above.
+
+Apply it to **staging Neon only** until the account lead approves. The production flip is slice 7
+(spec section 4). Slice 1 adds no parts yet, so there is nothing to pin: the compare/deltas
+plumbing is live for every client but only honored on the v2 layout.
+
+Staging override shape (`<...>` placeholders are filled in by the slice that adds the part; omit `versions`/`extraParts`/`order` until then). The three `hidden` entries are the removals every v2 layout makes; add
+the v1 part each later slice replaces as that slice lands, and list its replacement in
+`extraParts`/`versions`/`order`:
+
+```json
+{
+  "peec-ai": {
+    "hidden": ["domains-row", "competitor-visibility", "competitor-gaps"],
+    "versions": { "<part-id>": 2 },
+    "extraParts": [{ "id": "<new-part-id>", "version": 1 }],
+    "order": ["<new-part-id>"]
+  }
+}
+```
+
+Reverting a client is deleting its `peec-ai` key. Edit with the SQL editor on the staging branch
+(see the Neon migrate and seed warnings: do not run `db:seed`, it overwrites `enabled_reports`).

@@ -22,6 +22,8 @@ export interface ServerExport {
   /** The AEO Informed Social tab's range and min competitors, on that tab only. */
   aeo?: AeoRange
   aeoMin?: number
+  /** AEO Overview with its Show deltas switch off. */
+  deltas?: 'off'
 }
 
 interface ExportPdfButtonProps {
