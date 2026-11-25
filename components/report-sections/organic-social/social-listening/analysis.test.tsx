@@ -92,3 +92,35 @@ test('the PDF prints the client entry, whoever exports, and nothing when there i
   const none = render(<ExportModeProvider>{box([approved], APPROVER, null)}</ExportModeProvider>)
   expect(none.container.innerHTML).toBe('')
 })
+
+// Unit G (plan 2026-11-24, F5): a keyword appendix carried from an earlier month.
+const SEP: CommentaryEntry = { ...ENTRY, id: 'sep', viewKey: 'organic-social:social-listening:b-keywords', bodyHtml: '<p>September keywords</p>', periodStart: '2026-09-01', periodEnd: '2026-09-30', status: 'approved', approvedBy: 'a@avenuez.com', approvedAt: '2026-10-02T00:00:00.000Z' }
+const carried = (capabilities: typeof STAFF) => (
+  <SlAnalysis clientSlug="acme" viewKey="organic-social:social-listening:b-keywords" entries={[SEP]} initialId="sep" clientEntryId="sep"
+    capabilities={capabilities} history={[]} labels={ANALYSIS_LABELS} defaultPeriod={{ start: '2026-10-01', end: '2026-10-31' }} carriedFrom="September 2026" />
+)
+
+test("carried, for staff: where it came from, Edit, and no Approve or Revoke", () => {
+  render(carried(APPROVER))
+  expect(screen.getByText("From September 2026. Edit to write this month's.")).toBeTruthy()
+  expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Edit'])
+})
+
+test("carried: Edit drafts this month's own entry, prefilled, never the earlier month's row", async () => {
+  render(carried(STAFF))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('September keywords')
+  expect(screen.queryByRole('button', { name: 'Remove analysis' })).toBeNull()
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+  expect(h.save).toHaveBeenCalledWith({ clientSlug: 'acme', viewKey: 'organic-social:social-listening:b-keywords', bodyHtml: '<p>September keywords</p>', periodStart: '2026-10-01', periodEnd: '2026-10-31' })
+})
+
+test('carried, for a client and in the PDF: the text, with no note and no button', () => {
+  const { unmount } = render(carried(CLIENT))
+  expect(screen.getByText('September keywords')).toBeTruthy()
+  expect(screen.queryByText(/From September/)).toBeNull()
+  expect(screen.queryByRole('button')).toBeNull()
+  unmount()
+  render(<ExportModeProvider>{carried(STAFF)}</ExportModeProvider>)
+  expect(screen.getByText('September keywords')).toBeTruthy()
+})

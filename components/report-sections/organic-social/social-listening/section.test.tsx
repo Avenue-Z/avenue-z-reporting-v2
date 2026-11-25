@@ -372,3 +372,61 @@ describe('authors the team picks', () => {
     expect(heads).toEqual(['Author', 'Network', 'Posts', 'vs Sep', 'Sentiment', 'Reach', 'Reach per mention', 'Engagement', 'Engagement per mention'])
   })
 })
+
+// Unit G (plan 2026-11-24, F5, D10): the keyword appendix carries the newest earlier approved one into a month without its own.
+describe('the keyword appendix carries over', () => {
+  const kw = (month: string, status: 'approved' | 'draft', text: string, box = 'b-keywords'): CommentaryEntry => {
+    const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10)
+    return {
+      id: `kw-${box}-${month}-${status}`, viewKey: `organic-social:social-listening:${box}` as CommentaryEntry['viewKey'], bodyHtml: `<p>${text}</p>`,
+      periodStart: `${month}-01`, periodEnd: last, status, updatedBy: 's@avenuez.com', updatedAt: `${month}-20T00:00:00.000Z`,
+      approvedBy: status === 'approved' ? 'a@avenuez.com' : null, approvedAt: status === 'approved' ? `${month}-20T00:00:00.000Z` : null, deletedAt: null, deletedBy: null,
+    }
+  }
+  const h2Shown = (t: string) => h2s().includes(t)
+
+  test("a client sees September's approved appendix in October, and the section that holds it", async () => {
+    h.getCommentaryForViewPrefix.mockResolvedValue([kw('2026-09', 'approved', 'September keywords')])
+    await show({ role: 'CLIENT_VIEWER', email: null })
+    expect(h2Shown('Keyword appendix')).toBe(true)
+    expect(screen.getByText('September keywords')).toBeTruthy()
+  })
+
+  test('a staff draft for October leaves the client on the carried text, and staff see their draft', async () => {
+    const { monthlyCommentary } = await import('@/components/report-sections/commentary/monthly')
+    h.getCommentaryForViewPrefix.mockResolvedValue([kw('2026-09', 'approved', 'September keywords'), kw('2026-10', 'draft', 'October draft')])
+    const client = await show({ role: 'CLIENT_VIEWER', email: null })
+    expect(screen.getByText('September keywords')).toBeTruthy()
+    client.unmount()
+    vi.mocked(monthlyCommentary).mockClear()
+    const staff = await show()
+    expect(boxes(staff.container)).toContain('b-keywords')
+    expect(vi.mocked(monthlyCommentary).mock.calls.map((c) => c[0].viewKey)).toContain('organic-social:social-listening:b-keywords')
+    expect(staff.container.textContent).not.toContain('September keywords')
+  })
+
+  test("staff see the carried text with where it came from; October's own approved entry replaces it for everyone", async () => {
+    h.getCommentaryForViewPrefix.mockResolvedValue([kw('2026-09', 'approved', 'September keywords')])
+    await show()
+    expect(screen.getByText("From September 2026. Edit to write this month's.")).toBeTruthy()
+    h.getCommentaryForViewPrefix.mockResolvedValue([kw('2026-09', 'approved', 'September keywords'), kw('2026-10', 'approved', 'October keywords')])
+    const { container } = await show({ role: 'CLIENT_VIEWER', email: null })
+    expect(boxes(container)).toContain('b-keywords')
+    expect(container.textContent).not.toContain('September keywords')
+  })
+
+  test('the PDF prints the carried appendix; other boxes never carry over', async () => {
+    h.getCommentaryForViewPrefix.mockResolvedValue([kw('2026-09', 'approved', 'September keywords'), kw('2026-09', 'approved', 'September takeaways', 'b-takeaways')])
+    const { container } = await show({ exporting: true })
+    expect(screen.getByText('September keywords')).toBeTruthy()
+    expect(container.textContent).not.toContain('September takeaways')
+    expect(h2Shown('Key takeaways')).toBe(false)
+  })
+
+  test('industry carries its own appendix, never brand\'s', async () => {
+    h.getCommentaryForViewPrefix.mockResolvedValue([kw('2026-09', 'approved', 'Brand keywords'), kw('2026-09', 'approved', 'Industry keywords', 'i-keywords')])
+    const { container } = await show({ topic: 'industry', role: 'CLIENT_VIEWER', email: null })
+    expect(container.textContent).toContain('Industry keywords')
+    expect(container.textContent).not.toContain('Brand keywords')
+  })
+})
