@@ -131,7 +131,7 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
               </SlCard>
               {view.show.owned && r.owned && (
                 <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={s.donutWrap}
-                  note="Excludes results from the brand's owned channels.">
+                  note="Excludes results from the brand's owned channels">
                   <Donut counts={r.owned.counts} />
                   <Legend counts={r.owned.counts} pct={r.owned.pct} />
                 </SlCard>

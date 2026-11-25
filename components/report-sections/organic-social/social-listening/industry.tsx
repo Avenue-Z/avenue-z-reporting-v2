@@ -37,15 +37,18 @@ export function IndustryPage({ view, boxes, upload, topicName }: TopicPageProps)
           </SlSection>
 
           <SlSection title="Sentiment">
-            <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={`${s.donutWrap} ${f.donutBody}`}>
-              <Donut counts={r.sentiment.counts} />
-              <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
-            </SlCard>
-            {/* Stays until Savannah confirms whether her list meant to remove it: both decks carry it as its own slide
-                (plan 2026-11-24, Q3). */}
-            <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
-              <YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
-            </SlCard>
+            {/* Side by side, as on the approved tab, each box under its card and the row aligned (frames.module.css .pair).
+                The month-by-month card stays until Savannah confirms whether her list meant to remove it: both decks
+                carry it as its own slide (plan 2026-11-24, Q3). */}
+            <div className={`${s.grid} ${s.g2} ${f.pair}`}>
+              <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={s.donutWrap}>
+                <Donut counts={r.sentiment.counts} />
+                <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
+              </SlCard>
+              <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
+                <YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
+              </SlCard>
+            </div>
             <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']}>
               <DailyStack rows={r.dailyBySentiment} />
               <Key items={[{ name: 'Positive', color: SENTIMENT_COLORS.pos }, { name: 'Neutral', color: SENTIMENT_COLORS.neu }, { name: 'Negative', color: SENTIMENT_COLORS.neg }]} />

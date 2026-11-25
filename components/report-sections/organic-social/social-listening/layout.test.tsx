@@ -72,20 +72,17 @@ describe('rows', () => {
     expect(cls(rows[0].row, 'pair')).toBe(true)
   })
 
-  test('industry: no chart card shares a row', async () => {
-    const root = await page({ topic: 'industry' })
-    expect(pairedRows(root)).toEqual([])
-    expect(cards(root).length).toBeGreaterThan(3)
+  test('industry: share of sentiment and the month-by-month chart stay side by side, as on the approved tab; nothing else is paired', async () => {
+    const rows = pairedRows(await page({ topic: 'industry' }))
+    expect(rows.map((r) => r.titles)).toEqual([['Share of sentiment', 'Sentiment, October']])
+    expect(cls(rows[0].row, 'pair')).toBe(true)
   })
 
-  test('brand donuts keep the approved markup inside the card (no width cap); the lone industry donut keeps the half-card width', async () => {
-    const donutBody = (root: Element) => cardTitled(root, 'Share of sentiment')!.querySelector('ul')!.parentElement!
-    const brand = donutBody(await page())
-    expect(cls(brand, 'donutWrap')).toBe(true)
-    expect(cls(brand, 'donutBody')).toBe(false)
-    const industry = donutBody(await page({ topic: 'industry' }))
-    expect(cls(industry, 'donutWrap')).toBe(true)
-    expect(cls(industry, 'donutBody')).toBe(true)
+  test('the donuts keep the approved markup inside their cards', async () => {
+    for (const topic of ['brand', 'industry'] as const) {
+      const body = cardTitled(await page({ topic }), 'Share of sentiment')!.querySelector('ul')!.parentElement!
+      expect(body.className.replace(/_([A-Za-z][\w-]*)_[0-9a-f]{6}/g, '$1')).toBe('cardBody donutWrap')
+    }
   })
 })
 
@@ -113,7 +110,7 @@ describe.each(['brand', 'industry'] as const)('%s topic layout', (topic) => {
 describe('brand copy', () => {
   test("the owned-channels note has the team's wording", async () => {
     const card = cardTitled(await page(), 'Without brand-owned channels')!
-    expect(card.textContent).toContain("Excludes results from the brand's owned channels.")
+    expect(card.textContent).toContain("Excludes results from the brand's owned channels")
     expect(card.textContent).not.toContain('what everyone else said')
   })
 })
