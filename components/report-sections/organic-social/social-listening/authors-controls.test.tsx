@@ -13,8 +13,9 @@ const action = vi.hoisted(() => ({ pickSlItemAction: vi.fn(async () => ({ ok: tr
 vi.mock('@/app/actions/social-listening', () => action)
 
 import { AuthorSortControl, PickToggle } from './authors-controls'
+import { forgetPendingUrl } from './pending-url'
 
-beforeEach(() => { vi.clearAllMocks(); nav.search = 'section=organic-social&slcols=b-ytd'; action.pickSlItemAction.mockResolvedValue({ ok: true }) })
+beforeEach(() => { forgetPendingUrl(); vi.clearAllMocks(); nav.search = 'section=organic-social&slcols=b-ytd'; action.pickSlItemAction.mockResolvedValue({ ok: true }) })
 
 describe('AuthorSortControl', () => {
   test('posts is pressed by default; choosing reach writes slsort and keeps the other params', () => {

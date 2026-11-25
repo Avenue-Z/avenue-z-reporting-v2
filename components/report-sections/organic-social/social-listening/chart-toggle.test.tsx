@@ -13,12 +13,13 @@ vi.mock('next/navigation', () => ({
 
 import { ExportModeProvider } from '@/components/export/export-mode'
 import { ChartToggle } from './chart-toggle'
+import { forgetPendingUrl } from './pending-url'
 
 const LINE = <div data-view="line" />
 const COLS = <div data-view="columns" />
 const shown = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-view]')).map((e) => e.getAttribute('data-view'))
 
-beforeEach(() => { nav.replace.mockReset(); nav.search = 'section=organic-social&subsection=organic-social-listening' })
+beforeEach(() => { forgetPendingUrl(); nav.replace.mockReset(); nav.search = 'section=organic-social&subsection=organic-social-listening' })
 
 describe('ChartToggle', () => {
   test('starts on the line, with Line pressed', () => {
@@ -53,6 +54,24 @@ describe('ChartToggle', () => {
     render(<ChartToggle id="b-ytd" initial="line" line={LINE} columns={COLS} />)
     fireEvent.click(screen.getByRole('button', { name: 'Line' }))
     expect(nav.replace).not.toHaveBeenCalled()
+  })
+
+  // Issue #529 (Paul's #518 review): the URL only changes once a navigation lands, so the mock keeps the same search here.
+  test('two charts switched before the first navigation lands both reach slcols', () => {
+    nav.search = 'section=organic-social&sl=brand'
+    render(<><ChartToggle id="b-ytd" initial="line" line={LINE} columns={COLS} /><ChartToggle id="b-reddit" initial="line" line={LINE} columns={COLS} /></>)
+    const [ytd, reddit] = screen.getAllByRole('button', { name: 'Columns' })
+    fireEvent.click(ytd)
+    fireEvent.click(reddit)
+    expect(nav.replace).toHaveBeenLastCalledWith('/dashboard/c/reports?section=organic-social&sl=brand&slcols=b-ytd%2Cb-reddit', { scroll: false })
+  })
+
+  test('follows a new view from the server, so the screen never disagrees with the URL', () => {
+    const { container, rerender } = render(<ChartToggle id="b-ytd" initial="columns" line={LINE} columns={COLS} />)
+    expect(shown(container)).toEqual(['columns'])
+    rerender(<ChartToggle id="b-ytd" initial="line" line={LINE} columns={COLS} />)
+    expect(shown(container)).toEqual(['line'])
+    expect(screen.getByRole('button', { name: 'Line' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   test('in the PDF: only the chosen view, no buttons', () => {

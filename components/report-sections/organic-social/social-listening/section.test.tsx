@@ -321,6 +321,17 @@ describe('notes on the graphs', () => {
     expect(marks(container)).toEqual(['1. Oct 5: Industry event'])
   })
 
+  // Issue #528: a failed picks read now fails the month read, which reaches this card. Drizzle puts the SQLSTATE on the
+  // error's cause, so the log line reads it there.
+  test('a failed month read shows the error card and logs the database code from the cause', async () => {
+    h.getSlMonth.mockRejectedValue(Object.assign(new Error('Failed query'), { cause: { code: '57014' } }))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await show()
+    expect(screen.getByText("Couldn't load this section.")).toBeTruthy()
+    expect(err).toHaveBeenCalledWith(expect.stringMatching(/^\[social-listening\] read failed slug=a-client month=\S+ code=57014$/))
+    err.mockRestore()
+  })
+
   test('a failed read draws the graphs as without notes and logs one line with no text', async () => {
     h.getChartNotes.mockRejectedValue(new Error('down AMA'))
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})

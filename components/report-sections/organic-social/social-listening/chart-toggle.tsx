@@ -8,6 +8,7 @@ import { useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
 import { formatSlCols, parseSlCols, type SlToggleChart } from '@/lib/organic-social/social-listening/params'
+import { nextHref } from './pending-url'
 import s from '../design/kit.module.css'
 import f from '../design/frames.module.css'
 
@@ -19,18 +20,23 @@ export function ChartToggle({ id, initial, line, columns }: { id: SlToggleChart;
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [view, setView] = useState<ChartView>(initial)
+  // Follows a new view from the server (#529), as AuthorSortControl does, so the screen never shows one view while the URL,
+  // and so the PDF, says the other.
+  const [seen, setSeen] = useState<ChartView>(initial)
+  if (initial !== seen) { setSeen(initial); setView(initial) }
   if (exportMode) return <>{initial === 'columns' ? columns : line}</>
 
   const choose = (next: ChartView) => {
     if (next === view) return
     setView(next)
-    const params = new URLSearchParams(searchParams.toString())
-    const others = parseSlCols(params.get('slcols')).filter((c) => c !== id)
-    const value = formatSlCols(next === 'columns' ? [...others, id] : others)
-    if (value) params.set('slcols', value)
-    else params.delete('slcols')
-    const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    // Built on any URL a click before this one has not landed yet (pending-url.ts, #529).
+    const href = nextHref(pathname, searchParams.toString(), (params) => {
+      const others = parseSlCols(params.get('slcols')).filter((c) => c !== id)
+      const value = formatSlCols(next === 'columns' ? [...others, id] : others)
+      if (value) params.set('slcols', value)
+      else params.delete('slcols')
+    })
+    router.replace(href, { scroll: false })
   }
 
   return (

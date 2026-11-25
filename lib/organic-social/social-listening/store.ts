@@ -19,22 +19,11 @@ import {
   socialListeningHistory, socialListeningPicks, socialListeningPostImages, socialListeningPosts, socialListeningTrends, socialListeningUploads,
 } from '@/lib/db/schema'
 import { monthDate, monthKey, toSlMonthData, trimUploads, type SlMonthRowsJson } from './select'
+import { sqlState, UNDEFINED_TABLE } from './sql-state'
 import type { SlExport, SlMonth, SlMonthData, SlPostGroup, SlSentiment, SlTopic, SlTrendLists } from './types'
 
 // ---------------------------------------------------------------------------------------------------------------
 // Page read
-
-/** The Postgres SQLSTATE of a failed query, never its message. Drizzle wraps the driver's error, so the code can sit on a
- *  `cause` a level or two down. */
-function sqlState(e: unknown): string {
-  let cur: unknown = e
-  for (let i = 0; i < 4 && typeof cur === 'object' && cur !== null; i++) {
-    const code = (cur as { code?: unknown }).code
-    if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) return code
-    cur = (cur as { cause?: unknown }).cause
-  }
-  return 'none'
-}
 
 async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<SlMonthRowsJson> {
   const months = monthsKey === '' ? [] : monthsKey.split(',')
@@ -127,11 +116,14 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
     })
       .from(socialListeningPicks)
       .where(and(eq(socialListeningPicks.clientId, clientId), eq(socialListeningPicks.month, served)))
-      // Fails soft: without the table (0032 not yet applied) or on a failed read, the month has no picks and looks as before,
-      // rather than the whole tab failing. One log line with the SQLSTATE only.
+      // Only a missing table (0032 not applied yet) fails soft: that database has no picks, so the defaults are the true
+      // answer, and the tab works as before. Anything else (a timeout, a dropped connection) is rethrown (#528): this read
+      // is cached for 5 minutes and a failure is not, so swallowing it would cache "no picks" and show a client the authors
+      // the team hid. The section then shows its error card and logs the code. Remove the catch once 0032 is on every
+      // database.
       .catch((e: unknown) => {
-        const code = sqlState(e)
-        console.error(`[social-listening] picks unreadable client=${clientId} month=${served} code=${code}; showing the defaults`)
+        if (sqlState(e) !== UNDEFINED_TABLE) throw e
+        console.error(`[social-listening] picks unreadable client=${clientId} month=${served} code=${UNDEFINED_TABLE}; showing the defaults`)
         return [] as { id: string; kind: string; key: string; state: string; createdAt: Date }[]
       }),
   ])
