@@ -57,7 +57,7 @@ export function AuthorsSection({ r, prevShort, networkLabel, caps, clientSlug, r
         meta={editing ? `${shown} of ${r.influencers.length} shown to the client` : 'Posts, sentiment, reach and engagement'} box={box} tooltip={slCardTooltip('b-authors')}>
         {!exporting && <AuthorSortControl sort={sort} />}
         <div className={s.tableScroll}>
-          <table className={s.table}>
+          <table className={`${s.table} ${f.authorsTable}`}>
             <thead><tr>
               <th>Author</th><th>Network</th><th className={s.r}>Posts</th><th className={s.r}>vs {prevShort}</th>
               <th>Sentiment</th><th className={s.r}>Reach</th><th className={s.r}>Reach per mention</th>
