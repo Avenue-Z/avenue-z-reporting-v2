@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { pickSlItemAction } from '@/app/actions/social-listening'
 import { formatSlSort } from '@/lib/organic-social/social-listening/params'
 import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
+import { nextHref } from './pending-url'
 import f from '../design/frames.module.css'
 import k from '../design/kit.module.css'
 
@@ -22,12 +23,13 @@ export function AuthorSortControl({ sort }: { sort: SlAuthorSort }) {
   if (sort !== seen) { setSeen(sort); setCurrent(sort) }
   const choose = (next: SlAuthorSort) => {
     setCurrent(next)
-    const sp = new URLSearchParams(params.toString())
-    const value = formatSlSort(next)
-    if (value) sp.set('slsort', value)
-    else sp.delete('slsort')
-    const q = sp.toString()
-    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+    // Built on any URL a click before this one has not landed yet (pending-url.ts, #529).
+    const href = nextHref(pathname, params.toString(), (sp) => {
+      const value = formatSlSort(next)
+      if (value) sp.set('slsort', value)
+      else sp.delete('slsort')
+    })
+    router.replace(href, { scroll: false })
   }
   return (
     <div className={f.toggle} role="group" aria-label="Sort authors by">

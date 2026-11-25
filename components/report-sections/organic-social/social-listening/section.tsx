@@ -33,6 +33,7 @@ import { SlAnalysis } from './analysis'
 import { CarriedAppendix } from './carried-appendix'
 import { carriedEntry, hasOwnEntry, isCarriedBox } from '@/lib/organic-social/social-listening/carried'
 import { canApproveCommentary, canEditCommentary } from '@/lib/commentary/permissions'
+import { sqlState } from '@/lib/organic-social/social-listening/sql-state'
 import s from '../design/kit.module.css'
 
 const RANGE = /^custom:(\d{4}-(?:0[1-9]|1[0-2]))-01,\d{4}-\d{2}-\d{2}$/
@@ -84,8 +85,8 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   try {
     [data, entries] = await Promise.all([getSlMonth(client.id, servedMonths(month)), getCommentaryForViewPrefix(client.id, SL_VIEW_PREFIX)])
   } catch (e) {
-    const code = typeof e === 'object' && e !== null && typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : 'none'
-    console.error(`[social-listening] read failed slug=${clientSlug} month=${month} code=${code}`)
+    // The code from the cause too: Drizzle wraps the driver's error, and a failed picks read now ends here (#528).
+    console.error(`[social-listening] read failed slug=${clientSlug} month=${month} code=${sqlState(e)}`)
     return <Fallback kind="error" />
   }
 

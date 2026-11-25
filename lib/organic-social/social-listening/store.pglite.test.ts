@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
+import { sqlState } from './sql-state'
 
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 // cached() memoizes through Next's data cache; here every read goes straight to the database.
@@ -249,6 +250,23 @@ describe('picks', () => {
     ]
     for (const v of bad) await expect(pg.exec(`INSERT INTO "social_listening_picks" ("client_id", "month", "kind", "key", "state", "created_by") VALUES ${v};`)).rejects.toThrow()
   })
+})
+
+// Issue #528 (Paul's #518 review): the page read is cached for 5 minutes, so a picks read that failed for any other reason
+// (a timeout, a dropped connection) must fail the read, which is never cached, rather than be stored as "no picks" and show
+// a client the authors the team hid. A renamed column stands in for that failure: its code is 42703, not 42P01.
+test('any other failure of the picks read fails the whole read, so "no picks" is never cached', async () => {
+  await upload('2026-10', 100, true)
+  await pg.exec('ALTER TABLE "social_listening_picks" RENAME COLUMN "state" TO "state_gone";')
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    const failed = await store.getSlMonth(CLIENT, ['2026-10']).then(() => null, (e: unknown) => e)
+    expect(sqlState(failed)).toBe('42703')
+    expect(err).not.toHaveBeenCalled()
+  } finally {
+    err.mockRestore()
+    await pg.exec('ALTER TABLE "social_listening_picks" RENAME COLUMN "state_gone" TO "state";')
+  }
 })
 
 test('without the picks table (0032 not applied) the page read still works, with no picks and one log line', async () => {
