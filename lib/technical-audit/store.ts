@@ -67,10 +67,17 @@ export async function ensureSnapshot(
   return { id, created }
 }
 
-/** Atomically take a run for this sweep. True iff this caller now owns it: the run is pending or failed AND was never
- *  started or its last claim is older than `staleAfterMs` (the previous owner is presumed dead). Two concurrent
- *  sweeps cannot both get true: the second UPDATE re-checks the row after the first commits and finds it fresh. */
-export async function claimRun(snapshotId: string, source: TaSource, staleAfterMs = 600_000): Promise<boolean> {
+/** Atomically take a run for this sweep. True iff this caller now owns it: the run is pending or failed (or `missing`
+ *  with `includeMissing`, for re-checking absent sources on draft snapshots) AND was never started or its last claim
+ *  is older than `staleAfterMs` (the previous owner is presumed dead). A just-failed run keeps its started_at, so it
+ *  waits `staleAfterMs` before it can be reclaimed (pass 0 to retry at once). Two concurrent sweeps cannot both get
+ *  true: the second UPDATE re-checks the row after the first commits and finds it fresh. */
+export async function claimRun(
+  snapshotId: string,
+  source: TaSource,
+  staleAfterMs = 600_000,
+  opts: { includeMissing?: boolean } = {},
+): Promise<boolean> {
   if (!Number.isFinite(staleAfterMs) || staleAfterMs < 0) throw new Error('staleAfterMs must be a non-negative number')
   const rows = await db
     .update(techAuditSourceRuns)
@@ -78,7 +85,7 @@ export async function claimRun(snapshotId: string, source: TaSource, staleAfterM
     .where(and(
       eq(techAuditSourceRuns.snapshotId, snapshotId),
       eq(techAuditSourceRuns.source, source),
-      inArray(techAuditSourceRuns.status, ['pending', 'failed']),
+      inArray(techAuditSourceRuns.status, opts.includeMissing ? ['pending', 'failed', 'missing'] : ['pending', 'failed']),
       or(
         isNull(techAuditSourceRuns.startedAt),
         sql`${techAuditSourceRuns.startedAt} < now() - (${Math.floor(staleAfterMs)} * interval '1 millisecond')`,
@@ -93,6 +100,7 @@ export async function claimRun(snapshotId: string, source: TaSource, staleAfterM
  *  the same rows. Only the keys present in `metrics` are written (null is a real value, undefined is "not mine"), so
  *  one source never wipes another's columns. */
 export async function completeRun(
+  clientId: string,
   snapshotId: string,
   source: TaSource,
   raw: Uint8Array,
@@ -111,7 +119,12 @@ export async function completeRun(
   const [run] = await db
     .select({ id: techAuditSourceRuns.id })
     .from(techAuditSourceRuns)
-    .where(and(eq(techAuditSourceRuns.snapshotId, snapshotId), eq(techAuditSourceRuns.source, source)))
+    .innerJoin(techAuditSnapshots, eq(techAuditSnapshots.id, techAuditSourceRuns.snapshotId))
+    .where(and(
+      eq(techAuditSourceRuns.snapshotId, snapshotId),
+      eq(techAuditSourceRuns.source, source),
+      eq(techAuditSnapshots.clientId, clientId),
+    ))
     .limit(1)
   if (!run) throw new Error('run not found')
 
@@ -146,6 +159,7 @@ export async function completeRun(
  *  not there. A run that is already complete is left alone: a late failure from a slow duplicate sweep must not
  *  erase good data. The reason is stored truncated; callers pass a sanitized message, never file contents. */
 export async function failRun(
+  clientId: string,
   snapshotId: string,
   source: TaSource,
   status: 'failed' | 'missing',
@@ -156,18 +170,26 @@ export async function failRun(
     .set({ status, lastError: reason.slice(0, LAST_ERROR_MAX), finishedAt: sql`now()`, updatedAt: sql`now()` })
     .where(and(
       eq(techAuditSourceRuns.snapshotId, snapshotId),
+      inArray(techAuditSourceRuns.snapshotId, ownSnapshot(clientId, snapshotId)),
       eq(techAuditSourceRuns.source, source),
       ne(techAuditSourceRuns.status, 'complete'),
     ))
 }
 
-export async function setSnapshotStatus(snapshotId: string, status: 'draft' | 'published', by: string): Promise<void> {
-  await db
+export async function setSnapshotStatus(
+  clientId: string,
+  snapshotId: string,
+  status: 'draft' | 'published',
+  by: string,
+): Promise<void> {
+  const rows = await db
     .update(techAuditSnapshots)
     .set(status === 'published'
       ? { status, publishedAt: sql`now()`, publishedBy: by, updatedAt: sql`now()` }
       : { status, publishedAt: null, publishedBy: null, updatedAt: sql`now()` })
-    .where(eq(techAuditSnapshots.id, snapshotId))
+    .where(and(eq(techAuditSnapshots.id, snapshotId), eq(techAuditSnapshots.clientId, clientId)))
+    .returning({ id: techAuditSnapshots.id })
+  if (rows.length === 0) throw new Error('Snapshot not found')
 }
 
 /** A client's snapshots, newest first. */
@@ -181,14 +203,15 @@ export async function getSnapshots(clientId: string, opts: { publishedOnly: bool
     .orderBy(desc(techAuditSnapshots.snapshotDate))
 }
 
-/** One snapshot with its runs (never `raw`), metrics and issues; null when the id is unknown. */
-export async function getSnapshotBundle(snapshotId: string): Promise<{
+/** One snapshot with its runs (never `raw`), metrics and issues; null when the id is unknown or another client's. */
+export async function getSnapshotBundle(clientId: string, snapshotId: string): Promise<{
   snapshot: SnapshotRow
   runs: RunRow[]
   metrics: MetricsRow | null
   issues: IssueRow[]
 } | null> {
-  const [snapshot] = await db.select().from(techAuditSnapshots).where(eq(techAuditSnapshots.id, snapshotId)).limit(1)
+  const [snapshot] = await db.select().from(techAuditSnapshots)
+    .where(and(eq(techAuditSnapshots.id, snapshotId), eq(techAuditSnapshots.clientId, clientId))).limit(1)
   if (!snapshot) return null
   const [runs, metrics, issues] = await Promise.all([
     db.select({
@@ -225,6 +248,12 @@ export async function setOverride(
       target: [techAuditIssueOverrides.clientId, techAuditIssueOverrides.issueKey],
       set: { ...fields, updatedBy: by, updatedAt: sql`now()` },
     })
+}
+
+/** Subquery: the snapshot id, only if it belongs to the client. */
+function ownSnapshot(clientId: string, snapshotId: string) {
+  return db.select({ id: techAuditSnapshots.id }).from(techAuditSnapshots)
+    .where(and(eq(techAuditSnapshots.id, snapshotId), eq(techAuditSnapshots.clientId, clientId)))
 }
 
 /** The entries of `obj` whose value is not undefined (null is kept), minus the keys a caller may not set. */
