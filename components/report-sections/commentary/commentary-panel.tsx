@@ -92,7 +92,7 @@ export function CommentaryPanel({
   const selected = entries.find((e) => e.id === selectedId) ?? null
   const exportMode = useExportMode()
 
-  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} title={labels.title} {...(look ? { look } : {})} />
+  if (exportMode) return <ExportCommentary entry={entries.find((e) => e.id === clientEntryId) ?? null} title={labels.title} periodLabel={periodLabel} {...(look ? { look } : {})} />
   const K = look === 'kit'
 
   function refresh() {
@@ -250,13 +250,13 @@ export function CommentaryPanel({
 /** Commentary as the PDF export prints it: what the client sees, whoever exports. The client's entry is worked out
  *  server-side with the client's own rules (index.tsx; monthly.tsx for a locked month, where a whole-month entry wins),
  *  not from `initialId`, which for staff is the newest entry including drafts. None, nothing. No controls; one block. */
-function ExportCommentary({ entry: shown, title, look }: { entry: CommentaryEntry | null; title: string; look?: 'kit' }) {
+function ExportCommentary({ entry: shown, title, look, periodLabel }: { entry: CommentaryEntry | null; title: string; look?: 'kit'; periodLabel?: string }) {
   if (!shown) return null
   const K = look === 'kit'
   return (
     <section data-export-block="" className={K ? `${kit.root} ${bx.box} mb-8 space-y-3 p-4` : 'mb-8 space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4'}>
       <h2 className={K ? `${kit.lbl} ${bx.lblClient}` : 'text-sm font-extrabold text-white'}>{title}</h2>
-      <p className="text-xs text-text-muted">Reporting period: {fmt(shown.periodStart)} – {fmt(shown.periodEnd)}</p>
+      <p className="text-xs text-text-muted">{periodLabel ?? `Reporting period: ${fmt(shown.periodStart)} – ${fmt(shown.periodEnd)}`}</p>
       <div
         className={K ? kit.commBody : 'text-sm text-white [&_a]:underline [&_a]:text-blue-400 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h3]:text-base [&_h3]:font-bold [&_p]:my-1'}
         dangerouslySetInnerHTML={{ __html: shown.bodyHtml }}
