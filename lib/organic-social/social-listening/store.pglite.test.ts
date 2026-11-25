@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
+import { sqlState } from './sql-state'
 
 vi.mock('next/cache', () => ({ updateTag: vi.fn() }))
 // cached() memoizes through Next's data cache; here every read goes straight to the database.
@@ -37,15 +38,19 @@ beforeAll(async () => {
   pg = new PGlite({ serializers: { 17: (x: unknown) => String(x) }, parsers: { 17: (x: string) => x } })
   await pg.exec(`CREATE TYPE "commentary_status" AS ENUM ('draft', 'approved'); CREATE TABLE "clients" ("id" uuid PRIMARY KEY, "slug" text NOT NULL DEFAULT 'a-client', "dash_social_config" jsonb, "hidden_reports" text[] NOT NULL DEFAULT '{}', "enabled_reports" text[] NOT NULL DEFAULT '{organic-social}');`)
   const dir = join(process.cwd(), 'drizzle')
-  const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('0030_'))!), 'utf8')
-  for (const s of sql.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)) await pg.exec(s)
+  // 0030 creates the tables; 0031 adds the delivered report's media counts and top authors to the history rows (2026-11-24);
+  // 0032 adds the month's author and card picks (Unit F).
+  for (const prefix of ['0030_', '0031_', '0032_']) {
+    const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith(prefix))!), 'utf8')
+    for (const s of sql.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)) await pg.exec(s)
+  }
   const schema = await import('@/lib/db/schema')
   h.db = drizzle(pg, { schema }) as unknown as Record<string, unknown>
   store = await import('./store')
 })
 
 beforeEach(async () => {
-  await pg.exec(`TRUNCATE "social_listening_post_images", "social_listening_posts", "social_listening_uploads", "social_listening_history", "social_listening_trends", "clients" CASCADE;`)
+  await pg.exec(`TRUNCATE "social_listening_picks", "social_listening_post_images", "social_listening_posts", "social_listening_uploads", "social_listening_history", "social_listening_trends", "clients" CASCADE;`)
   await pg.exec(`INSERT INTO "clients" ("id", "slug", "dash_social_config") VALUES ('${CLIENT}', 'a-client', '{"brandId": 1}'), ('${OTHER}', 'other-client', null);`)
 })
 
@@ -202,4 +207,81 @@ describe('trends', () => {
     expect((await store.getSlMonth(CLIENT, ['2026-11'])).trends!.approved).toBeNull()
     expect(await store.approveTrends({ clientId: CLIENT, month: '2026-11', by: 'a', seen: lists('newer') })).toBe(true)
   })
+})
+
+// Unit D (plan 2026-11-24): migration 0031's two nullable columns on the delivered report rows.
+describe('history media and authors', () => {
+  const insertHistory = (media: string | null, authors: string | null) => pg.exec(
+    `INSERT INTO "social_listening_history" ("client_id","month","topic","results","pos","neu","neg","source","media","authors")
+     VALUES ('${CLIENT}','2026-10-01','brand',100,70,20,10,'delivered-deck 2026-10',${media === null ? 'NULL' : `'${media}'`},${authors === null ? 'NULL' : `'${authors}'`})`)
+
+  test("a report row's media counts and top authors come back with the page read", async () => {
+    await insertHistory('[{"media":"X","count":12},{"media":"Blogs","count":3}]', '[{"authorId":"a1","name":"Made Up","network":"Instagram","posts":4}]')
+    const [h] = (await store.getSlMonth(CLIENT, ['2026-10'])).history
+    expect(h.media).toEqual([{ media: 'X', count: 12 }, { media: 'Blogs', count: 3 }])
+    expect(h.authors).toEqual([{ authorId: 'a1', name: 'Made Up', network: 'Instagram', posts: 4 }])
+  })
+  test('a row without them reads as before, with both null', async () => {
+    await insertHistory(null, null)
+    const [h] = (await store.getSlMonth(CLIENT, ['2026-10'])).history
+    expect(h).toMatchObject({ pos: 70, media: null, authors: null })
+  })
+})
+
+// Unit F (plan 2026-11-24): the month's picks. A pick is always a new row; the page reads the served month's rows.
+describe('picks', () => {
+  test('a pick lands as a new row each time, and the page reads the served month only, for this client only', async () => {
+    await store.insertPick({ clientId: CLIENT, month: '2026-10', kind: 'author', key: 'made-up:1', state: 'hidden', by: 'a@avenuez.com' })
+    await store.insertPick({ clientId: CLIENT, month: '2026-10', kind: 'author', key: 'made-up:1', state: 'shown', by: 'b@avenuez.com' })
+    await store.insertPick({ clientId: CLIENT, month: '2026-09', kind: 'card', key: 'Most active author', state: 'hidden', by: 'a@avenuez.com' })
+    await store.insertPick({ clientId: OTHER, month: '2026-10', kind: 'author', key: 'made-up:1', state: 'hidden', by: 'a@avenuez.com' })
+    const data = await store.getSlMonth(CLIENT, ['2026-09', '2026-10'])
+    expect(data.picks!.map((p) => [p.kind, p.key, p.state])).toEqual(expect.arrayContaining([['author', 'made-up:1', 'hidden'], ['author', 'made-up:1', 'shown']]))
+    expect(data.picks).toHaveLength(2)
+    expect(data.picks!.every((p) => /^\d{4}-\d{2}-\d{2}T/.test(p.at))).toBe(true)
+  })
+
+  test('the table refuses an unknown kind or state, an empty key and a month not on its 1st', async () => {
+    const bad = [
+      `('${CLIENT}', '2026-10-01', 'post', 'k', 'shown', 'x')`,
+      `('${CLIENT}', '2026-10-01', 'author', 'k', 'maybe', 'x')`,
+      `('${CLIENT}', '2026-10-01', 'author', '', 'shown', 'x')`,
+      `('${CLIENT}', '2026-10-02', 'author', 'k', 'shown', 'x')`,
+    ]
+    for (const v of bad) await expect(pg.exec(`INSERT INTO "social_listening_picks" ("client_id", "month", "kind", "key", "state", "created_by") VALUES ${v};`)).rejects.toThrow()
+  })
+})
+
+// Issue #528 (Paul's #518 review): the page read is cached for 5 minutes, so a picks read that failed for any other reason
+// (a timeout, a dropped connection) must fail the read, which is never cached, rather than be stored as "no picks" and show
+// a client the authors the team hid. A renamed column stands in for that failure: its code is 42703, not 42P01.
+test('any other failure of the picks read fails the whole read, so "no picks" is never cached', async () => {
+  await upload('2026-10', 100, true)
+  await pg.exec('ALTER TABLE "social_listening_picks" RENAME COLUMN "state" TO "state_gone";')
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    const failed = await store.getSlMonth(CLIENT, ['2026-10']).then(() => null, (e: unknown) => e)
+    expect(sqlState(failed)).toBe('42703')
+    expect(err).not.toHaveBeenCalled()
+  } finally {
+    err.mockRestore()
+    await pg.exec('ALTER TABLE "social_listening_picks" RENAME COLUMN "state_gone" TO "state";')
+  }
+})
+
+test('without the picks table (0032 not applied) the page read still works, with no picks and one log line', async () => {
+  await upload('2026-10', 100, true)
+  await pg.exec('DROP TABLE "social_listening_picks";')
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  try {
+    const data = await store.getSlMonth(CLIENT, ['2026-10'])
+    expect(data.uploads).toHaveLength(1)
+    expect(data.picks).toEqual([])
+    expect(err).toHaveBeenCalledWith(expect.stringMatching(/^\[social-listening\] picks unreadable client=.* month=2026-10-01 code=42P01; showing the defaults$/))
+  } finally {
+    err.mockRestore()
+    const dir = join(process.cwd(), 'drizzle')
+    const sql = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('0032_'))!), 'utf8')
+    for (const s of sql.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)) await pg.exec(s)
+  }
 })

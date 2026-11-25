@@ -16,9 +16,10 @@ import { db } from '@/lib/db/client'
 import { cached } from '@/lib/cache'
 import {
   byteaToDriver, clients,
-  socialListeningHistory, socialListeningPostImages, socialListeningPosts, socialListeningTrends, socialListeningUploads,
+  socialListeningHistory, socialListeningPicks, socialListeningPostImages, socialListeningPosts, socialListeningTrends, socialListeningUploads,
 } from '@/lib/db/schema'
 import { monthDate, monthKey, toSlMonthData, trimUploads, type SlMonthRowsJson } from './select'
+import { sqlState, UNDEFINED_TABLE } from './sql-state'
 import type { SlExport, SlMonth, SlMonthData, SlPostGroup, SlSentiment, SlTopic, SlTrendLists } from './types'
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -26,7 +27,7 @@ import type { SlExport, SlMonth, SlMonthData, SlPostGroup, SlSentiment, SlTopic,
 
 async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<SlMonthRowsJson> {
   const months = monthsKey === '' ? [] : monthsKey.split(',')
-  if (months.length === 0) return { uploads: [], history: [], posts: [], images: [], trends: null }
+  if (months.length === 0) return { uploads: [], history: [], posts: [], images: [], trends: null, picks: [] }
   const dates = months.map(monthDate)
   // Posts and trends belong to the served month, which is the latest month asked for.
   const served = [...dates].sort().at(-1)!
@@ -37,7 +38,7 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
     isNull(socialListeningPosts.replacedAt),
   )
 
-  const [uploads, history, posts, images, trends] = await Promise.all([
+  const [uploads, history, posts, images, trends, picks] = await Promise.all([
     db.select({
       id: socialListeningUploads.id,
       month: socialListeningUploads.month,
@@ -63,6 +64,8 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
       redditNeu: socialListeningHistory.redditNeu,
       redditNeg: socialListeningHistory.redditNeg,
       source: socialListeningHistory.source,
+      media: socialListeningHistory.media,
+      authors: socialListeningHistory.authors,
     })
       .from(socialListeningHistory)
       .where(and(eq(socialListeningHistory.clientId, clientId), inArray(socialListeningHistory.month, dates))),
@@ -102,6 +105,27 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
       .from(socialListeningTrends)
       .where(and(eq(socialListeningTrends.clientId, clientId), eq(socialListeningTrends.month, served)))
       .limit(1),
+    // The served month's author and card picks (Unit F). Every row is read: the newest per item wins (picks.ts), and a
+    // month holds at most a few dozen.
+    db.select({
+      id: socialListeningPicks.id,
+      kind: socialListeningPicks.kind,
+      key: socialListeningPicks.key,
+      state: socialListeningPicks.state,
+      createdAt: socialListeningPicks.createdAt,
+    })
+      .from(socialListeningPicks)
+      .where(and(eq(socialListeningPicks.clientId, clientId), eq(socialListeningPicks.month, served)))
+      // Only a missing table (0032 not applied yet) fails soft: that database has no picks, so the defaults are the true
+      // answer, and the tab works as before. Anything else (a timeout, a dropped connection) is rethrown (#528): this read
+      // is cached for 5 minutes and a failure is not, so swallowing it would cache "no picks" and show a client the authors
+      // the team hid. The section then shows its error card and logs the code. Remove the catch once 0032 is on every
+      // database.
+      .catch((e: unknown) => {
+        if (sqlState(e) !== UNDEFINED_TABLE) throw e
+        console.error(`[social-listening] picks unreadable client=${clientId} month=${served} code=${UNDEFINED_TABLE}; showing the defaults`)
+        return [] as { id: string; kind: string; key: string; state: string; createdAt: Date }[]
+      }),
   ])
 
   return {
@@ -112,6 +136,7 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
     posts,
     images,
     trends: trends[0] ?? null,
+    picks: picks.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
   }
 }
 
@@ -439,6 +464,13 @@ export async function deleteImage(id: string): Promise<boolean> {
     .returning({ id: socialListeningPostImages.id })
   if (rows.length > 0) updateTag('db')
   return rows.length > 0
+}
+
+/** Record a pick for a month (Unit F): always a new row, never an update, so two people picking at once both land and the
+ *  newest wins on read. */
+export async function insertPick(p: { clientId: string; month: SlMonth; kind: 'author' | 'card'; key: string; state: 'shown' | 'hidden'; by: string }): Promise<void> {
+  await db.insert(socialListeningPicks).values({ clientId: p.clientId, month: monthDate(p.month), kind: p.kind, key: p.key, state: p.state, createdBy: p.by })
+  updateTag('db')
 }
 
 /** Save the month's trend lists as a draft. The approved lists are left as they are, so clients keep seeing them

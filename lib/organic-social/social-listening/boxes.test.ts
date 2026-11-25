@@ -5,15 +5,15 @@ import { COMMENTARY_VIEWS, isCommentaryViewKey, recommendationsViewKeyFor } from
 import { isOrganicSocialViewKey } from '@/lib/commentary/month'
 
 // Spec section 9, verbatim and in page order.
-const BRAND = 'b-kpis b-daily b-sent b-owned b-cross b-ytd b-posneu b-reddit b-media b-themes b-trends b-conv b-authors b-posts b-takeaways b-keywords'.split(' ')
+const BRAND = 'b-kpis b-daily b-sent b-owned b-cross b-ytd b-posneu b-reddit b-media b-mediasent b-themes b-trends b-conv b-authors b-posts b-takeaways b-keywords'.split(' ')
 const INDUSTRY = 'i-kpis i-daily i-sent i-ytd i-sentday i-cross i-themes i-conv i-takeaways i-keywords'.split(' ')
 
 describe('the box ids', () => {
-  test('are the spec section 9 list, 16 brand then 10 industry, 26 in all', () => {
+  test('are the spec section 9 list plus the media types by sentiment box (2026-11-24), 17 brand then 10 industry, 27 in all', () => {
     expect([...SL_BRAND_BOX_IDS]).toEqual(BRAND)
     expect([...SL_INDUSTRY_BOX_IDS]).toEqual(INDUSTRY)
     expect([...SL_BOX_IDS]).toEqual([...BRAND, ...INDUSTRY])
-    expect(new Set(SL_BOX_IDS).size).toBe(26)
+    expect(new Set(SL_BOX_IDS).size).toBe(27)
   })
 
   test('each view key is the shared prefix plus the id, under Organic Social', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { authorChanges, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries } from './compare'
+import { authorBaseline, authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, uploadMediaCounts, ytdSeries } from './compare'
 import type { SlExport, SlHistory, SlTopic, SlUpload } from './types'
 
 // Made-up numbers only (the repo is public).
@@ -17,7 +17,7 @@ function up(data: SlExport, beforeOpen: boolean, at: string): SlUpload {
 function hist(month: string, p: { pos: number; neu: number; neg: number }, extra: Partial<SlHistory> = {}, topic: SlTopic = 'brand'): SlHistory {
   return {
     month, topic, results: 1000, uniqueAuthors: 500, engagement: 2000, potentialReach: 90000,
-    ...p, redditPos: null, redditNeu: null, redditNeg: null, source: 'report', ...extra,
+    ...p, redditPos: null, redditNeu: null, redditNeg: null, source: 'report', media: null, authors: null, ...extra,
   }
 }
 
@@ -180,12 +180,12 @@ describe('mediaChanges', () => {
   const now = exp('2026-11', { pos: 30, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 5, neu: 5, neg: 5 }, { media: 'Blogs', pos: 4, neu: 0, neg: 0 }, { media: 'Threads', pos: 6, neu: 0, neg: 0 }, { media: 'Reddit', pos: 0, neu: 0, neg: 0 }] })
 
   test('percent change of each media type count against the previous month presented upload', () => {
-    const c = mediaChanges(now, prev)
+    const c = mediaChanges(now, uploadMediaCounts(prev))
     expect(c.get('X')).toBeCloseTo(50, 9)
     expect(c.get('Reddit')).toBe(-100)
   })
   test('new media type has n/a change, and so does one with no results last month', () => {
-    const c = mediaChanges(now, prev)
+    const c = mediaChanges(now, uploadMediaCounts(prev))
     expect(c.get('Threads')).toBeNull()
     expect(c.get('Blogs')).toBeNull()
   })
@@ -195,26 +195,93 @@ describe('mediaChanges', () => {
   test('a media name from the file is a Map key, never an object key: "__proto__" is an ordinary name (#477)', () => {
     const p = exp('2026-10', { pos: 2, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: '__proto__', pos: 2, neu: 0, neg: 0 }] })
     const n = exp('2026-11', { pos: 3, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: '__proto__', pos: 3, neu: 0, neg: 0 }] })
-    expect(mediaChanges(n, p)).toEqual(new Map([['__proto__', 50]]))
+    expect(mediaChanges(n, uploadMediaCounts(p))).toEqual(new Map([['__proto__', 50]]))
   })
 })
 
+// The baseline from last month's presented upload, as authorBaseline gives it when there is no history row.
+const baseOf = (prev: SlExport | null) => (prev ? authorBaseline(prev.month, prev.topic, [], [up(prev, true, '2026-11-01T00:00:00Z')]) : null)
 describe('authorChanges', () => {
   const inf = (authorId: string, name: string, posts: number) => ({ authorId, name, network: 'X', posts, reach: 1, engagement: 1, pos: posts, neu: 0, neg: 0 })
   test('posts difference, matched by author id, not name', () => {
     const prev = exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'Old name', 4), inf('b2', 'Same name', 9)] })
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'New name', 7), inf('c3', 'Same name', 2)] })
-    expect(authorChanges(now, prev)).toEqual(new Map([['a1', 3], ['c3', null]]))
+    expect(authorChanges(now, baseOf(prev))).toEqual(new Map([['a1', 3], ['c3', null]]))
   })
   test('no upload or no influencers last month: every change is n/a; no influencers now: empty', () => {
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 'x', 1)] })
     expect(authorChanges(now, null)).toEqual(new Map([['a1', null]]))
-    expect(authorChanges(now, exp('2026-10', { pos: 1, neu: 0, neg: 0 }))).toEqual(new Map([['a1', null]]))
+    expect(authorChanges(now, baseOf(exp('2026-10', { pos: 1, neu: 0, neg: 0 })))).toEqual(new Map([['a1', null]]))
     expect(authorChanges(exp('2026-11', { pos: 1, neu: 0, neg: 0 }), null)).toEqual(new Map())
   })
   test('an author id from the file is a Map key, never an object key: "__proto__" is an ordinary id (#477)', () => {
     const prev = exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 'x', 4)] })
     const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('__proto__', 'x', 7), inf('constructor', 'y', 1)] })
-    expect(authorChanges(now, prev)).toEqual(new Map([['__proto__', 3], ['constructor', null]]))
+    expect(authorChanges(now, baseOf(prev))).toEqual(new Map([['__proto__', 3], ['constructor', null]]))
+  })
+})
+
+// Unit F (plan 2026-11-24, D4): the posts change compares with the authors the delivered report showed, when its row has them.
+describe('authorBaseline', () => {
+  const inf = (authorId: string, posts: number) => ({ authorId, name: authorId, network: 'X', posts, reach: 1, engagement: 1, pos: posts, neu: 0, neg: 0 })
+  const octUpload = up(exp('2026-10', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 4), inf('b2', 9)] }), true, '2026-11-02T00:00:00Z')
+  const row = (authors: SlHistory['authors']): SlHistory => ({
+    month: '2026-10', topic: 'brand', results: 1, uniqueAuthors: null, engagement: null, potentialReach: null, pos: 100, neu: 0, neg: 0,
+    redditPos: null, redditNeu: null, redditNeg: null, source: 'delivered-deck', media: null, authors,
+  })
+  test("the delivered report's authors when its row has them, else last month's upload, else nothing", () => {
+    expect(authorBaseline('2026-10', 'brand', [row([{ authorId: 'a1', name: 'a1', network: 'X', posts: 6 }])], [octUpload])).toEqual(new Map([['a1', 6]]))
+    expect(authorBaseline('2026-10', 'brand', [row(null)], [octUpload])).toEqual(new Map([['a1', 4], ['b2', 9]]))
+    expect(authorBaseline('2026-10', 'brand', [], [])).toBeNull()
+  })
+  test('an author the report did not show reads as new, though the upload had it', () => {
+    const now = exp('2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [inf('a1', 8), inf('b2', 9)] })
+    expect(authorChanges(now, authorBaseline('2026-10', 'brand', [row([{ authorId: 'a1', name: 'a1', network: 'X', posts: 6 }])], [octUpload]))).toEqual(new Map([['a1', 2], ['b2', null]]))
+  })
+})
+
+// Unit D (plan 2026-11-24, D4, Q2): last month's media counts come from the delivered report when its row has them, else
+// from last month's presented upload; and a media type new this month leaves "Other" without a fair comparison.
+describe('mediaBaseline', () => {
+  const sepUpload = up(exp('2026-09', { pos: 9, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 9, neu: 0, neg: 0 }] }), true, '2026-10-02T00:00:00Z')
+  const sepReport = hist('2026-09', { pos: 80, neu: 15, neg: 5 }, { media: [{ media: 'X', count: 12 }, { media: 'Blogs', count: 3 }] })
+
+  test("the report's media counts win over last month's upload", () => {
+    expect(mediaBaseline('2026-09', 'brand', [sepReport], [sepUpload])).toEqual({ source: 'report', counts: new Map([['X', 12], ['Blogs', 3]]) })
+  })
+  test('a report row without media counts falls back to the presented upload', () => {
+    expect(mediaBaseline('2026-09', 'brand', [hist('2026-09', { pos: 80, neu: 15, neg: 5 })], [sepUpload]))
+      .toEqual({ source: 'export', counts: new Map([['X', 9]]) })
+  })
+  test('neither: no baseline; another month or topic is never read', () => {
+    expect(mediaBaseline('2026-09', 'brand', [], [])).toBeNull()
+    expect(mediaBaseline('2026-09', 'brand', [{ ...sepReport, topic: 'industry' }, { ...sepReport, month: '2026-08' }], [])).toBeNull()
+  })
+  test('a media name from the report is a Map key, never an object key', () => {
+    const b = mediaBaseline('2026-09', 'brand', [hist('2026-09', { pos: 1, neu: 0, neg: 0 }, { media: [{ media: '__proto__', count: 2 }] })], [])
+    expect(b?.counts.get('__proto__')).toBe(2)
+  })
+})
+
+describe('mediaChanges and a new media type (Q2)', () => {
+  const now = exp('2026-10', { pos: 30, neu: 0, neg: 0 }, { sentimentByMedia: [
+    { media: 'X', pos: 12, neu: 0, neg: 0 }, { media: 'Newspaper', pos: 6, neu: 0, neg: 0 },
+    { media: 'Other', pos: 10, neu: 0, neg: 0 }, { media: 'Online News Other', pos: 4, neu: 0, neg: 0 },
+  ] })
+
+  test('a type new this month leaves Other at n/a (its results were inside last month\'s Other); Online News Other is untouched', () => {
+    const c = mediaChanges(now, new Map([['X', 10], ['Other', 5], ['Online News Other', 2]]))
+    expect(c.get('Newspaper')).toBeNull()
+    expect(c.get('Other')).toBeNull()
+    expect(c.get('Online News Other')).toBe(100)
+    expect(c.get('X')).toBeCloseTo(20, 9)
+  })
+  test('with no new type, Other gets its change as any type does', () => {
+    const steady = exp('2026-10', { pos: 20, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 10, neu: 0, neg: 0 }, { media: 'Other', pos: 10, neu: 0, neg: 0 }] })
+    expect(mediaChanges(steady, new Map([['X', 10], ['Other', 5]])).get('Other')).toBe(100)
+  })
+  test('a type with no results this month is not "new"', () => {
+    const quiet = exp('2026-10', { pos: 20, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'Other', pos: 10, neu: 0, neg: 0 }, { media: 'Podcast', pos: 0, neu: 0, neg: 0 }] })
+    expect(mediaChanges(quiet, new Map([['Other', 5]])).get('Other')).toBe(100)
   })
 })

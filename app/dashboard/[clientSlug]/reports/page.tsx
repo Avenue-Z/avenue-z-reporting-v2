@@ -43,7 +43,8 @@ import { lockedRangeFor, logHiddenMonthAttempt, requestClock } from '@/lib/organ
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 import { requireStaff } from '@/lib/auth/page-access'
 import { parseAeoMin, parseAeoRange, type AeoRange } from '@/lib/organic-social/aeo-tab/params'
-import { parseSlPreview, parseSlTopic } from '@/lib/organic-social/social-listening/params'
+import { formatSlCols, formatSlSort, parseSlCols, parseSlPreview, parseSlSort, parseSlTopic, type SlToggleChart } from '@/lib/organic-social/social-listening/params'
+import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
 
 function getReportComponent(
@@ -63,6 +64,10 @@ function getReportComponent(
   // The Social Listening tab's sl= (its open pill), handed to the section on that tab only.
   sl: SlTopic = 'brand',
   slPreview = false,
+  // The Social Listening tab's charts set to columns (slcols), handed to the section on that tab only.
+  slCols: readonly SlToggleChart[] = [],
+  // The authors table's order (slsort, Unit F), handed to the section on that tab only.
+  slSort: SlAuthorSort = 'posts',
 ) {
   switch (slug) {
     case 'request-a-report':
@@ -100,7 +105,7 @@ function getReportComponent(
       if (subsection === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slPreview ? { slPreview: true } : {}) } : {})} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slPreview ? { slPreview: true } : {}), ...(slCols.length ? { slCols } : {}), ...(slSort !== 'posts' ? { slSort } : {}) } : {})} />
     default:
       return null
   }
@@ -133,16 +138,22 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; slcols?: string; slsort?: string }>
 }) {
   const { clientSlug } = await params
   await requireStaff()
-  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam } = await searchParams
+  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, slcols: slColsParam, slsort: slSortParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
   const sl = parseSlTopic(slParam)
   const slPreview = parseSlPreview(slViewParam)
+  // The Social Listening tab's charts set to columns, cleaned (an unknown id is dropped), and the value the page writes back.
+  const slCols = parseSlCols(slColsParam)
+  const slColsValue = formatSlCols(slCols)
+  // The authors table's order (Unit F), kept like slcols and handed to the Social Listening tab only.
+  const slSort = parseSlSort(slSortParam)
+  const slSortValue = formatSlSort(slSort)
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -223,7 +234,7 @@ export default async function ReportPage({
   // as INTERNAL_ADMIN). Gate it so a client appending ?health=1 never sees the
   // raw beacon JSON instead of their report.
   if (healthParam === '1' && session?.user?.role?.startsWith('INTERNAL_')) {
-    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)
+    const element = getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, slCols, slSort)
     return (
       <HealthProbe
         surface="dashboard"
@@ -246,6 +257,8 @@ export default async function ReportPage({
     if (aeoMin !== 2)    sp.set('aeomin', String(aeoMin))
     if (sl !== 'brand') sp.set('sl', sl)
     if (slPreview) sp.set('slview', 'client')
+    if (slColsValue) sp.set('slcols', slColsValue)
+    if (slSortValue) sp.set('slsort', slSortValue)
     if (healthParam)     sp.set('health', healthParam)
     sp.set('dateRange', locked.month.dateRange)
     redirect(`/dashboard/${clientSlug}/reports?${sp.toString()}`)
@@ -307,6 +320,8 @@ export default async function ReportPage({
                 models: activeSection === 'peec-ai' && models ? serializeModelsParam(models) : null,
                 // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
                 ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
+                ...(organicEntry?.view === 'social-listening' && slColsValue ? { slCols: slColsValue } : {}),
+                ...(organicEntry?.view === 'social-listening' && slSort !== 'posts' ? { slSort } : {}),
               } }
             : {})}
           // Bulk export (spec 2026-10-14-bulk-pdf-export-design): the client's exportable pages, this one pre-selected,
@@ -322,6 +337,8 @@ export default async function ReportPage({
             lockedMonths: hasReportingMonths(client),
             // Started from the AEO tab: its page in the bulk export takes the same range and min (lib/export/bulk.ts).
             ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
+            ...(organicEntry?.view === 'social-listening' && slColsValue ? { slCols: slColsValue } : {}),
+            ...(organicEntry?.view === 'social-listening' && slSort !== 'posts' ? { slSort } : {}),
           }} />
       </StickyReportHeader>
 
@@ -338,7 +355,7 @@ export default async function ReportPage({
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
         <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview)}
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, slCols, slSort)}
         </Suspense>
       </ReportErrorBoundary>
     </TooltipProvider>

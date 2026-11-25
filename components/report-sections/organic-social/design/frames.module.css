@@ -1,0 +1,47 @@
+/* SlCard with an analysis box (2026-11-24): the card, then its box under it, outside it. A separate module so the shared
+   kit stylesheet (kit.module.css), which an open PR also edits, is not touched. The 12px gap is the section's own
+   (kit.module.css .section). The box keeps the kit's standalone look (.comm), as the box under the data tiles has. */
+.item { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* The label over a box with no chart of its own, in the kit's small-caps muted style (kit.module.css .secHead span). */
+.label { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+
+/* A row of two cards that each have their box under them (the brand donuts; the industry share of sentiment with its
+   month-by-month chart; 2026-11-24): each card and its box take two grid rows on a subgrid, so the two cards share one
+   height and the two boxes start on one line, whatever the note line or the analysis length. A card with no box takes
+   the first row only. */
+.pair > .item { display: grid; grid-row: span 2; grid-template-rows: subgrid; gap: 12px; }
+
+/* The cell an analysis box sits in under its card: a column, so an empty box's "+ Add analysis" keeps its own width and
+   a written box fills the row, in a plain stack and in a .pair row alike. */
+.box { display: flex; flex-direction: column; min-width: 0; }
+
+/* The Line / Columns toggle on a Social Listening chart (Unit C): the kit's pills, on the right above the chart. */
+.toggle { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+
+/* A share printed on a media type segment (the media types by sentiment chart, Unit D): a light pill with dark text, as the
+   deck prints it, so it reads on every media colour, the dark ones included. */
+.segPill { background: rgba(255,255,255,0.85); color: #111; border-radius: 999px; padding: 1px 6px; font-weight: 800; font-size: 11px; line-height: 1.4; }
+
+/* A note's mark on a graph (Unit E): a numbered dot at the top of a dashed line through its day or month. */
+.noteLine { stroke: var(--fg); stroke-opacity: 0.55; stroke-width: 1.5; stroke-dasharray: 3 3; }
+.noteDot { fill: var(--fg); }
+.noteNum { fill: var(--on-seg); font-weight: 800; }
+.noteList { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--fg); }
+.noteList li { display: flex; align-items: flex-start; gap: 8px; }
+.noteBadge { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; background: var(--fg); color: var(--on-seg); font-size: 11px; font-weight: 800; }
+
+/* Unit F: an author or card hidden from the client, as staff see it; the Show / Hide row under a card. */
+.dim { opacity: 0.45; }
+.pickRow { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hiddenTag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+/* Unit B: a chart title with the "?" hint beside it. */
+.titleTip { display: inline-flex; align-items: center; gap: 6px; }
+
+/* The Social Listening authors table holds two more columns than the kit table was sized for (reach and engagement per
+   mention, Q4), so at the PDF's 979px page it was wider than its scroll box and the PDF cut columns off (measured
+   2026-11-25: 1155px in 977px). Tighter side padding, and a header may wrap onto a second line; a header wraps only when
+   the width is short, so a wide screen draws them on one line as before. Social Listening only: the kit table is unchanged. */
+table.authorsTable th, table.authorsTable td { padding-left: 12px; padding-right: 12px; }
+table.authorsTable th { white-space: normal; vertical-align: bottom; }

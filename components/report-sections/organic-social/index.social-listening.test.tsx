@@ -76,6 +76,17 @@ describe('the body', () => {
     const exp = await OrganicSocialBody({ ctx, sl: { topic: 'brand', exporting: true, preview: true } }) as ReactElement
     expect(find(exp, SocialListeningSection).every((s) => !('preview' in s.props))).toBe(true)
   })
+  // Unit F (plan 2026-11-24, D7): the authors order reaches the section on screen and in both halves of the export.
+  test('the report and the body hand the section the authors order; posts passes nothing', async () => {
+    as('INTERNAL_ADMIN')
+    expect(find(OrganicSocialReport({ clientSlug: 'c', channel: null, view: 'social-listening', slSort: 'reach' }), 'OrganicSocialBody')[0].props.sl)
+      .toEqual({ topic: 'brand', exporting: false, sort: 'reach' })
+    expect(find(OrganicSocialReport({ clientSlug: 'c', channel: null, view: 'social-listening', slSort: 'posts' }), 'OrganicSocialBody')[0].props.sl)
+      .toEqual({ topic: 'brand', exporting: false })
+    const ctx = buildOrganicSocialCtx({ clientSlug: 'c', channel: null, view: 'social-listening', dateRange: OCT })
+    const exp = await OrganicSocialBody({ ctx, sl: { topic: 'brand', exporting: true, sort: 'engagement' } }) as ReactElement
+    expect(find(exp, SocialListeningSection).map((s) => s.props.sort)).toEqual(['engagement', 'engagement'])
+  })
   test('the export prints brand then industry, whichever pill was open (R2-5)', async () => {
     as('INTERNAL_ADMIN')
     const out = await OrganicSocialBody({ ctx: buildOrganicSocialCtx({ clientSlug: 'c', channel: null, view: 'social-listening', dateRange: OCT }), sl: { topic: 'industry', exporting: true } }) as ReactElement

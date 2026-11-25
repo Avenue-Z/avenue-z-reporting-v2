@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/db/queries', async (orig) => ({ ...(await orig<object>()), getClientBySlug: h.getClientBySlug, getCommentaryForViewPrefix: h.getCommentaryForViewPrefix }))
 vi.mock('@/lib/organic-social/social-listening/store', () => ({ getSlMonth: h.getSlMonth }))
+vi.mock('@/lib/organic-social/chart-notes/select', () => ({ getChartNotes: async () => [] }))
 vi.mock('@/lib/organic-social/locked-range', async (orig) => ({ ...(await orig<object>()), requestClock: () => h.clock.value }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => '/x', useSearchParams: () => new URLSearchParams() }))
 // Each analysis box is a marker naming its key: the box's own look is pinned by its own tests, and stays Social Listening's.
@@ -41,7 +42,7 @@ const up = (id: string, data: SlExport): SlUpload => ({ id, month: data.month, t
 const monthData = (): SlMonthData => ({ uploads: [up('u-brand', parsed('brand')), up('u-industry', parsed('industry'))], history: [], posts: [], trends: null })
 const HISTORY_OCT_BRAND: SlHistory = {
   month: '2026-10', topic: 'brand', results: 500, uniqueAuthors: 300, engagement: 6000, potentialReach: 400000000,
-  pos: 60, neu: 30, neg: 10, redditPos: null, redditNeu: null, redditNeg: null, source: 'history-sheet (made up)',
+  pos: 60, neu: 30, neg: 10, redditPos: null, redditNeu: null, redditNeg: null, source: 'history-sheet (made up)', media: null, authors: null,
 }
 const POST: SlPost = {
   id: 'p-1', month: '2026-10', group: 'social', platform: 'Instagram', author: 'Made Up Author', url: 'https://example.com/post/1',
