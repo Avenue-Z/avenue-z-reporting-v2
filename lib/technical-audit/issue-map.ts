@@ -61,7 +61,13 @@ export function parseIssueMapCsv(rows: string[][]): IssueMap {
 async function fetchSheetRows(): Promise<string[][]> {
   const id = process.env.TECH_AUDIT_ISSUE_MAP_SHEET_ID
   if (!id) throw new Error('TECH_AUDIT_ISSUE_MAP_SHEET_ID is not set')
-  const token = await googleToken([SHEETS_SCOPE])
+  let token: string
+  try {
+    token = await googleToken([SHEETS_SCOPE])
+  } catch {
+    // Never the raw text: a malformed key's JSON.parse error can echo the key itself.
+    throw new Error('Google auth error')
+  }
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}/values/A:E`, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -72,24 +78,30 @@ async function fetchSheetRows(): Promise<string[][]> {
   return body.values.map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? '')) : []))
 }
 
-// Cached as entries: unstable_cache serializes to JSON, which cannot hold a Map.
+// Cached as entries: unstable_cache serializes to JSON, which cannot hold a Map. A Sheet with no valid rows is a
+// failure (thrown, so never cached as an empty map); a failure is replayed for 5 minutes so an outage costs one
+// Sheets timeout per window, not one per render.
 const fetchSheetEntries = cached(
   'tech-audit',
   'issue-map',
-  async () => [...parseIssueMapCsv(await fetchSheetRows())],
-  { ttlSeconds: 3600 },
+  async () => {
+    const entries = [...parseIssueMapCsv(await fetchSheetRows())]
+    if (entries.length === 0) throw new Error('issue map Sheet has no valid rows')
+    return entries
+  },
+  { ttlSeconds: 3600, negativeTtlSeconds: 300 },
 )
 
 function loadFallback(): IssueMap {
   return new Map(ISSUE_MAP_FALLBACK.map((r) => [`${r.source}:${r.native}`, { key: r.key, name: r.name }]))
 }
 
-/** Canonical issue map from the AEO team's Sheet (1h cache); falls back to the repo fixture on any failure. */
+/** Canonical issue map from the AEO team's Sheet (1h cache); falls back to the built-in list on any failure or an empty Sheet. */
 export async function loadIssueMap(): Promise<IssueMap> {
   try {
     return new Map(await fetchSheetEntries())
-  } catch (err) {
-    console.error(`[technical-audit] issue map Sheet unavailable, using built-in fallback: ${err instanceof Error ? err.message : 'unknown error'}`)
+  } catch {
+    console.error('[technical-audit] issue map Sheet unavailable, using built-in fallback')
     return loadFallback()
   }
 }
