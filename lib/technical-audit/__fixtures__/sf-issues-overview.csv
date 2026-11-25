@@ -1,0 +1,7 @@
+Issue Name,Issue Type,Issue Priority,URLs,% of Total,Description,How To Fix
+Page Titles: Missing,Issue,High,12,1.20,"URLs with a missing page title, which is a key on-page element.","Write a unique, descriptive page title for each indexable URL."
+Response Codes: Internal Client Error (4xx),Issue,High,5,0.50,"Internal URLs that returned a 4xx status.","Fix or redirect the broken links."
+Page Titles: Over 60 Characters,Warning,Medium,"1,030",3.10,"Titles that may be truncated in results.","Shorten titles."
+Meta Description: Duplicate,Warning,Low,48,4.80,"Pages sharing a meta description.","Write unique descriptions."
+Images: Missing Alt Text,Opportunity,Low,77,7.70,"Images with no alt text.","Add descriptive alt text."
+H2: Missing,Opportunity,Medium,19,1.90,"Pages with no H2.","Add an H2 structure."
