@@ -84,12 +84,12 @@ describe('claimRun', () => {
   })
   test('returns false when the run is complete', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), {})
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), {})
     expect(await store.claimRun(id, 'sf', 0)).toBe(false)
   })
   test('returns false for a missing run', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.failRun(id, 'sf', 'missing', 'no file')
+    await store.failRun(CLIENT, id, 'sf', 'missing', 'no file')
     expect(await store.claimRun(id, 'sf', 0)).toBe(false)
   })
   test('reclaims a stale claim and a failed run, but not a fresh claim', async () => {
@@ -98,8 +98,18 @@ describe('claimRun', () => {
     expect(await store.claimRun(id, 'sf', 600_000)).toBe(false)
     await pg.exec(`UPDATE tech_audit_source_runs SET started_at = now() - interval '11 minutes' WHERE source = 'sf'`)
     expect(await store.claimRun(id, 'sf', 600_000)).toBe(true)
-    await store.failRun(id, 'sf', 'failed', 'boom')
+    await store.failRun(CLIENT, id, 'sf', 'failed', 'boom')
     expect(await store.claimRun(id, 'sf', 0)).toBe(true)
+  })
+  test('includeMissing makes a missing run claimable under the same stale rule', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await store.claimRun(id, 'sf')
+    await store.failRun(CLIENT, id, 'sf', 'missing', 'no file')
+    expect(await store.claimRun(id, 'sf', 0)).toBe(false)
+    expect(await store.claimRun(id, 'sf', 600_000, { includeMissing: true })).toBe(false) // fresh claim
+    expect(await store.claimRun(id, 'sf', 0, { includeMissing: true })).toBe(true)
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), {})
+    expect(await store.claimRun(id, 'sf', 0, { includeMissing: true })).toBe(false) // complete stays closed
   })
   test('rejects a non-finite or negative staleness window', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
@@ -111,9 +121,9 @@ describe('claimRun', () => {
 describe('completeRun', () => {
   test('replaces only that source\'s issues and marks the run complete', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1, 2]), { issues: [issue({ nativeName: 'Old' })] })
-    await store.completeRun(id, 'ahrefs', new Uint8Array([3]), { issues: [issue({ source: 'ahrefs', nativeName: 'Ahrefs one' })] })
-    await store.completeRun(id, 'sf', new Uint8Array([4]), { issues: [issue({ nativeName: 'New A' }), issue({ nativeName: 'New B' })] })
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1, 2]), { issues: [issue({ nativeName: 'Old' })] })
+    await store.completeRun(CLIENT, id, 'ahrefs', new Uint8Array([3]), { issues: [issue({ source: 'ahrefs', nativeName: 'Ahrefs one' })] })
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([4]), { issues: [issue({ nativeName: 'New A' }), issue({ nativeName: 'New B' })] })
     const names = (await pg.query<{ native_issue_name: string }>(`SELECT native_issue_name FROM tech_audit_source_issues ORDER BY native_issue_name`)).rows.map((r) => r.native_issue_name)
     expect(names).toEqual(['Ahrefs one', 'New A', 'New B'])
     const run = (await pg.query<{ status: string; finished_at: string | null; last_error: string | null }>(`SELECT status, finished_at, last_error FROM tech_audit_source_runs WHERE source = 'sf'`)).rows[0]
@@ -124,39 +134,39 @@ describe('completeRun', () => {
   test('the two CWV runs replace only their own device\'s issues', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
     const cwv = (device: 'mobile' | 'desktop', name: string) => issue({ source: 'gsc_cwv', device, nativeName: name })
-    await store.completeRun(id, 'gsc_cwv_mobile', new Uint8Array([1]), { issues: [cwv('mobile', 'M1')] })
-    await store.completeRun(id, 'gsc_cwv_desktop', new Uint8Array([1]), { issues: [cwv('desktop', 'D1')] })
-    await store.completeRun(id, 'gsc_cwv_mobile', new Uint8Array([1]), { issues: [cwv('mobile', 'M2')] })
+    await store.completeRun(CLIENT, id, 'gsc_cwv_mobile', new Uint8Array([1]), { issues: [cwv('mobile', 'M1')] })
+    await store.completeRun(CLIENT, id, 'gsc_cwv_desktop', new Uint8Array([1]), { issues: [cwv('desktop', 'D1')] })
+    await store.completeRun(CLIENT, id, 'gsc_cwv_mobile', new Uint8Array([1]), { issues: [cwv('mobile', 'M2')] })
     const names = (await pg.query<{ native_issue_name: string }>(`SELECT native_issue_name FROM tech_audit_source_issues ORDER BY 1`)).rows.map((r) => r.native_issue_name)
     expect(names).toEqual(['D1', 'M2'])
   })
   test('is re-runnable: the same input twice leaves one copy', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
     const write = { issues: [issue()], metrics: { sfUrlsIssue: 5 } }
-    await store.completeRun(id, 'sf', new Uint8Array([1]), write)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), write)
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), write)
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), write)
     expect(await count('tech_audit_source_issues')).toBe(1)
     expect(await count('tech_audit_metrics')).toBe(1)
   })
   test('upserts metrics per source without wiping the other sources\' columns', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: 5, sfUrlsWarning: 2 } })
-    await store.completeRun(id, 'ahrefs', new Uint8Array([1]), { metrics: { ahrefsHealthScore: 88 } })
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: 5, sfUrlsWarning: 2 } })
+    await store.completeRun(CLIENT, id, 'ahrefs', new Uint8Array([1]), { metrics: { ahrefsHealthScore: 88 } })
     const m = (await pg.query<{ sf_urls_issue: number; ahrefs_health_score: number }>(`SELECT sf_urls_issue, ahrefs_health_score FROM tech_audit_metrics`)).rows[0]
     expect(m).toEqual({ sf_urls_issue: 5, ahrefs_health_score: 88 })
   })
   test('writes an explicit null metric, and an empty write leaves metrics and issues alone', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: 5 }, issues: [issue()] })
-    await store.completeRun(id, 'ahrefs', new Uint8Array([1]), {})
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: 5 }, issues: [issue()] })
+    await store.completeRun(CLIENT, id, 'ahrefs', new Uint8Array([1]), {})
     expect(await count('tech_audit_source_issues')).toBe(1)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: null }, issues: [] })
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: null }, issues: [] })
     expect((await pg.query<{ sf_urls_issue: number | null }>(`SELECT sf_urls_issue FROM tech_audit_metrics`)).rows[0].sf_urls_issue).toBeNull()
     expect(await count('tech_audit_source_issues')).toBe(0)
   })
   test('updates snapshot dates and score, and cannot rewrite its identity', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), {
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), {
       snapshot: { sfCrawlDate: '2026-10-30', crawlSettingsChanged: true, clientId: OTHER, status: 'published' },
     })
     const s = (await pg.query<{ sf_crawl_date: string; crawl_settings_changed: boolean; client_id: string; status: string }>(`SELECT sf_crawl_date::text, crawl_settings_changed, client_id, status FROM tech_audit_snapshots`)).rows[0]
@@ -164,27 +174,51 @@ describe('completeRun', () => {
   })
   test('rejects an issue belonging to a different source before writing anything', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), { issues: [issue()] })
-    await expect(store.completeRun(id, 'sf', new Uint8Array([1]), { issues: [issue({ source: 'ahrefs' })] })).rejects.toThrow('does not belong')
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { issues: [issue()] })
+    await expect(store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { issues: [issue({ source: 'ahrefs' })] })).rejects.toThrow('does not belong')
     expect(await count('tech_audit_source_issues')).toBe(1)
   })
   test('rejects raw over the 2 MiB column limit and an unknown snapshot, with generic messages', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await expect(store.completeRun(id, 'sf', new Uint8Array(2_097_153), {})).rejects.toThrow('raw file too large')
-    await expect(store.completeRun('33333333-3333-4333-8333-333333333333', 'sf', new Uint8Array([1]), {})).rejects.toThrow('run not found')
+    await expect(store.completeRun(CLIENT, id, 'sf', new Uint8Array(2_097_153), {})).rejects.toThrow('raw file too large')
+    await expect(store.completeRun(CLIENT, '33333333-3333-4333-8333-333333333333', 'sf', new Uint8Array([1]), {})).rejects.toThrow('run not found')
   })
   test('keeps the raw bytes it was given', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([9, 8, 7]), {})
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([9, 8, 7]), {})
     const raw = (await pg.query<{ raw: string }>(`SELECT raw FROM tech_audit_source_runs WHERE source = 'sf'`)).rows[0].raw
     expect(raw).toBe('\\x090807')
+  })
+})
+
+describe('tenant scoping (client B id with client A)', () => {
+  test('getSnapshotBundle returns null for another client\'s snapshot', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    expect(await store.getSnapshotBundle(OTHER, id)).toBeNull()
+  })
+  test('setSnapshotStatus throws and changes nothing', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await expect(store.setSnapshotStatus(OTHER, id, 'published', 'x@x.com')).rejects.toThrow('Snapshot not found')
+    expect((await pg.query<{ status: string }>(`SELECT status FROM tech_audit_snapshots`)).rows[0].status).toBe('draft')
+  })
+  test('completeRun throws run not found and writes nothing', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await expect(store.completeRun(OTHER, id, 'sf', new Uint8Array([1]), { issues: [issue()], metrics: { sfUrlsIssue: 1 } })).rejects.toThrow('run not found')
+    expect(await count('tech_audit_source_issues')).toBe(0)
+    expect(await count('tech_audit_metrics')).toBe(0)
+    expect(await count('tech_audit_source_runs', `status <> 'pending'`)).toBe(0)
+  })
+  test('failRun is a no-op', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await store.failRun(OTHER, id, 'sf', 'failed', 'boom')
+    expect(await count('tech_audit_source_runs', `status <> 'pending'`)).toBe(0)
   })
 })
 
 describe('failRun', () => {
   test('records the reason, finished_at and status; truncates a long reason', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.failRun(id, 'ahrefs', 'failed', 'x'.repeat(2000))
+    await store.failRun(CLIENT, id, 'ahrefs', 'failed', 'x'.repeat(2000))
     const r = (await pg.query<{ status: string; last_error: string; finished_at: string | null }>(`SELECT status, last_error, finished_at FROM tech_audit_source_runs WHERE source = 'ahrefs'`)).rows[0]
     expect(r.status).toBe('failed')
     expect(r.last_error.length).toBe(500)
@@ -192,8 +226,8 @@ describe('failRun', () => {
   })
   test('does not overwrite a complete run', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), {})
-    await store.failRun(id, 'sf', 'failed', 'late')
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), {})
+    await store.failRun(CLIENT, id, 'sf', 'failed', 'late')
     expect((await pg.query<{ status: string }>(`SELECT status FROM tech_audit_source_runs WHERE source = 'sf'`)).rows[0].status).toBe('complete')
   })
 })
@@ -203,8 +237,8 @@ describe('setSnapshotStatus and getSnapshots', () => {
     const a = await store.ensureSnapshot(CLIENT, { ...RUN, date: '2026-09-01' })
     const b = await store.ensureSnapshot(CLIENT, { ...RUN, date: '2026-10-01' })
     await store.ensureSnapshot(CLIENT, { ...RUN, date: '2026-11-01' })
-    await store.setSnapshotStatus(a.id, 'published', 'p@x.com')
-    await store.setSnapshotStatus(b.id, 'published', 'p@x.com')
+    await store.setSnapshotStatus(CLIENT, a.id, 'published', 'p@x.com')
+    await store.setSnapshotStatus(CLIENT, b.id, 'published', 'p@x.com')
     const pub = await store.getSnapshots(CLIENT, { publishedOnly: true })
     expect(pub.map((s) => s.snapshotDate)).toEqual(['2026-10-01', '2026-09-01'])
     const all = await store.getSnapshots(CLIENT, { publishedOnly: false })
@@ -214,8 +248,8 @@ describe('setSnapshotStatus and getSnapshots', () => {
   })
   test('unpublishing clears the publish stamp', async () => {
     const a = await store.ensureSnapshot(CLIENT, RUN)
-    await store.setSnapshotStatus(a.id, 'published', 'p@x.com')
-    await store.setSnapshotStatus(a.id, 'draft', 'p@x.com')
+    await store.setSnapshotStatus(CLIENT, a.id, 'published', 'p@x.com')
+    await store.setSnapshotStatus(CLIENT, a.id, 'draft', 'p@x.com')
     const [s] = await store.getSnapshots(CLIENT, { publishedOnly: false })
     expect(s.status).toBe('draft')
     expect(s.publishedAt).toBeNull()
@@ -230,14 +264,14 @@ describe('setSnapshotStatus and getSnapshots', () => {
 describe('getSnapshotBundle', () => {
   test('returns snapshot, runs without raw, metrics and issues; null for an unknown id', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
-    await store.completeRun(id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: 1 }, issues: [issue()] })
-    const bundle = await store.getSnapshotBundle(id)
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), { metrics: { sfUrlsIssue: 1 }, issues: [issue()] })
+    const bundle = await store.getSnapshotBundle(CLIENT, id)
     expect(bundle?.snapshot.id).toBe(id)
     expect(bundle?.runs).toHaveLength(TA_SOURCES.length)
     expect(bundle?.runs[0]).not.toHaveProperty('raw')
     expect(bundle?.metrics?.sfUrlsIssue).toBe(1)
     expect(bundle?.issues).toHaveLength(1)
-    expect(await store.getSnapshotBundle('33333333-3333-4333-8333-333333333333')).toBeNull()
+    expect(await store.getSnapshotBundle(CLIENT, '33333333-3333-4333-8333-333333333333')).toBeNull()
   })
 })
 
