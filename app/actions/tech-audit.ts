@@ -7,7 +7,7 @@
 import { auth } from '@/auth'
 import { revalidatePath } from 'next/cache'
 import { getClientBySlug } from '@/lib/db/queries'
-import { isAvenueZEmail } from '@/lib/commentary/permissions'
+import { isTechAuditStaff } from '@/lib/technical-audit/staff'
 import { MAX_GSC_BYTES, parseGscCwv, parseGscPageIndexing } from '@/lib/technical-audit/gsc-export'
 import { completeRun, getSnapshotBundle, setOverride, setSnapshotStatus } from '@/lib/technical-audit/store'
 import type { TechAuditMetricsInsert } from '@/lib/technical-audit/store'
@@ -26,8 +26,9 @@ type Slot = (typeof SLOTS)[number]
 
 /** The staff member's email, or null for no session or a non-staff one. */
 async function staffEmail(): Promise<string | null> {
-  const email = (await auth())?.user?.email
-  return isAvenueZEmail(email) ? email! : null
+  const session = await auth()
+  const email = session?.user?.email
+  return isTechAuditStaff(session) && typeof email === 'string' ? email : null
 }
 
 /** A form field as a string, or null when absent or not text (a File in a text field). */
@@ -122,8 +123,9 @@ async function setStatus(
 ): Promise<Result> {
   const email = await staffEmail()
   if (!email) return FORBIDDEN
-  const slug = asSlug(input?.clientSlug)
-  const snapshotId = asSnapshotId(input?.snapshotId)
+  if (typeof input !== 'object' || input === null) return fail('invalid request')
+  const slug = asSlug(input.clientSlug)
+  const snapshotId = asSnapshotId(input.snapshotId)
   if (!slug) return fail('invalid client')
   if (!snapshotId) return fail('invalid snapshot')
   const client = await getClientBySlug(slug)
@@ -155,7 +157,8 @@ export async function setIssueOverride(
 ): Promise<Result> {
   const email = await staffEmail()
   if (!email) return FORBIDDEN
-  const slug = asSlug(input?.clientSlug)
+  if (typeof input !== 'object' || input === null) return fail('invalid request')
+  const slug = asSlug(input.clientSlug)
   if (!slug) return fail('invalid client')
   const { issueKey, hidden, note } = input
   if (typeof issueKey !== 'string' || !issueKey || issueKey.length > ISSUE_KEY_MAX) return fail('invalid issue')

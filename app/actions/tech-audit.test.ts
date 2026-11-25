@@ -21,8 +21,8 @@ import { publishSnapshot, setIssueOverride, unpublishSnapshot, uploadGscExport }
 
 const SNAP = '3f0c2a52-7a53-4a55-9c1e-1b1f2f3a4b5c'
 const FILE_NAME = 'private-file-name.xlsx'
-const as = (email: string | null) =>
-  (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(email ? { user: { email } } : null)
+const as = (email: string | null, role = 'INTERNAL_ANALYST') =>
+  (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(email ? { user: { email, role } } : null)
 
 function form(over: Record<string, string | File | undefined> = {}, bytes = new Uint8Array([1, 2, 3])) {
   const f = new FormData()
@@ -56,11 +56,14 @@ afterEach(() => { vi.useRealTimers(); warn.mockRestore(); info.mockRestore(); er
 const logged = () => JSON.stringify([...warn.mock.calls, ...info.mock.calls, ...error.mock.calls])
 
 describe('non-staff is refused', () => {
-  test.each([
-    ['no session', null],
-    ['a non-Avenue Z email', 'someone@example.com'],
-  ])('every action refuses %s and touches nothing', async (_n, email) => {
-    as(email)
+  test.each<[string, string | null, string | undefined]>([
+    ['no session', null, undefined],
+    ['a non-Avenue Z email', 'someone@example.com', 'INTERNAL_ADMIN'],
+    ['a client role with an @avenuez.com email', 'writer@avenuez.com', 'CLIENT_ADMIN'],
+    ['a client viewer with an @avenuez.com email', 'writer@avenuez.com', 'CLIENT_VIEWER'],
+    ['no role', 'writer@avenuez.com', ''],
+  ])('every action refuses %s and touches nothing', async (_n, email, role) => {
+    as(email, role)
     const results = [
       await uploadGscExport(form()),
       await publishSnapshot({ clientSlug: 'a-client', snapshotId: SNAP }),
@@ -224,6 +227,10 @@ describe('setIssueOverride', () => {
     const r = await setIssueOverride({ clientSlug: 'a-client', issueKey: 'k', ...over } as never)
     expect(r.ok).toBe(false)
     expect(setOverride).not.toHaveBeenCalled()
+  })
+  test('a null input is a result, not a throw', async () => {
+    expect(await setIssueOverride(null as never)).toEqual({ ok: false, error: 'invalid request' })
+    expect(await publishSnapshot(null as never)).toEqual({ ok: false, error: 'invalid request' })
   })
   test('a failed write is a plain message', async () => {
     vi.mocked(setOverride).mockRejectedValue(new Error('secret-row'))
