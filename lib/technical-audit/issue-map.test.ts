@@ -9,7 +9,7 @@ describe('loadIssueMap', () => {
   beforeEach(() => { vi.stubEnv('TECH_AUDIT_ISSUE_MAP_SHEET_ID', 'sheet123'); vi.spyOn(console, 'error').mockImplementation(() => {}) })
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-  it('falls back to the fixture when the Sheet fetch throws', async () => {
+  it('falls back to the built-in list when the Sheet fetch throws', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('boom') }))
     const map = await loadIssueMap()
     expect(map.get('ahrefs:4XX page')?.key).toBe('broken-internal-4xx')

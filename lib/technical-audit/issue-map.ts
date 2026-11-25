@@ -1,17 +1,16 @@
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
 import { cached } from '@/lib/cache'
 import { googleToken } from './google'
+import { ISSUE_MAP_FALLBACK } from './issue-map-fallback'
 import type { IssueMap } from './issues'
 import type { TaIssueSource } from './types'
 
 export type { IssueMap }
+export interface IssueMapRow { source: TaIssueSource; native: string; key: string; name: string }
 
 const SOURCES: readonly string[] = ['ahrefs', 'sf', 'gsc_indexing', 'gsc_cwv'] satisfies TaIssueSource[]
 const HEADERS = ['source', 'native_issue_name', 'canonical_issue_key', 'canonical_issue_name'] as const
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly'
 const FETCH_TIMEOUT_MS = 10_000
-const FIXTURE_PATH = path.join(process.cwd(), 'lib/technical-audit/__fixtures__/issue-map.csv')
 
 /** Minimal RFC 4180 parser (quoted fields, escaped quotes, CRLF). */
 export function parseCsv(text: string): string[][] {
@@ -81,8 +80,8 @@ const fetchSheetEntries = cached(
   { ttlSeconds: 3600 },
 )
 
-async function loadFixture(): Promise<IssueMap> {
-  return parseIssueMapCsv(parseCsv(await readFile(FIXTURE_PATH, 'utf-8')))
+function loadFallback(): IssueMap {
+  return new Map(ISSUE_MAP_FALLBACK.map((r) => [`${r.source}:${r.native}`, { key: r.key, name: r.name }]))
 }
 
 /** Canonical issue map from the AEO team's Sheet (1h cache); falls back to the repo fixture on any failure. */
@@ -90,7 +89,7 @@ export async function loadIssueMap(): Promise<IssueMap> {
   try {
     return new Map(await fetchSheetEntries())
   } catch (err) {
-    console.error(`[technical-audit] issue map Sheet unavailable, using fixture: ${err instanceof Error ? err.message : 'unknown error'}`)
-    return loadFixture()
+    console.error(`[technical-audit] issue map Sheet unavailable, using built-in fallback: ${err instanceof Error ? err.message : 'unknown error'}`)
+    return loadFallback()
   }
 }

@@ -77,4 +77,20 @@ describe('mergeIssues', () => {
     const [m] = mergeIssues([{ source: 'gsc_indexing', nativeName: 'Crawled – Currently not indexed', nativeSeverity: '', urlCount: 3 }], m2)
     expect(m.key).toBe('crawled-ni')
   })
+
+  it('maps "(not indexable)" Ahrefs names and device-suffixed CWV names via their base name', () => {
+    const m2: IssueMap = new Map([
+      ['ahrefs:4XX page', { key: 'broken-internal-4xx', name: 'Broken' }],
+      ['gsc_cwv:CLS issue: more than 0.1', { key: 'cls-over-0-1', name: 'CLS above 0.1' }],
+    ])
+    const out = mergeIssues([
+      { source: 'ahrefs', nativeName: '4XX page (not indexable)', nativeSeverity: 'Error', urlCount: 4 },
+      { source: 'gsc_cwv', nativeName: 'CLS issue: more than 0.1 (desktop)', nativeSeverity: 'Poor', urlCount: 9, device: 'desktop' },
+    ], m2)
+    const a = out.find((m) => m.key === 'broken-internal-4xx')
+    const c = out.find((m) => m.key === 'cls-over-0-1')
+    expect(a?.needsMapping).toBe(false)
+    expect(a?.detail[0].nativeName).toBe('4XX page (not indexable)')
+    expect(c?.needsMapping).toBe(false)
+  })
 })

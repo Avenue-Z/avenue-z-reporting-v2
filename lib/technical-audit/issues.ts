@@ -71,14 +71,24 @@ const maxSeverity = (a: Severity, b: Severity): Severity =>
  */
 export function mergeIssues(issues: SourceIssue[], map: IssueMap): MergedIssue[] {
   let normalizedIndex: Map<string, { key: string; name: string }> | undefined
-  const lookup = (source: TaIssueSource, nativeName: string) => {
-    const exact = map.get(`${source}:${nativeName}`)
+  const find = (k: string) => {
+    const exact = map.get(k)
     if (exact) return exact
     if (!normalizedIndex) {
       normalizedIndex = new Map()
-      for (const [k, v] of map) normalizedIndex.set(normalizeLabel(k), v)
+      for (const [mk, v] of map) normalizedIndex.set(normalizeLabel(mk), v)
     }
-    return normalizedIndex.get(normalizeLabel(`${source}:${nativeName}`))
+    return normalizedIndex.get(normalizeLabel(k))
+  }
+  // Exact name first, then without Task 3's " (not indexable)" suffix, then without a " (desktop|mobile)" suffix.
+  const lookup = (source: TaIssueSource, nativeName: string) => {
+    const base1 = nativeName.replace(/ \(not indexable\)$/i, '')
+    const base2 = nativeName.replace(/ \((desktop|mobile)\)$/i, '')
+    for (const n of [nativeName, base1, base2]) {
+      const hit = find(`${source}:${n}`)
+      if (hit) return hit
+    }
+    return undefined
   }
 
   const groups = new Map<string, MergedIssue>()

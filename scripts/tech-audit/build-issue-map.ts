@@ -23,8 +23,8 @@ const GSC_INDEXING_REASONS = [
   'Blocked due to other 4xx issue', 'Blocked due to access forbidden (403)',
 ]
 const GSC_CWV_ISSUES = [
-  'LCP issue: longer than 2.5s', 'LCP issue: longer than 4s', 'INP issue: longer than 200ms',
-  'INP issue: longer than 500ms', 'CLS issue: more than 0.1', 'CLS issue: more than 0.25',
+  'LCP issue: longer than 2.5s', 'LCP issue: longer than 4s', 'CLS issue: more than 0.1',
+  'CLS issue: more than 0.25', 'INP issue: longer than 200ms', 'INP issue: longer than 500ms',
 ]
 
 // Conservative cross-tool equivalences; everything else keys on its own normalized name for the team to merge.
@@ -46,6 +46,9 @@ const keyFor = (name: string) => ALIASES[name.toLowerCase().replace(/[‐-―]/g
 const nameFor = (key: string, native: string) => CANONICAL_NAMES[key] ?? native
 const csvCell = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s)
 
+// mergeIssues retries without these suffixes, so the map lists base names only.
+const stripSuffix = (n: string) => n.replace(/ \((not indexable|desktop|mobile)\)$/i, '')
+
 async function ahrefsNames(): Promise<Set<string>> {
   const key = process.env.AHREFS_API_KEY
   if (!key) throw new Error('AHREFS_API_KEY is not set')
@@ -58,7 +61,7 @@ async function ahrefsNames(): Promise<Set<string>> {
     })
     if (!res.ok) { console.warn(`Ahrefs project ${id}: HTTP ${res.status} (skipped)`); continue }
     const body = (await res.json()) as { issues?: { name?: string }[] }
-    for (const i of body.issues ?? []) if (i.name) names.add(i.name)
+    for (const i of body.issues ?? []) if (i.name) names.add(stripSuffix(i.name))
     ok++
   }
   console.log(`Ahrefs: ${ok}/${AHREFS_PROJECT_IDS.length} projects read`)
@@ -89,7 +92,7 @@ function sfNames(): Set<string> {
     const rows = parseCsv(readFileSync(file, 'utf-8'))
     const col = (rows[0] ?? []).findIndex((h) => h.trim().toLowerCase() === 'issue name')
     if (col < 0) { console.warn(`WARNING: ${file} has no "Issue Name" column; skipped`); continue }
-    for (const r of rows.slice(1)) if (r[col]?.trim()) names.add(r[col].trim())
+    for (const r of rows.slice(1)) if (r[col]?.trim()) names.add(stripSuffix(r[col].trim()))
   }
   return names
 }
