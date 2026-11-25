@@ -30,3 +30,8 @@
 .noteList { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--fg); }
 .noteList li { display: flex; align-items: flex-start; gap: 8px; }
 .noteBadge { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; background: var(--fg); color: var(--on-seg); font-size: 11px; font-weight: 800; }
+
+/* Unit F: an author or card hidden from the client, as staff see it; the Show / Hide row under a card. */
+.dim { opacity: 0.45; }
+.pickRow { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hiddenTag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }

@@ -237,6 +237,24 @@ describe('parseTalkwalkerExport: V2 to V9', () => {
     expect(r.ok).toBe(true)
   })
 
+  // Unit F (plan 2026-11-24, F11): the team picks from up to 25 authors, so the parser keeps 25, in the export's order.
+  it('keeps the first 25 Top influencers rows, in export order', () => {
+    const r = parseTalkwalkerExport(
+      build('brand', editSheets((s) => {
+        const i = sheetIndex(s, 'Top influencers')
+        const header = s[i].rows[3]
+        const idCol = header.indexOf('Authors')
+        const row = s[i].rows[4]
+        const many = Array.from({ length: 30 }, (_, n) => row.map((c, k) => (k === idCol ? `made-up:${n}` : c)))
+        s[i] = { ...s[i], rows: [...s[i].rows.slice(0, 4), ...many] }
+        return s
+      })),
+      expectFor('brand'),
+    )
+    if (!r.ok) throw new Error(JSON.stringify(r.failed))
+    expect(r.data.influencers!.map((x) => x.authorId)).toEqual(Array.from({ length: 25 }, (_, n) => `made-up:${n}`))
+  })
+
   it('finds Top influencers columns by header name, not position: two columns swapped still read right', () => {
     const swap = <T,>(row: T[], a: number, b: number) => { const c = [...row]; [c[a], c[b]] = [c[b], c[a]]; return c }
     const plain = parseTalkwalkerExport(build('brand'), expectFor('brand'))

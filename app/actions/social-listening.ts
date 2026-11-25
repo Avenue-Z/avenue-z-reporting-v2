@@ -11,7 +11,7 @@ import { slCapabilities } from '@/lib/organic-social/social-listening/capabiliti
 import { parseTalkwalkerExport } from '@/lib/organic-social/social-listening/export-parse'
 import { hasSocialListeningTab, parseSocialListeningSetting } from '@/lib/organic-social/social-listening/setting'
 import {
-  approvePost, approveTrends, countApprovedPosts, deleteImage, findImageOwner, findPost, forkPostDraft, insertImage, insertPost,
+  approvePost, approveTrends, countApprovedPosts, deleteImage, findImageOwner, findPost, forkPostDraft, getSlMonth, insertImage, insertPick, insertPost,
   insertUpload, revokePost, saveTrendsDraft, softDeletePostDraft, updatePostDraft, type PostState,
 } from '@/lib/organic-social/social-listening/store'
 import { checkTrendLists } from '@/lib/organic-social/social-listening/trends'
@@ -20,6 +20,7 @@ import { checkImage, MAX_IMAGE_BYTES, MAX_IMAGES, MAX_POSTS, MAX_PRINT_BYTES, va
 import { uploadMonth } from '@/lib/organic-social/social-listening/upload-month'
 import { requestClock } from '@/lib/organic-social/locked-range'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
+import { currentUpload } from '@/lib/organic-social/social-listening/select'
 
 type UploadResult = { ok: true; month: string; beforeOpen: boolean } | { ok: false; errors: string[] }
 
@@ -301,4 +302,42 @@ export async function approveTrendsAction(input: { clientSlug: string; range?: s
     ((await approveTrends({ clientId: s.client.id, month: when.month, by: s.email, seen }))
       ? { ok: true }
       : fail('The trends changed since you opened the page, or are already approved. Reload to see them.')))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Authors and overview cards the month shows (plan 2026-11-24, Unit F)
+
+/** A card label or author id as the export gives it; the table allows 1 to 500 characters (0032). */
+const MAX_PICK_KEY = 500
+/** One line in a log: a key from the uploaded file never breaks the line it is logged on. */
+const oneLine = (s: string) => s.replace(/[\u0000-\u001f\u007f]/g, '?')
+
+/** Show or hide an author (by id) or an overview card (by label) for the served finished month. Staff who can edit only; the
+ *  item must be in that month's current brand upload. Always a new pick row, so two people picking at once both land and the
+ *  newest wins on read (picks.ts). A failed write logs the client, month, kind and key, never more. */
+export async function pickSlItemAction(input: { clientSlug: string; range?: string; kind: string; key: string; state: string }): Promise<Result> {
+  const v = await viewer()
+  if (!v.canEdit) return POST_FORBIDDEN
+  const { kind, key, state } = input ?? {}
+  if ((kind !== 'author' && kind !== 'card') || (state !== 'shown' && state !== 'hidden')
+    || typeof key !== 'string' || key.length < 1 || key.length > MAX_PICK_KEY) return fail('invalid pick')
+  const s = await staffClient(input.clientSlug, 'edit')
+  if (!('client' in s)) return s
+  const when = uploadMonth(s.client, rangeOf(input.range), requestClock())
+  if (!when.ok) return fail(when.error)
+
+  const data = await getSlMonth(s.client.id, [when.month])
+  const brand = currentUpload(data.uploads.filter((u) => u.month === when.month && u.topic === 'brand'))?.data
+  const known = kind === 'author'
+    ? (brand?.influencers ?? []).some((i) => i.authorId === key)
+    : (brand?.overview ?? []).some((c) => c.label === key)
+  if (!known) return fail(`That ${kind} is not in this month's export. Reload to see it.`)
+
+  try {
+    await insertPick({ clientId: s.client.id, month: when.month, kind, key, state, by: s.email })
+  } catch (e) {
+    console.error(`[social-listening] pick failed slug=${s.client.slug} month=${when.month} kind=${kind} key=${oneLine(key)} code=${errorCode(e)}`)
+    return SAVE_FAILED
+  }
+  return { ok: true }
 }

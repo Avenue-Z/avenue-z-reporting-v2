@@ -28,6 +28,8 @@ export interface BulkRanges {
   aeoMin?: number
   /** The Social Listening tab's charts set to columns (slcols), set only when the export starts from that tab with a chart on its columns. */
   slCols?: string
+  /** The Social Listening authors table's order (slsort), set only when the export starts from that tab sorted by reach or engagement. */
+  slSort?: 'reach' | 'engagement'
 }
 
 export type PageResult = { ok: true; pdf: ArrayBuffer; filename: string } | { ok: false; error: string }
@@ -48,6 +50,7 @@ export function bulkRequest(page: ExportPage, r: BulkRanges): PageRequest {
     ...(page.subsection === AEO_TAB_ID && r.aeoMin ? { aeoMin: r.aeoMin } : {}),
     // Only the Social Listening page takes the charts set to columns the export was started with.
     ...(page.subsection === SOCIAL_LISTENING_TAB_ID && r.slCols ? { slCols: r.slCols } : {}),
+    ...(page.subsection === SOCIAL_LISTENING_TAB_ID && r.slSort ? { slSort: r.slSort } : {}),
   }
 }
 

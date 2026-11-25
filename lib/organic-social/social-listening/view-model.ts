@@ -5,8 +5,9 @@
 import { monthTitle } from '../reporting-months'
 import type { SlBoxId } from './boxes'
 import { brandThemeColor, mediaColor } from './colors'
-import { authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries, type SlPct, type YtdPoint } from './compare'
+import { authorBaseline, authorChanges, mediaBaseline, mediaChanges, pct, pointsChange, posNeu, presentedValues, prevMonth, tileChange, ytdSeries, type SlPct, type YtdPoint } from './compare'
 import { MAX_IMAGES, MAX_POSTS } from './posts'
+import { applyPicks, perMention, sortAuthors, type SlAuthorSort } from './picks'
 import { currentUpload, presentedUpload } from './select'
 import { clientTrends } from './trends'
 import type { SlDay, SlExport, SlMonth, SlMonthData, SlPost, SlSentimentCounts, SlTopic, SlTrendLists, SlUpload } from './types'
@@ -25,12 +26,18 @@ export type SlViewInput = {
   data: SlMonthData
   /** Boxes with approved text a client would see this month (clientMonthEntry). */
   approvedBoxes: ReadonlySet<SlBoxId>
+  /** The authors table's order (slsort, Unit F); posts when absent. */
+  sort?: SlAuthorSort
 }
 
 export type SlTile = { title: string; value: number | null; change?: number; points?: number | null; unit?: '%' }
 export type SlMediaRow = { media: string; count: number; pct: number; change: number | null; color: string }
 export type SlCrossRow = { media: string; total: number } & SlSentimentCounts
 type Influencer = NonNullable<SlExport['influencers']>[number]
+/** An author row as the table shows it (Unit F): its posts change, whether the month shows it (staff see every author, a
+ *  client only the shown ones), and reach and engagement per mention (Q4). */
+export type SlAuthorRow = Influencer & { change: number | null; shown: boolean; reachPer: number | null; engagementPer: number | null }
+export type SlOverviewCard = NonNullable<SlExport['overview']>[number] & { shown: boolean }
 
 export type SlReadyView = {
   results: number
@@ -50,8 +57,8 @@ export type SlReadyView = {
   posNeu: { month: SlMonth; value: number | null }[]
   reddit: YtdPoint[] | null
   themes: { theme: string; share: number; color: string }[]
-  influencers: (Influencer & { change: number | null })[]
-  overview: NonNullable<SlExport['overview']>
+  influencers: SlAuthorRow[]
+  overview: SlOverviewCard[]
 }
 
 export type SlTopicView = {
@@ -99,9 +106,8 @@ export function topicPills(i: { month: SlMonth; data: SlMonthData; setting: SlSe
 const splitPct = (c: SlSentimentCounts, total: number): SlPct => ({ pos: pct(c.pos, total), neu: pct(c.neu, total), neg: pct(c.neg, total) })
 const sum = (c: SlSentimentCounts) => c.pos + c.neu + c.neg
 
-function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthData): SlReadyView {
+function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthData, clientView: boolean, sort: SlAuthorSort): SlReadyView {
   const prev = presentedValues(prevMonth(month), topic, data.history, data.uploads)
-  const prevUpload = presentedUpload(uploadsOf(data, prevMonth(month), topic))?.data ?? null
   const sentPct = splitPct(d.sentiment, d.results)
   const point = (k: keyof SlPct) => pointsChange(sentPct[k], prev ? { pct: prev.pct[k], whole: prev.whole } : null)
   const change = { pos: point('pos'), neu: point('neu'), neg: point('neg') }
@@ -129,7 +135,15 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
   const cross = d.sentimentByMedia.map((r) => ({ media: r.media, pos: r.pos, neu: r.neu, neg: r.neg, total: sum(r) })).sort((a, b) => b.total - a.total)
 
   const ytd = ytdSeries(d, data.history, data.uploads, 'all')
-  const aChanges = authorChanges(d, prevUpload)
+  // Authors (Unit F): the posts change against what the client saw last month, the team's picks for this month, and the
+  // chosen order. A client gets only the shown authors and cards.
+  const aChanges = authorChanges(d, authorBaseline(prevMonth(month), topic, data.history, data.uploads))
+  const picked = applyPicks(d.influencers ?? [], d.overview ?? [], data.picks ?? [])
+  const authors: SlAuthorRow[] = (d.influencers ?? []).map((i) => ({
+    ...i, change: aChanges.get(i.authorId) ?? null, shown: picked.authors.get(i.authorId) ?? false,
+    reachPer: perMention(i.reach, i.posts), engagementPer: perMention(i.engagement, i.posts),
+  }))
+  const cards: SlOverviewCard[] = (d.overview ?? []).map((c) => ({ ...c, shown: picked.cards.get(c.label) ?? true }))
   return {
     results: d.results,
     changeLabel: `vs ${monthTitle(prevMonth(month))} report`,
@@ -146,8 +160,8 @@ function readyView(topic: SlTopic, month: SlMonth, d: SlExport, data: SlMonthDat
     posNeu: topic === 'brand' ? ytd.map((p) => ({ month: p.month, value: p.value ? posNeu(p.value) : null })) : [],
     reddit: topic === 'brand' ? ytdSeries(d, data.history, data.uploads, 'reddit') : null,
     themes: d.themes.map((t) => ({ theme: t.theme, share: t.share, color: topic === 'brand' ? brandThemeColor(t.color) : t.color })),
-    influencers: (d.influencers ?? []).map((i) => ({ ...i, change: aChanges.get(i.authorId) ?? null })),
-    overview: d.overview ?? [],
+    influencers: sortAuthors(clientView ? authors.filter((a) => a.shown) : authors, sort),
+    overview: clientView ? cards.filter((c) => c.shown) : cards,
   }
 }
 
@@ -179,7 +193,7 @@ export function buildTopicView(i: SlViewInput): SlTopicView {
     lists: approvedLists,
     draft: clientView || !data.trends ? null : { lists: data.trends.draft, status: data.trends.status },
   }
-  const ready = current ? readyView(topic, month, current.data, data) : null
+  const ready = current ? readyView(topic, month, current.data, data, clientView, i.sort ?? 'posts') : null
   const isBrand = topic === 'brand'
   return {
     topic,

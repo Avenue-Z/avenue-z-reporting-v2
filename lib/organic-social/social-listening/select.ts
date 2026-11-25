@@ -3,7 +3,7 @@
 // and 8): which upload a month shows, which one it presented to the client (decision D5), and the mapping from the
 // store's cache-safe rows to the shared shapes in ./types. No I/O, safe in tests.
 
-import type { SlExport, SlHistory, SlHistoryAuthor, SlHistoryMedia, SlMonth, SlMonthData, SlPost, SlPostGroup, SlSentiment, SlTopic, SlTrend, SlTrendLists, SlTrends, SlUpload } from './types'
+import type { SlExport, SlHistory, SlHistoryAuthor, SlHistoryMedia, SlMonth, SlMonthData, SlPick, SlPost, SlPostGroup, SlSentiment, SlTopic, SlTrend, SlTrendLists, SlTrends, SlUpload } from './types'
 
 /** The upload rows of one (month, topic). The caller filters; these never look at month or topic. */
 export type UploadRow = SlUpload
@@ -190,6 +190,8 @@ export type SlMonthRowsJson = {
   /** Image ids of the listed posts, in display order. Never the bytes. */
   images: { id: string; postId: string }[]
   trends: TrendsRowJson | null
+  /** The served month's picks (Unit F). Optional: a cache entry written before picks existed has none. */
+  picks?: PickRowJson[]
 }
 
 /** Keep the shown (current) and the presented upload of each (month, topic) and drop the rest, in input order. Every
@@ -212,6 +214,15 @@ export function trimUploads(rows: readonly UploadRowJson[]): UploadRowJson[] {
 }
 
 /** The page's shape from the cached rows. */
+/** A stored pick as the page reads it; a row with a kind or state the table's checks would refuse is dropped, never guessed. */
+export type PickRowJson = { id: string; kind: string; key: string; state: string; createdAt: string }
+export function toSlPicks(rows: readonly PickRowJson[] | undefined): SlPick[] {
+  return (rows ?? []).flatMap((r) =>
+    (r.kind === 'author' || r.kind === 'card') && (r.state === 'shown' || r.state === 'hidden') && typeof r.key === 'string'
+      ? [{ id: r.id, kind: r.kind, key: r.key, state: r.state, at: r.createdAt }]
+      : [])
+}
+
 export function toSlMonthData(rows: SlMonthRowsJson): SlMonthData {
   const imagesByPost = new Map<string, string[]>()
   for (const i of rows.images) imagesByPost.set(i.postId, [...(imagesByPost.get(i.postId) ?? []), i.id])
@@ -220,5 +231,6 @@ export function toSlMonthData(rows: SlMonthRowsJson): SlMonthData {
     history: rows.history.map(toSlHistory),
     posts: rows.posts.map((p) => toSlPost(p, imagesByPost.get(p.id) ?? [])),
     trends: rows.trends ? toSlTrends(rows.trends) : null,
+    picks: toSlPicks(rows.picks),
   }
 }

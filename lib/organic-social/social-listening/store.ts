@@ -16,7 +16,7 @@ import { db } from '@/lib/db/client'
 import { cached } from '@/lib/cache'
 import {
   byteaToDriver, clients,
-  socialListeningHistory, socialListeningPostImages, socialListeningPosts, socialListeningTrends, socialListeningUploads,
+  socialListeningHistory, socialListeningPicks, socialListeningPostImages, socialListeningPosts, socialListeningTrends, socialListeningUploads,
 } from '@/lib/db/schema'
 import { monthDate, monthKey, toSlMonthData, trimUploads, type SlMonthRowsJson } from './select'
 import type { SlExport, SlMonth, SlMonthData, SlPostGroup, SlSentiment, SlTopic, SlTrendLists } from './types'
@@ -24,9 +24,21 @@ import type { SlExport, SlMonth, SlMonthData, SlPostGroup, SlSentiment, SlTopic,
 // ---------------------------------------------------------------------------------------------------------------
 // Page read
 
+/** The Postgres SQLSTATE of a failed query, never its message. Drizzle wraps the driver's error, so the code can sit on a
+ *  `cause` a level or two down. */
+function sqlState(e: unknown): string {
+  let cur: unknown = e
+  for (let i = 0; i < 4 && typeof cur === 'object' && cur !== null; i++) {
+    const code = (cur as { code?: unknown }).code
+    if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) return code
+    cur = (cur as { cause?: unknown }).cause
+  }
+  return 'none'
+}
+
 async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<SlMonthRowsJson> {
   const months = monthsKey === '' ? [] : monthsKey.split(',')
-  if (months.length === 0) return { uploads: [], history: [], posts: [], images: [], trends: null }
+  if (months.length === 0) return { uploads: [], history: [], posts: [], images: [], trends: null, picks: [] }
   const dates = months.map(monthDate)
   // Posts and trends belong to the served month, which is the latest month asked for.
   const served = [...dates].sort().at(-1)!
@@ -37,7 +49,7 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
     isNull(socialListeningPosts.replacedAt),
   )
 
-  const [uploads, history, posts, images, trends] = await Promise.all([
+  const [uploads, history, posts, images, trends, picks] = await Promise.all([
     db.select({
       id: socialListeningUploads.id,
       month: socialListeningUploads.month,
@@ -104,6 +116,24 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
       .from(socialListeningTrends)
       .where(and(eq(socialListeningTrends.clientId, clientId), eq(socialListeningTrends.month, served)))
       .limit(1),
+    // The served month's author and card picks (Unit F). Every row is read: the newest per item wins (picks.ts), and a
+    // month holds at most a few dozen.
+    db.select({
+      id: socialListeningPicks.id,
+      kind: socialListeningPicks.kind,
+      key: socialListeningPicks.key,
+      state: socialListeningPicks.state,
+      createdAt: socialListeningPicks.createdAt,
+    })
+      .from(socialListeningPicks)
+      .where(and(eq(socialListeningPicks.clientId, clientId), eq(socialListeningPicks.month, served)))
+      // Fails soft: without the table (0032 not yet applied) or on a failed read, the month has no picks and looks as before,
+      // rather than the whole tab failing. One log line with the SQLSTATE only.
+      .catch((e: unknown) => {
+        const code = sqlState(e)
+        console.error(`[social-listening] picks unreadable client=${clientId} month=${served} code=${code}; showing the defaults`)
+        return [] as { id: string; kind: string; key: string; state: string; createdAt: Date }[]
+      }),
   ])
 
   return {
@@ -114,6 +144,7 @@ async function getSlMonthRowsImpl(clientId: string, monthsKey: string): Promise<
     posts,
     images,
     trends: trends[0] ?? null,
+    picks: picks.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
   }
 }
 
@@ -441,6 +472,13 @@ export async function deleteImage(id: string): Promise<boolean> {
     .returning({ id: socialListeningPostImages.id })
   if (rows.length > 0) updateTag('db')
   return rows.length > 0
+}
+
+/** Record a pick for a month (Unit F): always a new row, never an update, so two people picking at once both land and the
+ *  newest wins on read. */
+export async function insertPick(p: { clientId: string; month: SlMonth; kind: 'author' | 'card'; key: string; state: 'shown' | 'hidden'; by: string }): Promise<void> {
+  await db.insert(socialListeningPicks).values({ clientId: p.clientId, month: monthDate(p.month), kind: p.kind, key: p.key, state: p.state, createdBy: p.by })
+  updateTag('db')
 }
 
 /** Save the month's trend lists as a draft. The approved lists are left as they are, so clients keep seeing them

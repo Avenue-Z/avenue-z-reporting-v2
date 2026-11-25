@@ -23,6 +23,7 @@ import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
 import { SocialListeningSection } from './social-listening/section'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
+import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 
 /** The AEO Informed Social tab's own settings, read from the URL by the route (parseAeoRange, parseAeoMin) and its time limit (page 120 s,
  *  export 30 s). Handed to the body on that tab only, so every other tab's body and parts get exactly what they got before. */
@@ -30,7 +31,7 @@ export type AeoViewSettings = { range: AeoRange; min: number; deadlineMs: number
 const AEO_DEFAULTS: AeoViewSettings = { range: 'month', min: 2, deadlineMs: 120_000 }
 
 export function OrganicSocialReport({
-  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null, aeo, aeoMin, aeoDeadlineMs, sl, exporting, slPreview, slCols,
+  clientSlug, dateRange = 'last_30_days', compareRange = null, channel = null, view = null, aeo, aeoMin, aeoDeadlineMs, sl, exporting, slPreview, slCols, slSort,
 }: {
   clientSlug: string
   dateRange?: string
@@ -51,6 +52,8 @@ export function OrganicSocialReport({
   slPreview?: boolean
   /** The Social Listening tab only: the charts set to columns (slcols, plan 2026-11-24 Unit C), on screen and in the PDF. */
   slCols?: readonly SlToggleChart[]
+  /** The Social Listening tab only: the authors table's order (slsort, Unit F), on screen and in the PDF. Posts when absent. */
+  slSort?: SlAuthorSort
 }) {
   const ctx = buildOrganicSocialCtx({ clientSlug, dateRange, compareRange, channel, view })
   // The Social Listening tab has an analysis box under every card and no Insights or Recommendations of its own, so neither
@@ -59,7 +62,7 @@ export function OrganicSocialReport({
     return (
       <div className="space-y-8">
         <Suspense fallback={<OverviewSkeleton />}>
-          <OrganicSocialBody ctx={ctx} sl={{ topic: sl ?? 'brand', exporting: exporting ?? false, ...(slPreview ? { preview: true } : {}), ...(slCols?.length ? { cols: slCols } : {}) }} />
+          <OrganicSocialBody ctx={ctx} sl={{ topic: sl ?? 'brand', exporting: exporting ?? false, ...(slPreview ? { preview: true } : {}), ...(slCols?.length ? { cols: slCols } : {}), ...(slSort && slSort !== 'posts' ? { sort: slSort } : {}) }} />
         </Suspense>
       </div>
     )
@@ -94,7 +97,7 @@ export function OrganicSocialReport({
 
 /** Resolves the viewer role, the composition (DB template + per-client override), and renders the
  *  parts. Async and isolated behind the Suspense above so its awaits don't gate first paint. */
-export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings; sl?: { topic: SlTopic; exporting: boolean; preview?: boolean; cols?: readonly SlToggleChart[] } }) {
+export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings; sl?: { topic: SlTopic; exporting: boolean; preview?: boolean; cols?: readonly SlToggleChart[]; sort?: SlAuthorSort } }) {
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
   // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a
@@ -143,7 +146,7 @@ export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCt
     const exporting = sl?.exporting ?? false
     const section = (topic: SlTopic) => (
       <SocialListeningSection clientSlug={rctx.clientSlug} servedRange={servedRange} role={role} email={email} topic={topic} exporting={exporting}
-        {...(sl?.preview && !exporting ? { preview: true } : {})} {...(sl?.cols ? { cols: sl.cols } : {})} />
+        {...(sl?.preview && !exporting ? { preview: true } : {})} {...(sl?.cols ? { cols: sl.cols } : {})} {...(sl?.sort ? { sort: sl.sort } : {})} />
     )
     return exporting ? <div className="space-y-12">{section('brand')}{section('industry')}</div> : section(sl?.topic ?? 'brand')
   }

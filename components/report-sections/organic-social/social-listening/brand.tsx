@@ -13,6 +13,8 @@ import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
 import { ChartToggle, type ChartView } from './chart-toggle'
 import { SlNotesPanel } from './notes-panel'
+import { AuthorsSection } from './authors'
+import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import { buildSlChartNotes, type SlChartNotes, type SlNoteChart, type SlNoteSource } from '@/lib/organic-social/social-listening/notes'
 import s from '../design/kit.module.css'
 import f from '../design/frames.module.css'
@@ -33,6 +35,8 @@ export type TopicPageProps = {
   /** The team's notes on the line graphs (Unit E), read once by the section; absent when there are none to show or the read
    *  failed, and the graphs then draw exactly as without notes. */
   notes?: SlNoteSource
+  /** The authors table's order (slsort, Unit F); posts when absent. */
+  sort?: SlAuthorSort
 }
 
 /** One graph's notes, keyed by what the graph draws. Nothing to show without a source. */
@@ -121,8 +125,6 @@ export function SourceLine({ topicName, month }: { topicName: string; month: str
   )
 }
 
-const MINI: ('pos' | 'neu' | 'neg')[] = ['pos', 'neu', 'neg']
-
 // Talkwalker's source types as the mockup names them ("SOCIALMEDIA_INSTAGRAM" is Instagram).
 const NETWORKS: Record<string, string> = {
   INSTAGRAM: 'Instagram', FACEBOOK: 'Facebook', LINKEDIN: 'LinkedIn', YOUTUBE: 'YouTube', TWITTER: 'X', X: 'X',
@@ -137,7 +139,7 @@ export function networkLabel(raw: string): string {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : raw
 }
 
-export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName, cols, exporting, notes }: TopicPageProps) {
+export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName, cols, exporting, notes, sort }: TopicPageProps) {
   const r = view.ready
   const label = vsLabel(view.month)
   const posNeuPoints = r ? fromFirst(r.posNeu, r.ytd) : []
@@ -244,51 +246,9 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
         <ConversationThemes show={view.show.conv} box={boxes['b-conv']} />
       </SlSection>
 
-      {r && r.influencers.length > 0 && (
-        <SlSection title="Top influencers">
-          {r.overview.length > 0 && (
-            <div className={`${s.grid} ${s.g4}`}>
-              {r.overview.map((o) => (
-                <div key={o.label} className={s.ov} data-export-block="">
-                  <p className={s.t}>{o.label}</p>
-                  <p className={s.who}>{o.who}</p>
-                  <p className={s.net}>{o.network}</p>
-                  <p className={s.val}>{short(o.value)} {o.unit.toLowerCase()}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <SlCard title={`Top ${r.influencers.length} authors`} meta="Posts, sentiment, reach and engagement" box={boxes['b-authors']}>
-            <div className={s.tableScroll}>
-              <table className={s.table}>
-                <thead><tr>
-                  <th>Author</th><th>Network</th><th className={s.r}>Posts</th><th className={s.r}>vs {monthName(prevKey(view.month)).slice(0, 3)}</th>
-                  <th>Sentiment</th><th className={s.r}>Reach</th><th className={s.r}>Engagement</th>
-                </tr></thead>
-                <tbody>
-                  {r.influencers.map((i) => {
-                    const total = i.pos + i.neu + i.neg
-                    return (
-                      <tr key={i.authorId}>
-                        <td><b>{i.name}</b></td>
-                        <td>{networkLabel(i.network)}</td>
-                        <td className={s.r}>{fmt(i.posts)}</td>
-                        <td className={s.r}>{i.change === null ? <span className={s.flat}>new</span> : <span className={i.change > 0 ? s.up : i.change < 0 ? s.down : s.flat}>{i.change > 0 ? '+' : i.change < 0 ? '-' : ''}{Math.abs(i.change)}</span>}</td>
-                        <td>
-                          <span className={s.mini} role="img" aria-label={`${i.pos} positive, ${i.neu} neutral, ${i.neg} negative`}>
-                            {total > 0 && MINI.map((k) => (i[k] > 0 ? <i key={k} style={{ width: `${(100 * i[k]) / total}%`, background: SENTIMENT_COLORS[k] }} /> : null))}
-                          </span>
-                        </td>
-                        <td className={s.r}>{short(i.reach)}</td>
-                        <td className={s.r}>{fmt(i.engagement)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </SlCard>
-        </SlSection>
+      {r && (
+        <AuthorsSection r={r} prevShort={monthName(prevKey(view.month)).slice(0, 3)} networkLabel={networkLabel} caps={caps}
+          clientSlug={clientSlug} range={range} sort={sort ?? 'posts'} exporting={exporting} box={boxes['b-authors']} />
       )}
 
       {view.show.posts && (

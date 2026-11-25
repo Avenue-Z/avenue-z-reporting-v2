@@ -4,7 +4,8 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { auth } from '@/auth'
 import { REPORT_NAMES, NAV_SLUG_ORDER, SHOW_AI_NARRATIVE, resolveOrganicSubsection, type OrganicView } from '@/lib/constants'
 import { parseAeoMin, parseAeoRange, type AeoRange } from '@/lib/organic-social/aeo-tab/params'
-import { formatSlCols, parseSlCols, parseSlPreview, parseSlTopic, type SlToggleChart } from '@/lib/organic-social/social-listening/params'
+import { formatSlCols, formatSlSort, parseSlCols, parseSlPreview, parseSlSort, parseSlTopic, type SlToggleChart } from '@/lib/organic-social/social-listening/params'
+import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
 import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
@@ -77,7 +78,7 @@ function SectionSkeleton() {
 // gap is exactly why AEO's date/model pickers were missing here until they were
 // hand-ported. TODO: extract a single shared report-render module that both the
 // dashboard and portal routes import, so they can't diverge again.
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null, view: OrganicView = null, aeo: AeoRange = 'month', aeoMin = 2, sl: SlTopic = 'brand', slPreview = false, slCols: readonly SlToggleChart[] = []) {
+function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string, compareRange: string | null, subsection?: string, models?: AEOModel[] | null, submittedBy?: string, channel: DashChannel | null = null, view: OrganicView = null, aeo: AeoRange = 'month', aeoMin = 2, sl: SlTopic = 'brand', slPreview = false, slCols: readonly SlToggleChart[] = [], slSort: SlAuthorSort = 'posts') {
   switch (slug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -127,7 +128,7 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       return <TicketSalesReport clientSlug={clientSlug} />
     case 'organic-social':
       // aeo and aeoMin reach the section on the AEO Informed Social tab only; every other tab's props are unchanged.
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slPreview ? { slPreview: true } : {}), ...(slCols.length ? { slCols } : {}) } : {})} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slPreview ? { slPreview: true } : {}), ...(slCols.length ? { slCols } : {}), ...(slSort !== 'posts' ? { slSort } : {}) } : {})} />
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'executive-overview':
@@ -168,11 +169,11 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; slcols?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; slcols?: string; slsort?: string }>
 }) {
   const { clientSlug } = await params
   await requirePortalAccess(clientSlug)
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, slcols: slColsParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, slcols: slColsParam, slsort: slSortParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
@@ -181,6 +182,9 @@ export default async function PortalReportPage({
   // The Social Listening tab's charts set to columns, cleaned (an unknown id is dropped), and the value the page writes back.
   const slCols = parseSlCols(slColsParam)
   const slColsValue = formatSlCols(slCols)
+  // The authors table's order (Unit F), kept like slcols and handed to the Social Listening tab only.
+  const slSort = parseSlSort(slSortParam)
+  const slSortValue = formatSlSort(slSort)
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -218,6 +222,7 @@ export default async function PortalReportPage({
     if (sl !== 'brand') sp.set('sl', sl)
     if (slPreview) sp.set('slview', 'client')
     if (slColsValue) sp.set('slcols', slColsValue)
+    if (slSortValue) sp.set('slsort', slSortValue)
     sp.set('section', defaultSection)
     redirect(`/portal/${clientSlug}/reports?${sp.toString()}`)
   }
@@ -252,6 +257,7 @@ export default async function PortalReportPage({
     if (sl !== 'brand') sp.set('sl', sl)
     if (slPreview) sp.set('slview', 'client')
     if (slColsValue) sp.set('slcols', slColsValue)
+    if (slSortValue) sp.set('slsort', slSortValue)
     sp.set('dateRange', locked.month.dateRange)
     redirect(`/portal/${clientSlug}/reports?${sp.toString()}`)
   }
@@ -327,6 +333,7 @@ export default async function PortalReportPage({
                 // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
                 ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
                 ...(organicEntry?.view === 'social-listening' && slColsValue ? { slCols: slColsValue } : {}),
+                ...(organicEntry?.view === 'social-listening' && slSort !== 'posts' ? { slSort } : {}),
               } }
             : {})}
           // Bulk export (spec 2026-10-14-bulk-pdf-export-design): the client's exportable pages, this one pre-selected,
@@ -343,6 +350,7 @@ export default async function PortalReportPage({
             // Started from the AEO tab: its page in the bulk export takes the same range and min (lib/export/bulk.ts).
             ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
             ...(organicEntry?.view === 'social-listening' && slColsValue ? { slCols: slColsValue } : {}),
+            ...(organicEntry?.view === 'social-listening' && slSort !== 'posts' ? { slSort } : {}),
           }} />
       </StickyReportHeader>
 
@@ -355,7 +363,7 @@ export default async function PortalReportPage({
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
         <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, slCols)}
+          {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, slCols, slSort)}
         </Suspense>
       </ReportErrorBoundary>
 
