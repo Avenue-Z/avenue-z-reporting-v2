@@ -13,6 +13,7 @@ import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
 import { ChartToggle, type ChartView } from './chart-toggle'
 import { SlNotesPanel } from './notes-panel'
+import { slCardTooltip, slTileTooltip } from '@/lib/organic-social/social-listening/tooltips'
 import { AuthorsSection } from './authors'
 import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import { buildSlChartNotes, type SlChartNotes, type SlNoteChart, type SlNoteSource } from '@/lib/organic-social/social-listening/notes'
@@ -160,14 +161,14 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
             <div className={`${s.grid} ${s.g4}`}>
               {r.tiles.map((t) => {
                 const v = tileValue(t)
-                return <Kpi key={t.title} title={t.title} value={v.value} sub={v.sub} delta={t.change} label={label} />
+                return <Kpi key={t.title} title={t.title} value={v.value} sub={v.sub} delta={t.change} label={label} tooltip={slTileTooltip('brand', t.id)} />
               })}
             </div>
             {boxes['b-kpis']}
           </SlSection>
 
           <SlSection>
-            <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['b-daily']}>
+            <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['b-daily']} tooltip={slCardTooltip('b-daily')}>
               <LineChart days={r.daily} color="#60FDFF" id="sl-gb" marks={n.daily.marks} />
               <SlNotesPanel notes={n.daily} title="Results over time" />
             </SlCard>
@@ -177,30 +178,30 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
             {/* The two donuts stay side by side, as on the approved tab; each box sits under its card, and the pair row lines
                 the cards up to one height and the boxes up to one line (frames.module.css .pair). */}
             <div className={`${s.grid} ${s.g2} ${f.pair}`}>
-              <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} bodyClassName={s.donutWrap}>
+              <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} tooltip={slCardTooltip('b-sent')} bodyClassName={s.donutWrap}>
                 <Donut counts={r.sentiment.counts} />
                 <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
               </SlCard>
               {view.show.owned && r.owned && (
-                <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={s.donutWrap}
+                <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} tooltip={slCardTooltip('b-owned')} bodyClassName={s.donutWrap}
                   note="Excludes results from the brand's owned channels">
                   <Donut counts={r.owned.counts} />
                   <Legend counts={r.owned.counts} pct={r.owned.pct} />
                 </SlCard>
               )}
             </div>
-            <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['b-cross']}>
+            <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['b-cross']} tooltip={slCardTooltip('b-cross')}>
               <HBars rows={r.cross} />
             </SlCard>
           </SlSection>
 
           <SlSection title="Year to date" line={`Earlier months as presented in each month's report; ${monthName(view.month)} from this export`}>
-            <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['b-ytd']}>
+            <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['b-ytd']} tooltip={slCardTooltip('b-ytd')}>
               <Toggled id="b-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={ytd} marks={n.ytd.marks} />}
                 columns={<YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} marks={n.ytd.marks} />} />
               <SlNotesPanel notes={n.ytd} title="Sentiment, year to date" />
             </SlCard>
-            <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']}>
+            <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']} tooltip={slCardTooltip('b-posneu')}>
               <Toggled id="b-posneu" cols={cols} exporting={exporting}
                 line={<PointLines months={posNeuPoints.map((p) => p.month)} series={[
                   { name: 'Positive + neutral', vals: posNeuPoints.map((p) => p.value), color: SENTIMENT_COLORS.pos },
@@ -211,7 +212,7 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
               <SlNotesPanel notes={n.posneu} title="Positive + neutral combined" />
             </SlCard>
             {r.reddit && (
-              <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']}>
+              <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']} tooltip={slCardTooltip('b-reddit')}>
                 <Toggled id="b-reddit" cols={cols} exporting={exporting} line={<SentimentLines points={reddit} marks={n.reddit.marks} />}
                   columns={<YtdColumns points={reddit} aria="Reddit sentiment by month" marks={n.reddit.marks} />} />
                 <SlNotesPanel notes={n.reddit} title="Reddit sentiment" />
@@ -221,10 +222,10 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
 
           <SlSection title="Media types">
             {/* The change compares with last month as the client saw it: the delivered report's counts, else its export (D4). */}
-            <SlCard title="Share of media types" meta={`Change vs the ${monthName(prevKey(view.month))} ${r.mediaVs === 'export' ? 'export' : 'report'}`} box={boxes['b-media']}>
+            <SlCard title="Share of media types" meta={`Change vs the ${monthName(prevKey(view.month))} ${r.mediaVs === 'export' ? 'export' : 'report'}`} box={boxes['b-media']} tooltip={slCardTooltip('b-media')}>
               <MediaShare rows={r.media} />
             </SlCard>
-            <SlCard title="Share of media types by sentiment" meta="Where each sentiment came from" box={boxes['b-mediasent']}>
+            <SlCard title="Share of media types by sentiment" meta="Where each sentiment came from" box={boxes['b-mediasent']} tooltip={slCardTooltip('b-mediasent')}>
               <SentimentByMedia rows={r.cross} colorFor={mediaColor} />
             </SlCard>
           </SlSection>
@@ -233,13 +234,13 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
 
       <SlSection title="Themes">
         {r && (
-          <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['b-themes']}>
+          <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['b-themes']} tooltip={slCardTooltip('b-themes')}>
             <Cloud themes={r.themes} colorFor={(t) => t.color} />
             <Key items={[{ name: 'Mostly positive', color: SENTIMENT_COLORS.pos }, { name: 'Mostly neutral', color: SENTIMENT_COLORS.neu }, { name: 'Mostly negative', color: SENTIMENT_COLORS.neg }]} />
           </SlCard>
         )}
         {view.show.trends && (
-          <SlCard title="Trends in keyword themes" meta={`vs ${monthName(prevKey(view.month))}, from Talkwalker`} box={boxes['b-trends']}>
+          <SlCard title="Trends in keyword themes" meta={`vs ${monthName(prevKey(view.month))}, from Talkwalker`} box={boxes['b-trends']} tooltip={slCardTooltip('b-trends')}>
             <TrendsBlock lists={view.trends.lists} draft={view.trends.draft} clientSlug={clientSlug} range={range} caps={caps} />
           </SlCard>
         )}

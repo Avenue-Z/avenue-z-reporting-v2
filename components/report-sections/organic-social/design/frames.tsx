@@ -3,6 +3,7 @@
 // box sits under the card, outside it, so cards line up evenly, as the team asked on 2026-11-24 (it sat inside the card
 // from 2026-11-19). Server-safe.
 import type { ReactNode } from 'react'
+import { HoverHint } from '@/components/charts/hover-hint'
 import s from './kit.module.css'
 import f from './frames.module.css'
 
@@ -17,14 +18,15 @@ export function SlSection({ title, line, children }: { title?: string; line?: st
 
 /** A chart card: title, chart and note line only. `box` is its analysis box, drawn under the card and outside it; the
  *  card and its box are one block in the PDF export, so the box never leaves its chart's page. With no box the markup
- *  is the card alone, as it always was (the kit YTD block passes none). */
-export function SlCard({ title, meta, note, box, children, bodyClassName }: {
-  title: string; meta?: string | null; note?: string | null; box?: ReactNode; children: ReactNode; bodyClassName?: string
+ *  is the card alone, as it always was (the kit YTD block passes none). `tooltip` draws the shared "?" hint beside the
+ *  title (2026-11-24, Unit B), which the PDF drops; without one the title is exactly as before. */
+export function SlCard({ title, meta, note, box, children, bodyClassName, tooltip }: {
+  title: string; meta?: string | null; note?: string | null; box?: ReactNode; children: ReactNode; bodyClassName?: string; tooltip?: string
 }) {
   const parts = (
     <>
       <div className={s.cardHead}>
-        <h3>{title}</h3>
+        {tooltip ? <h3 className={f.titleTip}>{title}<HoverHint text={tooltip} /></h3> : <h3>{title}</h3>}
         {meta && <span className={s.meta}>{meta}</span>}
       </div>
       <div className={bodyClassName ? `${s.cardBody} ${bodyClassName}` : s.cardBody}>{children}</div>

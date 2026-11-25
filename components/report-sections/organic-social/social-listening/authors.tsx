@@ -8,6 +8,7 @@ import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import type { SlReadyView } from '@/lib/organic-social/social-listening/view-model'
 import { SlCard, SlSection } from '../design/frames'
 import { AuthorSortControl, PickToggle } from './authors-controls'
+import { slCardTooltip } from '@/lib/organic-social/social-listening/tooltips'
 import s from '../design/kit.module.css'
 import f from '../design/frames.module.css'
 
@@ -53,7 +54,7 @@ export function AuthorsSection({ r, prevShort, networkLabel, caps, clientSlug, r
         </div>
       )}
       <SlCard title={`Top ${shown} author${shown === 1 ? '' : 's'}`}
-        meta={editing ? `${shown} of ${r.influencers.length} shown to the client` : 'Posts, sentiment, reach and engagement'} box={box}>
+        meta={editing ? `${shown} of ${r.influencers.length} shown to the client` : 'Posts, sentiment, reach and engagement'} box={box} tooltip={slCardTooltip('b-authors')}>
         {!exporting && <AuthorSortControl sort={sort} />}
         <div className={s.tableScroll}>
           <table className={s.table}>

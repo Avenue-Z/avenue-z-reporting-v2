@@ -35,3 +35,6 @@
 .dim { opacity: 0.45; }
 .pickRow { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hiddenTag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+/* Unit B: a chart title with the "?" hint beside it. */
+.titleTip { display: inline-flex; align-items: center; gap: 6px; }

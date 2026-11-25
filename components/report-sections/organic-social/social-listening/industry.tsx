@@ -4,6 +4,7 @@
 // themes with the top conversation themes box, key takeaways, keyword appendix. Server component.
 import { AnalysisOnly, ConversationThemes, SentimentLines, SourceLine, Toggled, fmt, fromFirst, notesFor, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
 import { SlNotesPanel } from './notes-panel'
+import { slCardTooltip, slTileTooltip } from '@/lib/organic-social/social-listening/tooltips'
 import { Cloud, DailyLines, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from '../design/charts'
 import { SlCard, SlSection } from '../design/frames'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
@@ -23,17 +24,17 @@ export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, 
             <div className={`${s.grid} ${s.g4}`}>
               {r.tiles.map((t) => {
                 if (t.unit !== '%') {
-                  return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : short(t.value)} sub={t.value === null ? undefined : `${fmt(t.value)} exact`} delta={t.change} label={label} />
+                  return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : short(t.value)} sub={t.value === null ? undefined : `${fmt(t.value)} exact`} delta={t.change} label={label} tooltip={slTileTooltip('industry', t.id)} />
                 }
                 return <Kpi key={t.title} title={t.title} value={t.value === null ? 'n/a' : `${t.value}%`} delta={t.points} unit="pts" label={label}
-                  invert={t.title === 'Negative'} neutral={t.title === 'Neutral'} />
+                  invert={t.title === 'Negative'} neutral={t.title === 'Neutral'} tooltip={slTileTooltip('industry', t.id)} />
               })}
             </div>
             {boxes['i-kpis']}
           </SlSection>
 
           <SlSection>
-            <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['i-daily']}>
+            <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['i-daily']} tooltip={slCardTooltip('i-daily')}>
               <LineChart days={r.daily} color="#A08BFF" id="sl-gi" marks={daily.marks} />
               <SlNotesPanel notes={daily} title="Results over time" />
             </SlCard>
@@ -44,20 +45,20 @@ export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, 
                 The month-by-month card stays until Savannah confirms whether her list meant to remove it: both decks
                 carry it as its own slide (plan 2026-11-24, Q3). */}
             <div className={`${s.grid} ${s.g2} ${f.pair}`}>
-              <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} bodyClassName={s.donutWrap}>
+              <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} tooltip={slCardTooltip('i-sent')} bodyClassName={s.donutWrap}>
                 <Donut counts={r.sentiment.counts} />
                 <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
               </SlCard>
-              <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']}>
+              <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']} tooltip={slCardTooltip('i-ytd')}>
                 <Toggled id="i-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={fromFirst(r.ytd)} />}
                   columns={<YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />} />
               </SlCard>
             </div>
-            <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']}>
+            <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']} tooltip={slCardTooltip('i-sentday')}>
               <Toggled id="i-sentday" cols={cols} exporting={exporting} line={<DailyLines rows={r.dailyBySentiment} />}
                 columns={<><DailyStack rows={r.dailyBySentiment} /><Key items={[{ name: 'Positive', color: SENTIMENT_COLORS.pos }, { name: 'Neutral', color: SENTIMENT_COLORS.neu }, { name: 'Negative', color: SENTIMENT_COLORS.neg }]} /></>} />
             </SlCard>
-            <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['i-cross']}>
+            <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['i-cross']} tooltip={slCardTooltip('i-cross')}>
               <HBars rows={r.cross} />
             </SlCard>
           </SlSection>
@@ -68,7 +69,7 @@ export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, 
       {(r || (view.show.conv && boxes['i-conv'])) && (
         <SlSection title="Themes">
           {r && (
-            <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['i-themes']}
+            <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['i-themes']} tooltip={slCardTooltip('i-themes')}
               note="Colour is decoration on the industry cloud. It does not mean sentiment.">
               <Cloud themes={r.themes} colorFor={decoColor} />
             </SlCard>

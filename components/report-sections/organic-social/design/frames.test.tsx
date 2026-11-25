@@ -46,3 +46,15 @@ describe('SlCard', () => {
     expect(html(<SlCard title="A chart" box={null}>chart</SlCard>)).toBe(html(<SlCard title="A chart">chart</SlCard>))
   })
 })
+
+// Unit B (plan 2026-11-24, F2): the "?" hint beside a chart title.
+describe('SlCard tooltip', () => {
+  test('with text, the title carries the shared hint, which the PDF drops; without, the card is exactly as before', () => {
+    const tip = render(<SlCard title="Results over time" tooltip="Made-up definition">x</SlCard>)
+    const h3 = tip.container.querySelector('h3')!
+    expect(h3.textContent).toBe('Results over time?Made-up definition')
+    expect(h3.querySelector('[role="tooltip"]')!.textContent).toBe('Made-up definition')
+    expect(h3.querySelector('[data-export-hide]')).not.toBeNull()
+    expect(render(<SlCard title="A" tooltip={undefined}>x</SlCard>).container.innerHTML).toBe(render(<SlCard title="A">x</SlCard>).container.innerHTML)
+  })
+})
