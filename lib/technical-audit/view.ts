@@ -2,8 +2,11 @@ import { getClientBySlug } from '@/lib/db/queries'
 import { mapWithConcurrency } from '@/lib/concurrency'
 import { KPI_DEFS, kpiValue, toViewMetrics } from './kpis'
 import type { KpiKey, ViewMetrics } from './kpis'
-import { getSnapshotBundle, getSnapshots } from './store'
-import type { IssueRow, RunRow, SnapshotRow } from './store'
+import { getOverrides, getSnapshotBundle, getSnapshots } from './store'
+import type { OverrideRow, RunRow, SnapshotRow } from './store'
+import { loadIssueMap } from './issue-map'
+import { mergeIssues, type MergedIssue } from './issues'
+import type { SourceIssue, TaIssueSource } from './types'
 
 export type Viewer = 'team' | 'client'
 export type ViewRun = { source: RunRow['source']; status: RunRow['status']; lastError?: string | null }
@@ -19,6 +22,13 @@ export type ViewSnapshot = {
   publishedBy?: string | null
   publishedAt?: Date | null
 }
+/** Client-safe issue projection. `noteBy`/`noteAt` (staff email, timestamp) are team only. */
+export type ViewIssue = Pick<MergedIssue, 'key' | 'name' | 'severity' | 'urls' | 'sources' | 'detail' | 'needsMapping'> & {
+  hidden: boolean
+  note: string | null
+  noteBy?: string
+  noteAt?: string
+}
 export type SeriesPoint = { date: string; value: number | null }
 
 export interface TechAuditView {
@@ -29,8 +39,8 @@ export interface TechAuditView {
   prevMetrics: ViewMetrics | null
   series: Record<KpiKey, SeriesPoint[]>
   runs: ViewRun[]
-  /** Filled by the issue-list task. */
-  issues: IssueRow[]
+  /** Ranked merged issues of the selected snapshot. A client never gets hidden rows or note authorship. */
+  issues: ViewIssue[]
   /** Newest snapshot date when it is more than STALE_DAYS old; team viewers only. */
   staleSince: string | null
   crawlSettingsChanged: boolean
@@ -50,6 +60,22 @@ function toViewSnapshot(s: SnapshotRow, viewer: Viewer): ViewSnapshot {
     ahrefsCrawlDate: s.ahrefsCrawlDate, gscExportDate: s.gscExportDate, crawlSettingsChanged: s.crawlSettingsChanged,
   }
   return viewer === 'team' ? { ...base, publishedBy: s.publishedBy, publishedAt: s.publishedAt } : base
+}
+
+const isIssueSource = (v: string): v is TaIssueSource => v === 'ahrefs' || v === 'sf' || v === 'gsc_indexing' || v === 'gsc_cwv'
+
+function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaited<ReturnType<typeof loadIssueMap>>, viewer: Viewer): ViewIssue[] {
+  const byKey = new Map(overrides.map((o) => [o.issueKey, o]))
+  return mergeIssues(rows, map).flatMap((m): ViewIssue[] => {
+    const o = byKey.get(m.key)
+    const hidden = o?.hidden ?? false
+    if (viewer === 'client' && hidden) return []
+    const base: ViewIssue = {
+      key: m.key, name: m.name, severity: m.severity, urls: m.urls, sources: m.sources, detail: m.detail,
+      needsMapping: m.needsMapping, hidden, note: o?.note ?? null,
+    }
+    return [viewer === 'team' && o?.note ? { ...base, noteBy: o.updatedBy, noteAt: o.updatedAt.toISOString() } : base]
+  })
 }
 
 function daysBetween(date: string, now: Date): number {
@@ -88,6 +114,15 @@ export async function loadTechAuditView(
   const runs: ViewRun[] = (bundles.get(selected.id)?.runs ?? []).map((r) =>
     viewer === 'team' ? { source: r.source, status: r.status, lastError: r.lastError } : { source: r.source, status: r.status })
 
+  const [overrides, issueMap] = await Promise.all([getOverrides(client.id), loadIssueMap()])
+  const issueRows = (bundles.get(selected.id)?.issues ?? []).flatMap((i): SourceIssue[] => {
+    if (!isIssueSource(i.source)) return []
+    return [{
+      source: i.source, nativeName: i.nativeIssueName, nativeSeverity: i.nativeSeverity, urlCount: i.urlCount,
+      ...(i.device === 'mobile' || i.device === 'desktop' ? { device: i.device } : {}),
+    }]
+  })
+
   const newest = visible[0].snapshotDate
   return {
     snapshots: visible.map((s) => ({ id: s.id, date: s.snapshotDate, status: asStatus(s.status) })),
@@ -97,7 +132,7 @@ export async function loadTechAuditView(
     prevMetrics: metricsOf(previous),
     series,
     runs,
-    issues: [],
+    issues: toViewIssues(issueRows, overrides, issueMap, viewer),
     staleSince: viewer === 'team' && daysBetween(newest, now) > STALE_DAYS ? newest : null,
     crawlSettingsChanged: selected.crawlSettingsChanged,
   }

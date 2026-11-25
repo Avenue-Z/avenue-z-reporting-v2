@@ -5,9 +5,11 @@ const h = vi.hoisted(() => ({
   getClientBySlug: vi.fn(),
   getSnapshots: vi.fn(),
   getSnapshotBundle: vi.fn(),
+  getOverrides: vi.fn(),
 }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: h.getClientBySlug }))
-vi.mock('./store', () => ({ getSnapshots: h.getSnapshots, getSnapshotBundle: h.getSnapshotBundle }))
+vi.mock('./store', () => ({ getSnapshots: h.getSnapshots, getSnapshotBundle: h.getSnapshotBundle, getOverrides: h.getOverrides }))
+vi.mock('./issue-map', () => ({ loadIssueMap: async () => new Map() }))
 
 import { loadTechAuditView } from './view'
 
@@ -37,6 +39,7 @@ beforeEach(() => {
   all = [snap('2026-11-01'), snap('2026-10-01'), snap('2026-09-01')]
   healthByDate = { '2026-11-01': 90, '2026-10-01': null, '2026-09-01': 80 }
   h.getClientBySlug.mockResolvedValue({ id: 'c1' })
+  h.getOverrides.mockResolvedValue([])
   h.getSnapshots.mockImplementation(async (_c: string, o: { publishedOnly: boolean }) =>
     o.publishedOnly ? all.filter((s) => s.status === 'published') : all)
   h.getSnapshotBundle.mockImplementation(async (_c: string, id: string) => {
@@ -151,5 +154,37 @@ describe('loadTechAuditView', () => {
     const v = await loadTechAuditView('x', undefined, 'team', NOW)
     expect(v?.crawlSettingsChanged).toBe(true)
     expect(v?.issues).toEqual([])
+  })
+
+  describe('issues', () => {
+    const src = (nativeIssueName: string, urlCount: number) =>
+      ({ id: nativeIssueName, snapshotId: 's', source: 'sf', nativeIssueName, nativeSeverity: 'error', urlCount, device: null })
+    const override = (issueKey: string, over: Record<string, unknown>) =>
+      ({ id: 'o', clientId: 'c1', issueKey, hidden: false, note: null, updatedBy: 'strategist@avenuez.com', updatedAt: new Date('2026-11-02T00:00:00Z'), ...over })
+    beforeEach(() => {
+      h.getSnapshotBundle.mockImplementation(async (_c: string, id: string) => {
+        const snapshot = all.find((s) => s.id === id)
+        return snapshot ? { snapshot, runs: [], metrics: metrics(90), issues: [src('Big problem', 1000), src('Small problem', 3)] } : null
+      })
+    })
+
+    test('client view never receives a hidden row even when it ranks #1', async () => {
+      h.getOverrides.mockResolvedValue([override('sf:Big problem', { hidden: true })])
+      const v = await loadTechAuditView('x', undefined, 'client', NOW)
+      expect(v!.issues.map((i) => i.name)).toEqual(['Small problem'])
+      const t = await loadTechAuditView('x', undefined, 'team', NOW)
+      expect(t!.issues.map((i) => [i.name, i.hidden])).toEqual([['Big problem', true], ['Small problem', false]])
+    })
+
+    test('client props carry no noteBy/noteAt; team keeps them', async () => {
+      h.getOverrides.mockResolvedValue([override('sf:Small problem', { note: 'checking' })])
+      const v = await loadTechAuditView('x', undefined, 'client', NOW)
+      const row = v!.issues.find((i) => i.name === 'Small problem')!
+      expect(row.note).toBe('checking')
+      expect(row).not.toHaveProperty('noteBy')
+      expect(row).not.toHaveProperty('noteAt')
+      const t = await loadTechAuditView('x', undefined, 'team', NOW)
+      expect(t!.issues.find((i) => i.name === 'Small problem')).toMatchObject({ noteBy: 'strategist@avenuez.com', noteAt: '2026-11-02T00:00:00.000Z' })
+    })
   })
 })

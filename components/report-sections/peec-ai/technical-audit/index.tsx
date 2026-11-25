@@ -1,7 +1,7 @@
 // The AEO Technical Performance tab as a monthly Technical Audit snapshot (spec 2026-11-23 §5). One view model
 // (loadTechAuditView) feeds presentational parts. The viewer is the server session's, never a prop or URL value:
 // a client sees published snapshots only, and staff-only parts (checklist, stale flag) never print in the PDF.
-import { Gauge, TrendingUp } from 'lucide-react'
+import { Gauge, ListChecks, TrendingUp } from 'lucide-react'
 import { auth } from '@/auth'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { buildChecklist } from '@/lib/technical-audit/checklist'
@@ -11,6 +11,7 @@ import { loadTechAuditView, type ViewRun } from '@/lib/technical-audit/view'
 import { SectionHeader } from '../section-header'
 import { ChangeOverTime } from './change-over-time'
 import { HealthTiles } from './health-tiles'
+import { IssueList } from './issue-list'
 import { PublishChecklist } from './publish-checklist'
 import { SnapshotHeader } from './snapshot-header'
 
@@ -92,7 +93,12 @@ export async function TechnicalAuditPage({ clientSlug, snapshot, exporting = fal
         </section>
       </ReportErrorBoundary>
 
-      {/* 03 · Issues to investigate (spec §5.5) goes here: Task 12 fills view.issues and renders the list. */}
+      <ReportErrorBoundary sectionName="Issues to investigate">
+        <section className="flex flex-col gap-4">
+          <SectionHeader icon={ListChecks} title="03 · Issues to investigate" subtitle="What should we look at first?" />
+          <IssueList clientSlug={clientSlug} issues={view.issues} viewer={viewer} />
+        </section>
+      </ReportErrorBoundary>
     </div>
   )
 }
