@@ -27,9 +27,11 @@ export interface ExportViewParams {
   /** The AEO Informed Social tab's range and min competitors; Month and 2 when absent, as on the page. */
   aeo?: AeoRange
   aeoMin?: number
+  /** AEO Overview's `?deltas=` as the page holds it (only `off` means anything). */
+  deltas?: string | null
 }
 
-export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models, aeo, aeoMin }: ExportViewParams): ReactElement {
+export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models, aeo, aeoMin, deltas }: ExportViewParams): ReactElement {
   switch (view.section) {
     case 'organic-social':
       // Locked months resolve inside OrganicSocialReport from the raw range, as on the page.
@@ -43,7 +45,7 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (view.subsectionId === 'content-impact')  return <ContentImpactReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
       if (view.subsectionId === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
-      return <PeecAIReport audience="client" clientSlug={clientSlug} dateRange={dateRange} models={models} />
+      return <PeecAIReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} deltas={deltas ?? null} models={models} />
     case 'paid-media':
       if (view.subsectionId === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       if (view.subsectionId === 'linkedin')    return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />

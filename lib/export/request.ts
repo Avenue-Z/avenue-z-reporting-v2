@@ -17,6 +17,8 @@ export interface ExportRequest {
    *  body and export path is exactly what it was. */
   aeo?: AeoRange
   aeoMin?: number
+  /** AEO Overview: the page's Show deltas switch is off (`deltas=off`). Absent means deltas show. */
+  deltas?: 'off'
   /** The requester's IANA timezone, for the stamp and the filename date. */
   tz: string
 }
@@ -49,6 +51,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
   if (b.models != null && (typeof b.models !== 'string' || !MODELS.test(b.models))) return null
   if (b.aeo != null && !AEO_RANGES.includes(b.aeo as AeoRange)) return null
   if (b.aeoMin != null && !(typeof b.aeoMin === 'number' && Number.isInteger(b.aeoMin) && b.aeoMin >= 1 && b.aeoMin <= 5)) return null
+  if (b.deltas != null && b.deltas !== 'off') return null
   return {
     clientSlug: b.clientSlug,
     section,
@@ -58,6 +61,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     models: (b.models as string | null | undefined) ?? null,
     ...(b.aeo != null ? { aeo: b.aeo as AeoRange } : {}),
     ...(b.aeoMin != null ? { aeoMin: b.aeoMin as number } : {}),
+    ...(b.deltas === 'off' ? { deltas: 'off' as const } : {}),
     tz: safeTimeZone(b.tz),
   }
 }
@@ -71,6 +75,7 @@ export function exportPagePath(r: ExportRequest): string {
   if (r.models) sp.set('models', r.models)
   if (r.aeo) sp.set('aeo', r.aeo)
   if (r.aeoMin) sp.set('aeomin', String(r.aeoMin))
+  if (r.deltas) sp.set('deltas', r.deltas)
   sp.set('tz', r.tz)
   return `/export/${r.clientSlug}/${r.section}?${sp.toString()}`
 }

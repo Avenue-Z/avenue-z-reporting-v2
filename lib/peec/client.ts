@@ -371,14 +371,15 @@ async function fetchAllRows(
  *                    PEEC_AI_PROJECT_ID env var when omitted (backward-compatible).
  * @param dateRange   Optional page date range (e.g. 'last_30_days', 'this_month').
  *                    All metrics are scoped to this range; deltas compare against
- *                    the immediately-preceding period of equal length. Defaults to
+ *                    the previous period of equal length by default (or the same
+ *                    period last year when `compareMode` is 'previous_year'). Defaults to
  *                    'last_30_days' to match the other AEO pages.
  */
 // Cached per (clientSlug, dateRange) for 1 hour. Cache key derives from the
 // function args (so 'avenue-z' and 'renaissance', and each date range, get their
 // own entry). Without this wrapper, all clients shared one cache entry per fetch
 // URL because Next.js fetch caching keys on URL — Peec puts project_id in the body.
-async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Promise<PeecOverview> {
+async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string, compareMode: 'previous_period' | 'previous_year' = 'previous_period'): Promise<PeecOverview> {
   // Resolve project ID and "your brand" label per-client; fall back to env vars
   // when no clientSlug is provided (legacy single-tenant callers).
   let resolvedProjectId: string | undefined
@@ -395,10 +396,11 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
 
   const yourBrand = resolvedYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
   // Scope every metric to the page date range; compare deltas against the
-  // immediately-preceding period of equal length (matches the other AEO pages).
+  // previous period of equal length by default (matches the other AEO pages);
+  // `compareMode` can select the same period last year instead.
   const range = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(range)
-  const compareDates = deriveCompareRange(range, 'previous_period') ?? mainDates
+  const compareDates = deriveCompareRange(range, compareMode) ?? mainDates
   const current = { start_date: mainDates.startDate, end_date: mainDates.endDate }
   const prior   = { start_date: compareDates.startDate, end_date: compareDates.endDate }
 
@@ -505,7 +507,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string): Pro
       })
   }
   // Deltas (retrievedDelta / Post-Launch AI Lift) compare the selected range
-  // against the immediately-preceding period of equal length.
+  // against the compare period (previous period by default; same period last year
+  // when `compareMode` is 'previous_year').
   const topDomains = buildTopDomains(domainsRes.data ?? [], domainsPriorRes.data ?? [])
   const totalCitations = (domainsRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0)
   const totalCitationsPrior = (domainsPriorRes.data ?? []).reduce((s, d) => s + (d.citation_count ?? 0), 0)

@@ -12,6 +12,7 @@ import type { AeoProvider } from './provider-tabs'
 import type { PeecOverview, TrackedPrompt } from '@/lib/peec/client'
 import type { ProfoundOverview } from '@/lib/profound/client'
 import type { AIReferralKPI } from './index'
+import type { AeoCompare } from './v2/compare'
 
 type Overview = PeecOverview | ProfoundOverview
 
@@ -29,6 +30,10 @@ export type PeecCtx = {
   models: AEOModel[] | null
   /** Who this render is for; the competitor gap table shows prompt text only to 'internal' (D-15). */
   audience: ReportAudience
+  /** AEO Overview v2: which window the deltas compare against. v1 parts ignore it. */
+  compare: AeoCompare
+  /** AEO Overview v2: the Show deltas switch. v1 parts ignore it. */
+  showDeltas: boolean
   you: Overview['brandRankings'][number] | undefined
   modelActive: boolean
   llmFiltered: Overview['llmBreakdown']
@@ -56,6 +61,8 @@ export function buildPeecCtx(args: {
   clientSlug?: string
   dateRange?: string
   audience: ReportAudience
+  compare?: AeoCompare
+  showDeltas?: boolean
 }): PeecCtx {
   const { data, provider, models, aiTraffic } = args
 
@@ -104,6 +111,8 @@ export function buildPeecCtx(args: {
     isPeec,
     models,
     audience: args.audience,
+    compare: args.compare ?? 'previous_period',
+    showDeltas: args.showDeltas ?? true,
     you,
     modelActive,
     llmFiltered,

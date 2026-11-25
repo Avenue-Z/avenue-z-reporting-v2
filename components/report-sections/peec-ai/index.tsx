@@ -9,6 +9,8 @@ import { isAiSource, aiSourceModel } from '@/lib/constants'
 import type { ReportAudience } from './ctx'
 import type { AEOModel } from '@/lib/peec/models'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
+import { Suspense } from 'react'
+import type { ReactNode } from 'react'
 import { Sparkles } from 'lucide-react'
 import { SectionHeader } from './section-header'
 import { buildPeecCtx } from './ctx'
@@ -19,6 +21,11 @@ import { BESPOKE_PARTS } from './parts/bespoke/registry'
 import { PEEC_TEMPLATE } from './template'
 import { peecWrapsAsBlock } from './parts/export-layout'
 import type { SectionOverride } from '@/lib/report-sections/types'
+import { V2_PART_SECTIONS, isV2Layout, groupParts, sectionsPresent } from './v2/sections'
+import { overviewCompare, type AeoCompare } from './v2/compare'
+import { OverviewBody } from './v2/overview-body'
+import { OverviewSectionNav } from './v2/section-nav'
+import { DeltasSwitch } from './v2/deltas-switch'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 // --- Per-provider section (shared markup; renders via parts registry) ---
@@ -27,7 +34,7 @@ type Overview = PeecOverview | ProfoundOverview
 
 const registry = mergeRegistries(PEEC_PARTS, BESPOKE_PARTS)
 
-function ProviderSection({
+export function ProviderSection({
   data,
   provider,
   models = null,
@@ -37,6 +44,8 @@ function ProviderSection({
   template,
   override,
   audience,
+  compare,
+  showDeltas,
 }: {
   data: Overview
   provider: AeoProvider
@@ -47,9 +56,36 @@ function ProviderSection({
   template: typeof PEEC_TEMPLATE
   override: SectionOverride | undefined
   audience: ReportAudience
+  compare: AeoCompare
+  showDeltas: boolean
 }) {
-  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience })
+  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience, compare, showDeltas })
   const resolved = resolveSection(template, override)
+
+  const renderPart = (r: (typeof resolved)[number]): ReactNode => {
+    const impl = lookup(registry, r.id, r.version)
+    // A part with no export form of its own is one unbreakable block in the PDF export (parts/export-layout.ts).
+    return impl ? <div key={`${r.id}@${r.version}`} {...(peecWrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{impl.render(ctx, r)}</div> : null
+  }
+
+  if (isV2Layout(resolved, V2_PART_SECTIONS)) {
+    const groups = groupParts(resolved, V2_PART_SECTIONS)
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-end">
+          <Suspense fallback={null}>
+            <DeltasSwitch showDeltas={showDeltas} disabled={compare === 'none'} />
+          </Suspense>
+        </div>
+        <div className="lg:grid lg:grid-cols-[180px_1fr] lg:gap-8">
+          <Suspense fallback={null}>
+            <OverviewSectionNav sections={sectionsPresent(groups)} />
+          </Suspense>
+          <OverviewBody groups={groups} renderPart={renderPart} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
@@ -57,11 +93,7 @@ function ProviderSection({
         icon={Sparkles}
         title="How visible is the brand across AI answer engines?"
       />
-      {resolved.map((r) => {
-        const impl = lookup(registry, r.id, r.version)
-        // A part with no export form of its own is one unbreakable block in the PDF export (parts/export-layout.ts).
-        return impl ? <div key={`${r.id}@${r.version}`} {...(peecWrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{impl.render(ctx, r)}</div> : null
-      })}
+      {resolved.map(renderPart)}
     </div>
   )
 }
@@ -73,8 +105,15 @@ export async function PeecAIReport({
   dateRange,
   models = null,
   audience,
-}: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null; audience: ReportAudience }) {
+  compareRange,
+  deltas,
+}: { clientSlug?: string; dateRange?: string; models?: AEOModel[] | null; audience: ReportAudience; compareRange?: string | null; deltas?: string | null }) {
   const config = clientSlug ? await getClientBySlug(clientSlug) : null
+  // Template + override first: whether the layout is v2 decides which compare window the fetchers use.
+  const dbTemplate = await getSectionTemplate('peec-ai')
+  const template = dbTemplate ?? PEEC_TEMPLATE
+  const override = config?.reportSectionConfig?.['peec-ai']
+  const { compare, showDeltas, fetchMode } = overviewCompare(isV2Layout(resolveSection(template, override), V2_PART_SECTIONS), compareRange, deltas)
   const peecConfigured = !!config?.peecCustomerProjectId
   const profoundConfigured = !!config?.profoundCategoryId
 
@@ -85,13 +124,14 @@ export async function PeecAIReport({
   const ga4Configured = !!config?.ga4PropertyId
   const mainRange = dateRange ?? 'last_30_days'
   const mainDates = parseDateRange(mainRange)
-  const compareDates = deriveCompareRange(mainRange, 'previous_period')
+  const compareDates = deriveCompareRange(mainRange, fetchMode)
   const mainIso = `${mainDates.startDate},${mainDates.endDate}`
   const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
 
+  // The two-argument call (no compareMode) for previous_period is deliberate: it keeps v1 cache keys (JSON.stringify(args)) unchanged.
   const [peecRes, profoundRes, aiNowRes, aiPriorRes] = await Promise.allSettled([
-    peecConfigured ? getPeecOverview(clientSlug, dateRange) : Promise.resolve(null),
-    profoundConfigured ? getProfoundOverview(clientSlug, dateRange) : Promise.resolve(null),
+    peecConfigured ? (fetchMode === 'previous_year' ? getPeecOverview(clientSlug, dateRange, fetchMode) : getPeecOverview(clientSlug, dateRange)) : Promise.resolve(null),
+    profoundConfigured ? (fetchMode === 'previous_year' ? getProfoundOverview(clientSlug, dateRange, fetchMode) : getProfoundOverview(clientSlug, dateRange)) : Promise.resolve(null),
     ga4Configured && clientSlug
       ? ga4Query({ clientSlug, dateRange: mainIso, metrics: ['sessions'], dimensions: ['sessionSource'], limit: 150 })
       : Promise.resolve(null),
@@ -131,13 +171,9 @@ export async function PeecAIReport({
     return <p className="text-sm text-text-muted">No AEO provider is configured for this client.</p>
   }
 
-  const [dbTemplate] = await Promise.all([getSectionTemplate('peec-ai')])
-  const template = dbTemplate ?? PEEC_TEMPLATE
-  const override = config?.reportSectionConfig?.['peec-ai']
-
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} compare={compare} showDeltas={showDeltas} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} compare={compare} showDeltas={showDeltas} />
 
   return (
     <>

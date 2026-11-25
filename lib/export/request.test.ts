@@ -93,3 +93,23 @@ test.each([['YTD'], ['year'], [3], [['ytd']], ['']])('an aeo of %j is refused', 
 test.each([[0], [6], [2.5], ['3'], [Number.NaN]])('an aeoMin of %j is refused', (aeoMin) => {
   expect(parseExportRequest({ ...ok, aeoMin })).toBeNull()
 })
+
+test('deltas=off is accepted and carried to the export path', () => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai', deltas: 'off' })
+  expect(r?.deltas).toBe('off')
+  expect(exportPagePath(r as ExportRequest)).toContain('deltas=off')
+})
+
+test.each(['on', true, 1])('any other deltas (%s) is refused', (deltas) => {
+  expect(parseExportRequest({ ...ok, section: 'peec-ai', deltas })).toBeNull()
+})
+
+test('no deltas leaves no key and no path param', () => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai' }) as ExportRequest
+  expect('deltas' in r).toBe(false)
+  expect(exportPagePath(r)).not.toContain('deltas')
+})
+
+test('compareRange none is accepted', () => {
+  expect(parseExportRequest({ ...ok, section: 'peec-ai', compareRange: 'none' })?.compareRange).toBe('none')
+})

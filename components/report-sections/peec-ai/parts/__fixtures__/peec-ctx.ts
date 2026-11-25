@@ -161,6 +161,8 @@ export const FIXTURE_PEEC_CTX: PeecCtx = {
   isPeec: true,
   models: null,
   audience: 'client',
+  compare: 'previous_period',
+  showDeltas: true,
   you: {
     rank: 1,
     name: 'Acme Corp',
