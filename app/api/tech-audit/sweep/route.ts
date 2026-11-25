@@ -24,13 +24,19 @@ export async function GET(req: Request) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const report = await runSweep({
-    listClients: () =>
-      db.select({ id: clients.id, slug: clients.slug, sfDriveFolderId: clients.sfDriveFolderId, ahrefsProjectId: clients.ahrefsProjectId })
-        .from(clients)
-        .where(or(isNotNull(clients.sfDriveFolderId), isNotNull(clients.ahrefsProjectId))),
-    listSfRuns, fetchIssuesOverview, parseSfIssuesOverview, fetchAhrefs,
-    ensureSnapshot, getSnapshots, claimRun, completeRun, failRun,
-  }, new Date())
-  return NextResponse.json(report)
+  try {
+    const report = await runSweep({
+      listClients: () =>
+        db.select({ id: clients.id, slug: clients.slug, sfDriveFolderId: clients.sfDriveFolderId, ahrefsProjectId: clients.ahrefsProjectId })
+          .from(clients)
+          .where(or(isNotNull(clients.sfDriveFolderId), isNotNull(clients.ahrefsProjectId))),
+      listSfRuns, fetchIssuesOverview, parseSfIssuesOverview, fetchAhrefs,
+      ensureSnapshot, getSnapshots, claimRun, completeRun, failRun,
+    }, new Date())
+    return NextResponse.json(report)
+  } catch {
+    // Fixed text only: a listClients failure carries Drizzle's SQL and params.
+    console.error('[tech-audit] sweep failed')
+    return NextResponse.json({ error: 'sweep failed' }, { status: 500 })
+  }
 }

@@ -33,6 +33,17 @@ test('200 with the secret returns the report', async () => {
   expect(await r.json()).toEqual(REPORT)
 })
 
+test('an unexpected throw returns 500 with a fixed body and a fixed log line', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  m.runSweep.mockRejectedValueOnce(new Error('Failed query: select … params: secret-db-text'))
+  const r = await call('Bearer s3cret')
+  expect(r.status).toBe(500)
+  expect(await r.json()).toEqual({ error: 'sweep failed' })
+  expect(error).toHaveBeenCalledWith('[tech-audit] sweep failed')
+  expect(JSON.stringify(error.mock.calls)).not.toContain('secret-db-text')
+  error.mockRestore()
+})
+
 test('is dynamic with a 300 s budget', () => {
   expect(dynamic).toBe('force-dynamic')
   expect(maxDuration).toBe(300)
