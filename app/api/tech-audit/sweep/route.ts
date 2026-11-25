@@ -3,7 +3,7 @@
  * fills its Screaming Frog and Ahrefs data (lib/technical-audit/sweep.ts).
  *
  * Auth: requires `Authorization: Bearer <CRON_SECRET>` (Vercel Cron sends it), as app/api/health/sweep/route.ts.
- * Budget: 270 s inside the sweep, under the 300 s maxDuration. Work not reached waits for tomorrow's run.
+ * Budget: 240 s inside the sweep, under the 300 s maxDuration. Work not reached waits for tomorrow's run.
  */
 import { NextResponse } from 'next/server'
 import { isNotNull, or } from 'drizzle-orm'

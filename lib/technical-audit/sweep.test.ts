@@ -1,7 +1,7 @@
 // @vitest-environment node
 // runSweep against an in-memory fake of the store and the two sources. No Drive, Ahrefs or database is touched.
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { runSweep } from './sweep'
+import { runSweep, SWEEP_BUDGET_MS } from './sweep'
 import type { SweepDeps } from './sweep'
 import type { AhrefsResult, Parsed, SfResult, TaSource } from './types'
 
@@ -196,11 +196,45 @@ describe('runSweep', () => {
     expect(peak).toBe(4)
   })
 
+  test('the default budget is 240 s, inside the route\'s 300 s', () => {
+    expect(SWEEP_BUDGET_MS).toBe(240_000)
+  })
+
   test('a spent time budget stops claiming new work and says so', async () => {
     const h = harness({ budgetMs: -1 }, { alpha: [RUN] })
     const report = await runSweep(h.deps, NOW)
     expect(report.completed).toEqual([])
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('[tech-audit] budget spent'))
+  })
+
+  test('a store error never reaches the logs, the report or the stored reason', async () => {
+    const h = harness({
+      completeRun: async () => { throw new Error('Failed query: insert into x\nparams: secret-issue-text') },
+    }, { alpha: [RUN] })
+    const report = await runSweep(h.deps, NOW)
+    const seen = JSON.stringify([warn.mock.calls, report, h.failed])
+    expect(seen).not.toContain('secret-issue-text')
+    expect(seen).not.toContain('Failed query')
+    expect(h.failed.map((f) => f.reason)).toEqual(['database error', 'database error'])
+    expect(report.failed.every((f) => f.reason === 'database error')).toBe(true)
+  })
+
+  test('a throwing claimRun or getSnapshots is reported without its message', async () => {
+    const h = harness({ getSnapshots: async () => { throw new Error('Failed query: select params: secret-issue-text') } }, { alpha: [RUN] })
+    const report = await runSweep(h.deps, NOW)
+    expect(JSON.stringify([warn.mock.calls, report])).not.toContain('secret-issue-text')
+    expect(report.failed.length).toBeGreaterThan(0)
+  })
+
+  test('missing sources are re-checked on drafts within 45 days, not on older ones', async () => {
+    const h = harness({ fetchIssuesOverview: async () => null }, { alpha: [{ date: '2026-09-26', folderId: 'old' }, { date: '2026-11-15', folderId: 'new' }] })
+    await runSweep(h.deps, NOW) // both go missing
+    const modes: Record<string, boolean | undefined> = {}
+    const orig = h.deps.claimRun
+    h.deps.claimRun = async (id, source, stale, opts) => { if (source === 'sf') modes[id] = opts?.includeMissing; return orig(id, source, stale, opts) }
+    await runSweep(h.deps, NOW)
+    expect(modes['c1-2026-11-15']).toBe(true) // 10 days old
+    expect(modes['c1-2026-09-26']).toBe(false) // 60 days old
   })
 
   test('log lines carry no newlines from the reason', async () => {
