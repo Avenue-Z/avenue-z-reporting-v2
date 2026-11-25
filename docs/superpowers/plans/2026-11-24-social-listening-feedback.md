@@ -130,7 +130,7 @@ in a new `lib/organic-social/social-listening/routes.test.tsx`, on the pattern o
 - Bad values, on purpose two rules: on the page, an unknown chart id or a repeat is dropped, so an old link still loads;
   in the export request, any value outside the fixed list makes the request invalid, as the AEO values do
   (`lib/export/request.ts:50-51`), since the button only ever sends what the route already cleaned.
-- Brand: Sentiment YTD and Reddit YTD toggle; Positive + neutral does not; all three full width, stacked.
+- Brand: all three year to date graphs toggle (Positive + neutral too, per D2 and Savannah's list); all three full width, stacked.
 - Industry: Sentiment over time (daily) toggles, and so does the month-by-month card while it stays (Q3).
 
 Edge-case list for the commit body: the param comes from the browser, so an unknown chart id, a repeat, or an
