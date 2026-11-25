@@ -73,6 +73,18 @@ export function SortableTable<T>({
   // only places a long table may break between pages (app/export/export-theme.css).
   const exportMode = useExportMode()
 
+  // When the sorted column is no longer in `columns`, fall back to the default sort (if that column exists) without
+  // touching state, so the sort returns if the column comes back.
+  const effective = useMemo(() => {
+    if (sortKey && columns.some((c) => c.key === sortKey)) return { key: sortKey, dir: sortDir }
+    if (sortKey && defaultSortKey && columns.some((c) => c.key === defaultSortKey)) {
+      return { key: defaultSortKey, dir: defaultSortDir ?? null }
+    }
+    return { key: sortKey, dir: sortDir }
+  }, [columns, sortKey, sortDir, defaultSortKey, defaultSortDir])
+  const effectiveSortKey = effective.key
+  const effectiveSortDir = effective.dir
+
   const sortedRows = useMemo(() => {
     let result = rows
 
@@ -90,10 +102,10 @@ export function SortableTable<T>({
     }
 
     // Apply sort
-    if (sortKey && sortDir) {
-      const col = columns.find((c) => c.key === sortKey)
+    if (effectiveSortKey && effectiveSortDir) {
+      const col = columns.find((c) => c.key === effectiveSortKey)
       if (col) {
-        const accessor = col.accessor ?? ((r: T) => (r as Record<string, unknown>)[sortKey] as string | number)
+        const accessor = col.accessor ?? ((r: T) => (r as Record<string, unknown>)[effectiveSortKey] as string | number)
         result = [...result].sort((a, b) => {
           const av = accessor(a)
           const bv = accessor(b)
@@ -105,13 +117,13 @@ export function SortableTable<T>({
           if (av == null) return 1
           if (bv == null) return -1
           const cmp = compareValues(av, bv)
-          return sortDir === 'asc' ? cmp : -cmp
+          return effectiveSortDir === 'asc' ? cmp : -cmp
         })
       }
     }
 
     return result
-  }, [rows, columns, filters, sortKey, sortDir])
+  }, [rows, columns, filters, effectiveSortKey, effectiveSortDir])
 
   const visibleRows = initialPageSize && !showAll
     ? sortedRows.slice(0, initialPageSize)
@@ -217,7 +229,7 @@ export function SortableTable<T>({
               {columns.map((col) => {
                 const isSortable = col.sortable !== false
                 const isFilterable = col.filterable !== false
-                const isSorted = sortKey === col.key && sortDir
+                const isSorted = effectiveSortKey === col.key && effectiveSortDir
                 const isFiltered = (filters[col.key] ?? '').trim() !== ''
                 const align = col.align ?? 'left'
 
