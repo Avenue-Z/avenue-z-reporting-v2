@@ -16,6 +16,11 @@ describe('the box ids', () => {
     expect(new Set(SL_BOX_IDS).size).toBe(27)
   })
 
+  test('i-ytd stays a known box after its card was removed (2026-11-26), so any text written there keeps its view key', () => {
+    expect(SL_INDUSTRY_BOX_IDS).toContain('i-ytd')
+    expect(isCommentaryViewKey(slBoxViewKey('i-ytd'))).toBe(true)
+  })
+
   test('each view key is the shared prefix plus the id, under Organic Social', () => {
     expect(SL_VIEW_PREFIX).toBe('organic-social:social-listening:')
     for (const id of SL_BOX_IDS) {

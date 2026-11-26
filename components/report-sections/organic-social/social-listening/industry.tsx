@@ -2,14 +2,13 @@
 // (results, then the three shares with their points changes), results over time, share of sentiment, sentiment year to
 // date (each chart card on a row of its own since 2026-11-24), sentiment over time, sentiment by media type, keyword
 // themes with the top conversation themes box, key takeaways, keyword appendix. Server component.
-import { AnalysisOnly, ConversationThemes, SentimentLines, SourceLine, Toggled, fmt, fromFirst, notesFor, short, vsLabel, ytdSpan, type TopicPageProps } from './brand'
+import { AnalysisOnly, ConversationThemes, SourceLine, Toggled, fmt, notesFor, short, vsLabel, type TopicPageProps } from './brand'
 import { SlNotesPanel } from './notes-panel'
 import { slCardTooltip, slTileTooltip } from '@/lib/organic-social/social-listening/tooltips'
-import { Cloud, DailyLines, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, YtdColumns, decoColor } from '../design/charts'
+import { Cloud, DailyLines, DailyStack, Donut, HBars, Key, Kpi, Legend, LineChart, decoColor } from '../design/charts'
 import { SlCard, SlSection } from '../design/frames'
 import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
 import s from '../design/kit.module.css'
-import f from '../design/frames.module.css'
 
 export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, notes }: TopicPageProps) {
   const r = view.ready
@@ -41,19 +40,13 @@ export function IndustryPage({ view, boxes, upload, topicName, cols, exporting, 
           </SlSection>
 
           <SlSection title="Sentiment">
-            {/* Side by side, as on the approved tab, each box under its card and the row aligned (frames.module.css .pair).
-                The month-by-month card stays until Savannah confirms whether her list meant to remove it: both decks
-                carry it as its own slide (plan 2026-11-24, Q3). */}
-            <div className={`${s.grid} ${s.g2} ${f.pair}`}>
-              <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} tooltip={slCardTooltip('i-sent')} bodyClassName={s.donutWrap}>
-                <Donut counts={r.sentiment.counts} />
-                <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
-              </SlCard>
-              <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['i-ytd']} tooltip={slCardTooltip('i-ytd')}>
-                <Toggled id="i-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={fromFirst(r.ytd)} />}
-                  columns={<YtdColumns points={fromFirst(r.ytd)} aria={`Industry sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />} />
-              </SlCard>
-            </div>
+            {/* The month-by-month card ("Sentiment, May to October") is removed, as Savannah's list asks (2026-11-24). Its box
+                id i-ytd stays in SL_INDUSTRY_BOX_IDS, so any text written there keeps its view key; it is just not drawn. With
+                its neighbour gone, share of sentiment has a full row of its own, like every other single card here. */}
+            <SlCard title="Share of sentiment" meta="All results" box={boxes['i-sent']} tooltip={slCardTooltip('i-sent')} bodyClassName={s.donutWrap}>
+              <Donut counts={r.sentiment.counts} />
+              <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
+            </SlCard>
             <SlCard title="Sentiment over time" meta="Results per day" box={boxes['i-sentday']} tooltip={slCardTooltip('i-sentday')}>
               <Toggled id="i-sentday" cols={cols} exporting={exporting} line={<DailyLines rows={r.dailyBySentiment} />}
                 columns={<><DailyStack rows={r.dailyBySentiment} /><Key items={[{ name: 'Positive', color: SENTIMENT_COLORS.pos }, { name: 'Neutral', color: SENTIMENT_COLORS.neu }, { name: 'Negative', color: SENTIMENT_COLORS.neg }]} /></>} />
