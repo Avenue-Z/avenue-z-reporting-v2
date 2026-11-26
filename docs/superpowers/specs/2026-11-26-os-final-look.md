@@ -126,10 +126,11 @@ controls (N3) as they are. Everything waiting on Savannah (#540) is out of scope
 
 1. Old look and Renaissance: snapshot markup of every Organic Social tab's old look, recorded on dev before any change,
    still matches (the round 3 pattern: `controls-kit.test.tsx`, `commentary-kit.test.tsx`).
-2. L1: the glow element renders only under the kit and not exporting, with the artifact's two gradients and fixed
-   attachment; never on the old look; hidden in the export.
+2. L1: on each kit tab (platform, Overview, Influencer, AEO Informed under its kit, Social Listening) the glow element
+   renders once with the artifact's two gradients and fixed attachment, and carries `data-export-hide`; it never renders
+   on the old look.
 3. L2: under the kit, the parts wrapper and both boxes carry the 40px rules; the old look's wrapper is the fragment it is today.
-4. L3: every Add annotation under the kit is `tbtn addAnalysis` with "+ Add annotation"; Social Listening's buttons are kit
+4. L3: every Add annotation under the kit is plain `kit.tbtn` (no `addAnalysis`) with "+ Add annotation"; Social Listening's buttons are kit
    buttons; the old look keeps `PILL` and "Add annotation".
 5. L4: editor gets the staff frame, non-editor, export and preview get the neutral frame; old look unchanged.
 6. L5: with the flag, every role consumer listed above receives a client role and no email (one test per consumer path);

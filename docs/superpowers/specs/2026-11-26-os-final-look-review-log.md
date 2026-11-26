@@ -28,3 +28,20 @@
   one for PDF spacing.
 
 Added on my own after round 1: the acceptance measurement records every chart's rendered size before and after.
+
+## Round 2 (2026-11-26, changed lines only)
+
+4 MAJOR, 5 MINOR, no BLOCKER. Every cited line in the changed text checked out. No round 3.
+
+- **Fixed (one fix, no choice):** test 4 now asks for plain `kit.tbtn`, not the dashed button; test 2 now covers every kit
+  tab and checks `data-export-hide` instead of "not exporting".
+- **Decisions for me (a choice in each):**
+  - D1. Social Listening is always on the kit for every client (`social-listening/section.tsx:37`), so its glow either
+    ignores `designFrom` (an exception to the rules at the top) or waits for it.
+  - D2. What a preview's Insights box shows. `monthly.tsx` uses the viewer for the cutoff (`:50`), the client month list
+    (`:56`) and the staff-only "client opens" notes (`:62`). Either the preview shows the entry a client gets for that
+    month, the one the PDF already prints (`clientMonthEntry`, `:57`), with no staff notes or history, or something else.
+- **MINOR, for the plan:** the AEO tab's early returns (`aeo-informed/section.tsx:67-74`) skip the glow; AEO's boxes take
+  the kit from `monthlyCommentary` while its body takes it from `setting.design` (`section.tsx:87`), so they can differ;
+  name `deep-link-parity.test.tsx` and the deep-link `searchParams` type (`:93`) in L5; the acceptance check compares the
+  client view for September (the staff toggle is new there); chart-size tolerance is 1px for subpixel rounding.
