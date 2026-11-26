@@ -252,3 +252,8 @@
   .hrow { grid-template-columns: 110px 1fr; }
   .mrow, .mhead { grid-template-columns: 100px 1fr 52px 64px; }
 }
+/* The last look fixes, L2 (spec 2026-11-26): an Organic Social kit tab's parts stack with the artifact's 40px section gap
+   (index.html:115, the same as .view above). The wrapper keeps 40px to the Recommendations box after it; the tab's own
+   space-y-8 (32px, zero specificity in Tailwind v4) gives way to this rule. */
+.parts { display: flex; flex-direction: column; gap: 40px; }
+.parts:not(:last-child) { margin-block-end: 40px; }

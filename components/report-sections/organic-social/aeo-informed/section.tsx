@@ -86,7 +86,7 @@ export async function AeoInformedSection({ clientSlug, servedRange, aeo, aeoMin,
   // after the client's designFrom, the same rule as the rest of the report (design-from.ts); the body logs a malformed one.
   const kitLook = setting.design === 'kit' && kitActive(client, monthKey)
   return (
-    <div className={kitLook ? `${kit.root} space-y-8` : 'space-y-8'}>
+    <div className={kitLook ? `${kit.root} space-y-10` : 'space-y-8'}>
       {controls}
       <section data-aeo-block="graphs" data-export-block="">
         <AeoGraphs graphs={r.graphs} fourthGraph={setting.fourthGraph} {...(kitLook ? { look: 'kit' as const } : {})} />

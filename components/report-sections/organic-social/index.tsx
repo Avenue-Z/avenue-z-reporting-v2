@@ -24,6 +24,7 @@ import { SocialListeningSection } from './social-listening/section'
 import type { SlTopic } from '@/lib/organic-social/social-listening/types'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
 import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
+import kitStyles from './design/kit.module.css'
 
 /** The AEO Informed Social tab's own settings, read from the URL by the route (parseAeoRange, parseAeoMin) and its time limit (page 120 s,
  *  export 30 s). Handed to the body on that tab only, so every other tab's body and parts get exactly what they got before. */
@@ -194,15 +195,14 @@ export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCt
     ? { ...rctx, dateRange: locked.month.dateRange, compareRange: locked.month.compareRange }
     : rctx
   const resolved = resolveSection(template, override).map((r) => ({ ...r, version: drawnVersion(r.id, r.version, kit) }))
-  return (
-    <>
-      {resolved.map((r) => {
-        const impl = lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)
-        const node = impl?.render(pctx, r) ?? null
-        // A part with no export form of its own is one unbreakable block in the PDF export (parts/export-layout.ts);
-        // the attribute only matters under the export page's theme, and a part that lays out its own blocks is untouched.
-        return node == null ? null : <div key={`${r.id}@${r.version}`} {...(wrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{node}</div>
-      })}
-    </>
-  )
+  const parts = resolved.map((r) => {
+    const impl = lookup(ORGANIC_SOCIAL_PARTS, r.id, r.version)
+    const node = impl?.render(pctx, r) ?? null
+    // A part with no export form of its own is one unbreakable block in the PDF export (parts/export-layout.ts);
+    // the attribute only matters under the export page's theme, and a part that lays out its own blocks is untouched.
+    return node == null ? null : <div key={`${r.id}@${r.version}`} {...(wrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{node}</div>
+  })
+  // The last look fixes, L2 (spec 2026-11-26): a kit month stacks its parts with the artifact's 40px gap (kit .parts); an
+  // old-look month keeps the bare fragment, byte for byte (index.test.tsx's old-look pin).
+  return kit ? <div className={kitStyles.parts}>{parts}</div> : <>{parts}</>
 }

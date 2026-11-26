@@ -155,3 +155,14 @@ describe('option B: design: "kit" applies only from the client\'s designFrom (sp
     expect(c.querySelector(`.${kit.root}`) !== null).toBe(row.kit)
   })
 })
+
+// L2: the AEO tab's kit stack takes the artifact's 40px section gap; the old look keeps space-y-8 (option B test above).
+describe('the last look fixes on the AEO tab', () => {
+  it('a kit month stacks its blocks 40px apart', async () => {
+    getClientBySlug.mockResolvedValue(clientWith({ ...SETTING, design: 'kit' }))
+    const top = (await draw(false)).firstElementChild!
+    expect(top.classList.contains(kit.root)).toBe(true)
+    expect(top.classList.contains('space-y-10')).toBe(true)
+    expect(top.classList.contains('space-y-8')).toBe(false)
+  })
+})

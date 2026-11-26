@@ -127,7 +127,7 @@ describe('with look="kit", a box with nothing written is only the dashed add but
     expect(buttons(c).map((b) => [b.textContent, b.className])).toEqual([['+ Add insights', `${kit.tbtn} ${kit.addAnalysis}`]])
     expect(c.textContent).toBe('+ Add insights')
     const wrap = c.firstElementChild!
-    expect(wrap.className).toBe(`mb-8 ${kit.root} ${kit.tight}`)
+    expect(wrap.className).toBe(`mb-10 ${kit.root} ${kit.tight}`) // 40px below (the last look fixes, L2)
     expect(c.querySelector('section')).toBeNull()
   })
   test('the Recommendations box says its own words', () => {
@@ -172,5 +172,18 @@ describe('with look="kit", the staff frame', () => {
   test('the staff frame is the artifact\'s yellow border and fill, on top of the neutral box', () => {
     const css = readFileSync(join(__dirname, 'commentary-kit.module.css'), 'utf8')
     expect(css).toMatch(/\.box\.boxStaff\s*\{\s*border-color:\s*rgba\(255,\s*252,\s*96,\s*0\.22\);\s*background:\s*rgba\(255,\s*252,\s*96,\s*0\.035\);\s*\}/)
+  })
+})
+
+// L2: on the kit a box sits 40px above the next block (the artifact's section gap, index.html:115); the old look keeps
+// mb-8 (pinned in "without look").
+describe('with look="kit", 40px below the box', () => {
+  test('the full box and the empty dashed button each carry mb-10, never mb-8', () => {
+    const full = draw(panel(APPROVER, { look: 'kit' })).querySelector('section')!
+    expect(full.classList.contains('mb-10')).toBe(true)
+    expect(full.classList.contains('mb-8')).toBe(false)
+    const empty = draw(panel(EMPTY, { look: 'kit' })).firstElementChild!
+    expect(empty.classList.contains('mb-10')).toBe(true)
+    expect(empty.classList.contains('mb-8')).toBe(false)
   })
 })

@@ -29,6 +29,7 @@ import { AeoInformedSection } from './aeo-informed/section'
 import type { ReactElement } from 'react'
 import { buildOrganicSocialCtx } from './ctx'
 import { elementTree } from '@/lib/test-utils/element-tree'
+import kit from './design/kit.module.css'
 
 const ctx = buildOrganicSocialCtx({ clientSlug: 'renaissance', channel: null })
 
@@ -177,6 +178,22 @@ describe('locked months in the section', () => {
       }
     }
     expect(out).toMatchSnapshot()
+  })
+
+  // The last look fixes, L2 (spec 2026-11-26): on a kit month the parts stack in one wrapper with the artifact's 40px gap
+  // (index.html:115, kit .view); an old-look month keeps the bare fragment (pinned above).
+  test('kit month: the parts sit in one wrapper with the 40px gap; old-look month: no wrapper', async () => {
+    restoreLookup()
+    getSectionTemplate.mockResolvedValue(null)
+    as('INTERNAL_ADMIN')
+    getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { ...OPTED.dashSocialConfig, designFrom: '2026-09' } })
+    const kitTree = elementTree(await OrganicSocialBody({ ctx: ctxFor(SEP) })) as { type: unknown; props: { className?: string; children: unknown[] } }
+    expect(kitTree.type).toBe('div')
+    expect(kitTree.props.className).toBe(kit.parts)
+    expect((kitTree.props.children as unknown[]).flat().filter(Boolean).length).toBeGreaterThan(1)
+    getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { ...OPTED.dashSocialConfig, designFrom: '2026-10' } })
+    const oldTree = elementTree(await OrganicSocialBody({ ctx: ctxFor(SEP) })) as { props: { className?: string } }
+    expect(oldTree.props.className).toBeUndefined()
   })
 
   test('on the AEO tab a client asking for the live month is served September, the locked month, like every other tab', async () => {
