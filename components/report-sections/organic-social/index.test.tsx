@@ -162,6 +162,23 @@ describe('locked months in the section', () => {
   afterEach(() => { restoreLookup(); vi.useRealTimers(); vi.mocked(auth).mockReset(); vi.restoreAllMocks() })
   const as = (role: string) => vi.mocked(auth).mockResolvedValue({ user: { role } } as never)
   const ctxFor = (dateRange: string) => buildOrganicSocialCtx({ clientSlug: 'c', channel: 'INSTAGRAM', dateRange, compareRange: 'previous_year' })
+  // Recorded on dev 5c325dd4 before the last look fixes (plan 2026-11-26, Task 0): on an old-look month the body is
+  // byte-identical for staff and a client, with designFrom set (November) and without one. The fixes add markup only
+  // under the kit and swap roles only in a preview, so this must never change.
+  test('old-look month: the body is unchanged for staff and a client, with and without designFrom (pinned before the last look fixes)', async () => {
+    restoreLookup()
+    getSectionTemplate.mockResolvedValue(null)
+    const withFrom = { ...OPTED, dashSocialConfig: { ...OPTED.dashSocialConfig, designFrom: '2026-11' } }
+    const out: Record<string, unknown> = {}
+    for (const [name, cfg] of [['designFrom 2026-11', withFrom], ['no designFrom', OPTED]] as const) {
+      for (const role of ['INTERNAL_ADMIN', 'CLIENT_VIEWER']) {
+        as(role); getClientBySlug.mockResolvedValue(cfg)
+        out[`${name}, ${role}`] = elementTree(await OrganicSocialBody({ ctx: ctxFor(SEP) }))
+      }
+    }
+    expect(out).toMatchSnapshot()
+  })
+
   test('on the AEO tab a client asking for the live month is served September, the locked month, like every other tab', async () => {
     as('CLIENT_VIEWER')
     getClientBySlug.mockResolvedValue(OPTED)
