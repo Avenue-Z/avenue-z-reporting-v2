@@ -12,10 +12,10 @@ import { NOTE_MAX_CHARS } from '@/lib/organic-social/chart-notes/limits'
 import type { ChartAnnotation } from '@/lib/organic-social/annotations'
 import { isSlMonthNoteChart, SL_NOTES_CHANNEL, type SlChartNotes, type SlNoteControls, type SlNoteRow } from '@/lib/organic-social/social-listening/notes-keys'
 import { NoteActions } from '../note-actions'
-import { PILL as BUTTON } from '../pill'
+import kit from '../design/kit.module.css'
+import { field, noteBox, noteButton } from '../control-look'
 import f from '../design/frames.module.css'
 
-const FIELD = 'rounded-md border border-white/[0.12] bg-transparent px-2 py-1 text-xs text-white'
 /** How long the line after a save stays, as on the other notes (ytd-notes-panel.tsx). */
 const SAVED_LINE_MS = 8000
 type Had = 'none' | 'draft' | 'approved'
@@ -69,8 +69,10 @@ function EditorPanel({ notes, controls, title }: { notes: SlChartNotes; controls
 
   return (
     <div className="no-print mt-3 space-y-2">
-      <button type="button" className={BUTTON} aria-expanded={!!form} onClick={() => { setSaved(null); setForm((x) => (x ? null : {})) }}>
-        Add annotation
+      {/* Social Listening is always on the kit: its note controls are the kit's, as the Organic Social notes' (control-look.ts),
+          and Add annotation reads "+ Add annotation" as the artifact's "+ Add post" (index.html:1050). */}
+      <button type="button" className={kit.tbtn} aria-expanded={!!form} onClick={() => { setSaved(null); setForm((x) => (x ? null : {})) }}>
+        <span aria-hidden="true">+ </span>Add annotation
       </button>
       {form && (
         <NoteForm key={form.fixed ?? 'new'} controls={controls} month={month} fixed={form.fixed} initial={form.initial} rows={rows}
@@ -90,7 +92,7 @@ function EditorPanel({ notes, controls, title }: { notes: SlChartNotes; controls
               <span className="font-bold text-white">{r.label}</span>
               {r.text !== null && <span className="text-white">{r.text}</span>}
               {r.editor?.draft && <span className="text-text-muted">{`Draft: ${r.editor.draft.text}`}</span>}
-              <NoteActions annotation={asAnnotation(r)} controls={controls} compact onEdit={onEdit} saving={justSaved.has(r.key)} />
+              <NoteActions annotation={asAnnotation(r)} controls={controls} compact onEdit={onEdit} saving={justSaved.has(r.key)} look="kit" />
             </li>
           ))}
         </ul>
@@ -130,14 +132,14 @@ function NoteForm({ controls, month, fixed, initial, rows, onClose, onSaved }: {
   }
 
   return (
-    <div role="group" aria-label="Note" className="w-full space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.03] p-3">
+    <div role="group" aria-label="Note" className={noteBox('kit', '')}>
       {fixed ? (
         <p className="text-[11px] text-text-muted">{`Note for ${labelOf(fixed)}`}</p>
       ) : (
         <label className="flex items-center gap-2 text-[11px] text-text-muted">
           {unit}
           <select aria-label={unit} value={key} disabled={pending} onChange={(e) => setKey(e.target.value)}
-            className="rounded-md border border-white/[0.12] bg-bg-surface px-2 py-1 text-xs text-white">
+            className={field('kit', '')}>
             <option value="">{`Pick a ${unit.toLowerCase()}`}</option>
             {controls.options.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
@@ -151,11 +153,11 @@ function NoteForm({ controls, month, fixed, initial, rows, onClose, onSaved }: {
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <input aria-label="Note text" className={`${FIELD} min-w-[12rem] flex-1`} value={text}
+        <input aria-label="Note text" className={`${field('kit', '')} min-w-[12rem] flex-1`} value={text}
           maxLength={NOTE_MAX_CHARS} onChange={(e) => setText(e.target.value)} placeholder={month ? 'What happened this month?' : 'What happened this day?'} />
         <span className="text-[11px] text-text-muted" aria-live="polite">{[...text].length}/{NOTE_MAX_CHARS}</span>
-        <button type="button" className={BUTTON} onClick={save} disabled={pending || !key || !text.trim()}>Save draft</button>
-        <button type="button" className={BUTTON} onClick={onClose} disabled={pending}>Cancel</button>
+        <button type="button" className={noteButton('kit')} onClick={save} disabled={pending || !key || !text.trim()}>Save draft</button>
+        <button type="button" className={noteButton('kit')} onClick={onClose} disabled={pending}>Cancel</button>
       </div>
       {error && <p role="alert" className="text-[11px] text-red-400">{error}</p>}
     </div>

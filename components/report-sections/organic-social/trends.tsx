@@ -213,9 +213,11 @@ export function ChannelTrendChart({
                 type="button"
                 onClick={() => { showSaved(null); setForm((f) => (f ? null : {})) }}
                 aria-expanded={!!form}
-                className={controlLook ? `no-print ${kit.pill}` : 'no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white'}
+                className={controlLook ? `no-print ${kit.tbtn}` : 'no-print flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 text-xs font-bold text-text-muted transition-colors hover:text-white'}
               >
-                Add annotation
+                {/* The kit's add action, as the artifact's "+ Add post" (index.html:1050; #527). The "+" is hidden from screen
+                    readers, so the button's name stays "Add annotation". */}
+                {controlLook && <span aria-hidden="true">+ </span>}Add annotation
               </button>
             )}
           </div>

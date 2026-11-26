@@ -119,10 +119,12 @@ describe('with the kit look (a shaded chart, which only the kit versions draw)',
     expect(button(container, 'Facebook').getAttribute('aria-pressed')).toBe('false')
     expect(chartProps().yKeys.map((k) => k.key)).toEqual(['Instagram'])
   })
-  test('the Annotations toggle and Add annotation are kit pills; Add annotation still never prints', () => {
+  test('the Annotations toggle is a kit pill; Add annotation is the kit\'s small button, "+ Add annotation" as the artifact\'s "+ Add post" (#527), still never printed', () => {
     const { container } = kitChart()
     expect(button(container, 'Annotations').className).toBe(kit.pill)
-    expect(button(container, 'Add annotation').className).toBe(`no-print ${kit.pill}`)
+    expect(button(container, 'Add annotation').className).toBe(`no-print ${kit.tbtn}`)
+    expect(button(container, 'Add annotation').textContent).toBe('+ Add annotation')
+    expect(button(container, 'Add annotation').querySelector('[aria-hidden="true"]')?.textContent).toBe('+ ')
     fireEvent.click(button(container, 'Annotations'))
     expect(button(container, 'Annotations').getAttribute('aria-pressed')).toBe('false')
     expect(chartProps().callouts).toBeUndefined()
@@ -162,9 +164,10 @@ describe('with the kit look (a shaded chart, which only the kit versions draw)',
 })
 
 describe('the YTD notes with the kit look', () => {
-  test('Add annotation is a kit pill, each row\'s buttons the kit\'s, and the month form kit buttons and fields', () => {
+  test('Add annotation is the kit\'s small button with "+ " (#527), each row\'s buttons the kit\'s, and the month form kit buttons and fields', () => {
     const { container } = render(<YtdNotesPanel notes={YTD_NOTES} title="Follower Growth, Year to Date" look="kit" />)
-    expect(button(container, 'Add annotation').className).toBe(kit.pill)
+    expect(button(container, 'Add annotation').className).toBe(kit.tbtn)
+    expect(button(container, 'Add annotation').textContent).toBe('+ Add annotation')
     const rows = within(container).getByRole('list', { name: 'Notes on Follower Growth, Year to Date' })
     const rowButtons = [...rows.querySelectorAll('button')]
     expect(rowButtons.length).toBeGreaterThan(2)
