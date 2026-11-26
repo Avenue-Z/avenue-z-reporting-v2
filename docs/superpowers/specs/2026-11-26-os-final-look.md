@@ -43,15 +43,16 @@ team already saw and liked in the artifact, and each is my call of 2026-11-26.
   `radial-gradient(ellipse 40% 30% at 80% 100%, rgba(30,0,80,0.4) 0%, transparent 60%)`.
 - **Today:** `<body className="bg-glow">` (`app/layout.tsx:31`) uses `.bg-glow` (`app/globals.css:234-240`), which is invalid
   CSS (no commas, colour first), so no page has a glow (#487, measured `backgroundImage: none` on staging).
-- **Change:** when the kit look is on, the tab renders one decorative element: fixed to the viewport, full size, behind the
-  content, `aria-hidden`, `pointer-events: none`, carrying the artifact's two gradients exactly. Nothing on `body` changes.
+- **Change** (settled by the scratch trial, `docs/findings/2026-11-26-os-glow-trial.md`): when the kit look is on, the tab
+  renders one hidden, `aria-hidden` marker, and a rule in the kit's stylesheet paints the artifact's two gradients over
+  `#000` with `background-attachment: fixed` on the page's `main` while that marker is inside it (`main:has(...)`). No
+  layering changes, and nothing on `body` or in the layouts changes. A fixed element behind the content can't work: the
+  shell's opaque `div.flex.h-screen.bg-black` covers it.
   It renders on every kit tab: the platform, Overview and Influencer tabs (from `OrganicSocialBody`, under `kit`), the AEO
   Informed tab (under its own kit decision, `aeo-informed/section.tsx:87`), and the Social Listening tab (always kit). The
-  server can't tell a PDF render on most tabs (only Social Listening is told, `export/report-element.tsx:47`), so the
-  element carries `data-export-hide`, which the export page already hides (`app/export/export-theme.css:53`).
-- **Unverified, so a scratch trial settles it first:** that a fixed element behind the content shows the glow without
-  covering text or the sidebar, and that no ancestor's stacking context hides it. If it can't be done without touching
-  `body`, I stop and bring it back.
+  server can't tell a PDF render on most tabs (only Social Listening is told, `export/report-element.tsx:47`), but the
+  export page has no `main` (`app/export/[clientSlug]/[section]/page.tsx:70`), so the glow can't print; the marker also
+  carries `data-export-hide` (`app/export/export-theme.css:53`).
 
 ## L2. Space between sections: 40px
 
