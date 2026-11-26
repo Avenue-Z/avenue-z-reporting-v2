@@ -190,7 +190,7 @@ describe('industry', () => {
     const { container } = await show({ topic: 'industry' })
     expect(h2s()).toEqual(['Data', 'Sentiment', 'Themes', 'Key takeaways', 'Keyword appendix'])
     expect(screen.getByText('The industry topic is a 10% sample of the conversation, by design.')).toBeTruthy()
-    expect(boxes(container)).toEqual(['i-kpis', 'i-daily', 'i-sent', 'i-ytd', 'i-sentday', 'i-cross', 'i-themes', 'i-conv', 'i-takeaways', 'i-keywords'])
+    expect(boxes(container)).toEqual(['i-kpis', 'i-daily', 'i-sent', 'i-sentday', 'i-cross', 'i-themes', 'i-conv', 'i-takeaways', 'i-keywords'])
     expect(screen.getAllByText(/pts|0 pts/).length).toBeGreaterThan(0)
   })
   test('an industry request for a client without an industry topic shows brand', async () => {
