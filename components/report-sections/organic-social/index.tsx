@@ -26,6 +26,7 @@ import type { SlToggleChart } from '@/lib/organic-social/social-listening/params
 import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import kitStyles from './design/kit.module.css'
 import { GlowMark } from './design/frames'
+import { PreviewToggleRow } from './preview-row'
 
 /** The AEO Informed Social tab's own settings, read from the URL by the route (parseAeoRange, parseAeoMin) and its time limit (page 120 s,
  *  export 30 s). Handed to the body on that tab only, so every other tab's body and parts get exactly what they got before. */
@@ -50,7 +51,8 @@ export function OrganicSocialReport({
    *  brand then industry (spec 2026-11-19 sections 4 and 9). Ignored on every other tab. */
   sl?: SlTopic
   exporting?: boolean
-  /** The Social Listening tab only: staff's "Preview as client" (slview=client). */
+  /** Staff's "Preview as client" (slview=client), on every Organic Social tab (the last look fixes, L5). The page passes it
+   *  only when the URL asks; the body and both boxes then render as the client sees them. */
   slPreview?: boolean
   /** The Social Listening tab only: the charts set to columns (slcols, plan 2026-11-24 Unit C), on screen and in the PDF. */
   slCols?: readonly SlToggleChart[]
@@ -87,19 +89,22 @@ export function OrganicSocialReport({
   // first paint no longer waits on either (PR #168 review R1 #6). `getClientBySlug` is React.cache-deduped.
   return (
     <div className="space-y-8">
-      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
+      {/* Staff's "Preview as client" (L5): reads the session in its own boundary, so first paint never waits on it. A client
+          gets nothing here, so no element and no gap. */}
+      <Suspense fallback={null}><PreviewToggleRow on={!!slPreview} /></Suspense>
+      <SharedPartsHeader viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} {...(slPreview ? { preview: true } : {})} />
       <Suspense fallback={<OverviewSkeleton />}>
-        <OrganicSocialBody ctx={ctx} {...(aeoSettings ? { aeo: aeoSettings } : {})} />
+        <OrganicSocialBody ctx={ctx} {...(aeoSettings ? { aeo: aeoSettings } : {})} {...(slPreview ? { preview: true } : {})} />
       </Suspense>
       {/* Recommendations: the same opt-in, rendered after every part (10/6 calls: "put them at the bottom"). */}
-      <SharedPartsHeader placement="bottom" viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} />
+      <SharedPartsHeader placement="bottom" viewKey={commentaryViewKey} configKey="organic-social" clientSlug={clientSlug} requestedRange={dateRange} {...(slPreview ? { preview: true } : {})} />
     </div>
   )
 }
 
 /** Resolves the viewer role, the composition (DB template + per-client override), and renders the
  *  parts. Async and isolated behind the Suspense above so its awaits don't gate first paint. */
-export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings; sl?: { topic: SlTopic; exporting: boolean; preview?: boolean; cols?: readonly SlToggleChart[]; sort?: SlAuthorSort } }) {
+export async function OrganicSocialBody({ ctx, aeo, sl, preview }: { ctx: OrganicSocialCtx; aeo?: AeoViewSettings; sl?: { topic: SlTopic; exporting: boolean; preview?: boolean; cols?: readonly SlToggleChart[]; sort?: SlAuthorSort }; preview?: boolean }) {
   // Viewer role drives the internal-only designation toggle (top-content@2). Read defensively: a
   // failed session lookup must not blank the section, so keep ctx's safe client-role default.
   // The email feeds only the written notes on the v2 graphs. Read in the same guarded call, so a
@@ -111,7 +116,13 @@ export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCt
     role = user?.role
     email = user?.email ?? undefined
   } catch { role = undefined; email = undefined }
-  const rctx: OrganicSocialCtx = { ...ctx, ...(role ? { role } : {}), ...(email ? { email } : {}) }
+  // Staff's "Preview as client" (L5): the parts get a client's role and no email, so every staff-only control and note
+  // drops out exactly as for a client. The month below is still resolved with the real role (as Social Listening does),
+  // so staff can preview any month they can open. A client with the flag is already the client view.
+  const previewing = !!preview && viewerForRole(role) === 'team'
+  const rctx: OrganicSocialCtx = previewing
+    ? { ...ctx, role: 'CLIENT_VIEWER' }
+    : { ...ctx, ...(role ? { role } : {}), ...(email ? { email } : {}) }
   // The AEO Informed Social tab (spec 2026-11-12 section 1): its own section, no template parts. It is served the same month as every
   // other tab: the same three locked-months calls as the parts path below, written out here so that path, Renaissance's, is not touched.
   if (rctx.view === 'aeo-informed') {

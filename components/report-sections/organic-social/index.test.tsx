@@ -128,6 +128,50 @@ describe('the AEO Informed Social view (plan Task 9)', () => {
   })
 })
 
+// The last look fixes, L5: "Preview as client" on every Organic Social tab.
+describe('preview as client', () => {
+  afterEach(() => vi.mocked(auth).mockReset())
+  test('every non-Social-Listening tab gets the toggle row, and with the flag the body and both boxes get preview', () => {
+    for (const other of [{ channel: null }, { channel: 'INSTAGRAM' as const }, { channel: null, view: 'influencer' as const }, { channel: null, view: 'aeo-informed' as const }]) {
+      const off = OrganicSocialReport({ clientSlug: 'c', ...other })
+      expect(findByName(off, 'PreviewToggleRow')?.props).toEqual({ on: false })
+      const on = OrganicSocialReport({ clientSlug: 'c', slPreview: true, ...other })
+      expect(findByName(on, 'PreviewToggleRow')?.props).toEqual({ on: true })
+      expect(findByName(on, 'OrganicSocialBody')?.props.preview).toBe(true)
+      const headers = findAllByName(on, 'SharedPartsHeader')
+      expect(headers.length).toBe(2)
+      for (const h of headers) expect(h.props.preview).toBe(true)
+      for (const h of findAllByName(off, 'SharedPartsHeader')) expect('preview' in h.props).toBe(false)
+    }
+  })
+  test('in a preview, staff\'s parts get a client role and no email; the month is still staff\'s', async () => {
+    const OPTED = { slug: 'c', dashSocialConfig: { brandId: 1, reportingMonths: { firstMonth: '2026-08' } }, reportSectionConfig: {} }
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-20T14:00:00Z'))
+    const seen: OrganicSocialCtx[] = []
+    const registry = await import('@/lib/report-sections/registry')
+    const spy = vi.spyOn(registry, 'lookup').mockReturnValue({ render: (c: OrganicSocialCtx) => { seen.push(c); return null } } as never)
+    try {
+    getSectionTemplate.mockResolvedValue(null)
+    getClientBySlug.mockResolvedValue(OPTED)
+    vi.mocked(auth).mockResolvedValue({ user: { role: 'INTERNAL_ADMIN', email: 'writer@avenuez.com' } } as never)
+    const ctxOf = (dateRange: string) => buildOrganicSocialCtx({ clientSlug: 'c', channel: 'INSTAGRAM', dateRange, compareRange: 'previous_year' })
+    await OrganicSocialBody({ ctx: ctxOf('custom:2026-10-01,2026-10-19'), preview: true })
+    expect(seen.length).toBeGreaterThan(0)
+    for (const c of seen) {
+      expect(c.role).toBe('CLIENT_VIEWER')
+      expect(c.email).toBeUndefined()
+      // Staff may open the live month; a client would have been sent back to September.
+      expect(c.dateRange).toBe('custom:2026-10-01,2026-10-19')
+    }
+    seen.length = 0
+    vi.mocked(auth).mockResolvedValue({ user: { role: 'CLIENT_VIEWER', email: 'c@client.test' } } as never)
+    await OrganicSocialBody({ ctx: ctxOf('custom:2026-09-01,2026-09-30'), preview: true })
+    for (const c of seen) { expect(c.role).toBe('CLIENT_VIEWER'); expect(c.email).toBe('c@client.test') }
+    } finally { spy.mockRestore(); vi.useRealTimers() }
+  })
+})
+
 // Pre-change record for locked months (spec section 8): for a client without reportingMonths the
 // section's OUTPUT (every part and the ctx it receives) is unchanged, on the happy path and when
 // BOTH lookups fail. Extends the truthy-only test above.
@@ -346,8 +390,13 @@ test('the section renders the top box before the body and the bottom box after i
     ['top', 'organic-social:instagram', 'organic-social', 'custom:2026-09-01,2026-09-30'],
     ['bottom', 'organic-social:instagram', 'organic-social', 'custom:2026-09-01,2026-09-30'],
   ])
+  // The preview toggle row (the last look fixes, L5) comes first, in its own Suspense; then the top box, the body, the bottom box.
   const kids = (el as { props: { children: unknown[] } }).props.children
-  expect(kids.map((k) => (k as { type?: { name?: string } | symbol }).type)).toHaveLength(3)
+  expect(kids).toHaveLength(4)
+  expect(findByName(kids[0], 'PreviewToggleRow')).not.toBeNull()
+  expect(findByName(kids[1], 'SharedPartsHeader')?.props.placement).toBeUndefined()
+  expect(findByName(kids[2], 'OrganicSocialBody')).not.toBeNull()
+  expect(findByName(kids[3], 'SharedPartsHeader')?.props.placement).toBe('bottom')
 })
 
 test('the Influencer view keys both boxes to the influencer keys and composes the influencer template', async () => {
