@@ -191,3 +191,15 @@ test('a client without the tab asked for it by URL lands on its first tab, on bo
     expect([sectionOf(tree).channel, sectionOf(tree).view ?? null]).toEqual(['LINKEDIN', null])
   }
 })
+
+// The last look fixes, L5: the deep-link routes render an Organic Social tab too, so staff's preview (slview=client) reaches
+// them the same way it reaches the SPA routes; without it, nothing changes.
+test('deep links pass slview=client to the tab, and only with it', async () => {
+  useClient(Object.values(FIXTURES)[0])
+  for (const DeepLink of [DashboardDeepLink, PortalDeepLink]) {
+    const on = only(await DeepLink(deepArgs({ slview: 'client' }) as never), (e) => e.type === OrganicSocialReport, 'OrganicSocialReport').props
+    expect(on.slPreview).toBe(true)
+    const off = only(await DeepLink(deepArgs() as never), (e) => e.type === OrganicSocialReport, 'OrganicSocialReport').props
+    expect('slPreview' in off).toBe(false)
+  }
+})

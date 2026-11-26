@@ -136,3 +136,11 @@ test('portal: the no-section redirect keeps slcols with its subsection', async (
   expect(await redirectOf(spa(PortalSpa as Route, { subsection: TAB, dateRange: SEP, slcols: 'i-ytd' })))
     .toBe(`/portal/c/reports?dateRange=${ENC_SEP}&subsection=${TAB}&slcols=i-ytd&section=organic-social`)
 })
+
+// The last look fixes, L5: staff's preview survives the dashboard's no-section (landing) redirect, as it does the portal's.
+test('dashboard: the no-section redirect keeps slview=client', async () => {
+  as('INTERNAL_ADMIN')
+  const to = await redirectOf(spa(DashboardSpa as Route, { dateRange: SEP, slview: 'client' }))
+  expect(to).toMatch(/^\/dashboard\/c\/reports\?/)
+  expect(new URLSearchParams(to!.split('?')[1]).get('slview')).toBe('client')
+})

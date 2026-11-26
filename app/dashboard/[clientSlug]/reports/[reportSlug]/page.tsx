@@ -25,6 +25,7 @@ import { ReportDateRange } from './report-date-range'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { OrganicRangeControl } from '@/components/report-sections/organic-social/range-control'
 import { requireStaff } from '@/lib/auth/page-access'
+import { parseSlPreview } from '@/lib/organic-social/social-listening/params'
 
 function ReportSkeleton() {
   return (
@@ -42,7 +43,7 @@ function ReportSkeleton() {
   )
 }
 
-function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null, organicChannel: DashChannel | null, organicView: OrganicView = null) {
+function getReportSection(reportSlug: string, clientSlug: string, dateRange: string, compareRange: string | null, organicChannel: DashChannel | null, organicView: OrganicView = null, slPreview = false) {
   switch (reportSlug) {
     case 'exec-summary':
       return <ExecSummary clientSlug={clientSlug} />
@@ -79,7 +80,7 @@ function getReportSection(reportSlug: string, clientSlug: string, dateRange: str
       // ?subsection= param resolves to when it is absent (Spec 1 §5.2). Hard-coding Overview
       // here rendered a tab a client that hides Overview cannot navigate to. The health sweep
       // and cache warmer fetch this route's portal twin, not this one (Paul's review of PR 255).
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={organicChannel} view={organicView} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={organicChannel} view={organicView} {...(slPreview ? { slPreview: true } : {})} />
     default:
       return null
   }
@@ -90,11 +91,13 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string; reportSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; slview?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
   await requireStaff()
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, slview: slViewParam } = await searchParams
+  // Staff's "Preview as client" on an Organic Social tab (the last look fixes, L5), as the SPA route reads it.
+  const slPreview = parseSlPreview(slViewParam)
   const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
@@ -132,9 +135,15 @@ export default async function ReportPage({
       <div className="divider-full mb-8" />
 
       <ReportErrorBoundary sectionName={reportName}>
-        <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, organicChannel, organicEntry.view ?? null)}
-        </Suspense>
+        {/* A preview gets its own key, so its per-view chart state starts fresh (as the SPA route's key does); without one
+            the tree is exactly as before. */}
+        {slPreview
+          ? <Suspense key="preview" fallback={<ReportSkeleton />}>
+            {getReportSection(reportSlug, clientSlug, dateRange, compareRange, organicChannel, organicEntry.view ?? null, slPreview)}
+          </Suspense>
+          : <Suspense fallback={<ReportSkeleton />}>
+            {getReportSection(reportSlug, clientSlug, dateRange, compareRange, organicChannel, organicEntry.view ?? null, slPreview)}
+          </Suspense>}
       </ReportErrorBoundary>
     </>
   )
