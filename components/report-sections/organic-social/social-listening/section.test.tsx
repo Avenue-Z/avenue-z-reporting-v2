@@ -24,6 +24,7 @@ import { parseTalkwalkerExport } from '@/lib/organic-social/social-listening/exp
 import { buildWorkbook } from '@/lib/organic-social/social-listening/test-workbook'
 import { NOT_READY_TEXT } from '@/lib/organic-social/social-listening/view-model'
 import { SocialListeningSection } from './section'
+import { monthlyCommentary } from '@/components/report-sections/commentary/monthly'
 import frames from '../design/frames.module.css'
 import kitCss from '../design/kit.module.css'
 
@@ -236,7 +237,8 @@ describe('Preview as client (the artifact\'s toggle)', () => {
     expect(boxes(container)).toEqual(['b-kpis'])
     // Each box is rendered as the client would see it.
     const { monthlyCommentary } = await import('@/components/report-sections/commentary/monthly')
-    expect(vi.mocked(monthlyCommentary).mock.calls.at(-1)![0]).toMatchObject({ role: 'CLIENT_VIEWER', email: null })
+    // The real role (so the box resolves the page's month) with the preview flag, which shows the client's entry (D2, 2026-11-26).
+    expect(vi.mocked(monthlyCommentary).mock.calls.at(-1)![0]).toMatchObject({ role: 'INTERNAL_ADMIN', email: null, preview: true })
   })
   test('a preview of a month with no brand upload shows the not-ready text and keeps Back to editing', async () => {
     h.getSlMonth.mockResolvedValue(monthData([]))
@@ -490,5 +492,24 @@ describe('the glow marker', () => {
     }
     const { container } = await show({ exporting: true })
     expect(container.querySelectorAll(`.${kitCss.glowMark}`).length).toBe(0)
+  })
+})
+
+// The last look fixes, L5 (D2): in staff's preview each box keeps the real role for its month (the parts' month) and is told
+// it is a preview, so it shows the client's entry for that month; before, it was handed a client's role and could resolve a
+// different month.
+describe('the boxes in a preview', () => {
+  test('each box gets the real role, no email and the preview flag; staff without the flag keep their own', async () => {
+    h.getCommentaryForViewPrefix.mockResolvedValue([approvedBox('b-kpis')])
+    vi.mocked(monthlyCommentary).mockClear()
+    await show({ preview: true })
+    const calls = vi.mocked(monthlyCommentary).mock.calls.map((c) => c[0] as { role: unknown; email: unknown; preview?: boolean })
+    expect(calls.length).toBeGreaterThan(0)
+    for (const c of calls) expect([c.role, c.email, c.preview]).toEqual(['INTERNAL_ADMIN', null, true])
+    vi.mocked(monthlyCommentary).mockClear()
+    await show()
+    for (const c of vi.mocked(monthlyCommentary).mock.calls.map((x) => x[0] as { role: unknown; email: unknown; preview?: boolean })) {
+      expect([c.role, c.email, 'preview' in c]).toEqual(['INTERNAL_ADMIN', 'writer@avenuez.com', false])
+    }
   })
 })

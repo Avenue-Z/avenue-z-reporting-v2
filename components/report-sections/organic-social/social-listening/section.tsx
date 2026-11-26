@@ -132,9 +132,11 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
       }
     }
     if (clientView && !approvedBoxes.has(id)) continue
-    // A preview renders each box as the client would see it: approved text only, no controls.
+    // A preview renders each box as the client would see it: approved text only, no controls. It keeps the real role so the
+    // box resolves the same month as the page, and the preview flag shows the client's entry for it (the last look fixes, D2).
     boxes[id] = await monthlyCommentary({
-      client, role: previewing ? 'CLIENT_VIEWER' : role, email: previewing ? null : (email ?? null), viewKey: slBoxViewKey(id), requestedRange: servedRange, labels: slBoxLabels(id), entries,
+      client, role, email: previewing ? null : (email ?? null), viewKey: slBoxViewKey(id), requestedRange: servedRange, labels: slBoxLabels(id), entries,
+      ...(previewing ? { preview: true } : {}),
       Panel: SlAnalysis,
     })
   }
