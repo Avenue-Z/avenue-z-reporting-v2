@@ -127,7 +127,7 @@ export function CommentaryPanel({
   }
 
   return (
-    <section className={K ? `${kit.root} ${kit.tight} ${bx.box} mb-8` : 'mb-8 rounded-lg border border-white/[0.08] bg-bg-surface'}>
+    <section className={K ? `${kit.root} ${kit.tight} ${bx.box}${capabilities.canEdit ? ` ${bx.boxStaff}` : ''} mb-8` : 'mb-8 rounded-lg border border-white/[0.08] bg-bg-surface'}>
       <div className="flex items-center justify-between p-4">
         <button type="button" onClick={() => setCollapsed((c) => !c)}
           className={K ? `flex items-center gap-2 ${kit.lbl}${capabilities.canEdit ? '' : ` ${bx.lblClient}`}` : 'flex items-center gap-2 text-sm font-extrabold text-white'}>

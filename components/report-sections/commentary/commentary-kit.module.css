@@ -5,3 +5,6 @@
 .box { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); }
 /* A client's label reads muted, as the kit's client box does (`.commClient .lbl`); the team's keeps the kit's yellow. */
 .box .lblClient { color: var(--muted); }
+/* The team's box: the artifact's staff frame (index.html:217; the kit's `.comm`, design/kit.module.css:166), as Social
+   Listening draws it for staff (social-listening/analysis.tsx:110). A client, a preview and the PDF keep `.box` alone. */
+.box.boxStaff { border-color: rgba(255,252,96,0.22); background: rgba(255,252,96,0.035); }

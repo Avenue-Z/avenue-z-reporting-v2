@@ -11,6 +11,9 @@ import { ExportModeProvider } from '@/components/export/export-mode'
 import type { CommentaryCapabilities, CommentaryEntry, CommentaryPeriodHistory } from '@/lib/commentary/types'
 import { expectSameValues, visibleValues } from '@/components/report-sections/organic-social/parts/version-parity'
 import kit from '@/components/report-sections/organic-social/design/kit.module.css'
+import bx from './commentary-kit.module.css'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {} }) }))
 vi.mock('@/app/actions/commentary', () => ({ approveCommentary: vi.fn(), revokeCommentary: vi.fn(), saveCommentary: vi.fn(), deleteCommentaryDraft: vi.fn() }))
@@ -150,5 +153,24 @@ describe('with look="kit", a box with nothing written is only the dashed add but
   })
   test('with an entry written, the kit box is the full panel, as before', () => {
     expect(draw(panel(EDITOR, { look: 'kit' })).querySelector('section')).not.toBeNull()
+  })
+})
+
+// The last look fixes, L4 (spec docs/superpowers/specs/2026-11-26-os-final-look.md): the team's box takes the artifact's
+// staff frame (index.html:217, the kit's .comm at kit.module.css:166); a client, a preview and the PDF keep the neutral
+// client frame (index.html:226-227), as Social Listening already does (social-listening/analysis.tsx:110).
+describe('with look="kit", the staff frame', () => {
+  const box = (c: Element) => c.querySelector('section')!
+  test('an editor (approver or not) gets the staff frame', () => {
+    for (const who of [APPROVER, EDITOR]) expect(box(draw(panel(who, { look: 'kit' }))).classList.contains(bx.boxStaff)).toBe(true)
+  })
+  test('a client and the PDF get the neutral frame only', () => {
+    expect(box(draw(panel(CLIENT, { look: 'kit' }))).classList.contains(bx.boxStaff)).toBe(false)
+    expect(box(draw(panel(APPROVER, { look: 'kit' }), true)).classList.contains(bx.boxStaff)).toBe(false)
+    expect(box(draw(panel(APPROVER, { look: 'kit' }), true)).classList.contains(bx.box)).toBe(true)
+  })
+  test('the staff frame is the artifact\'s yellow border and fill, on top of the neutral box', () => {
+    const css = readFileSync(join(__dirname, 'commentary-kit.module.css'), 'utf8')
+    expect(css).toMatch(/\.box\.boxStaff\s*\{\s*border-color:\s*rgba\(255,\s*252,\s*96,\s*0\.22\);\s*background:\s*rgba\(255,\s*252,\s*96,\s*0\.035\);\s*\}/)
   })
 })
