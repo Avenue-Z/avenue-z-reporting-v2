@@ -111,3 +111,19 @@ test('the error boundary names the part by its label', async () => {
   const bottom = await SharedPartsHeader({ viewKey: 'organic-social', clientSlug: 'c', placement: 'bottom' })
   expect(findByName(bottom, 'ReportErrorBoundary')?.props.sectionName).toBe('Recommendations (recommendations)')
 })
+
+// The last look fixes, L5: staff's "Preview as client" reaches both boxes, on @1 and @2, only when Organic Social passes it.
+// Every other department never passes it, so their boxes get exactly the props above.
+test('preview reaches Insights and Recommendations only when passed, on @1 and on the kit @2', async () => {
+  const R = 'custom:2026-09-01,2026-09-30'
+  for (const version of [1, 2]) {
+    getClientBySlug.mockResolvedValue({ reportSectionConfig: { 'organic-social': { sharedParts: [{ id: 'commentary', version }, { id: 'recommendations', version }] } } })
+    for (const placement of ['top', 'bottom'] as const) {
+      const off = findByName(await SharedPartsHeader({ viewKey: 'organic-social:instagram', configKey: 'organic-social', clientSlug: 'c', requestedRange: R, placement }), 'CommentarySection')
+      expect('preview' in (off?.props ?? {}), `v${version} ${placement}`).toBe(false)
+      const on = findByName(await SharedPartsHeader({ viewKey: 'organic-social:instagram', configKey: 'organic-social', clientSlug: 'c', requestedRange: R, placement, preview: true }), 'CommentarySection')
+      expect(on?.props.preview, `v${version} ${placement}`).toBe(true)
+      if (version === 2) expect(on?.props.look).toBe('kit')
+    }
+  }
+})

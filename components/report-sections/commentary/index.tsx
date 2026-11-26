@@ -13,12 +13,15 @@ import { INSIGHTS_LABELS, type CommentaryLabels } from '@/lib/commentary/labels'
 
 /** One commentary box. `labels` names it (Insights by default; Recommendations for the bottom box, which is the
  *  same section under its own view key). */
-export async function CommentarySection({ clientSlug, viewKey, requestedRange, labels = INSIGHTS_LABELS, look }: {
+export async function CommentarySection({ clientSlug, viewKey, requestedRange, labels = INSIGHTS_LABELS, look, preview }: {
   clientSlug: string; viewKey: CommentaryViewKey; requestedRange?: string; labels?: CommentaryLabels
   /** The design kit's look (commentary@2 and recommendations@2). Applied only on an Organic Social view: pinned on any other
    *  report, the box keeps today's panel. The redactions below are the same either way; `look` is a string, so nothing new
    *  crosses to the browser. */
   look?: 'kit'
+  /** Staff's "Preview as client" (Organic Social, the last look fixes L5): the box renders as a client's. On locked months the
+   *  month is still the real role's (monthlyCommentary); otherwise the viewer is treated as a client (no email). */
+  preview?: boolean
 }) {
   const wantsKit = look === 'kit' && isOrganicSocialViewKey(viewKey)
   const [session, client] = await Promise.all([auth(), getClientBySlug(clientSlug)])
@@ -26,12 +29,12 @@ export async function CommentarySection({ clientSlug, viewKey, requestedRange, l
   // Locked months: the box follows the month on screen (spec 3.9). Everyone else runs the code below unchanged. The kit
   // look applies only on a month on or after the client's designFrom (option B); monthlyCommentary decides by the month.
   if (hasReportingMonths(client) && isOrganicSocialViewKey(viewKey)) {
-    return monthlyCommentary({ client, role: session?.user?.role, email: session?.user?.email ?? null, viewKey, requestedRange, labels, ...(wantsKit ? { look: 'kit' as const } : {}) })
+    return monthlyCommentary({ client, role: session?.user?.role, email: session?.user?.email ?? null, viewKey, requestedRange, labels, ...(wantsKit ? { look: 'kit' as const } : {}), ...(preview ? { preview: true } : {}) })
   }
   // No served month here, so by the one rule the kit never applies (false for every client today).
   const kitLook = wantsKit && kitActive(client, null) ? { look: 'kit' as const } : {}
 
-  const email = session?.user?.email ?? null
+  const email = preview ? null : session?.user?.email ?? null
   const capabilities = { canEdit: canEditCommentary(email), canApprove: canApproveCommentary(email) }
 
   const all = await getCommentaryForView(client.id, viewKey)
