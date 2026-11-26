@@ -10,12 +10,27 @@ My calls (2026-11-26): fix the glow, the section spacing, the Add annotation but
 put "Preview as client" on every Organic Social tab for every client. Leave the month picker and AEO Informed's own
 controls (N3) as they are. Everything waiting on Savannah (#540) is out of scope. Phase 3 (#539) has its own spec.
 
+## Where each change comes from
+
+None of these five came up on the 2026-11-24 call or in Savannah's list (both re-read 2026-11-26). Each copies what the
+team already saw and liked in the artifact, and each is my call of 2026-11-26.
+
+| Change | What the team saw | Team's words |
+|---|---|---|
+| L1 glow | the artifact's page background (`index.html:35-43`) | none on the glow itself |
+| L2 40px | the artifact's section gap (`:115`) | none |
+| L3 "+ Add annotation" | the artifact's "+ Add post" (`:1050`); annotations themselves: call 00:24:04 to 00:25:03 ("we want them to be optional ... similar to what we did in the year-to-date graphs"), Savannah's list ("Add annotations for specific dates") | Paul, #527 (the button reads as off) |
+| L4 staff frame | the artifact's staff box (`:217`) and the Social Listening tab (`analysis.tsx:110`) | none |
+| L5 preview | the artifact's "Preview as client" (`:365, 1098-1101`) and the Social Listening tab's toggle | none |
+
 ## Rules every change keeps
 
 - **New look only.** Each change applies only where the kit look is already on: a served month on or after the client's
   `designFrom` (`kitActive`, `components/report-sections/organic-social/index.tsx:205`) or a part drawn with
   `look="kit"`. Every month before `designFrom`, every client without one, and Renaissance render byte-identical markup.
-  The one exception is L5's toggle, which is staff-only and new (see L5).
+  Two exceptions: L5's toggle, which is staff-only and new (see L5), and the Social Listening tab, which has no old look
+  (it draws the kit for every client and month, `social-listening/section.tsx:37`), so it gets L1's glow always, as the
+  artifact it was built from has (D1, my call 2026-11-26).
 - **Organic Social only.** No change to `app/layout.tsx`, `app/globals.css` or any other department's file (rule of
   2026-10-06). #487's body rule stays broken for other departments; that's their call.
 - **Values come from the artifact.** Every colour, size and gap below is copied from the cited artifact line.
@@ -101,7 +116,10 @@ controls (N3) as they are. Everything waiting on Savannah (#540) is out of scope
   - The boxes resolve their month with the real role too, and only their rights are a client's. Today a box resolves its
     own month from the role it is given (`commentary/monthly.tsx:31-36`), so handing it a client role would show a
     different month from the parts, or nothing, on a month a client can't see yet. In a preview the box keeps the real
-    role for `lockedRangeFor` and gets client rights (no edit, no approve, approved entries only, client frame).
+    role for `lockedRangeFor` and shows the entry a client gets for that month: the one the PDF already prints for the
+    client, `clientMonthEntry` (`commentary/monthly.tsx:56-57`), read-only in the client frame, with no staff notes
+    (`:62`), no history (`:60`) and no edit or approve (D2, my call 2026-11-26). No entry for the client means no box, as a
+    client sees today (`:58`).
   - **Deep-link routes** render the tab too (`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:82`,
     `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:100`). They parse `slview` and pass it the same way, so the
     toggle works there.

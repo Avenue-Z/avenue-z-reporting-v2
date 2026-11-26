@@ -45,3 +45,18 @@ Added on my own after round 1: the acceptance measurement records every chart's 
   the kit from `monthlyCommentary` while its body takes it from `setting.design` (`section.tsx:87`), so they can differ;
   name `deep-link-parity.test.tsx` and the deep-link `searchParams` type (`:93`) in L5; the acceptance check compares the
   client view for September (the staff toggle is new there); chart-size tolerance is 1px for subpixel rounding.
+
+## Decisions (2026-11-26, my calls)
+- D1: Social Listening gets the glow always (it has no old look). Written into "Rules every change keeps".
+- D2: a preview's Insights box shows the client's entry for that month, the one the PDF prints (`clientMonthEntry`), with
+  no staff notes, no history and no controls. Written into L5.
+
+## Source check (2026-11-26, the call transcript, Gemini's notes and decisions, Savannah's Slack list, re-read)
+- The five changes in this spec are not in the call or the list; each copies the artifact the team saw. Added a "Where
+  each change comes from" table.
+- Savannah's list against what #518 built: every item is built or tracked (#540), with two gaps found outside this spec:
+  - "AI for OS: Make a sheet with the YTD data" (under the YTD graphs) was read in #518 as the Organic Social team's
+    action and never tracked. Added to #540 to settle with Savannah.
+  - "Sentiment, may to october: Remove this" names the industry card exactly as the tab titles it
+    (`social-listening/industry.tsx:52`, `Sentiment, ${ytdSpan(...)}`). #518 kept it pending Savannah (Q3) because the
+    decks title that chart "Sentiment Over Time". Her written list is later than the call and names the card on screen.
