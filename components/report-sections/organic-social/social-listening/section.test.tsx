@@ -25,6 +25,7 @@ import { buildWorkbook } from '@/lib/organic-social/social-listening/test-workbo
 import { NOT_READY_TEXT } from '@/lib/organic-social/social-listening/view-model'
 import { SocialListeningSection } from './section'
 import frames from '../design/frames.module.css'
+import kitCss from '../design/kit.module.css'
 
 const SETTING = { enabled: true, brandTopic: 'Made Up Brand', industryTopic: 'Made Up Industry', industrySample: 10 }
 const client = (sl: unknown = SETTING) => ({
@@ -476,5 +477,18 @@ describe('industry keyword themes', () => {
     const { container } = await show({ topic: 'industry', role: 'CLIENT_VIEWER', email: null })
     expect(container.textContent).not.toContain(DECO)
     expect(container.textContent).toContain('Mostly positive')
+  })
+})
+
+// L1 (spec 2026-11-26, D1): Social Listening has no old look, so it carries the glow's marker always, for staff and a client;
+// never in the PDF.
+describe('the glow marker', () => {
+  test('staff and a client get one; the PDF none', async () => {
+    for (const o of [{}, { role: 'CLIENT_VIEWER', email: null }] as const) {
+      const { container } = await show(o)
+      expect(container.querySelectorAll(`.${kitCss.glowMark}`).length).toBe(1)
+    }
+    const { container } = await show({ exporting: true })
+    expect(container.querySelectorAll(`.${kitCss.glowMark}`).length).toBe(0)
   })
 })

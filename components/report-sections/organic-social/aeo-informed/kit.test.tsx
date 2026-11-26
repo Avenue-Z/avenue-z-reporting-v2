@@ -108,7 +108,11 @@ describe('with design: "kit", the tab reads and plots exactly as before, on the 
       getClientBySlug.mockResolvedValue(clientWith(SETTING))
       const old = sameIds((await draw(false)).innerHTML)
       getClientBySlug.mockResolvedValue(clientWith(KIT))
-      expect(sameIds((await draw(false)).innerHTML), JSON.stringify(answer)).toBe(old)
+      // The one deliberate difference (the last look fixes, L1): a kit month carries the glow's marker in every state.
+      const kitted = await draw(false)
+      expect(kitted.querySelectorAll(`.${kit.glowMark}`).length, JSON.stringify(answer)).toBe(1)
+      kitted.querySelectorAll(`.${kit.glowMark}`).forEach((m) => m.remove())
+      expect(sameIds(kitted.innerHTML), JSON.stringify(answer)).toBe(old)
     }
   })
   it('asks for exactly the same data either way, under the same lock key, so no locked month is orphaned', async () => {
@@ -164,5 +168,19 @@ describe('the last look fixes on the AEO tab', () => {
     expect(top.classList.contains(kit.root)).toBe(true)
     expect(top.classList.contains('space-y-10')).toBe(true)
     expect(top.classList.contains('space-y-8')).toBe(false)
+  })
+})
+
+describe('the glow marker on the AEO tab (L1)', () => {
+  it('a kit month carries it, in every state; a month before designFrom never does', async () => {
+    getClientBySlug.mockResolvedValue(clientWith({ ...SETTING, design: 'kit' }))
+    expect((await draw(false)).querySelectorAll(`.${kit.glowMark}`).length).toBe(1)
+    getAeoTabData.mockResolvedValue({ kind: 'no-chats' })
+    expect((await draw(false)).querySelectorAll(`.${kit.glowMark}`).length).toBe(1)
+    getAeoTabData.mockResolvedValue({ kind: 'error', reason: 'error' })
+    expect((await draw(false)).querySelectorAll(`.${kit.glowMark}`).length).toBe(1)
+    getClientBySlug.mockResolvedValue(clientWith({ ...SETTING, design: 'kit' }, { designFrom: '2026-11' }))
+    getAeoTabData.mockResolvedValue({ kind: 'ok', result: RESULT, locked: false })
+    expect((await draw(false)).querySelectorAll(`.${kit.glowMark}`).length).toBe(0)
   })
 })

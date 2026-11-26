@@ -25,6 +25,7 @@ import type { SlTopic } from '@/lib/organic-social/social-listening/types'
 import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
 import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import kitStyles from './design/kit.module.css'
+import { GlowMark } from './design/frames'
 
 /** The AEO Informed Social tab's own settings, read from the URL by the route (parseAeoRange, parseAeoMin) and its time limit (page 120 s,
  *  export 30 s). Handed to the body on that tab only, so every other tab's body and parts get exactly what they got before. */
@@ -204,5 +205,6 @@ export async function OrganicSocialBody({ ctx, aeo, sl }: { ctx: OrganicSocialCt
   })
   // The last look fixes, L2 (spec 2026-11-26): a kit month stacks its parts with the artifact's 40px gap (kit .parts); an
   // old-look month keeps the bare fragment, byte for byte (index.test.tsx's old-look pin).
-  return kit ? <div className={kitStyles.parts}>{parts}</div> : <>{parts}</>
+  // L1: a kit month also carries the glow's marker (frames.tsx GlowMark).
+  return kit ? <div className={kitStyles.parts}><GlowMark />{parts}</div> : <>{parts}</>
 }

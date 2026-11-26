@@ -25,7 +25,7 @@ import { buildTopicView, NOT_READY_TEXT, servedMonths, topicPills } from '@/lib/
 import { monthlyCommentary } from '@/components/report-sections/commentary/monthly'
 import { Fallback } from '../parts/shared'
 import { BrandPage } from './brand'
-import { StaffNote } from '../design/frames'
+import { GlowMark, StaffNote } from '../design/frames'
 import { IndustryPage } from './industry'
 import { PreviewToggle, TopicPills } from './pills'
 import { UploadControl } from './upload'
@@ -109,6 +109,7 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
     if (exporting && topic !== 'brand') return null
     return (
       <div className={s.root}>
+        {!exporting && <GlowMark />}
         {toggle && <div className={s.topics}><span className={s.spacer} />{toggle}</div>}
         <div className={s.view}><Slot text={NOT_READY_TEXT} /></div>
       </div>
@@ -163,6 +164,8 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   const topics = setting.industryTopic ? `Talkwalker topics: ${setting.brandTopic}, and ${setting.industryTopic}` : `Talkwalker topic: ${setting.brandTopic}`
   return (
     <div className={s.root}>
+      {/* L1, D1: Social Listening has no old look, so it always carries the glow's marker (never in the PDF). */}
+      {!exporting && <GlowMark />}
       {!exporting && (
         <div className={s.topics}>
           <TopicPills topic={shown} industry={pills.industry} brandLabel={`Brand: ${setting.brandTopic}`} industryLabel={`Industry: ${setting.industryTopic ?? ''}`} />

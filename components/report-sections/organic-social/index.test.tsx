@@ -190,6 +190,8 @@ describe('locked months in the section', () => {
     const kitTree = elementTree(await OrganicSocialBody({ ctx: ctxFor(SEP) })) as { type: unknown; props: { className?: string; children: unknown[] } }
     expect(kitTree.type).toBe('div')
     expect(kitTree.props.className).toBe(kit.parts)
+    // L1: the kit month carries the glow's marker, first in the wrapper.
+    expect(((kitTree.props.children as unknown[])[0] as { type: string }).type).toBe('GlowMark')
     expect((kitTree.props.children as unknown[]).flat().filter(Boolean).length).toBeGreaterThan(1)
     getClientBySlug.mockResolvedValue({ ...OPTED, dashSocialConfig: { ...OPTED.dashSocialConfig, designFrom: '2026-10' } })
     const oldTree = elementTree(await OrganicSocialBody({ ctx: ctxFor(SEP) })) as { props: { className?: string } }
