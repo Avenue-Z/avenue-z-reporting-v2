@@ -28,9 +28,12 @@ controls (N3) as they are. Everything waiting on Savannah (#540) is out of scope
   `radial-gradient(ellipse 40% 30% at 80% 100%, rgba(30,0,80,0.4) 0%, transparent 60%)`.
 - **Today:** `<body className="bg-glow">` (`app/layout.tsx:31`) uses `.bg-glow` (`app/globals.css:234-240`), which is invalid
   CSS (no commas, colour first), so no page has a glow (#487, measured `backgroundImage: none` on staging).
-- **Change:** when the kit look is on and the page is not an export, `OrganicSocialBody` renders one decorative element:
-  fixed to the viewport, full size, behind the content, `aria-hidden`, `pointer-events: none`, and hidden in the PDF.
-  It carries the artifact's two gradients exactly. Nothing on `body` changes.
+- **Change:** when the kit look is on, the tab renders one decorative element: fixed to the viewport, full size, behind the
+  content, `aria-hidden`, `pointer-events: none`, carrying the artifact's two gradients exactly. Nothing on `body` changes.
+  It renders on every kit tab: the platform, Overview and Influencer tabs (from `OrganicSocialBody`, under `kit`), the AEO
+  Informed tab (under its own kit decision, `aeo-informed/section.tsx:87`), and the Social Listening tab (always kit). The
+  server can't tell a PDF render on most tabs (only Social Listening is told, `export/report-element.tsx:47`), so the
+  element carries `data-export-hide`, which the export page already hides (`app/export/export-theme.css:53`).
 - **Unverified, so a scratch trial settles it first:** that a fixed element behind the content shows the glow without
   covering text or the sidebar, and that no ancestor's stacking context hides it. If it can't be done without touching
   `body`, I stop and bring it back.
@@ -45,17 +48,20 @@ controls (N3) as they are. Everything waiting on Savannah (#540) is out of scope
   part, last part to Recommendations. Only `OrganicSocialBody` knows whether the month is kit (`index.tsx:205`), and the
   outer wrapper must stay byte-identical for the old look, so the parts get a kit-only wrapper with the 40px gap, and the
   kit boxes and that wrapper carry 40px bottom margins that collapse with the outer 32px. Measured on the page, not assumed.
+- **The AEO Informed tab** under its kit look stacks with `space-y-8` (`aeo-informed/section.tsx:89`); under the kit it
+  takes the 40px gap too. Social Listening already uses the kit's 40px `.view` gap and doesn't change.
 - **PDF:** the export uses the same components, so it gets the same spacing. Checked on the export page.
 
 ## L3. Add annotation and the note buttons (#527)
 
-- **Artifact:** an "add" action is the dashed small button, `.tbtn.add-analysis` with a leading "+" ("+ Add analysis",
-  "+ Add post"; `index.html:221-223, 958`). Every other action is the plain `.tbtn` (`kit.module.css:187-189`).
+- **Artifact:** an add action is the plain small button with a leading "+": "+ Add post" is `.tbtn` (`index.html:1050`).
+  The dashed `.tbtn.add-analysis` is only the empty analysis slot (`:221-223, 958`). The kit's `.tbtn` is
+  `kit.module.css:187-189`.
 - **Today:** under the kit, Add annotation is `kit.pill` with no `aria-pressed`, so it reads as an off toggle
   (`organic-social/trends.tsx:216-218`, `ytd-notes-panel.tsx:102-106`; Paul, #527). On Social Listening, Add annotation,
   Save draft and Cancel use the old look's `PILL` (`social-listening/notes-panel.tsx:15,72,157-158`).
 - **Change:** under the kit, every Add annotation (the daily graphs, the YTD graphs, Social Listening's line graphs)
-  becomes `kit.tbtn kit.addAnalysis` labelled "+ Add annotation". Social Listening's Save draft and Cancel, and its
+  becomes `kit.tbtn` labelled "+ Add annotation", as the artifact's "+ Add post". Social Listening's Save draft and Cancel, and its
   card buttons, take the same kit buttons the Organic Social notes got in round 3 (`control-look.ts`). The old look keeps
   "Add annotation" as `PILL`, byte-identical.
 
@@ -92,6 +98,13 @@ controls (N3) as they are. Everything waiting on Savannah (#540) is out of scope
     email, and `SharedPartsHeader` passes a preview flag that makes the boxes render as a client (client role, no email).
   - The locked month is still resolved with the real role, as Social Listening does (`index.tsx:139`): staff can preview
     any month they can open. A client role with the flag sees no change (it already is the client view).
+  - The boxes resolve their month with the real role too, and only their rights are a client's. Today a box resolves its
+    own month from the role it is given (`commentary/monthly.tsx:31-36`), so handing it a client role would show a
+    different month from the parts, or nothing, on a month a client can't see yet. In a preview the box keeps the real
+    role for `lockedRangeFor` and gets client rights (no edit, no approve, approved entries only, client frame).
+  - **Deep-link routes** render the tab too (`app/dashboard/[clientSlug]/reports/[reportSlug]/page.tsx:82`,
+    `app/portal/[clientSlug]/reports/[reportSlug]/page.tsx:100`). They parse `slview` and pass it the same way, so the
+    toggle works there.
   - The toggle is `PreviewToggle`, unchanged, right-aligned at the top of every Organic Social tab for staff, in the kit
     look on every tab (it is a new control with no old-look form). Never in the PDF (`useExportMode`).
 - **Renaissance:** its staff view gains the toggle (my call: every client). Renaissance's client view and its PDF stay
@@ -122,15 +135,18 @@ controls (N3) as they are. Everything waiting on Savannah (#540) is out of scope
 6. L5: with the flag, every role consumer listed above receives a client role and no email (one test per consumer path);
    the boxes render client output; the toggle shows for staff on every view and never for a client or in the export; the
    flag reaches every Organic Social view and every Suspense key; a client with the flag sees today's page.
-7. Department gate: no file outside Organic Social, commentary and the two report pages changes; other departments'
-   export requests are byte for byte the same.
+7. Department gate: no file outside Organic Social, commentary, `components/report-sections/shared/` (L5's preview flag on
+   `SharedPartsHeader` and `SharedCtx`) and the four report pages (two SPA, two deep-link) changes. The shared header is
+   used by other departments (paid media, LinkedIn, Meta, paid search, Peec pages), so a test renders their boxes with no
+   flag and pins them byte for byte; other departments' export requests are byte for byte the same.
 
 ## Acceptance (on the local app against the dev database, before Paul)
 
 Re-run the side-by-side measurement (`11-24-artifact-side-by-side.md`'s script) on an Organic Social kit month, the Social
 Listening tab and the artifact. Every shared element must match: glow, section gap, line height, buttons, the staff and
-client Insights frames, the preview. September (old look) and Social Listening must be element-for-element unchanged
-except where L3 and L4 deliberately change Social Listening's note buttons. Screenshots go only in Paul's Slack message.
+client Insights frames, the preview. The measurement also records every chart's rendered size (each donut, line, bar and
+column chart, and every icon SVG) before and after, so a chart that grows, shrinks or stretches fails the check. September (old look) and Social Listening must be element-for-element unchanged
+except where L1 (its glow) and L3 (its note buttons) deliberately change it. Screenshots go only in Paul's Slack message.
 
 ## Out of scope
 
