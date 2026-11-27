@@ -3,6 +3,8 @@
 // directly; several rows must be de-duplicated per answer (summing would count an answer that retrieved two of the
 // brand's domains twice), so that case needs the distinct count from a per-answer pull.
 import { bareDomain, sameOrSubdomain } from '@/lib/aeo-outbound/own-rows'
+import { normalizeSource } from '@/lib/peec/client'
+import type { AEOModel } from '@/lib/peec/models'
 
 export type DomainShareRow = { domain: string; answers: number; totalAnswers: number }
 
@@ -70,6 +72,28 @@ export function distinctAnswersByBrand(
       if (r.chat?.id && domains.has(bareDomain(r.domain))) ids.add(r.chat.id)
     }
     out.set(b.name, ids.size)
+  }
+  return out
+}
+
+/** As distinctAnswersByBrand, split by model (the row's model id, else its channel id, normalised to an AEOModel). */
+export function distinctAnswersByBrandModel(
+  multi: { name: string; domains: string[] }[],
+  chatRows: readonly { domain: string; chat?: { id: string }; model?: { id: string }; model_channel?: { id: string } }[],
+): Map<string, Map<AEOModel, number>> {
+  const out = new Map<string, Map<AEOModel, number>>()
+  for (const b of multi) {
+    const domains = new Set(b.domains.map(bareDomain))
+    const ids = new Map<AEOModel, Set<string>>()
+    for (const r of chatRows) {
+      if (!r.chat?.id || !domains.has(bareDomain(r.domain))) continue
+      const model = normalizeSource(r.model?.id ?? r.model_channel?.id ?? '')
+      if (!model) continue
+      const set = ids.get(model) ?? new Set<string>()
+      set.add(r.chat.id)
+      ids.set(model, set)
+    }
+    out.set(b.name, new Map(Array.from(ids.entries()).map(([m, s]) => [m, s.size])))
   }
   return out
 }

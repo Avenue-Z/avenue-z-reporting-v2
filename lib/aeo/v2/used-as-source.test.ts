@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { brandDomainRows, usedAsSourceByBrand, multiRowBrands, distinctAnswersByBrand } from './used-as-source'
+import { brandDomainRows, usedAsSourceByBrand, multiRowBrands, distinctAnswersByBrand, distinctAnswersByBrandModel } from './used-as-source'
 
 const rows = [
   { domain: 'renaissancebenefits.com', answers: 3294, totalAnswers: 8981 },
@@ -57,5 +57,19 @@ describe('distinctAnswersByBrand', () => {
       { domain: 'www.metlife.com' },
     ]
     expect(distinctAnswersByBrand(multi, chats).get('MetLife')).toBe(2)
+  })
+})
+
+describe('distinctAnswersByBrandModel', () => {
+  const multi = [{ name: 'MetLife', domains: ['www.metlife.com', 'investor.metlife.com'] }]
+  it('counts a chat on two of the brand domains once per model', () => {
+    const m = distinctAnswersByBrandModel(multi, [
+      { domain: 'www.metlife.com', chat: { id: 'c1' }, model: { id: 'chatgpt-4o' } },
+      { domain: 'investor.metlife.com', chat: { id: 'c1' }, model: { id: 'chatgpt-4o' } },
+      { domain: 'www.metlife.com', chat: { id: 'c2' }, model_channel: { id: 'gemini-scraper' } },
+      { domain: 'other.com', chat: { id: 'c3' }, model: { id: 'chatgpt-4o' } },
+    ])
+    expect(m.get('MetLife')?.get('ChatGPT')).toBe(1)
+    expect(m.get('MetLife')?.get('Gemini')).toBe(1)
   })
 })

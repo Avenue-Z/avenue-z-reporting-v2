@@ -55,3 +55,10 @@ export type TopicsPromptsV2 = {
   topicAnswersPrior: TopicAnswers[]
   prompts: PromptV2[]
 }
+
+/** One gauge's figures, in percent: the client, the client in the comparison window (null without one) and the competitor mean. */
+export type ModelMetricV2 = { you: number | null; youPrior: number | null; competitorAvg: number | null }
+/** Section 03: one AI model's three gauges. */
+export type ModelStatV2 = { model: AEOModel; visibility: ModelMetricV2; sov: ModelMetricV2; usedAsSource: ModelMetricV2 }
+/** `models` follows AEO_MODELS order and holds only models where the client has answers in the current window. */
+export type ModelsV2 = { models: ModelStatV2[]; usedAsSourceBasis: UsedAsSourceBasis }
