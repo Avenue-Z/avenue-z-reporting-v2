@@ -23,7 +23,7 @@ const FIXTURE: CitedUrls = {
   complete: true,
   tooLong: false,
   rows: [
-    { rank: 1, key: 'acme.com/a', url: 'https://acme.com/a', title: 'Acme A', sourceType: 'own', sourceLabel: 'Your site', pageType: 'Article', usedPct: 17, citationRate: 2.5, prior: { usedPct: 15, citationRate: 2 } },
+    { rank: 1, key: 'acme.com/a', url: 'https://acme.com/a', title: 'Acme A', sourceType: 'own', sourceLabel: 'Own', pageType: 'Article', usedPct: 17, citationRate: 2.5, prior: { usedPct: 15, citationRate: 2 } },
     { rank: 2, key: 'rival.com/x', url: 'https://rival.com/x', title: 'Rival X', sourceType: 'competitor', sourceLabel: 'Competitor', pageType: 'Listicle', usedPct: 9, citationRate: 1.2, prior: null },
   ],
 }

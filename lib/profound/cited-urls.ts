@@ -161,6 +161,8 @@ export function mapProfoundWindow(stream: ProfoundStream, categories: ProfoundCa
 const VISIBILITY_V1 = { field: 'analysis_type', operator: 'is', value: 'visibility' }
 const VISIBILITY_V2 = { field: 'analysis_type', op: 'is', value: 'visibility' }
 
+const STREAM_TIMEOUT_MS = 30_000
+
 async function fetchStream(categoryId: string, w: IsoWindow): Promise<ProfoundStream> {
   const key = process.env.PROFOUND_AI_ACCESS_TOKEN
   if (!key) throw new Error('Missing env var: PROFOUND_AI_ACCESS_TOKEN')
@@ -176,6 +178,7 @@ async function fetchStream(categoryId: string, w: IsoWindow): Promise<ProfoundSt
     }),
     // About 8 MB per 30 days, over the 2 MB data cache; the outer cached() holds the result.
     cache: 'no-store',
+    signal: AbortSignal.timeout(STREAM_TIMEOUT_MS),
   })
   if (!res.ok) {
     const body = await res.text()
@@ -236,6 +239,7 @@ async function getProfoundCitedUrlsImpl(
   } catch (e) {
     console.error('[cited-sources] profound fetch failed', {
       client: clientSlug, start: current.startDate, end: current.endDate,
+      priorStart: prior?.startDate ?? null, priorEnd: prior?.endDate ?? null,
     })
     throw e
   }

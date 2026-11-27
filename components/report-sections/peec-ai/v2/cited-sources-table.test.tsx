@@ -135,3 +135,19 @@ test('New sinks to the bottom in both directions', () => {
   fireEvent.click(header)
   expect(last()).toContain('Listicle')
 })
+
+test('notes partial data only when the pull is incomplete', () => {
+  const { unmount } = render(ui({ complete: false }))
+  expect(screen.getByText('Partial data for this period.')).toBeTruthy()
+  unmount()
+  render(ui({ complete: true }))
+  expect(screen.queryByText('Partial data for this period.')).toBeNull()
+})
+
+test('notes the top-N cut only when rows were dropped', () => {
+  const { unmount } = render(ui({ totalRows: 20625 }))
+  expect(screen.getByText('Top 3 of 20,625 URLs')).toBeTruthy()
+  unmount()
+  render(ui())
+  expect(screen.queryByText(/^Top \d/)).toBeNull()
+})

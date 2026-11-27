@@ -145,6 +145,7 @@ async function getPeecCitedUrlsImpl(
   } catch (e) {
     console.error('[cited-sources] peec fetch failed', {
       client: clientSlug, start: current.startDate, end: current.endDate,
+      priorStart: prior?.startDate ?? null, priorEnd: prior?.endDate ?? null,
     })
     throw e
   }

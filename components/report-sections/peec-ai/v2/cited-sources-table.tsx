@@ -103,6 +103,10 @@ export function CitedSourcesTable({ data, showDeltas, modelActive }: { data: Cit
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-muted">
         <span>{data.totalCitations.toLocaleString()} citations</span>
+        {data.totalRows > data.rows.length && (
+          <span>Top {data.rows.length.toLocaleString()} of {data.totalRows.toLocaleString()} URLs</span>
+        )}
+        {!data.complete && !data.tooLong && <span>Partial data for this period.</span>}
         {modelActive && <span>Not filtered by AI model.</span>}
       </div>
       {!exportMode && (

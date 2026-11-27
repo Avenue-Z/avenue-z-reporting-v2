@@ -148,6 +148,12 @@ describe('getProfoundCitedUrls', () => {
     expect(init.cache).toBe('no-store')
   })
 
+  it('stream request carries an abort signal', async () => {
+    await getProfoundCitedUrls('c', win, null)
+    const init = fetchMock.mock.calls.find(([u]) => String(u).includes('/v2/prompts/answers/stream'))![1]
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('prior makes two streams and one categories request', async () => {
     await getProfoundCitedUrls('c', win, { startDate: '2026-09-01', endDate: '2026-09-30' })
     const urls = fetchMock.mock.calls.map(([u]) => String(u))
@@ -186,7 +192,9 @@ describe('getProfoundCitedUrls', () => {
     fetchMock.mockImplementation(async () => new Response('too broad', { status: 503 }))
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(getProfoundCitedUrls('c', win, null)).rejects.toThrow(/503/)
-    expect(err).toHaveBeenCalled()
+    expect(err).toHaveBeenCalledWith('[cited-sources] profound fetch failed', {
+      client: 'c', start: win.startDate, end: win.endDate, priorStart: null, priorEnd: null,
+    })
     err.mockRestore()
   })
 })

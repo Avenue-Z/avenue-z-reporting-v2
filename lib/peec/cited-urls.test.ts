@@ -168,7 +168,7 @@ describe('getPeecCitedUrls', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(getPeecCitedUrls('c', cur, null)).rejects.toThrow(/500/)
     expect(err).toHaveBeenCalledWith('[cited-sources] peec fetch failed', {
-      client: 'c', start: '2026-10-01', end: '2026-10-31',
+      client: 'c', start: '2026-10-01', end: '2026-10-31', priorStart: null, priorEnd: null,
     })
     err.mockRestore()
   })

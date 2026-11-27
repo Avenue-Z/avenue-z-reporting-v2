@@ -27,6 +27,15 @@ function win(rows: UrlWindowRow[], o: Partial<UrlWindow> = {}): UrlWindow {
 }
 
 describe('joinWindows', () => {
+  it('an empty comparison window gives dashes, not New', () => {
+    const r = joinWindows('peec', win([row('a'), row('b')]), { rows: [], totalAnswers: 0, totalCitations: 0, complete: true })
+    expect(r.compared).toBe(true)
+    for (const x of r.rows) {
+      expect(x.prior).not.toBeNull()
+      expect(x.prior?.usedPct).toBeNull()
+    }
+  })
+
   it('computes used % and rate', () => {
     const r = joinWindows('peec', win([row('a', { answersUsing: 50, citations: 75 })], { totalAnswers: 200 }), null)
     expect(r.rows[0].usedPct).toBe(25)

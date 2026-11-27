@@ -118,7 +118,13 @@ export function joinWindows(
       pageType: r.pageType,
       citations: r.citations,
       ...metrics(r, current.totalAnswers),
-      prior: p && prior ? metrics(p, prior.totalAnswers) : null,
+      prior: !prior
+        ? null
+        : prior.totalAnswers === 0
+          ? { usedPct: null, citationRate: null }
+          : p
+            ? metrics(p, prior.totalAnswers)
+            : null,
     }
   })
 
