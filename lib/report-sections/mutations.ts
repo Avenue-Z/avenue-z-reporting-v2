@@ -3,6 +3,7 @@
 // the `'use server'` action file so (a) they can be unit-tested without a DB and
 // (b) they don't violate Next.js's rule that Server Action modules export only
 // async functions. Mirrors the config-mutations.ts / dashboard.ts split.
+import type { KpiId } from './aeo-kpis'
 import { parseReportSectionConfig } from './validate'
 import { resolveSection } from './resolve'
 import { assertReferencedPinsPublished } from './registry'
@@ -20,15 +21,21 @@ export const INTERNAL_ONLY_BLOCK_VIEW_KEYS: Record<(typeof INTERNAL_ONLY_BLOCKS)
  *  payload doesn't set one. An explicit sharedParts in `next` wins. Keeps a body-only
  *  edit from dropping a client's commentary (shared-part) opt-in.
  *  clientVisible is always carried from `prev` and never taken from `next`: only
- *  setClientVisible may change it. */
+ *  setClientVisible may change it. kpis is the same: only setAeoKpis may change it. */
 export function mergePreservingSharedParts(
   prev: SectionOverride | undefined,
   next: SectionOverride,
 ): SectionOverride {
   const sharedParts = next.sharedParts ?? prev?.sharedParts
-  const { clientVisible: _ignored, ...rest } = next
+  const { clientVisible: _ignored, kpis: _ignoredKpis, ...rest } = next
   const merged: SectionOverride = sharedParts === undefined ? rest : { ...rest, sharedParts }
-  return prev?.clientVisible === undefined ? merged : { ...merged, clientVisible: prev.clientVisible }
+  const withVisible = prev?.clientVisible === undefined ? merged : { ...merged, clientVisible: prev.clientVisible }
+  return prev?.kpis === undefined ? withVisible : { ...withVisible, kpis: prev.kpis }
+}
+
+/** Sets the AEO Snapshot KPI selection. Only 'peec-ai' is ever written; the rest of its override is kept. */
+export function applyAeoKpis(cfg: ReportSectionConfig, kpis: KpiId[]): ReportSectionConfig {
+  return { ...cfg, 'peec-ai': { ...(cfg['peec-ai'] ?? {}), kpis } }
 }
 
 export function applyClientVisible(

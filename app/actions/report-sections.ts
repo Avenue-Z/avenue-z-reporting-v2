@@ -6,8 +6,9 @@ import { db } from '@/lib/db/client'
 import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
-import { canEditDashboard } from '@/lib/dashboard/permissions'
-import { applyClientVisible, INTERNAL_ONLY_BLOCKS, INTERNAL_ONLY_BLOCK_VIEW_KEYS, applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { canEditDashboard, isInternalStaff } from '@/lib/dashboard/permissions'
+import { applyAeoKpis, applyClientVisible, INTERNAL_ONLY_BLOCKS, INTERNAL_ONLY_BLOCK_VIEW_KEYS, applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
+import { parseKpiSelection } from '@/lib/report-sections/aeo-kpis'
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { lookup } from '@/lib/report-sections/registry'
 import { resolveSection } from '@/lib/report-sections/resolve'
@@ -81,6 +82,9 @@ export async function saveReportSectionConfig(slug: string, section: string, raw
   if (raw && typeof raw === 'object' && 'clientVisible' in raw) {
     return { ok: false, error: 'clientVisible is set with setClientVisible' }
   }
+  if (raw && typeof raw === 'object' && 'kpis' in raw) {
+    return { ok: false, error: 'kpis is set with setAeoKpis' }
+  }
   const template = await getSectionTemplate(section)
   const templateIds = (template?.order ?? []).map((p) => p.id)
   let parsedSection: ReportSectionConfig[string]
@@ -113,6 +117,22 @@ export async function setClientVisible(
   const client = await getClientBySlug(slug)
   if (!client) return { ok: false, error: 'client not found' }
   return persist(slug, applyClientVisible(client.reportSectionConfig ?? {}, viewKey, blockId, visible))
+}
+
+/** Sets the AEO Snapshot KPIs for one client. Internal staff only (never CLIENT_ADMIN, so not `authorize`). */
+export async function setAeoKpis(slug: string, kpis: unknown): Promise<Result> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'unauthenticated' }
+  if (!isInternalStaff(session.user.role)) return { ok: false, error: 'forbidden' }
+  let parsed: ReturnType<typeof parseKpiSelection>
+  try {
+    parsed = parseKpiSelection(kpis)
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  const client = await getClientBySlug(slug)
+  if (!client) return { ok: false, error: 'client not found' }
+  return persist(slug, applyAeoKpis(client.reportSectionConfig ?? {}, parsed))
 }
 
 /**

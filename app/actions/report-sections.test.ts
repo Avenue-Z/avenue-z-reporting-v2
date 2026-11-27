@@ -142,6 +142,15 @@ describe('mergePreservingSharedParts', () => {
   test('no prior and none in payload → no sharedParts key added', () => {
     expect(mergePreservingSharedParts(undefined, { versions: {} }).sharedParts).toBeUndefined()
   })
+  test('carries prev.kpis and never takes kpis from next', () => {
+    expect(mergePreservingSharedParts({ kpis: ['visibility'] }, { hidden: [] }).kpis).toEqual(['visibility'])
+    const sneaky = { hidden: [], kpis: ['ai-leads'] } as unknown as Parameters<typeof mergePreservingSharedParts>[1]
+    expect(mergePreservingSharedParts({ kpis: ['visibility'] }, sneaky).kpis).toEqual(['visibility'])
+    expect('kpis' in mergePreservingSharedParts({}, sneaky)).toBe(false)
+  })
+  test('no prev.kpis → no kpis key', () => {
+    expect('kpis' in mergePreservingSharedParts({}, { hidden: [] })).toBe(false)
+  })
 })
 
 // ---- Server-action guards (clientVisible) ----
@@ -160,7 +169,7 @@ vi.mock('@/lib/db/queries', () => ({
   getSectionTemplate: async () => null,
 }))
 
-import { saveReportSectionConfig, setClientVisible } from './report-sections'
+import { saveReportSectionConfig, setAeoKpis, setClientVisible } from './report-sections'
 
 const VK = 'peec-ai:content-impact'
 const asRole = (role: string, clientSlug: string | null = null) => {
@@ -220,5 +229,65 @@ describe('clientVisible guards', () => {
     const r = await setClientVisible('acme', VK, 'prompt-gaps', true)
     expect(r.ok).toBe(true)
     expect(h.set.mock.calls[0][0].reportSectionConfig[VK].clientVisible).toEqual(['prompt-gaps'])
+  })
+})
+
+describe('setAeoKpis and the kpis guards', () => {
+  beforeEach(() => {
+    h.set.mockClear()
+    h.cfg = {}
+    asRole('INTERNAL_ADMIN')
+  })
+
+  test.each(['INTERNAL_ADMIN', 'INTERNAL_ANALYST'])('setAeoKpis saves for staff %s', async (role) => {
+    asRole(role)
+    const r = await setAeoKpis('acme', ['ai-leads', 'visibility'])
+    expect(r).toEqual({ ok: true })
+    expect(h.set).toHaveBeenCalledTimes(1)
+    expect(h.set.mock.calls[0][0].reportSectionConfig['peec-ai'].kpis).toEqual(['visibility', 'ai-leads'])
+  })
+
+  test.each([['CLIENT_ADMIN', 'acme'], ['CLIENT_VIEWER', 'acme']])('setAeoKpis forbidden for %s of their own client', async (role, slug) => {
+    asRole(role, slug)
+    expect(await setAeoKpis('acme', ['visibility'])).toEqual({ ok: false, error: 'forbidden' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setAeoKpis with no session', async () => {
+    h.session = null
+    expect(await setAeoKpis('acme', ['visibility'])).toEqual({ ok: false, error: 'unauthenticated' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setAeoKpis rejects a bad payload', async () => {
+    const six = ['visibility', 'share-of-voice', 'used-as-source', 'ai-sessions', 'ai-leads', 'sentiment']
+    expect(await setAeoKpis('acme', six)).toEqual({ ok: false, error: 'at most 5 kpis' })
+    expect(await setAeoKpis('acme', ['bogus'])).toEqual({ ok: false, error: 'unknown kpi bogus' })
+    expect(await setAeoKpis('acme', 'visibility')).toEqual({ ok: false, error: 'invalid kpis' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('setAeoKpis keeps the rest of the override', async () => {
+    h.cfg = { 'peec-ai': { hidden: ['footer'], clientVisible: ['x'] }, other: { hidden: ['a'] } }
+    const r = await setAeoKpis('acme', ['visibility'])
+    expect(r.ok).toBe(true)
+    const saved = h.set.mock.calls[0][0].reportSectionConfig
+    expect(saved['peec-ai']).toEqual({ hidden: ['footer'], clientVisible: ['x'], kpis: ['visibility'] })
+    expect(saved.other).toEqual({ hidden: ['a'] })
+  })
+
+  test('saveReportSectionConfig rejects kpis in body', async () => {
+    asRole('CLIENT_ADMIN', 'acme')
+    const r = await saveReportSectionConfig('acme', 'peec-ai', { kpis: ['visibility'] })
+    expect(r).toEqual({ ok: false, error: 'kpis is set with setAeoKpis' })
+    expect(h.set).not.toHaveBeenCalled()
+  })
+
+  test('saveReportSectionConfig preserves kpis', async () => {
+    h.cfg = { 'peec-ai': { kpis: ['ai-leads'] } }
+    asRole('CLIENT_ADMIN', 'acme')
+    const r = await saveReportSectionConfig('acme', 'peec-ai', { hidden: [] })
+    expect(r.ok).toBe(true)
+    expect(h.set.mock.calls[0][0].reportSectionConfig['peec-ai'].kpis).toEqual(['ai-leads'])
   })
 })

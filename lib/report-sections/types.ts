@@ -1,5 +1,6 @@
 // lib/report-sections/types.ts
 import type React from 'react'
+import type { KpiId } from './aeo-kpis'
 
 export type PartPin = { id: string; version: number }
 
@@ -26,6 +27,9 @@ export type SectionOverride = {
   thresholds?: Record<string, number>
   /** Internal-only block ids (INTERNAL_ONLY_BLOCKS) opened to this client's viewers. Written only by setClientVisible. */
   clientVisible?: string[]
+  /** AEO Overview v2 Snapshot KPIs (peec-ai only): the ids the client's strip shows, catalog order, at most 5.
+   *  Absent = never saved (defaults apply); [] = staff chose none. Written only by setAeoKpis. */
+  kpis?: KpiId[]
 }
 
 /** Per-client report config. A key is EITHER a section slug (body composition,
