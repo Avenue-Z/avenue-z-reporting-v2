@@ -33,7 +33,10 @@ export const OVERVIEW_SECTIONS: Record<OverviewSectionId, { label: string; headl
 type SectionMap = Readonly<Record<string, OverviewSectionId>>
 
 /** Keyed `${id}@${version}`; later slices add entries. */
-export const V2_PART_SECTIONS: SectionMap = {}
+export const V2_PART_SECTIONS: SectionMap = {
+  'visibility-chart@2': '02',
+  'brand-rankings@2': '02',
+}
 
 const keyOf = (r: ResolvedPart) => `${r.id}@${r.version}`
 

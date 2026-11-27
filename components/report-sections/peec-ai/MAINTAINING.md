@@ -56,10 +56,12 @@ a client **only** through that client's `report_section_config['peec-ai']`:
 - `order`: the final ordering of the ids above.
 
 Apply it to **staging Neon only** until the account lead approves. The production flip is slice 7
-(spec section 4). Slice 1 adds no parts yet, so there is nothing to pin: the compare/deltas
+(spec section 4). Slice 1 added no parts: the compare/deltas
 plumbing is live for every client but only honored on the v2 layout (v1 pages, cache keys and export bodies are unchanged, and the picker only writes `compareRange` when the user changes Compare to).
 
-Staging override shape (`<...>` placeholders are filled in by the slice that adds the part; omit `versions`/`extraParts`/`order` until then). The three `hidden` entries are the removals every v2 layout makes; add
+Slice 2 (02 Visibility vs Competitors) adds `visibility-chart@2` and `brand-rankings@2`. **Read the client's current staging override first and add only these entries**: slices 4 and 6 edit the same JSON in parallel, so never paste over it.
+
+Staging override shape (`<...>` placeholders are filled in by the slice that adds the part). The three `hidden` entries are the removals every v2 layout makes; add
 the v1 part each later slice replaces as that slice lands, and list its replacement in
 `extraParts`/`versions`/`order`:
 
@@ -67,9 +69,9 @@ the v1 part each later slice replaces as that slice lands, and list its replacem
 {
   "peec-ai": {
     "hidden": ["domains-row", "competitor-visibility", "competitor-gaps"],
-    "versions": { "<part-id>": 2 },
+    "versions": { "visibility-chart": 2, "brand-rankings": 2 },
     "extraParts": [{ "id": "<new-part-id>", "version": 1 }],
-    "order": ["<new-part-id>"]
+    "order": ["visibility-chart", "brand-rankings", "<new-part-id>"]
   }
 }
 ```

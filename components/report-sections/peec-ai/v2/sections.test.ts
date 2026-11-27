@@ -11,9 +11,14 @@ describe('isV2Layout', () => {
     expect(isV2Layout([p('a', 1)], map)).toBe(false)
     expect(isV2Layout([p('a', 2)], map)).toBe(true)
   })
-  test('default map is empty so always false', () => {
-    expect(V2_PART_SECTIONS).toEqual({})
-    expect(isV2Layout([p('a', 2)])).toBe(false)
+  test('an explicit empty map is always false', () => {
+    expect(isV2Layout([p('a', 2)], {})).toBe(false)
+  })
+  test('the real map marks the slice 2 parts v2 and leaves v1 alone', () => {
+    expect(isV2Layout([{ id: 'brand-rankings', version: 2, label: '' }])).toBe(true)
+    expect(isV2Layout([{ id: 'brand-rankings', version: 1, label: '' }])).toBe(false)
+    expect(V2_PART_SECTIONS['visibility-chart@2']).toBe('02')
+    expect(V2_PART_SECTIONS['brand-rankings@2']).toBe('02')
   })
 })
 

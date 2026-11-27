@@ -5,9 +5,11 @@ export const PEEC_EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'overview-synopsis@1': 'block',
   'kpi-cards@1': 'block',
   'visibility-chart@1': 'own',   // the chart card is its own block (visibility-chart.tsx)
+  'visibility-chart@2': 'own',   // the chart card is one block (data-export-block)
   'llm-breakdown@1': 'own',      // a table
   'winners-losers@1': 'own',     // each card a block (winners-losers-cards.tsx)
   'brand-rankings@1': 'own',     // a table
+  'brand-rankings@2': 'own',     // a table
   'domains-row@1': 'own',        // a table, then the domain-types chart block
   'competitor-visibility@1': 'own', // a table
   'competitor-gaps@1': 'own',    // a table
