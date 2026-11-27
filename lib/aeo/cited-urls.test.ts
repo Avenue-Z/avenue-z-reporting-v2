@@ -35,13 +35,13 @@ describe('joinWindows', () => {
 
   it('marks rows missing from prior as new', () => {
     const cur = win([row('a'), row('b')])
-    const prior = win([row('a', { answersUsing: 20 })], { totalAnswers: 100 })
+    const prior = win([row('a', { answersUsing: 20 })], { totalAnswers: 50 })
     const r = joinWindows('peec', cur, prior)
     const a = r.rows.find((x) => x.key === 'a')!
     const b = r.rows.find((x) => x.key === 'b')!
     expect(r.compared).toBe(true)
     expect(b.prior).toBeNull()
-    expect(a.prior?.usedPct).toBe(20)
+    expect(a.prior?.usedPct).toBe(40)
     const none = joinWindows('peec', cur, null)
     expect(none.compared).toBe(false)
     expect(none.rows.every((x) => x.prior === null)).toBe(true)
@@ -76,17 +76,20 @@ describe('joinWindows', () => {
   })
 
   it('cap keeps every own row', () => {
+    // totalAnswers 10000, so usedPct = answersUsing / 100. Integer answersUsing, all distinct.
     const rows: UrlWindowRow[] = []
     for (let i = 0; i < 600; i++) {
-      rows.push(row(`t${String(i).padStart(3, '0')}`, { answersUsing: 100 - i / 10 }))
+      rows.push(row(`t${String(i).padStart(3, '0')}`, { answersUsing: 9000 - i * 10 }))
     }
-    for (let i = 0; i < 3; i++) rows.push(row(`own${i}`, { sourceType: 'own', answersUsing: 100 - (549 + i) / 10 - 0.001 }))
-    const r = joinWindows('peec', win(rows, { totalAnswers: 100 }), null, { cap: 500 })
+    // t000..t548 (3520 and up) rank 1..549; own rows sit just below t548 and above t549 (3510).
+    for (let i = 0; i < 3; i++) {
+      rows.push(row(`own${i}`, { sourceType: 'own', answersUsing: 3515 - i }))
+    }
+    const r = joinWindows('peec', win(rows, { totalAnswers: 10000 }), null, { cap: 500 })
     expect(r.rows).toHaveLength(503)
     expect(r.totalRows).toBe(603)
-    const ownRanks = r.rows.filter((x) => x.sourceType === 'own').map((x) => x.rank)
-    expect(ownRanks).toHaveLength(3)
-    expect(ownRanks.every((n) => n > 500)).toBe(true)
+    const own = r.rows.filter((x) => x.sourceType === 'own')
+    expect(own.map((x) => x.rank)).toEqual([550, 551, 552])
   })
 
   it('complete needs both windows', () => {
