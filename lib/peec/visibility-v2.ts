@@ -49,7 +49,8 @@ export function buildPeecBrandRows(
         sov: curr.sov,
         sovPrior: prev ? prev.sov : null,
         usedAsSource: used.get(agg.name) ?? null,
-        usedAsSourcePrior: usedPrior.get(agg.name) ?? null,
+        // A brand with no prior row is new this period: no prior in any column.
+        usedAsSourcePrior: p ? (usedPrior.get(agg.name) ?? null) : null,
       }
     })
     .sort((a, b) => b.visibility - a.visibility)

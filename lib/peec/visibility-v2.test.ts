@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/lib/cache', () => ({ cached: (_v: string, _n: string, fn: unknown) => fn }))
 vi.mock('@/lib/db/queries', () => ({
@@ -50,6 +50,13 @@ describe('buildPeecBrandRows', () => {
     expect(by.Renaissance.usedAsSource).toBeNull()
     expect(by.Renaissance.usedAsSourcePrior).toBeNull()
   })
+  // Final review I2: a brand new this period has no prior in any column, even when the prior window's domains report counted it.
+  it('has a null Used as a source prior for a brand with no prior row', () => {
+    const rows = buildPeecBrandRows(current, prior, new Map([['NewCo', 5]]), new Map([['NewCo', 4]]), 'Renaissance')
+    const newCo = rows.find((r) => r.name === 'NewCo')!
+    expect(newCo.usedAsSource).toBe(5)
+    expect(newCo.usedAsSourcePrior).toBeNull()
+  })
   it('flags nobody when you is null', () => {
     expect(buildPeecBrandRows(current, prior, new Map(), new Map(), null).some((r) => r.isYou)).toBe(false)
   })
@@ -60,6 +67,8 @@ describe('getPeecVisibilityV2', () => {
   const post = vi.mocked(peecPost)
   const fetchAll = vi.mocked(fetchAllRows)
   const domain = (d: string) => ({ domain: d, retrieved_chat_count: 10, total_chat_count: 100 })
+
+  afterEach(() => vi.unstubAllEnvs())
 
   beforeEach(() => {
     post.mockReset(); fetchAll.mockReset()
@@ -109,7 +118,6 @@ describe('getPeecVisibilityV2', () => {
     await expect(getPeecVisibilityV2('renaissance', 'last_30_days', 'previous_period')).rejects.toThrow('[peec] no Peec project configured for renaissance')
     expect(post).not.toHaveBeenCalled()
     expect(peecGetMock).not.toHaveBeenCalled()
-    vi.unstubAllEnvs()
   })
 
   it('does not take your brand from the env', async () => {
@@ -120,7 +128,6 @@ describe('getPeecVisibilityV2', () => {
     post.mockImplementation(async (path) => (path === '/reports/domains' ? { data: [] } : { data: current }) as never)
     const res = await getPeecVisibilityV2('renaissance', 'last_30_days', 'previous_period')
     expect(res.brands.filter((b) => b.isYou).map((b) => b.name)).toEqual(['Renaissance']) // the roster's own flag, not the env
-    vi.unstubAllEnvs()
   })
 
   it('marks one you by exact name, not substring', async () => {

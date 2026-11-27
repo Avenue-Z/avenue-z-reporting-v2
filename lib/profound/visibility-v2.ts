@@ -15,11 +15,11 @@ const BRAND_METRICS = ['visibility_score', 'share_of_voice']
 const CITATION_METRICS = ['citation_share', 'count']
 const YTD_MAX_ROWS = 50_000
 
-const empty = (): VisibilityV2 => ({ roster: [], brands: [], trend: [], usedAsSourceBasis: 'citations' })
-
+/** The share of the window's citations pointing at the asset's domains, in percent. Null when the asset has no domain or the
+ *  window has no citation rows at all (no figure, never a fabricated 0; Peec's rule in lib/aeo/v2/used-as-source.ts). */
 function usedAsSource(asset: ProfoundAsset, cites: ProfoundNamedRow[]): number | null {
   const sites = assetDomains(asset).map(bareDomain).filter(Boolean)
-  if (sites.length === 0) return null
+  if (sites.length === 0 || cites.length === 0) return null
   let sum = 0
   for (const c of cites) {
     const host = c.dims.hostname
@@ -38,27 +38,29 @@ export function buildProfoundBrandRows(
   citesPrior: ProfoundNamedRow[],
   you: string | null,
 ): BrandRowV2[] {
-  const byName = new Map(assets.map((a) => [a.name, a]))
-  const priorByName = new Map<string, ProfoundNamedRow>()
-  for (const r of prior) if (r.dims.asset_name) priorByName.set(r.dims.asset_name, r)
-  const out: Omit<BrandRowV2, 'rank'>[] = []
-  for (const r of current) {
-    const name = r.dims.asset_name
-    const asset = name ? byName.get(name) : undefined
-    if (!name || !asset) continue
-    const p = priorByName.get(name)
-    const hasDomain = assetDomains(asset).length > 0
-    out.push({
-      name,
-      isYou: name === you,
-      visibility: (r.metrics.visibility_score ?? 0) * 100,
+  const byAssetName = (rows: ProfoundNamedRow[]) => {
+    const m = new Map<string, ProfoundNamedRow>()
+    for (const r of rows) if (r.dims.asset_name) m.set(r.dims.asset_name, r)
+    return m
+  }
+  const currentByName = byAssetName(current)
+  const priorByName = byAssetName(prior)
+  // Every tracked asset is listed: one no answer mentioned this window has no row and shows 0 visibility and 0 share of voice
+  // (no mentions), so the client can always be pinned. A brand with no prior row is new this period: no prior in any column.
+  const out: Omit<BrandRowV2, 'rank'>[] = assets.map((asset) => {
+    const r = currentByName.get(asset.name)
+    const p = priorByName.get(asset.name)
+    return {
+      name: asset.name,
+      isYou: asset.name === you,
+      visibility: (r?.metrics.visibility_score ?? 0) * 100,
       visibilityPrior: p ? (p.metrics.visibility_score ?? 0) * 100 : null,
-      sov: (r.metrics.share_of_voice ?? 0) * 100,
+      sov: (r?.metrics.share_of_voice ?? 0) * 100,
       sovPrior: p ? (p.metrics.share_of_voice ?? 0) * 100 : null,
       usedAsSource: usedAsSource(asset, cites),
-      usedAsSourcePrior: hasDomain ? usedAsSource(asset, citesPrior) : null,
-    })
-  }
+      usedAsSourcePrior: p ? usedAsSource(asset, citesPrior) : null,
+    }
+  })
   return out.sort((a, b) => b.visibility - a.visibility).map((b, i) => ({ ...b, rank: i + 1 }))
 }
 
@@ -84,12 +86,12 @@ async function getProfoundVisibilityV2Impl(clientSlug: string, dateRange: string
   const { getClientBySlug } = await import('@/lib/db/queries')
   const config = await getClientBySlug(clientSlug)
   const categoryId = config?.profoundCategoryId
-  if (!categoryId) return empty()
+  if (!categoryId) throw new Error(`[profound] no Profound category configured for ${clientSlug}`)
   const yourBrand = config?.peecYourBrand ?? ''
 
   const assets = await getProfoundAssets(categoryId)
   const names = assets.map((a) => a.name)
-  if (names.length === 0) return empty()
+  if (names.length === 0) throw new Error(`[profound] no tracked assets for ${clientSlug}`)
 
   const mainDates = parseDateRange(dateRange)
   const compareDates = deriveCompareRange(dateRange, compareMode) ?? mainDates
@@ -114,12 +116,13 @@ async function getProfoundVisibilityV2Impl(clientSlug: string, dateRange: string
     }, YTD_MAX_ROWS),
   ])
 
-  // Tracked brands present in the current answer, in visibility-rank order, so several matches resolve to the best-ranked.
-  const ownByName = new Map(assets.map((a) => [a.name, a.isOwned]))
-  const ranked = cur
-    .filter((r) => r.dims.asset_name && ownByName.has(r.dims.asset_name))
-    .sort((a, b) => (b.metrics.visibility_score ?? 0) - (a.metrics.visibility_score ?? 0))
-    .map((r) => ({ name: r.dims.asset_name as string, isOwn: ownByName.get(r.dims.asset_name as string) === true }))
+  // Every tracked brand (one missing from the current answer at 0), in visibility-rank order, so several matches resolve to the
+  // best-ranked.
+  const visByName = new Map<string, number>()
+  for (const r of cur) if (r.dims.asset_name) visByName.set(r.dims.asset_name, r.metrics.visibility_score ?? 0)
+  const ranked = assets
+    .map((a) => ({ name: a.name, isOwn: a.isOwned, visibility: visByName.get(a.name) ?? 0 }))
+    .sort((a, b) => b.visibility - a.visibility)
   const you = resolveYou(ranked, yourBrand)
 
   return {

@@ -33,6 +33,16 @@ export const getProfoundAssets = cached('profound', 'getAssets', getProfoundAsse
   extractTags: ([categoryId]) => ({ category: categoryId }),
 })
 
+/** A website as Profound stores it (possibly a URL) as a bare lowercase host: no protocol, path, query, port or trailing dot. */
+function hostOf(raw: string): string {
+  return raw.trim().toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/:\d*$/, '')
+    .replace(/\.+$/, '')
+}
+
+/** The asset's website and alternate domains as bare hosts, empty entries dropped. */
 export function assetDomains(a: ProfoundAsset): string[] {
-  return [a.website, ...a.alternateDomains].filter((d): d is string => !!d)
+  return [a.website, ...a.alternateDomains].filter((d): d is string => !!d).map(hostOf).filter(Boolean)
 }
