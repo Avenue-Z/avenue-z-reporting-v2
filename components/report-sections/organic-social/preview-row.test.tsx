@@ -18,7 +18,7 @@ describe('PreviewToggleRow', () => {
       as(role)
       const row = (await draw(false)).firstElementChild as HTMLElement
       expect(row.hasAttribute('data-export-hide')).toBe(true)
-      expect(row.className).toBe(`${kit.root} ${kit.topics} mb-7`)
+      expect(row.className).toBe(`${kit.root} ${kit.tight} ${kit.topics} mb-7`)
       expect(row.querySelector('button')?.textContent).toBe('Preview as client')
       expect(row.querySelector('button')?.getAttribute('aria-pressed')).toBe('false')
     }

@@ -108,7 +108,7 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
     // lands on ?sl=industry, which the month picker and the locked-month redirect keep, sees the text (#476).
     if (exporting && topic !== 'brand') return null
     return (
-      <div className={s.root}>
+      <div className={`${s.root} ${s.tight}`}>
         {!exporting && <GlowMark />}
         {toggle && <div className={s.topics}><span className={s.spacer} />{toggle}</div>}
         <div className={s.view}><Slot text={NOT_READY_TEXT} /></div>
@@ -165,7 +165,8 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName, cols, exporting, notes, sort }
   const topics = setting.industryTopic ? `Talkwalker topics: ${setting.brandTopic}, and ${setting.industryTopic}` : `Talkwalker topic: ${setting.brandTopic}`
   return (
-    <div className={s.root}>
+    // The artifact's line height (kit .tight), as the other kit tabs (my call 2026-11-26, the last look fixes).
+    <div className={`${s.root} ${s.tight}`}>
       {/* L1, D1: Social Listening has no old look, so it always carries the glow's marker (never in the PDF). */}
       {!exporting && <GlowMark />}
       {!exporting && (

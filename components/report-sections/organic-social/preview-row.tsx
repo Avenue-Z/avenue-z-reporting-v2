@@ -13,7 +13,7 @@ export async function PreviewToggleRow({ on }: { on: boolean }) {
   try { role = (await auth())?.user?.role } catch { return null }
   if (viewerForRole(role) !== 'team') return null
   return (
-    <div data-export-hide="" className={`${kit.root} ${kit.topics} mb-7`}>
+    <div data-export-hide="" className={`${kit.root} ${kit.tight} ${kit.topics} mb-7`}>
       <span className={kit.spacer} />
       <PreviewToggle on={on} />
     </div>
