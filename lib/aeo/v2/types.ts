@@ -1,5 +1,6 @@
 // Provider-neutral shapes for the AEO Overview v2 sections. Slices 3 and 5 add theirs here.
 import type { DailyPoint } from '@/lib/aeo/types'
+import type { AEOModel } from '@/lib/peec/models'
 
 export type AeoV2Provider = 'peec' | 'profound'
 export type CompareMode = 'previous_period' | 'previous_year'
@@ -29,3 +30,19 @@ export type VisibilityV2 = {
   trend: BrandTrend[]
   usedAsSourceBasis: UsedAsSourceBasis
 }
+
+/** Answers that mentioned a brand, out of all answers: the unit every Topics & Prompts figure is built from. */
+export type VisCount = { mentions: number; answers: number }
+/** One (topic, brand, model) cell of the section 04 matrix. */
+export type TopicCell = VisCount & { topic: string; brand: string; model: AEOModel }
+/** The client brand's figures for one prompt on one model; position is posSum / posCount (average rank when mentioned). */
+export type PromptModelStat = VisCount & { posSum: number; posCount: number }
+export type PromptV2 = {
+  id: string
+  text: string
+  topic: string
+  current: Partial<Record<AEOModel, PromptModelStat>>
+  /** null when the prompt had no answers in the comparison window. */
+  prior: Partial<Record<AEOModel, PromptModelStat>> | null
+}
+export type TopicsPromptsV2 = { you: string | null; cells: TopicCell[]; cellsPrior: TopicCell[]; prompts: PromptV2[] }

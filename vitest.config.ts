@@ -20,6 +20,7 @@ export default defineConfig({
       'lib/profound/**/*.test.{ts,tsx}',
       'lib/aeo/v2/**/*.test.{ts,tsx}',
       'lib/peec/visibility-v2.test.ts',
+      'lib/peec/topics-prompts-v2.test.ts',
       'lib/pr-proof/matchback.test.ts',
       'lib/peec/citation-dates.test.ts',
       'lib/peec/models.test.ts',

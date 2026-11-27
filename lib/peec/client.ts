@@ -344,9 +344,10 @@ function groupByDay(rows: ApiBrandRow[]): DailyPoint[] {
 export async function fetchAllRows(
   body: Record<string, unknown>,
   projectId?: string,
-  maxRows = 10_000
+  maxRows = 10_000,
+  pageSize = 500
 ): Promise<ApiBrandRow[]> {
-  const limit = 500
+  const limit = pageSize
   const allRows: ApiBrandRow[] = []
   let offset = 0
   while (offset < maxRows) {
@@ -372,6 +373,40 @@ export function normalizeSource(id: string): AEOModel | null {
   if (s.includes('copilot')) return 'Copilot'
   if (s.includes('google')) return 'Google'
   return null
+}
+
+export function categorizePrompt(text: string): string {
+  const t = text.toLowerCase()
+  if (t.includes('seo') || t.includes('search engine optimization') || t.includes('organic search') || t.includes('keyword rank')) return 'SEO & Search'
+  if (t.includes('pr ') || t.includes('public relations') || t.includes('media relations') || t.includes('press release') || t.includes('earned media') || t.includes('crisis comm')) return 'PR & Communications'
+  if (t.includes('content') || t.includes('blog') || t.includes('copywriting') || t.includes('editorial')) return 'Content Marketing'
+  if (t.includes('social media') || t.includes('instagram') || t.includes('tiktok') || t.includes('linkedin') || t.includes('facebook') || t.includes('twitter') || t.includes('x.com')) return 'Social Media'
+  if (t.includes('paid') || t.includes('ppc') || t.includes('google ads') || t.includes('meta ads') || t.includes('advertising') || t.includes('sem ') || t.includes('display ad')) return 'Paid Media'
+  if (t.includes('email') || t.includes('newsletter') || t.includes('drip') || t.includes('klaviyo') || t.includes('mailchimp')) return 'Email Marketing'
+  if (t.includes('influencer') || t.includes('creator') || t.includes('ugc') || t.includes('ambassador')) return 'Influencer & Creator'
+  if (t.includes('brand') || t.includes('reputation') || t.includes('awareness') || t.includes('identity')) return 'Brand & Reputation'
+  if (t.includes('data') || t.includes('analytics') || t.includes('reporting') || t.includes('measurement') || t.includes('attribution')) return 'Analytics & Reporting'
+  if (t.includes('ai ') || t.includes('artificial intelligence') || t.includes('machine learning') || t.includes('automation') || t.includes('aeo') || t.includes('answer engine') || t.includes('llm') || t.includes('chatgpt') || t.includes('generative')) return 'AI & Automation'
+  if (t.includes('agency') || t.includes('firm') || t.includes(' hire') || t.includes('best ') || t.includes('top ') || t.includes('leading ')) return 'Agency Selection'
+  return 'Digital Strategy'
+}
+
+
+const FACET_TAGS = new Set(['commercial', 'informational', 'transactional', 'branded', 'non-branded'])
+
+/**
+ * A prompt's topic: its first *subject* tag (intent and branded facets excluded), else keyword inference.
+ * The one place the topic rule lives, so the v2 Topics matrix and v1's prompt groups cannot drift apart.
+ */
+export function peecPromptTopic(
+  tags: { id: string }[] | undefined,
+  text: string,
+  tagNameById: ReadonlyMap<string, string>,
+): { group: string; topicSource: TopicSource } {
+  const subjectTag = (tags ?? [])
+    .map((t) => tagNameById.get(t.id))
+    .find((name): name is string => !!name && !FACET_TAGS.has(name.toLowerCase()))
+  return { group: subjectTag ?? categorizePrompt(text), topicSource: subjectTag ? 'provider' : 'inferred' }
 }
 
 // --- Main export ---
@@ -551,22 +586,6 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string, comp
     .sort((a, b) => b.percentage - a.percentage)
 
   // --- Tracked prompts ---
-  function categorizePrompt(text: string): string {
-    const t = text.toLowerCase()
-    if (t.includes('seo') || t.includes('search engine optimization') || t.includes('organic search') || t.includes('keyword rank')) return 'SEO & Search'
-    if (t.includes('pr ') || t.includes('public relations') || t.includes('media relations') || t.includes('press release') || t.includes('earned media') || t.includes('crisis comm')) return 'PR & Communications'
-    if (t.includes('content') || t.includes('blog') || t.includes('copywriting') || t.includes('editorial')) return 'Content Marketing'
-    if (t.includes('social media') || t.includes('instagram') || t.includes('tiktok') || t.includes('linkedin') || t.includes('facebook') || t.includes('twitter') || t.includes('x.com')) return 'Social Media'
-    if (t.includes('paid') || t.includes('ppc') || t.includes('google ads') || t.includes('meta ads') || t.includes('advertising') || t.includes('sem ') || t.includes('display ad')) return 'Paid Media'
-    if (t.includes('email') || t.includes('newsletter') || t.includes('drip') || t.includes('klaviyo') || t.includes('mailchimp')) return 'Email Marketing'
-    if (t.includes('influencer') || t.includes('creator') || t.includes('ugc') || t.includes('ambassador')) return 'Influencer & Creator'
-    if (t.includes('brand') || t.includes('reputation') || t.includes('awareness') || t.includes('identity')) return 'Brand & Reputation'
-    if (t.includes('data') || t.includes('analytics') || t.includes('reporting') || t.includes('measurement') || t.includes('attribution')) return 'Analytics & Reporting'
-    if (t.includes('ai ') || t.includes('artificial intelligence') || t.includes('machine learning') || t.includes('automation') || t.includes('aeo') || t.includes('answer engine') || t.includes('llm') || t.includes('chatgpt') || t.includes('generative')) return 'AI & Automation'
-    if (t.includes('agency') || t.includes('firm') || t.includes(' hire') || t.includes('best ') || t.includes('top ') || t.includes('leading ')) return 'Agency Selection'
-    return 'Digital Strategy'
-  }
-
   // FB-023: Build per-prompt-per-model position maps for the CURRENT period.
   // promptBrandsRes is now dimensioned by ['prompt_id', 'model_channel_id', 'model_id'],
   // so each row is one (prompt × model) cell. We aggregate metric averages within
@@ -673,15 +692,12 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string, comp
   // intent and branded/non-branded facets; fall back to keyword inference when a
   // prompt carries no subject tag. Built from the real tracked prompts (one row
   // per prompt) rather than per-query-text rows.
-  const FACET_TAGS = new Set(['commercial', 'informational', 'transactional', 'branded', 'non-branded'])
   const tagNameById = new Map((tagsRes.data ?? []).map((t) => [t.id, t.name]))
 
   const trackedPrompts: TrackedPrompt[] = (promptsRes.data ?? []).map((p) => {
     const uuid = p.id
     const text = (p.messages ?? []).map((m) => m.content).filter(Boolean).join(' ').trim() || '(untitled prompt)'
-    const subjectTag = (p.tags ?? [])
-      .map((t) => tagNameById.get(t.id))
-      .find((name): name is string => !!name && !FACET_TAGS.has(name.toLowerCase()))
+    const { group, topicSource } = peecPromptTopic(p.tags, text, tagNameById)
     const m = promptMetricsById.get(uuid)
     return {
       id: uuid,
@@ -692,8 +708,8 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string, comp
       position: m?.position ?? 0,
       positionByModel:      positionByUuidByModel.get(uuid)      ?? {},
       priorPositionByModel: priorPositionByUuidByModel.get(uuid) ?? {},
-      group: subjectTag ?? categorizePrompt(text),
-      topicSource: subjectTag ? 'provider' : 'inferred',
+      group,
+      topicSource,
     }
   })
 
