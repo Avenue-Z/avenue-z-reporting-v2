@@ -6,15 +6,13 @@
 // PrintAsClient carries (the live view, and the client view the PDF prints): only each platform card's frame becomes the
 // kit's card. So the sheet reads, the rows, the start line, the notes, the logs and the fallback cards are @1's code, not
 // a copy of it. Unpublished: pinned per client, never promoted into the shared template or frozen into a snapshot.
-import { Fragment, Suspense, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
-import type { PartImpl } from '@/lib/report-sections/types'
-import type { OrganicSocialCtx } from '../ctx'
+import { Fragment, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import kit from '../design/kit.module.css'
 import { kpiCheckInV1 } from './kpi-check-in'
 import { PrintAsClient } from './print-as-client'
+import { kitOf, redrawnSections } from './kit-swap'
 
 type El = ReactElement<Record<string, unknown>>
-type Section = (props: never) => Promise<ReactNode>
 
 /** @1's platform card frame (kpi-check-in.tsx, the card inside each platform's block). kpi-kit.test.tsx counts these
  *  against the kit cards, so a change to @1's card that this no longer matches fails there. */
@@ -40,37 +38,13 @@ function kitKpi(node: ReactNode): ReactNode {
 /** The section's answer in kit form: the block, or a staff member's two views, inside the kit's colours. A fallback
  *  card or nothing passes through as it is. */
 function kitKpiBlock(node: ReactNode): ReactNode {
-  if (isValidElement(node) && (node.type === 'section' || node.type === PrintAsClient)) return <div className={kit.root}>{kitKpi(node)}</div>
+  if (isValidElement(node) && (node.type === 'section' || node.type === PrintAsClient)) return <div className={`${kit.root} ${kit.tight}`}>{kitKpi(node)}</div>
   return node
 }
 
-const kitSections = new Map<Section, Section>()
-/** The kit form of a section, made once per section and kept, so a re-render never remounts the block. */
-function kitSectionFor(section: Section): Section {
-  let kitted = kitSections.get(section)
-  if (!kitted) {
-    kitted = async (props: never) => kitKpiBlock(await section(props))
-    kitSections.set(section, kitted)
-  }
-  return kitted
-}
-
-/** @1's rendered element, `<Suspense fallback><Section ctx/></Suspense>`, with its section in kit form; the fallback and
- *  the props are kept exactly. Anything else (null off Overview) passes through. */
-function withKitSection(node: ReactNode): ReactNode {
-  if (!isValidElement(node) || node.type !== Suspense) return node
-  const { fallback, children } = node.props as { fallback: ReactNode; children: ReactNode }
-  if (!isValidElement(children) || typeof children.type !== 'function') return node
-  const Kit = kitSectionFor(children.type as Section) as unknown as (p: object) => ReactNode
-  return <Suspense fallback={fallback}><Kit {...(children.props as object)} /></Suspense>
-}
+/** Each section's kit form, made once per section (kit-swap.tsx), so a re-render never remounts the block. Anything
+ *  else (null off Overview) passes through. */
+const { kitFor } = redrawnSections(kitKpiBlock)
 
 /** The KPI Check-In, each platform in a kit card. */
-export const kpiCheckInV2: PartImpl<OrganicSocialCtx> = {
-  id: kpiCheckInV1.id,
-  version: 2,
-  published: false,
-  defaultLabel: kpiCheckInV1.defaultLabel,
-  // @1's render takes ctx only (it reads no resolved part), so it passes straight through.
-  render: (ctx, resolved) => withKitSection(kpiCheckInV1.render(ctx, resolved)),
-}
+export const kpiCheckInV2 = kitOf(kpiCheckInV1, 2, kitFor)

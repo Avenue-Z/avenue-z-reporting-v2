@@ -2,14 +2,23 @@
 // results over time, sentiment, year to date, media types, themes, trends, top conversation themes, top influencers, most
 // relevant posts, key takeaways, keyword appendix. Renders a view-model.ts SlTopicView and decides nothing itself.
 import type { ReactNode } from 'react'
-import { SENTIMENT_COLORS } from '@/lib/organic-social/social-listening/colors'
+import { SENTIMENT_COLORS, mediaColor } from '@/lib/organic-social/social-listening/colors'
 import type { SlBoxId } from '@/lib/organic-social/social-listening/boxes'
 import type { SlTile, SlTopicView } from '@/lib/organic-social/social-listening/view-model'
-import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, YtdColumns } from '../design/charts'
-import { SlCard, SlSection } from '../design/frames'
+import type { YtdPoint } from '@/lib/organic-social/social-listening/compare'
+import type { SlToggleChart } from '@/lib/organic-social/social-listening/params'
+import { Cloud, Donut, HBars, Key, Kpi, Legend, LineChart, MediaShare, PointLines, PosNeuColumns, SentimentByMedia, YtdColumns, type ChartMark } from '../design/charts'
+import { SlBoxLabel, SlCard, SlSection } from '../design/frames'
 import { PostsSection } from './posts'
 import { TrendsBlock } from './trends'
+import { ChartToggle, type ChartView } from './chart-toggle'
+import { SlNotesPanel } from './notes-panel'
+import { slCardTooltip, slTileTooltip } from '@/lib/organic-social/social-listening/tooltips'
+import { AuthorsSection } from './authors'
+import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
+import { buildSlChartNotes, type SlChartNotes, type SlNoteChart, type SlNoteSource } from '@/lib/organic-social/social-listening/notes'
 import s from '../design/kit.module.css'
+import f from '../design/frames.module.css'
 
 export type TopicPageProps = {
   view: SlTopicView
@@ -20,6 +29,20 @@ export type TopicPageProps = {
   /** The upload control or the live-month line, in place of a missing upload (staff only). */
   upload: ReactNode
   topicName: string
+  /** The charts set to columns (slcols); every other toggle chart starts on its line (plan 2026-11-24, Unit C). */
+  cols: readonly SlToggleChart[]
+  /** The PDF export: a toggle chart draws only its chosen view, with no buttons, whatever the client context. */
+  exporting: boolean
+  /** The team's notes on the line graphs (Unit E), read once by the section; absent when there are none to show or the read
+   *  failed, and the graphs then draw exactly as without notes. */
+  notes?: SlNoteSource
+  /** The authors table's order (slsort, Unit F); posts when absent. */
+  sort?: SlAuthorSort
+}
+
+/** One graph's notes, keyed by what the graph draws. Nothing to show without a source. */
+export function notesFor(source: SlNoteSource | undefined, chart: SlNoteChart, keys: readonly string[]): SlChartNotes {
+  return source ? buildSlChartNotes(source.rows, { chart, keys, caps: source.caps, clientSlug: source.clientSlug, today: source.today }) : { marks: [], panel: [] }
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -54,10 +77,42 @@ export function ytdSpan(points: { month: string; value: unknown }[], month: stri
   return first === month ? monthName(month) : `${monthName(first)} to ${monthName(month)}`
 }
 
+/** A toggle chart's first view: columns when the URL set it to columns (slcols), else the line. */
+export const viewOf = (cols: readonly SlToggleChart[], id: SlToggleChart): ChartView => (cols.includes(id) ? 'columns' : 'line')
+
+/** A chart with the Line / Columns toggle. On screen, the client toggle; in the PDF, only the chosen view, drawn on the
+ *  server, so the export never depends on the client knowing it is an export. */
+export function Toggled({ id, cols, exporting, line, columns }: {
+  id: SlToggleChart; cols: readonly SlToggleChart[]; exporting: boolean; line: ReactNode; columns: ReactNode
+}) {
+  const initial = viewOf(cols, id)
+  if (exporting) return <>{initial === 'columns' ? columns : line}</>
+  return <ChartToggle id={id} initial={initial} line={line} columns={columns} />
+}
+
+/** A year to date sentiment split as three lines, positive, neutral and negative by month, as both decks draw it (plan
+ *  2026-11-24, F8): the line view of YtdColumns' points. A month with no data breaks the line, as on the columns. */
+export function SentimentLines({ points, marks }: { points: YtdPoint[]; marks?: readonly ChartMark[] }) {
+  return (
+    <PointLines marks={marks} months={points.map((p) => p.month)} series={[
+      { name: 'Positive', vals: points.map((p) => p.value?.pos ?? null), color: SENTIMENT_COLORS.pos },
+      { name: 'Neutral', vals: points.map((p) => p.value?.neu ?? null), color: SENTIMENT_COLORS.neu },
+      { name: 'Negative', vals: points.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
+    ]} />
+  )
+}
+
 /** An analysis-only section: staff always (the box's "+ Add analysis"), a client only with approved text. */
 export function AnalysisOnly({ title, show, box }: { title: string; show: boolean; box: ReactNode }) {
   if (!show || !box) return null
   return <SlSection title={title}><div data-export-block="">{box}</div></SlSection>
+}
+
+/** The top conversation themes box, inside the Themes section under a small label (2026-11-24: it is part of themes, not
+ *  a section of its own). Same rule as AnalysisOnly: staff always, a client only with approved text. */
+export function ConversationThemes({ show, box }: { show: boolean; box: ReactNode }) {
+  if (!show || !box) return null
+  return <div className={f.item} data-export-block=""><SlBoxLabel>Top conversation themes</SlBoxLabel>{box}</div>
 }
 
 const lastDay = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()
@@ -70,8 +125,6 @@ export function SourceLine({ topicName, month }: { topicName: string; month: str
     </p>
   )
 }
-
-const MINI: ('pos' | 'neu' | 'neg')[] = ['pos', 'neu', 'neg']
 
 // Talkwalker's source types as the mockup names them ("SOCIALMEDIA_INSTAGRAM" is Instagram).
 const NETWORKS: Record<string, string> = {
@@ -87,11 +140,18 @@ export function networkLabel(raw: string): string {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : raw
 }
 
-export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName }: TopicPageProps) {
+export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicName, cols, exporting, notes, sort }: TopicPageProps) {
   const r = view.ready
   const label = vsLabel(view.month)
   const posNeuPoints = r ? fromFirst(r.posNeu, r.ytd) : []
   const ytd = r ? fromFirst(r.ytd) : []
+  const reddit = r?.reddit ? fromFirst(r.reddit) : []
+  const n = {
+    daily: notesFor(notes, 'sl-b-daily', r ? r.daily.map((d) => d.day) : []),
+    ytd: notesFor(notes, 'sl-b-ytd', ytd.map((p) => p.month)),
+    posneu: notesFor(notes, 'sl-b-posneu', posNeuPoints.map((p) => p.month)),
+    reddit: notesFor(notes, 'sl-b-reddit', reddit.map((p) => p.month)),
+  }
   return (
     <div className={s.view}>
       {upload}
@@ -101,59 +161,72 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
             <div className={`${s.grid} ${s.g4}`}>
               {r.tiles.map((t) => {
                 const v = tileValue(t)
-                return <Kpi key={t.title} title={t.title} value={v.value} sub={v.sub} delta={t.change} label={label} />
+                return <Kpi key={t.title} title={t.title} value={v.value} sub={v.sub} delta={t.change} label={label} tooltip={slTileTooltip('brand', t.id)} />
               })}
             </div>
             {boxes['b-kpis']}
           </SlSection>
 
           <SlSection>
-            <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['b-daily']}>
-              <LineChart days={r.daily} color="#60FDFF" id="sl-gb" />
+            <SlCard title="Results over time" meta={`${fmt(r.results)} results`} box={boxes['b-daily']} tooltip={slCardTooltip('b-daily')}>
+              <LineChart days={r.daily} color="#60FDFF" id="sl-gb" marks={n.daily.marks} />
+              <SlNotesPanel notes={n.daily} title="Results over time" />
             </SlCard>
           </SlSection>
 
           <SlSection title="Sentiment">
-            <div className={`${s.grid} ${s.g2}`}>
-              <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} bodyClassName={s.donutWrap}>
+            {/* The two donuts stay side by side, as on the approved tab; each box sits under its card, and the pair row lines
+                the cards up to one height and the boxes up to one line (frames.module.css .pair). */}
+            <div className={`${s.grid} ${s.g2} ${f.pair}`}>
+              <SlCard title="Share of sentiment" meta="All results" box={boxes['b-sent']} tooltip={slCardTooltip('b-sent')} bodyClassName={s.donutWrap}>
                 <Donut counts={r.sentiment.counts} />
                 <Legend counts={r.sentiment.counts} pct={r.sentiment.pct} changes={r.sentiment.change} label={label} />
               </SlCard>
               {view.show.owned && r.owned && (
-                <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} bodyClassName={s.donutWrap}
-                  note="Drops posts from the brand's own accounts, so this is what everyone else said.">
+                <SlCard title="Without brand-owned channels" meta={`${fmt(r.owned.total)} results`} box={boxes['b-owned']} tooltip={slCardTooltip('b-owned')} bodyClassName={s.donutWrap}
+                  note="Excludes results from the brand's owned channels">
                   <Donut counts={r.owned.counts} />
                   <Legend counts={r.owned.counts} pct={r.owned.pct} />
                 </SlCard>
               )}
             </div>
-            <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['b-cross']}>
+            <SlCard title="Sentiment by media type" meta="Results per media type" box={boxes['b-cross']} tooltip={slCardTooltip('b-cross')}>
               <HBars rows={r.cross} />
             </SlCard>
           </SlSection>
 
           <SlSection title="Year to date" line={`Earlier months as presented in each month's report; ${monthName(view.month)} from this export`}>
-            <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['b-ytd']}>
-              <YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} />
+            <SlCard title={`Sentiment, ${ytdSpan(r.ytd, view.month)}`} meta="% of results" box={boxes['b-ytd']} tooltip={slCardTooltip('b-ytd')}>
+              <Toggled id="b-ytd" cols={cols} exporting={exporting} line={<SentimentLines points={ytd} marks={n.ytd.marks} />}
+                columns={<YtdColumns points={ytd} aria={`Brand sentiment by month, ${ytdSpan(r.ytd, view.month)}`} marks={n.ytd.marks} />} />
+              <SlNotesPanel notes={n.ytd} title="Sentiment, year to date" />
             </SlCard>
-            <div className={`${s.grid} ${s.g2}`}>
-              <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']}>
-                <PointLines months={posNeuPoints.map((p) => p.month)} series={[
+            <SlCard title="Positive + neutral combined" meta="% of results" box={boxes['b-posneu']} tooltip={slCardTooltip('b-posneu')}>
+              <Toggled id="b-posneu" cols={cols} exporting={exporting}
+                line={<PointLines months={posNeuPoints.map((p) => p.month)} series={[
                   { name: 'Positive + neutral', vals: posNeuPoints.map((p) => p.value), color: SENTIMENT_COLORS.pos },
                   { name: 'Negative', vals: ytd.map((p) => p.value?.neg ?? null), color: SENTIMENT_COLORS.neg, below: true },
-                ]} />
+                ]} marks={n.posneu.marks} />}
+                columns={<PosNeuColumns months={posNeuPoints.map((p) => p.month)} posNeu={posNeuPoints.map((p) => p.value)}
+                  neg={ytd.map((p) => p.value?.neg ?? null)} marks={n.posneu.marks} />} />
+              <SlNotesPanel notes={n.posneu} title="Positive + neutral combined" />
+            </SlCard>
+            {r.reddit && (
+              <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']} tooltip={slCardTooltip('b-reddit')}>
+                <Toggled id="b-reddit" cols={cols} exporting={exporting} line={<SentimentLines points={reddit} marks={n.reddit.marks} />}
+                  columns={<YtdColumns points={reddit} aria="Reddit sentiment by month" marks={n.reddit.marks} />} />
+                <SlNotesPanel notes={n.reddit} title="Reddit sentiment" />
               </SlCard>
-              {r.reddit && (
-                <SlCard title="Reddit sentiment" meta="% of Reddit results" box={boxes['b-reddit']}>
-                  <YtdColumns points={fromFirst(r.reddit)} aria="Reddit sentiment by month" />
-                </SlCard>
-              )}
-            </div>
+            )}
           </SlSection>
 
           <SlSection title="Media types">
-            <SlCard title="Share of media types" meta={`Change vs the ${monthName(prevKey(view.month))} export`} box={boxes['b-media']}>
+            {/* The change compares with last month as the client saw it: the delivered report's counts, else its export (D4). */}
+            <SlCard title="Share of media types" meta={`Change vs the ${monthName(prevKey(view.month))} ${r.mediaVs === 'export' ? 'export' : 'report'}`} box={boxes['b-media']} tooltip={slCardTooltip('b-media')}>
               <MediaShare rows={r.media} />
+            </SlCard>
+            <SlCard title="Share of media types by sentiment" meta="Where each sentiment came from" box={boxes['b-mediasent']} tooltip={slCardTooltip('b-mediasent')}>
+              <SentimentByMedia rows={r.cross} colorFor={mediaColor} />
             </SlCard>
           </SlSection>
         </>
@@ -161,65 +234,22 @@ export function BrandPage({ view, boxes, clientSlug, range, caps, upload, topicN
 
       <SlSection title="Themes">
         {r && (
-          <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['b-themes']}>
+          <SlCard title="Keyword themes" meta="Size = share of results" box={boxes['b-themes']} tooltip={slCardTooltip('b-themes')}>
             <Cloud themes={r.themes} colorFor={(t) => t.color} />
             <Key items={[{ name: 'Mostly positive', color: SENTIMENT_COLORS.pos }, { name: 'Mostly neutral', color: SENTIMENT_COLORS.neu }, { name: 'Mostly negative', color: SENTIMENT_COLORS.neg }]} />
           </SlCard>
         )}
         {view.show.trends && (
-          <SlCard title="Trends in keyword themes" meta={`vs ${monthName(prevKey(view.month))}, from Talkwalker`} box={boxes['b-trends']}>
+          <SlCard title="Trends in keyword themes" meta={`vs ${monthName(prevKey(view.month))}, from Talkwalker`} box={boxes['b-trends']} tooltip={slCardTooltip('b-trends')}>
             <TrendsBlock lists={view.trends.lists} draft={view.trends.draft} clientSlug={clientSlug} range={range} caps={caps} />
           </SlCard>
         )}
+        <ConversationThemes show={view.show.conv} box={boxes['b-conv']} />
       </SlSection>
 
-      <AnalysisOnly title="Top conversation themes" show={view.show.conv} box={boxes['b-conv']} />
-
-      {r && r.influencers.length > 0 && (
-        <SlSection title="Top influencers">
-          {r.overview.length > 0 && (
-            <div className={`${s.grid} ${s.g4}`}>
-              {r.overview.map((o) => (
-                <div key={o.label} className={s.ov} data-export-block="">
-                  <p className={s.t}>{o.label}</p>
-                  <p className={s.who}>{o.who}</p>
-                  <p className={s.net}>{o.network}</p>
-                  <p className={s.val}>{short(o.value)} {o.unit.toLowerCase()}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <SlCard title={`Top ${r.influencers.length} authors`} meta="Posts, sentiment, reach and engagement" box={boxes['b-authors']}>
-            <div className={s.tableScroll}>
-              <table className={s.table}>
-                <thead><tr>
-                  <th>Author</th><th>Network</th><th className={s.r}>Posts</th><th className={s.r}>vs {monthName(prevKey(view.month)).slice(0, 3)}</th>
-                  <th>Sentiment</th><th className={s.r}>Reach</th><th className={s.r}>Engagement</th>
-                </tr></thead>
-                <tbody>
-                  {r.influencers.map((i) => {
-                    const total = i.pos + i.neu + i.neg
-                    return (
-                      <tr key={i.authorId}>
-                        <td><b>{i.name}</b></td>
-                        <td>{networkLabel(i.network)}</td>
-                        <td className={s.r}>{fmt(i.posts)}</td>
-                        <td className={s.r}>{i.change === null ? <span className={s.flat}>new</span> : <span className={i.change > 0 ? s.up : i.change < 0 ? s.down : s.flat}>{i.change > 0 ? '+' : i.change < 0 ? '-' : ''}{Math.abs(i.change)}</span>}</td>
-                        <td>
-                          <span className={s.mini} role="img" aria-label={`${i.pos} positive, ${i.neu} neutral, ${i.neg} negative`}>
-                            {total > 0 && MINI.map((k) => (i[k] > 0 ? <i key={k} style={{ width: `${(100 * i[k]) / total}%`, background: SENTIMENT_COLORS[k] }} /> : null))}
-                          </span>
-                        </td>
-                        <td className={s.r}>{short(i.reach)}</td>
-                        <td className={s.r}>{fmt(i.engagement)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </SlCard>
-        </SlSection>
+      {r && (
+        <AuthorsSection r={r} prevShort={monthName(prevKey(view.month)).slice(0, 3)} networkLabel={networkLabel} caps={caps}
+          clientSlug={clientSlug} range={range} sort={sort ?? 'posts'} exporting={exporting} box={boxes['b-authors']} />
       )}
 
       {view.show.posts && (

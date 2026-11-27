@@ -144,7 +144,7 @@ export function PostCard({ post, clientSlug, canEdit, sortKey = 'engagements', l
             View post
           </a>
         )}
-        {canEdit && <DesignationToggle clientSlug={clientSlug} postId={post.id} value={post.sourceType} />}
+        {canEdit && <DesignationToggle clientSlug={clientSlug} postId={post.id} value={post.sourceType} {...(look ? { look } : {})} />}
       </div>
     </div>
   )

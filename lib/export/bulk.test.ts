@@ -129,3 +129,20 @@ test('the Technical Audit page takes the snapshot the export started from, and o
   expect(bulkRequest(page('peec-ai', 'pr-influence'), r)).toEqual({ ...BODY, section: 'peec-ai', subsection: 'pr-influence' })
   expect(bulkRequest(page('peec-ai', 'technical-audit'), RANGES)).toEqual({ ...BODY, section: 'peec-ai', subsection: 'technical-audit' })
 })
+
+test('only the Social Listening page takes slCols; every other body is unchanged', () => {
+  const withCols = { ...RANGES, fromSection: 'organic-social', slCols: 'b-ytd' }
+  expect(bulkRequest(page('organic-social', 'organic-social-listening'), withCols)).toMatchObject({ subsection: 'organic-social-listening', slCols: 'b-ytd' })
+  for (const p of [page('organic-social'), page('organic-social', 'organic-aeo-informed'), page('peec-ai'), page('paid-media', 'meta'), page('executive-overview')]) {
+    expect('slCols' in bulkRequest(p, withCols), p.key).toBe(false)
+  }
+  expect('slCols' in bulkRequest(page('organic-social', 'organic-social-listening'), { ...RANGES, fromSection: 'organic-social' })).toBe(false)
+})
+
+test('only the Social Listening page takes slSort; every other body is unchanged', () => {
+  const withSort = { ...RANGES, fromSection: 'organic-social', slSort: 'engagement' as const }
+  expect(bulkRequest(page('organic-social', 'organic-social-listening'), withSort)).toMatchObject({ subsection: 'organic-social-listening', slSort: 'engagement' })
+  for (const p of [page('organic-social'), page('organic-social', 'organic-aeo-informed'), page('peec-ai'), page('executive-overview')]) {
+    expect('slSort' in bulkRequest(p, withSort), p.key).toBe(false)
+  }
+})

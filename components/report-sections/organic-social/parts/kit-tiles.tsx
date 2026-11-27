@@ -53,7 +53,7 @@ function KitPlatformSection({ h, wholeDelta }: { h: PlatformHeadline; wholeDelta
 /** platform-headlines.tsx `PlatformHeadlines`, with the kit's tiles. */
 export function KitPlatformHeadlines({ headlines, wholeDelta }: ComponentProps<typeof PlatformHeadlines>) {
   return (
-    <div className={`${kit.root} space-y-6`}>
+    <div className={`${kit.root} ${kit.tight} space-y-6`}>
       {headlines.map((h) => (
         <KitPlatformSection key={h.channel} h={h} wholeDelta={wholeDelta} />
       ))}
@@ -65,7 +65,7 @@ export function KitPlatformHeadlines({ headlines, wholeDelta }: ComponentProps<t
 export function KitOutlineTiles({ kpis, channel }: { kpis: OutlineKpi[]; channel: string }) {
   const n = kpis.length
   return (
-    <div className={`${kit.root} grid ${gridColsBase(n)} gap-3 ${gridColsMd(n)}`}>
+    <div className={`${kit.root} ${kit.tight} grid ${gridColsBase(n)} gap-3 ${gridColsMd(n)}`}>
       {kpis.map((k) => k.value === null ? (
         <KpiTile key={k.key} title={k.label} value={BLANK} subValue={k.unavailable} tooltip={metricDefinition(channel, k.key)} />
       ) : (
@@ -87,7 +87,7 @@ export function KitOutlineTiles({ kpis, channel }: { kpis: OutlineKpi[]; channel
 /** outline-tiles.tsx `OutlineHeadlines` (the outline's Data block), with the kit's tiles. */
 export function KitOutlineHeadlines({ headline }: { headline: OutlineHeadline }) {
   return (
-    <div className={`${kit.root} space-y-6`}>
+    <div className={`${kit.root} ${kit.tight} space-y-6`}>
       <section data-export-block="" className="space-y-3">
         <h3 className={s.label}>Data</h3>
         {headline.noData ? <NoData /> : <KitOutlineTiles kpis={headline.kpis} channel={headline.channel} />}

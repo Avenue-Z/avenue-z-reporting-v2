@@ -84,6 +84,8 @@ describe('platform-headlines@6', () => {
     g.mockResolvedValue(HEADLINES as never)
     const c = draw(await KitHeadlinesSection(FIXTURE_ORGANIC_SOCIAL_CTX), false)
     expect(c.firstElementChild?.classList.contains(kit.root)).toBe(true)
+    // Round 3, Task 6: line height normal, as the artifact (the class only Organic Social's kit wrappers carry).
+    expect(c.firstElementChild?.classList.contains(kit.tight)).toBe(true)
     expect(c.querySelectorAll(`.${kit.kpi}`)).toHaveLength(7)
     // KpiCard's own box (kpi-card.tsx): the hover hint's tooltip shares its border colour, so match the padding too.
     expect(c.querySelector('div.rounded-lg.px-6.py-5')).toBeNull()

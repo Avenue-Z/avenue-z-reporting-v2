@@ -15,7 +15,7 @@ const up = (data: SlExport, beforeOpen = true, at = '2026-11-02T12:00:00Z'): SlU
   ({ id: `u${n++}`, month: data.month, topic: data.topic, data, beforeOpen, uploadedAt: new Date(at) })
 const hist = (month: string, topic: SlTopic, p: { pos: number; neu: number; neg: number }, results = 100): SlHistory => ({
   month, topic, results, uniqueAuthors: 50, engagement: 200, potentialReach: 9000, ...p,
-  redditPos: null, redditNeu: null, redditNeg: null, source: 'report',
+  redditPos: null, redditNeu: null, redditNeg: null, source: 'report', media: null, authors: null,
 })
 const post = (over: Partial<SlPost>): SlPost => ({
   id: `p${n++}`, month: '2026-10', group: 'social', platform: 'X', author: 'someone', url: null, engagements: 1,
@@ -139,6 +139,20 @@ describe('sections', () => {
       { media: 'Threads', count: 4, pct: 40, change: null, color: '#9CA3AF' },
     ])
   })
+  test("media types compare with the delivered report's counts when its row has them, and say so (D4)", () => {
+    const now = exp('brand', '2026-10', { pos: 10, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 6, neu: 0, neg: 0 }, { media: 'Blogs', pos: 4, neu: 0, neg: 0 }] })
+    const prevUpload = exp('brand', '2026-09', { pos: 3, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 3, neu: 0, neg: 0 }] })
+    const report = { ...hist('2026-09', 'brand', { pos: 80, neu: 15, neg: 5 }), media: [{ media: 'X', count: 4 }, { media: 'Blogs', count: 2 }] }
+    const r = buildTopicView(input({ data: data({ uploads: [up(now), up(prevUpload, true, '2026-10-02T00:00:00Z')], history: [report] }) })).ready!
+    expect(r.media.map((m) => [m.media, m.change])).toEqual([['X', 50], ['Blogs', 100]])
+    expect(r.mediaVs).toBe('report')
+  })
+  test('media types say what they compare with: the export when only an upload, nothing when neither', () => {
+    const now = exp('brand', '2026-10', { pos: 10, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 10, neu: 0, neg: 0 }] })
+    const prevUpload = exp('brand', '2026-09', { pos: 3, neu: 0, neg: 0 }, { sentimentByMedia: [{ media: 'X', pos: 3, neu: 0, neg: 0 }] })
+    expect(buildTopicView(input({ data: data({ uploads: [up(now), up(prevUpload, true, '2026-10-02T00:00:00Z')] }) })).ready!.mediaVs).toBe('export')
+    expect(buildTopicView(input({ data: data({ uploads: [up(now)] }) })).ready!.mediaVs).toBeNull()
+  })
   test('year to date for brand: all, positive plus neutral, Reddit; gaps stay gaps', () => {
     const r = buildTopicView(input({ data: data({ uploads: [up(exp('brand', '2026-10', { pos: 60, neu: 30, neg: 10 }))], history: [hist('2026-08', 'brand', { pos: 50, neu: 40, neg: 10 })] }) })).ready!
     expect(r.ytd.map((p) => p.month)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'])
@@ -215,5 +229,76 @@ describe('analysis-only sections, posts and trends by viewer (spec sections 5 an
     expect(buildTopicView(input({ clientView: true, data: data({ ...base, trends: { ...trends, approved: null } }) })).show.trends).toBe(false)
     const staff = buildTopicView(input({ data: data({ ...base, trends }) }))
     expect(staff.trends).toEqual({ lists: lists('approved'), draft: { lists: lists('draft'), status: 'draft' } })
+  })
+})
+
+// Unit F (plan 2026-11-24, F11, D6 to D8, Q4): the authors the team picks, the order, the per mention columns.
+describe('authors and cards', () => {
+  const a = (i: number, over: Record<string, unknown> = {}) => ({
+    authorId: `id-${i}`, name: `Author ${i}`, network: 'SOCIALMEDIA_INSTAGRAM', posts: 20 - i, pos: 1, neu: 0, neg: 0, reach: 1000 * (i + 1), engagement: 7 - i, ...over,
+  })
+  const SEVEN = Array.from({ length: 7 }, (_, i) => a(i))
+  const CARDS = [
+    { label: 'Most active author', who: 'Author 0', network: 'Instagram', value: 12, unit: 'Posts' },
+    { label: 'Most active site', who: 'site.example', network: 'Forums', value: 4, unit: 'Posts' },
+  ]
+  const oct = exp('brand', '2026-10', { pos: 60, neu: 30, neg: 10 }, { influencers: SEVEN, overview: CARDS })
+  const view = (over: Partial<SlViewInput> = {}, picks: SlMonthData['picks'] = []) =>
+    buildTopicView(input({ data: data({ uploads: [up(oct)], picks }), ...over })).ready!
+  const hide = (key: string, kind: 'author' | 'card' = 'author') => ({ id: `k-${key}`, kind, key, state: 'hidden' as const, at: '2026-11-03T10:00:00.000Z' })
+
+  test('a month with no picks: a client sees the first 5 in export order and every card; staff see all 7 marked', () => {
+    expect(view({ clientView: true }).influencers.map((i) => i.authorId)).toEqual(['id-0', 'id-1', 'id-2', 'id-3', 'id-4'])
+    expect(view({ clientView: true }).overview.map((c) => c.label)).toEqual(['Most active author', 'Most active site'])
+    expect(view().influencers.map((i) => [i.authorId, i.shown])).toEqual(SEVEN.map((x, i) => [x.authorId, i < 5]))
+  })
+
+  test('a month with one hide shows the other four, and the hidden author takes its card with it for a client only', () => {
+    expect(view({ clientView: true }, [hide('id-0')]).influencers.map((i) => i.authorId)).toEqual(['id-1', 'id-2', 'id-3', 'id-4'])
+    expect(view({ clientView: true }, [hide('id-0')]).overview.map((c) => c.label)).toEqual(['Most active site'])
+    expect(view({}, [hide('id-0')]).overview.map((c) => [c.label, c.shown])).toEqual([['Most active author', false], ['Most active site', true]])
+  })
+
+  test('picks apply to the served month only: they come from the month read, which the store keys by the served month', () => {
+    expect(view({ clientView: true }, []).influencers).toHaveLength(5)
+  })
+
+  test('the sort changes the order only: reach or engagement, most first; posts by default', () => {
+    expect(view({ clientView: true }).influencers.map((i) => i.authorId)).toEqual(['id-0', 'id-1', 'id-2', 'id-3', 'id-4'])
+    expect(view({ clientView: true, sort: 'reach' }).influencers.map((i) => i.authorId)).toEqual(['id-4', 'id-3', 'id-2', 'id-1', 'id-0'])
+    expect(view({ clientView: true, sort: 'engagement' }).influencers.map((i) => i.authorId)).toEqual(['id-0', 'id-1', 'id-2', 'id-3', 'id-4'])
+  })
+
+  test('reach and engagement per mention are the totals over the posts', () => {
+    const first = view({ clientView: true }).influencers[0]
+    expect([first.reachPer, first.engagementPer]).toEqual([1000 / 20, 7 / 20])
+  })
+
+  test("the posts change compares with the delivered report's authors when October's row has them", () => {
+    const nov = exp('brand', '2026-11', { pos: 1, neu: 0, neg: 0 }, { influencers: [a(0, { posts: 9 }), a(1, { posts: 9 })] })
+    const row = { ...hist('2026-10', 'brand', { pos: 60, neu: 30, neg: 10 }), authors: [{ authorId: 'id-0', name: 'Author 0', network: 'Instagram', posts: 4 }] }
+    const r = buildTopicView(input({ month: '2026-11', data: data({ uploads: [up(oct), up(nov)], history: [row] }) })).ready!
+    expect(r.influencers.map((i) => [i.authorId, i.change])).toEqual([['id-0', 5], ['id-1', null]])
+  })
+})
+
+// Unit H (plan 2026-11-24, F15): the industry cloud is coloured by sentiment once Savannah's widget exports sentiment
+// colours; until then its colours stay decoration, as today.
+describe('industry theme colours', () => {
+  const industryView = (themes: SlExport['themes']) =>
+    buildTopicView(input({ topic: 'industry', data: data({ uploads: [up(exp('industry', '2026-10', { pos: 1, neu: 0, neg: 0 }, { themes }))] }) })).ready!
+  test("every theme in one of brand's five sentiment colours: drawn by sentiment, as brand is", () => {
+    const r = industryView([{ theme: 'a', share: 0.2, color: '#1fce6e' }, { theme: 'b', share: 0.1, color: '#F2C100' }, { theme: 'c', share: 0.1, color: '#EB6F63' }])
+    expect(r.themeColors).toBe('sentiment')
+    expect(r.themes.map((t) => t.color)).toEqual(['#60FF80', '#FFFC60', '#FF4444'])
+  })
+  test('one colour outside the five, or no themes: decoration, exactly as today', () => {
+    const mixed = industryView([{ theme: 'a', share: 0.2, color: '#1FCE6E' }, { theme: 'b', share: 0.1, color: '#123456' }])
+    expect(mixed.themeColors).toBe('decoration')
+    expect(mixed.themes.map((t) => t.color)).toEqual(['#1FCE6E', '#123456'])
+    expect(industryView([]).themeColors).toBe('decoration')
+  })
+  test('brand is always by sentiment', () => {
+    expect(buildTopicView(input()).ready!.themeColors).toBe('sentiment')
   })
 })

@@ -117,7 +117,8 @@ test('the AEO Informed Social tab has its own Insights key and no Recommendation
 describe('Social Listening analysis box keys (spec section 9)', () => {
   test('every box key is canonical, has a "Social Listening, ..." entry and no Recommendations key', async () => {
     const { SL_BOX_IDS, slBoxViewKey } = await import('@/lib/organic-social/social-listening/boxes')
-    expect(SL_BOX_IDS).toHaveLength(26)
+    // 27 since 2026-11-24: b-mediasent, the media types by sentiment box (Social Listening Unit D).
+    expect(SL_BOX_IDS).toHaveLength(27)
     for (const id of SL_BOX_IDS) {
       const k = slBoxViewKey(id)
       expect(isCommentaryViewKey(k)).toBe(true)

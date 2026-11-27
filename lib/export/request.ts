@@ -1,5 +1,6 @@
 import { isServerExportSection, type ServerExportSection } from './sections'
 import type { AeoRange } from '@/lib/organic-social/aeo-tab/params'
+import { isSlColsValue, isSlSortValue } from '@/lib/organic-social/social-listening/params'
 
 /** What the Export PDF button asks for. Role and client identity are never here: the route takes them
  *  from the session (app/api/export/pdf/route.ts). Every field is validated strictly, because the
@@ -20,6 +21,12 @@ export interface ExportRequest {
   /** The Technical Audit tab's snapshot (YYYY-MM-DD). Present only on that tab's export; an invalid one is dropped, so the
    *  export prints the latest snapshot the requester may see. */
   snapshot?: string
+  /** The Social Listening tab's charts set to columns (slcols), exactly as the page writes it. Present only on that tab's export when a
+   *  chart is on its columns, so every other request is exactly what it was. */
+  slCols?: string
+  /** The Social Listening authors table's order (slsort, Unit F), `reach` or `engagement`; absent for posts, so every other
+   *  request is exactly what it was. */
+  slSort?: 'reach' | 'engagement'
   /** The requester's IANA timezone, for the stamp and the filename date. */
   tz: string
 }
@@ -53,6 +60,8 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
   if (b.models != null && (typeof b.models !== 'string' || !MODELS.test(b.models))) return null
   if (b.aeo != null && !AEO_RANGES.includes(b.aeo as AeoRange)) return null
   if (b.aeoMin != null && !(typeof b.aeoMin === 'number' && Number.isInteger(b.aeoMin) && b.aeoMin >= 1 && b.aeoMin <= 5)) return null
+  if (b.slCols != null && !isSlColsValue(b.slCols)) return null
+  if (b.slSort != null && !isSlSortValue(b.slSort)) return null
   return {
     clientSlug: b.clientSlug,
     section,
@@ -63,6 +72,8 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     ...(b.aeo != null ? { aeo: b.aeo as AeoRange } : {}),
     ...(b.aeoMin != null ? { aeoMin: b.aeoMin as number } : {}),
     ...(typeof b.snapshot === 'string' && SNAPSHOT.test(b.snapshot) ? { snapshot: b.snapshot } : {}),
+    ...(b.slCols != null ? { slCols: b.slCols as string } : {}),
+    ...(b.slSort != null ? { slSort: b.slSort as 'reach' | 'engagement' } : {}),
     tz: safeTimeZone(b.tz),
   }
 }
@@ -77,6 +88,8 @@ export function exportPagePath(r: ExportRequest): string {
   if (r.aeo) sp.set('aeo', r.aeo)
   if (r.aeoMin) sp.set('aeomin', String(r.aeoMin))
   if (r.snapshot) sp.set('snapshot', r.snapshot)
+  if (r.slCols) sp.set('slcols', r.slCols)
+  if (r.slSort) sp.set('slsort', r.slSort)
   sp.set('tz', r.tz)
   return `/export/${r.clientSlug}/${r.section}?${sp.toString()}`
 }

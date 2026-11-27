@@ -8,10 +8,8 @@
 // page copy and in the PDF's `lead` copy. So the post read, the client read, the owned and influencer split, the stored
 // designations, the labels, the sort, the paging and the fallback cards are the old code, not a copy of it. All
 // unpublished: pinned per client, never promoted into the shared template or frozen into a snapshot.
-import { Fragment, Suspense, cloneElement, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from 'react'
-import type { PartImpl } from '@/lib/report-sections/types'
+import { Fragment, cloneElement, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from 'react'
 import { KpiCard } from '@/components/charts/kpi-card'
-import type { OrganicSocialCtx } from '../ctx'
 import { KpiTile } from '../design/charts'
 import kit from '../design/kit.module.css'
 import { SortableTopContent } from '../sortable-top-content'
@@ -19,9 +17,9 @@ import { InfluencerGrid } from '../influencer-grid'
 import { topContentV2 } from './top-content'
 import { topContentV3 } from './top-content-outline'
 import { influencerPostsV1 } from './influencer-posts'
+import { kitOf, redrawnSections } from './kit-swap'
 
 type El = ReactElement<Record<string, unknown>>
-type Section = (props: never) => Promise<ReactNode>
 
 /** One element of a returned posts tree in kit form. Only host elements and fragments are walked into; any other
  *  component (the hover hint, a fallback card) is left exactly as it is. */
@@ -44,46 +42,17 @@ function kitPosts(node: ReactNode): ReactNode {
 
 /** A posts section's answer in kit form: the block inside the kit's colours. A fallback card or nothing passes through. */
 function kitPostsBlock(node: ReactNode): ReactNode {
-  if (isValidElement(node) && node.type === 'section') return <div className={kit.root}>{kitPosts(node)}</div>
+  if (isValidElement(node) && node.type === 'section') return <div className={`${kit.root} ${kit.tight}`}>{kitPosts(node)}</div>
   return node
 }
 
-const kitSections = new Map<Section, Section>()
-/** The kit form of a section, made once per section and kept, so a re-render never remounts the cards (or loses the
- *  sort or the page a viewer is on). */
-function kitSectionFor(section: Section): Section {
-  let kitted = kitSections.get(section)
-  if (!kitted) {
-    kitted = async (props: never) => kitPostsBlock(await section(props))
-    kitSections.set(section, kitted)
-  }
-  return kitted
-}
-
-/** An old part's rendered element, `<Suspense fallback><Section .../></Suspense>`, with its section in kit form; the
- *  fallback and the props are kept exactly. Anything else (null off the Influencer tab) passes through. */
-function withKitSection(node: ReactNode): ReactNode {
-  if (!isValidElement(node) || node.type !== Suspense) return node
-  const { fallback, children } = node.props as { fallback: ReactNode; children: ReactNode }
-  if (!isValidElement(children) || typeof children.type !== 'function') return node
-  const Kit = kitSectionFor(children.type as Section) as unknown as (p: object) => ReactNode
-  return <Suspense fallback={fallback}><Kit {...(children.props as object)} /></Suspense>
-}
-
-function kitOf(old: PartImpl<OrganicSocialCtx>, version: number): PartImpl<OrganicSocialCtx> {
-  return {
-    id: old.id,
-    version,
-    published: false,
-    defaultLabel: old.defaultLabel,
-    // The resolved part passes straight through: top-content@3 reads its threshold (the owned post limit) from it.
-    render: (ctx, resolved) => withKitSection(old.render(ctx, resolved)),
-  }
-}
+/** Each section's kit form, made once per section (kit-swap.tsx), so a re-render never remounts the cards (or loses the
+ *  sort or the page a viewer is on). Anything else (null off the Influencer tab) passes through. */
+const { kitFor } = redrawnSections(kitPostsBlock)
 
 /** The outline clients' Top Performing Content (owned top five per platform, the influencer rows), on the kit. */
-export const topContentV4 = kitOf(topContentV3, 4)
+export const topContentV4 = kitOf(topContentV3, 4, kitFor)
 /** Top Content (Overview's template part, Renaissance's platform tabs), on the kit. */
-export const topContentV5 = kitOf(topContentV2, 5)
+export const topContentV5 = kitOf(topContentV2, 5, kitFor)
 /** The Influencer tab's posts and totals, on the kit. */
-export const influencerPostsV2 = kitOf(influencerPostsV1, 2)
+export const influencerPostsV2 = kitOf(influencerPostsV1, 2, kitFor)

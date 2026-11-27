@@ -6,13 +6,12 @@
 // the skeleton, the requests (including the outline fallback's size-based change), the sheet read, the logs and the
 // fallback cards are all the old code, not a copy of it. All unpublished: pinned per client, never promoted into the
 // shared template or frozen into a snapshot.
-import { Suspense, isValidElement, type ComponentProps, type FC, type ReactNode } from 'react'
-import type { PartImpl } from '@/lib/report-sections/types'
-import type { OrganicSocialCtx } from '../ctx'
+import type { ComponentProps, FC } from 'react'
 import { HeadlinesSection, platformHeadlinesV1 } from './platform-headlines'
 import { OutlineDataSection, platformHeadlinesV2, platformHeadlinesV3 } from './outline-data'
 import { BreakdownSection, engagementBreakdownV1 } from './engagement-breakdown'
 import { asKit } from './kit-tiles'
+import { kitOf, type KitFor } from './kit-swap'
 
 export async function KitHeadlinesSection(props: ComponentProps<typeof HeadlinesSection>) {
   return asKit(await HeadlinesSection(props))
@@ -31,35 +30,16 @@ const KIT_SECTION = new Map<unknown, FC<any>>([
   [BreakdownSection, KitBreakdownSection],
 ])
 
-/** An old part's rendered element with its section swapped for the kit's: `<Suspense fallback><Section .../></Suspense>`
- *  keeps its fallback and its section's props exactly. Anything else (null on a tab the part does not cover) passes
- *  through as it is. Matched by component, so an old render that one day returned another shape would pass through
- *  unkitted, and the tests (which look for the kit's classes) would fail. */
-export function withKitSection(node: ReactNode): ReactNode {
-  if (!isValidElement(node) || node.type !== Suspense) return node
-  const { fallback, children } = node.props as { fallback: ReactNode; children: ReactNode }
-  if (!isValidElement(children)) return node
-  const Kit = KIT_SECTION.get(children.type)
-  return Kit ? <Suspense fallback={fallback}><Kit {...(children.props as object)} /></Suspense> : node
-}
-
-function kitOf(old: PartImpl<OrganicSocialCtx>, version: number): PartImpl<OrganicSocialCtx> {
-  return {
-    id: old.id,
-    version,
-    published: false,
-    defaultLabel: old.defaultLabel,
-    // The old renders take ctx only (none reads the resolved part), so it passes straight through.
-    render: (ctx, resolved) => withKitSection(old.render(ctx, resolved)),
-  }
-}
+/** Matched by component, so an old render that one day returned another section would pass through unkitted, and the
+ *  tests (which look for the kit's classes) would fail. */
+const kitFor: KitFor = (section) => KIT_SECTION.get(section)
 
 /** The v1 tiles (Overview's, and Renaissance's platform tabs today) with the kit. */
-export const platformHeadlinesV6 = kitOf(platformHeadlinesV1, 6)
+export const platformHeadlinesV6 = kitOf(platformHeadlinesV1, 6, kitFor)
 /** The outline Data block (standard rows) with the kit. On Overview or an uncovered channel @2 shows the v1 tiles with
  *  whole numbers; @4 shows @6's kit tiles the same way. */
-export const platformHeadlinesV4 = kitOf(platformHeadlinesV2, 4)
+export const platformHeadlinesV4 = kitOf(platformHeadlinesV2, 4, kitFor)
 /** The same with Profile Clicks on Instagram (Kenect Nashville), with the kit. */
-export const platformHeadlinesV5 = kitOf(platformHeadlinesV3, 5)
+export const platformHeadlinesV5 = kitOf(platformHeadlinesV3, 5, kitFor)
 /** The engagement breakdown under the engagement graph, with the kit. Nothing on Overview or an uncovered channel. */
-export const engagementBreakdownV2 = kitOf(engagementBreakdownV1, 2)
+export const engagementBreakdownV2 = kitOf(engagementBreakdownV1, 2, kitFor)

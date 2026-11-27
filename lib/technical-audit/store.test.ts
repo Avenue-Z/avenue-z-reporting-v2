@@ -1,5 +1,5 @@
 // @vitest-environment node
-// The store's SQL against a real Postgres engine (PGlite, in memory) with migration 0031 applied as generated, the
+// The store's SQL against a real Postgres engine (PGlite, in memory) with migration 0033 applied as generated, the
 // pattern of lib/organic-social/social-listening/store.pglite.test.ts. No shared database is touched. `db.batch`
 // runs its statements in order here, without neon's single transaction.
 import { readFileSync } from 'node:fs'
@@ -33,9 +33,9 @@ const count = async (table: string, where = 'true') => Number((await pg.query<{ 
 beforeAll(async () => {
   pg = new PGlite({ serializers: { 17: (x: unknown) => String(x) }, parsers: { 17: (x: string) => x } })
   await pg.exec(`CREATE TABLE "clients" ("id" uuid PRIMARY KEY);`)
-  const sql = readFileSync(join(process.cwd(), 'drizzle', '0031_technical_audit.sql'), 'utf8')
+  const sql = readFileSync(join(process.cwd(), 'drizzle', '0033_technical_audit.sql'), 'utf8')
   for (const s of sql.split('--> statement-breakpoint').map((x) => x.trim()).filter(Boolean)) {
-    // 0031 also adds columns to the real clients table; the stub only needs its id.
+    // 0033 also adds columns to the real clients table; the stub only needs its id.
     if (/ALTER TABLE "clients"/.test(s)) continue
     await pg.exec(s)
   }
