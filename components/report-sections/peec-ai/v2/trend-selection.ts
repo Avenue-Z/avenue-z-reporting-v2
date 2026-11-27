@@ -37,7 +37,7 @@ export function parseTrendParam(
  * default), `off` means competitors are off, and anything else is the keys joined by commas.
  */
 export function serializeTrend(sel: TrendSelection, competitorKeysByVisibility: readonly string[]): string | null {
-  if (!sel.competitors) return 'off'
+  if (!sel.competitors || sel.selected.length === 0) return 'off'
   const def = defaultTrendSelection(competitorKeysByVisibility)
   const isDefault = sel.selected.length === def.selected.length && sel.selected.every((key, i) => key === def.selected[i])
   if (isDefault) return null

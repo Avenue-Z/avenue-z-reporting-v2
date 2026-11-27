@@ -57,6 +57,10 @@ test('serializeTrend of competitors off is "off"', () => {
   expect(serializeTrend({ competitors: false, selected: [] }, KEYS)).toBe('off')
 })
 
+test('serializeTrend: competitors on with nothing selected is "off"', () => {
+  expect(serializeTrend({ competitors: true, selected: [] }, KEYS)).toBe('off')
+})
+
 test('serializeTrend round-trips a custom selection', () => {
   const sel = { competitors: true, selected: ['cigna', 'unum'] }
   const text = serializeTrend(sel, KEYS)
