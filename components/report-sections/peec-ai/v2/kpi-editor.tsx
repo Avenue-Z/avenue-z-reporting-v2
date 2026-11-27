@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useExportMode } from '@/components/export/export-mode'
+import { setAeoKpis } from '@/app/actions/aeo-kpis'
 import { AEO_KPI_IDS, MAX_KPIS, type KpiId } from '@/lib/report-sections/aeo-kpis'
 
 type Option = { id: KpiId; label: string; group: string; disabledReason: string | null }
@@ -30,9 +31,14 @@ export function KpiEditor({ clientSlug, selected, options }: { clientSlug: strin
   function save() {
     const ids = AEO_KPI_IDS.filter((id) => picked.includes(id))
     start(async () => {
-      // Loaded on demand: the action module imports the part registries, which import this file's part.
-      const { setAeoKpis } = await import('@/app/actions/report-sections')
-      const res = await setAeoKpis(clientSlug, ids)
+      let res: Awaited<ReturnType<typeof setAeoKpis>>
+      try {
+        res = await setAeoKpis(clientSlug, ids)
+      } catch {
+        // A throw inside the transition would reach the error boundary and replace the staff's section.
+        setError('Save failed')
+        return
+      }
       if (res.ok) {
         setError(null)
         setOpen(false)
@@ -66,7 +72,8 @@ export function KpiEditor({ clientSlug, selected, options }: { clientSlug: strin
             <div className="space-y-1.5">
               {options.filter((o) => o.group === g).map((o) => {
                 const checked = picked.includes(o.id)
-                const disabled = o.disabledReason !== null || (!checked && full)
+                // A saved KPI whose source is gone stays uncheckable-off: it can be dropped, never newly picked.
+                const disabled = (o.disabledReason !== null && !checked) || (!checked && full)
                 return (
                   <div key={o.id} className="flex items-center gap-2 text-sm text-white">
                     <input

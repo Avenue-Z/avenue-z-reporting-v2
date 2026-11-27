@@ -6,9 +6,8 @@ import { db } from '@/lib/db/client'
 import { clients, sectionTemplates } from '@/lib/db/schema'
 import { getClientBySlug, getSectionTemplate } from '@/lib/db/queries'
 import { auth } from '@/auth'
-import { canEditDashboard, isInternalStaff } from '@/lib/dashboard/permissions'
-import { applyAeoKpis, applyClientVisible, INTERNAL_ONLY_BLOCKS, INTERNAL_ONLY_BLOCK_VIEW_KEYS, applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
-import { parseKpiSelection } from '@/lib/report-sections/aeo-kpis'
+import { canEditDashboard } from '@/lib/dashboard/permissions'
+import { applyClientVisible, INTERNAL_ONLY_BLOCKS, INTERNAL_ONLY_BLOCK_VIEW_KEYS, applyFreeze, applyPinVersion, applyUnfreeze, computeFreeze, computePromotion, freezeViolations, mergePreservingSharedParts, promotionViolations, validateSectionOverride } from '@/lib/report-sections/mutations'
 import { REGISTRIES } from '@/lib/report-sections/registries'
 import { lookup } from '@/lib/report-sections/registry'
 import { resolveSection } from '@/lib/report-sections/resolve'
@@ -117,22 +116,6 @@ export async function setClientVisible(
   const client = await getClientBySlug(slug)
   if (!client) return { ok: false, error: 'client not found' }
   return persist(slug, applyClientVisible(client.reportSectionConfig ?? {}, viewKey, blockId, visible))
-}
-
-/** Sets the AEO Snapshot KPIs for one client. Internal staff only (never CLIENT_ADMIN, so not `authorize`). */
-export async function setAeoKpis(slug: string, kpis: unknown): Promise<Result> {
-  const session = await auth()
-  if (!session?.user) return { ok: false, error: 'unauthenticated' }
-  if (!isInternalStaff(session.user.role)) return { ok: false, error: 'forbidden' }
-  let parsed: ReturnType<typeof parseKpiSelection>
-  try {
-    parsed = parseKpiSelection(kpis)
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-  const client = await getClientBySlug(slug)
-  if (!client) return { ok: false, error: 'client not found' }
-  return persist(slug, applyAeoKpis(client.reportSectionConfig ?? {}, parsed))
 }
 
 /**

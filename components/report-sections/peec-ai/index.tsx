@@ -68,7 +68,8 @@ export function ProviderSection({
 }) {
   const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience, compare, showDeltas, kpi })
   const resolvedAll = resolveSection(template, override)
-  // A client whose Snapshot KPI strip would be empty gets no section 01 and no nav entry.
+  // The layout (v1 or v2) is decided from every part. A client whose Snapshot KPI strip would be empty only loses
+  // section 01 and its nav entry; the page stays v2.
   const resolved = resolvedAll.filter((r) => !(r.id === 'kpi-cards' && r.version === 2 && kpiStripHidden(ctx)))
 
   const renderPart = (r: (typeof resolved)[number]): ReactNode => {
@@ -77,7 +78,7 @@ export function ProviderSection({
     return impl ? <div key={`${r.id}@${r.version}`} {...(peecWrapsAsBlock(r.id, r.version) ? { 'data-export-block': '' } : {})}>{impl.render(ctx, r)}</div> : null
   }
 
-  if (isV2Layout(resolved, V2_PART_SECTIONS)) {
+  if (isV2Layout(resolvedAll, V2_PART_SECTIONS)) {
     const groups = groupParts(resolved, V2_PART_SECTIONS)
     return (
       <div className="space-y-6">

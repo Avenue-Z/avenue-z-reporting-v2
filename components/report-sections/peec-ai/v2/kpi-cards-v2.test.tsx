@@ -15,7 +15,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard/renaissance/reports',
   useSearchParams: () => new URLSearchParams('section=peec-ai'),
 }))
-vi.mock('@/app/actions/report-sections', () => ({ setAeoKpis: vi.fn() }))
+vi.mock('@/app/actions/aeo-kpis', () => ({ setAeoKpis: vi.fn() }))
 vi.mock('./sections', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./sections')>()),
   V2_PART_SECTIONS: MAP,

@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 const refresh = vi.fn()
 const setAeoKpis = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
-vi.mock('@/app/actions/report-sections', () => ({ setAeoKpis: (...a: unknown[]) => setAeoKpis(...a) }))
+vi.mock('@/app/actions/aeo-kpis', () => ({ setAeoKpis: (...a: unknown[]) => setAeoKpis(...a) }))
 
 import { KpiEditor } from './kpi-editor'
 import { AEO_KPI_IDS, type KpiId } from '@/lib/report-sections/aeo-kpis'
@@ -69,5 +69,29 @@ describe('KpiEditor', () => {
     open()
     expect((screen.getByLabelText('AI visibility') as HTMLInputElement).checked).toBe(true)
     expect((screen.getByLabelText('Sentiment') as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('a saved KPI whose source is unavailable can be unchecked and dropped', async () => {
+    setAeoKpis.mockResolvedValue({ ok: true })
+    render(<KpiEditor clientSlug="renaissance" selected={['visibility', 'ai-leads']} options={options({ 'ai-leads': 'Source not connected' })} />)
+    open()
+    const box = screen.getByLabelText('AI search leads') as HTMLInputElement
+    expect(box.checked).toBe(true)
+    expect(box.disabled).toBe(false)
+    fireEvent.click(box)
+    expect(box.checked).toBe(false)
+    expect(box.disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(setAeoKpis).toHaveBeenCalledWith('renaissance', ['visibility'])
+  })
+
+  it('a thrown save shows Save failed and does not refresh', async () => {
+    setAeoKpis.mockRejectedValue(new Error('boom'))
+    render(<KpiEditor clientSlug="renaissance" selected={[]} options={options()} />)
+    open()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.getByText('Save failed')).toBeTruthy())
+    expect(refresh).not.toHaveBeenCalled()
   })
 })
