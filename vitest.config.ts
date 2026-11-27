@@ -97,6 +97,7 @@ export default defineConfig({
       'e2e/export/pair.test.ts',
       'components/layout/sticky-report-header.test.tsx',
       'components/report-sections/**/*.test.{ts,tsx}',
+      'lib/aeo/cited-urls.test.ts',
       'lib/aeo-outbound/**/*.test.{ts,tsx}',
       'app/api/aeo-outbound/**/*.test.{ts,tsx}',
       'app/api/social-listening/**/*.test.{ts,tsx}',
