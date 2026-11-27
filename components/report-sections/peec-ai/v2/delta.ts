@@ -11,7 +11,7 @@ function signedOneDecimal(value: number): string {
 }
 
 /** Rounds the way `formatDelta` displays: one decimal for pts/pct, whole numbers for places. */
-function roundForUnit(value: number, unit: DeltaUnit): number {
+export function roundForUnit(value: number, unit: DeltaUnit): number {
   return unit === 'places' ? Math.sign(value) * Math.round(Math.abs(value)) : Math.round(value * 10) / 10
 }
 
