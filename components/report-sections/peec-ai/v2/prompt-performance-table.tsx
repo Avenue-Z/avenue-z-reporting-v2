@@ -100,7 +100,9 @@ export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfR
   }
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-bg-surface" data-export-block="">
+    // Not one block in the export: 25 long prompts can run past a page, so the table splits between its rows
+    // (SortableTable marks each data-export-row) and the title keeps with it.
+    <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
       <div className="border-b border-white/[0.06] px-5 py-4" data-export-keep-with-next="">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">How is the brand ranking on each tracked prompt?</p>
       </div>

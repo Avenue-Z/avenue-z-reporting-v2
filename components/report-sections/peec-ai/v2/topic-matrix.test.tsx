@@ -211,7 +211,8 @@ test('export with all brands: the columns print in blocks of 10, the topic colum
     expect(t.parentElement!.className).not.toContain('overflow-x-auto')
   }
   expect(new Set(tables.map((t) => t.closest('[data-export-block]'))).size).toBe(3)
-  expect(screen.getByText('All brands')).toBeTruthy()
+  // The mode line prints with the last table, never stranded at the top of a page.
+  expect(screen.getByText('All brands').closest('[data-export-block]')).toBe(tables[2].closest('[data-export-block]'))
 })
 
 test('export in Competitors mode: one table whose header names wrap', () => {
@@ -222,6 +223,7 @@ test('export in Competitors mode: one table whose header names wrap', () => {
   for (const th of headers(tables[0])) expect(th.className).not.toContain('whitespace-nowrap')
   expect(tables[0].closest('[data-export-block]')).toBeTruthy()
   expect(tables[0].parentElement!.className).not.toContain('overflow-x-auto')
+  expect(screen.getByText('Competitors · top 8 brands').closest('[data-export-block]')).toBe(tables[0].closest('[data-export-block]'))
 })
 
 test('on screen the header names stay on one line', () => {

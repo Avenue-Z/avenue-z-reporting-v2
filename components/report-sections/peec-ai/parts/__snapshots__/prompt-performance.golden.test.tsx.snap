@@ -3,7 +3,6 @@
 exports[`prompt-performance@1 golden 1`] = `
 <div
   class="rounded-lg border border-white/[0.06] bg-bg-surface"
-  data-export-block=""
 >
   <div
     class="border-b border-white/[0.06] px-5 py-4"

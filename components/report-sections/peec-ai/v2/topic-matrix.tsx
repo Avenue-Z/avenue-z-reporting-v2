@@ -153,10 +153,12 @@ export function TopicMatrix({
   const chunks: Col[][] = []
   if (exporting && mode === 'all') for (let i = 0; i < cols.length; i += EXPORT_BRANDS_PER_TABLE) chunks.push(cols.slice(i, i + EXPORT_BRANDS_PER_TABLE))
   else chunks.push(cols)
+  // The line naming the mode prints inside the last table's block, so it never starts a page alone.
   const grids = exporting
     ? chunks.map((chunk, i) => (
-        <div key={i} data-export-block="">
+        <div key={i} data-export-block="" className="flex flex-col gap-3">
           {table(chunk)}
+          {i === chunks.length - 1 && <p className="text-xs text-text-muted">{modeLine(mode, shownBrands.length)}</p>}
         </div>
       ))
     : <div className="overflow-x-auto">{table(cols)}</div>
@@ -187,7 +189,6 @@ export function TopicMatrix({
         </div>
       )}
       {grids}
-      {exporting && <p className="text-xs text-text-muted">{modeLine(mode, shownBrands.length)}</p>}
     </div>
   )
 }

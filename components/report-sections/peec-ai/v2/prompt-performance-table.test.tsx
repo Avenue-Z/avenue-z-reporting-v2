@@ -23,7 +23,7 @@ const row = (id: string, over: Partial<PromptPerfRow>): PromptPerfRow => ({
 const ROWS: PromptPerfRow[] = [
   row('lost', { rank: 3, priorRank: 2, rankDelta: -1 }),
   row('new', { rank: 1.5, priorRank: null, rankDelta: null, isNew: true, visibilityPrior: null, visibilityDelta: null }),
-  row('none', { rank: null, priorRank: 2, rankDelta: null }),
+  row('none', { rank: null, priorRank: null, rankDelta: null }),
   row('same', { rank: 2.3, priorRank: 2.5, rankDelta: 0.2 }),
   row('gained', { rank: 1, priorRank: 3, rankDelta: 2 }),
 ]
@@ -165,4 +165,15 @@ test('in export mode a chip chosen on screen is ignored: every row of page 1 pri
   } finally {
     forced.exporting = false
   }
+})
+
+test('in the export the card is not one block: the title keeps with the table and a long table splits between rows', () => {
+  const many = Array.from({ length: 20 }, (_, i) => row(`p${i}`, { rankDelta: i }))
+  const { container } = render(<ExportModeProvider>{ui(many)}</ExportModeProvider>)
+  expect((container.firstChild as HTMLElement).hasAttribute('data-export-block')).toBe(false)
+  // Over SortableTable's 15-row limit nothing holds the table whole: it breaks between its rows.
+  expect(container.querySelector('[data-export-block]')).toBeNull()
+  expect(container.querySelectorAll('tbody tr[data-export-row]')).toHaveLength(20)
+  const title = screen.getByText('How is the brand ranking on each tracked prompt?').parentElement!
+  expect(title.hasAttribute('data-export-keep-with-next')).toBe(true)
 })

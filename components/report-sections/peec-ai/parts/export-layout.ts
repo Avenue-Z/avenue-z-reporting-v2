@@ -10,7 +10,7 @@ export const PEEC_EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'winners-losers@1': 'own',     // each card a block (winners-losers-cards.tsx)
   'brand-rankings@1': 'own',     // a table
   'brand-rankings@2': 'own',     // a table
-  'topic-matrix@1': 'block',     // one card; the matrix is short
+  'topic-matrix@1': 'own',       // the title keeps with the grid; each printed table is its own block (several with every brand)
   'prompt-performance@1': 'own', // a table that can run past a page
   'domains-row@1': 'own',        // a table, then the domain-types chart block
   'competitor-visibility@1': 'own', // a table

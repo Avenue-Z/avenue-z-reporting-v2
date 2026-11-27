@@ -17,3 +17,8 @@ test('tables lay out their own rows; short parts are wrapped whole; an unknown p
   expect(['kpi-cards', 'footer', 'overview-synopsis'].map((id) => peecWrapsAsBlock(id, 1))).toEqual([true, true, true])
   expect(peecWrapsAsBlock('not-a-part', 1)).toBe(true)
 })
+
+test('section 04 lays out its own blocks: the matrix prints several tables with every brand, the prompt table splits by row', () => {
+  expect(peecWrapsAsBlock('topic-matrix', 1)).toBe(false)
+  expect(peecWrapsAsBlock('prompt-performance', 1)).toBe(false)
+})
