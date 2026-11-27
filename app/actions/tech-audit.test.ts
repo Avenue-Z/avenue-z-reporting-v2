@@ -83,7 +83,7 @@ describe('uploadGscExport', () => {
     expect(await uploadGscExport(form())).toEqual({ ok: true })
     expect(completeRun).toHaveBeenCalledWith('client-1', SNAP, 'gsc_indexing', new Uint8Array([1, 2, 3]), {
       metrics: { gscIndexed: 1080, gscNotIndexed: 934 }, issues: [], snapshot: { gscExportDate: '2026-11-21' },
-    })
+    }, { uploadedBy: 'writer@avenuez.com' })
     expect(revalidatePath).toHaveBeenCalledWith('/dashboard/[clientSlug]/reports', 'page')
     expect(revalidatePath).toHaveBeenCalledWith('/portal/[clientSlug]/reports', 'page')
   })
@@ -97,7 +97,7 @@ describe('uploadGscExport', () => {
     expect(parseGscCwv).toHaveBeenCalledWith(expect.any(Uint8Array), 'desktop')
     expect(completeRun).toHaveBeenCalledWith('client-1', SNAP, 'gsc_cwv_desktop', expect.any(Uint8Array), {
       metrics: { cwvDesktopPoor: 0, cwvDesktopNi: 8, cwvDesktopGood: 164 }, issues, snapshot: { gscExportDate: '2026-11-25' },
-    })
+    }, { uploadedBy: 'writer@avenuez.com' })
   })
 
   test('a mobile slot writes the mobile columns', async () => {

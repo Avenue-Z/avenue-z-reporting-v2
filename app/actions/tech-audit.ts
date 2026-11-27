@@ -69,7 +69,8 @@ function slotWrite(slot: Slot, bytes: Uint8Array): Parsed<{ metrics: Partial<Tec
  * report that slot expects.
  */
 export async function uploadGscExport(form: FormData): Promise<Result> {
-  if (!(await staffEmail())) return FORBIDDEN
+  const email = await staffEmail()
+  if (!email) return FORBIDDEN
 
   const slug = asSlug(field(form, 'clientSlug'))
   const snapshotId = asSnapshotId(field(form, 'snapshotId'))
@@ -108,7 +109,7 @@ export async function uploadGscExport(form: FormData): Promise<Result> {
     // No requireDraft: a staff re-upload to a published month goes live immediately.
     await completeRun(client.id, snapshotId, slot satisfies TaSource, bytes, {
       metrics, issues, snapshot: { gscExportDate: exportDate ?? new Date().toISOString().slice(0, 10) },
-    })
+    }, { uploadedBy: email })
   } catch {
     console.error(`${where} ${slot} store failed`)
     return fail('Could not save the upload. Try again.')

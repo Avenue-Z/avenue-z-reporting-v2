@@ -154,6 +154,15 @@ describe('completeRun', () => {
     expect(run.finished_at).not.toBeNull()
     expect(run.last_error).toBeNull()
   })
+  test('records who uploaded when given, and leaves it null otherwise', async () => {
+    const { id } = await store.ensureSnapshot(CLIENT, RUN)
+    await store.completeRun(CLIENT, id, 'sf', new Uint8Array([1]), {})
+    await store.completeRun(CLIENT, id, 'ahrefs', new Uint8Array([2]), {}, { uploadedBy: 'staff@avenuez.com' })
+    const by = async (source: string) =>
+      (await pg.query<{ uploaded_by: string | null }>(`SELECT uploaded_by FROM tech_audit_source_runs WHERE source = '${source}'`)).rows[0].uploaded_by
+    expect(await by('sf')).toBeNull()
+    expect(await by('ahrefs')).toBe('staff@avenuez.com')
+  })
   test('the two CWV runs replace only their own device\'s issues', async () => {
     const { id } = await store.ensureSnapshot(CLIENT, RUN)
     const cwv = (device: 'mobile' | 'desktop', name: string) => issue({ source: 'gsc_cwv', device, nativeName: name })

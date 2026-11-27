@@ -102,7 +102,7 @@ export async function claimRun(
 /** Persist a parsed source in one transaction: replace that source's issue rows, upsert its metrics columns, update
  *  the snapshot's dates/score, and mark the run complete (keeping `raw`). Re-running for the same source converges on
  *  the same rows. Only the keys present in `metrics` are written (null is a real value, undefined is "not mine"), so
- *  one source never wipes another's columns. `requireDraft` (the sweep) writes nothing and throws `run not found`
+ *  one source never wipes another's columns. `uploadedBy` (a staff upload) is recorded on the run. `requireDraft` (the sweep) writes nothing and throws `run not found`
  *  when the snapshot has been published since the caller claimed the run. */
 export async function completeRun(
   clientId: string,
@@ -114,7 +114,7 @@ export async function completeRun(
     issues?: SourceIssue[]
     snapshot?: Partial<TechAuditSnapshotInsert>
   },
-  opts: { requireDraft?: boolean } = {},
+  opts: { requireDraft?: boolean; uploadedBy?: string } = {},
 ): Promise<void> {
   if (raw.byteLength > RAW_MAX_BYTES) throw new Error('raw file too large')
   const scope = ISSUE_SCOPE[source]
@@ -156,7 +156,11 @@ export async function completeRun(
       : []),
     db.update(techAuditSnapshots).set({ ...snapshot, updatedAt: sql`now()` }).where(eq(techAuditSnapshots.id, snapshotId)),
     db.update(techAuditSourceRuns)
-      .set({ status: 'complete', raw, lastError: null, finishedAt: sql`now()`, updatedAt: sql`now()` })
+      .set({
+        status: 'complete', raw, lastError: null, finishedAt: sql`now()`, updatedAt: sql`now()`,
+        // Only a staff upload names an uploader; the sweep passes none, so its runs keep this null.
+        ...(opts.uploadedBy ? { uploadedBy: opts.uploadedBy } : {}),
+      })
       .where(eq(techAuditSourceRuns.id, run.id)),
   ]
   await db.batch(statements as unknown as Parameters<typeof db.batch>[0])
