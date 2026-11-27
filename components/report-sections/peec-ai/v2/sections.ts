@@ -25,7 +25,7 @@ export const OVERVIEW_SECTIONS: Record<OverviewSectionId, { label: string; headl
   },
   '05': {
     label: 'CITED SOURCES',
-    headline: 'Which pages do AI engines cite most?',
+    headline: 'Which URLs do AI engines cite most?',
     description: "The URLs AI answers use as sources: yours, competitors' and third parties'.",
   },
 }
@@ -33,7 +33,9 @@ export const OVERVIEW_SECTIONS: Record<OverviewSectionId, { label: string; headl
 type SectionMap = Readonly<Record<string, OverviewSectionId>>
 
 /** Keyed `${id}@${version}`; later slices add entries. */
-export const V2_PART_SECTIONS: SectionMap = {}
+export const V2_PART_SECTIONS: SectionMap = {
+  'cited-sources@1': '05',
+}
 
 const keyOf = (r: ResolvedPart) => `${r.id}@${r.version}`
 

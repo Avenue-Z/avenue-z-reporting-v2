@@ -11,6 +11,7 @@ import { brandRankingsV1 } from './brand-rankings'
 import { domainsRowV1 } from './domains-row'
 import { competitorVisibilityV1 } from './competitor-visibility'
 import { competitorGapsV1 } from './competitor-gaps'
+import { citedSourcesV1 } from './cited-sources'
 import { footerV1 } from './footer'
 
 export const PEEC_PARTS: PartRegistry<PeecCtx> = {
@@ -23,5 +24,6 @@ export const PEEC_PARTS: PartRegistry<PeecCtx> = {
   'domains-row':       { 1: domainsRowV1 },
   'competitor-visibility': { 1: competitorVisibilityV1 },
   'competitor-gaps':   { 1: competitorGapsV1 },
+  'cited-sources':     { 1: citedSourcesV1 },
   'footer':            { 1: footerV1 },
 }

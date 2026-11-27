@@ -1,0 +1,693 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`cited-sources@1 golden (Peec) 1`] = `
+<div
+  class="space-y-3"
+>
+  <div
+    class="flex flex-wrap items-center justify-between gap-2 text-sm text-text-muted"
+  >
+    <span>
+      120
+       citations
+    </span>
+  </div>
+  <div
+    aria-label="Filter by source"
+    class="flex flex-wrap gap-2"
+    role="radiogroup"
+  >
+    <button
+      aria-checked="true"
+      class="rounded-full border px-3 py-1 text-xs border-[#60FDFF] text-white"
+      role="radio"
+      type="button"
+    >
+      All
+    </button>
+    <button
+      aria-checked="false"
+      class="rounded-full border px-3 py-1 text-xs border-white/10 text-text-muted hover:text-white"
+      role="radio"
+      type="button"
+    >
+      Your URLs
+    </button>
+    <button
+      aria-checked="false"
+      class="rounded-full border px-3 py-1 text-xs border-white/10 text-text-muted hover:text-white"
+      role="radio"
+      type="button"
+    >
+      Competitor URLs
+    </button>
+    <button
+      aria-checked="false"
+      class="rounded-full border px-3 py-1 text-xs border-white/10 text-text-muted hover:text-white"
+      role="radio"
+      type="button"
+    >
+      Third-party
+    </button>
+  </div>
+  <div
+    class="overflow-hidden"
+  >
+    <div
+      class="overflow-x-auto"
+    >
+      <table
+        class="w-full text-sm"
+      >
+        <thead>
+          <tr
+            class="border-b border-white/[0.04]"
+          >
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by #"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  #
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by Page"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Page
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-controls="radix-_r_0_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Page"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by Source type"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Source type
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-controls="radix-_r_1_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Source type"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-left"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-start"
+              >
+                <button
+                  aria-label="Sort by Page type"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Page type
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <button
+                  aria-controls="radix-_r_2_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Page type"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Used as a source %"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white text-white"
+                >
+                  Used as a source %
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-down h-3 w-3"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M12 5v14"
+                    />
+                    <path
+                      d="m19 12-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_4_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Used as a source %"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Δ"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Δ
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Citation rate"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Citation rate
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+                <span
+                  class="inline-flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-white/20 text-[9px] font-bold leading-none text-text-muted flex-shrink-0"
+                  data-slot="tooltip-trigger"
+                  data-state="closed"
+                >
+                  ?
+                </span>
+                <button
+                  aria-controls="radix-_r_6_"
+                  aria-expanded="false"
+                  aria-haspopup="dialog"
+                  aria-label="Filter Citation rate"
+                  class="flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-white/[0.06] text-text-muted/40 hover:text-text-muted"
+                  data-slot="popover-trigger"
+                  data-state="closed"
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-funnel h-2.5 w-2.5"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+            <th
+              class="px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest text-text-muted text-right"
+            >
+              <span
+                class="inline-flex items-center gap-1.5 justify-end"
+              >
+                <button
+                  aria-label="Sort by Δ"
+                  class="group inline-flex items-center gap-1 transition-colors hover:text-white"
+                >
+                  Δ
+                  <svg
+                    aria-hidden="true"
+                    class="lucide lucide-arrow-up-down h-3 w-3 opacity-30 group-hover:opacity-100"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="m21 16-4 4-4-4"
+                    />
+                    <path
+                      d="M17 20V4"
+                    />
+                    <path
+                      d="m3 8 4-4 4 4"
+                    />
+                    <path
+                      d="M7 4v16"
+                    />
+                  </svg>
+                </button>
+              </span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02] bg-[#60FDFF]/[0.06] shadow-[inset_2px_0_0_#60FDFF]"
+          >
+            <td
+              class="px-4 py-3 text-left"
+            >
+              1
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <div
+                class="min-w-0"
+              >
+                <div
+                  class="text-white break-words"
+                >
+                  Acme A
+                </div>
+                <div
+                  class="text-text-muted break-all"
+                >
+                  https://acme.com/a
+                </div>
+              </div>
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              Your site
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              Article
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              17.0%
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-[#60FF80]"
+              >
+                +2.0 pts
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              2.50
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-[#60FF80]"
+              >
+                +25.0%
+              </span>
+            </td>
+          </tr>
+          <tr
+            class="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]"
+          >
+            <td
+              class="px-4 py-3 text-left"
+            >
+              2
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              <div
+                class="min-w-0"
+              >
+                <div
+                  class="text-white break-words"
+                >
+                  Rival X
+                </div>
+                <div
+                  class="text-text-muted break-all"
+                >
+                  https://rival.com/x
+                </div>
+              </div>
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              Competitor
+            </td>
+            <td
+              class="px-4 py-3 text-left"
+            >
+              Listicle
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              9.0%
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-text-muted"
+              >
+                New
+              </span>
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              1.20
+            </td>
+            <td
+              class="px-4 py-3 text-right"
+            >
+              <span
+                class="tabular-nums text-text-muted"
+              >
+                New
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`the part wraps the section in Suspense with an export-pending skeleton and a boundary 1`] = `
+<div
+  class="rounded-xl border border-white/[0.06] bg-bg-surface p-6"
+>
+  <div
+    class="space-y-2"
+    data-export-pending=""
+  >
+    <div
+      class="h-4 w-full animate-pulse rounded bg-white/[0.06]"
+    />
+    <div
+      class="h-4 w-[92%] animate-pulse rounded bg-white/[0.06]"
+    />
+    <div
+      class="h-4 w-[84%] animate-pulse rounded bg-white/[0.06]"
+    />
+  </div>
+</div>
+`;

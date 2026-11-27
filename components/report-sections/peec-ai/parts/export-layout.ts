@@ -11,6 +11,7 @@ export const PEEC_EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'domains-row@1': 'own',        // a table, then the domain-types chart block
   'competitor-visibility@1': 'own', // a table
   'competitor-gaps@1': 'own',    // a table
+  'cited-sources@1': 'own',      // a table
   'footer@1': 'block',
 }
 

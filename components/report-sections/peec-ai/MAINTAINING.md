@@ -68,11 +68,13 @@ the v1 part each later slice replaces as that slice lands, and list its replacem
   "peec-ai": {
     "hidden": ["domains-row", "competitor-visibility", "competitor-gaps"],
     "versions": { "<part-id>": 2 },
-    "extraParts": [{ "id": "<new-part-id>", "version": 1 }],
-    "order": ["<new-part-id>"]
+    "extraParts": [{ "id": "cited-sources", "version": 1 }, { "id": "<new-part-id>", "version": 1 }],
+    "order": ["cited-sources", "<new-part-id>"]
   }
 }
 ```
+
+Slice 4 adds `cited-sources@1` (section 05) and no template change: it replaces `domains-row` (already in `hidden`) only on a client whose override lists it in `extraParts`/`order`. Production stays on `domains-row@1` until the flip (slice 7).
 
 Before applying a staging override, save the client's current `peec-ai` override. Revert by restoring that saved value (or remove only the v2 entries); do not delete the key, which would also drop any pre-existing override. Edit with the SQL editor on the staging branch
 (see the Neon migrate and seed warnings: do not run `db:seed`, it overwrites `enabled_reports`).

@@ -11,9 +11,12 @@ describe('isV2Layout', () => {
     expect(isV2Layout([p('a', 1)], map)).toBe(false)
     expect(isV2Layout([p('a', 2)], map)).toBe(true)
   })
-  test('default map is empty so always false', () => {
-    expect(V2_PART_SECTIONS).toEqual({})
+  test('default map holds only registered v2 parts; an unmapped part is not v2', () => {
+    expect(V2_PART_SECTIONS).toEqual({ 'cited-sources@1': '05' })
     expect(isV2Layout([p('a', 2)])).toBe(false)
+  })
+  test('cited-sources@1 makes a layout v2 with the real map', () => {
+    expect(isV2Layout([p('cited-sources', 1)])).toBe(true)
   })
 })
 
