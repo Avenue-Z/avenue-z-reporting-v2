@@ -21,7 +21,7 @@ export function KpiTile({ tile, showDeltas, compare }: { tile: KpiTileModel; sho
           {tile.badge}
         </span>
       </div>
-      <p className="mt-2 text-3xl font-extrabold tabular-nums text-white">{tile.value}</p>
+      <p className="mt-2 break-words text-2xl font-extrabold tabular-nums text-white xl:text-3xl">{tile.value}</p>
       {showDeltas && (
         <p
           className={cn('mt-1 text-sm font-bold', TONE[deltaTone(tile.delta, 'higher', tile.unit)])}
@@ -30,7 +30,7 @@ export function KpiTile({ tile, showDeltas, compare }: { tile: KpiTileModel; sho
           {`${text} ${compareSuffix(compare)}`.trim()}
         </p>
       )}
-      <p className="mt-1.5 truncate text-xs text-text-muted" title={tile.footer}>{tile.footer}</p>
+      <p className="mt-1.5 line-clamp-2 break-words text-xs text-text-muted" title={tile.footer}>{tile.footer}</p>
     </div>
   )
 }

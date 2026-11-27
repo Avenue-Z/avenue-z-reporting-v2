@@ -82,6 +82,6 @@ Before applying a staging override, save the client's current `peec-ai` override
 - Turn it on with `versions: { "kpi-cards": 2 }` in the client's `report_section_config['peec-ai']` (staging Neon only until the account lead approves).
 - The KPI choice lives in the same override's `kpis`. Melena sets it with **Edit KPIs** on the staging dashboard; the staff-only action `setAeoKpis` (`app/actions/aeo-kpis.ts`) saves it. Never hand-edit it in SQL: `saveReportSectionConfig` rejects a `kpis` key and preserves the stored one. Absent `kpis` = the default five.
 - Slice 7's flip script must leave `kpis` untouched (it clears only `versions`, `order`, `hidden` and `extraParts` entries).
-- `leads` follow `clients.ga4_config.leadEvents` when set, else GA4 key events (the choice lives in `summarizeAiKpis`, `lib/ga4/ai-kpis.ts`).
+- `leads` follow `clients.ga4_config.leadEvents` when at least one lead event has a `sourceEvents` entry (`hasLeadEvents`), else GA4 key events (the choice lives in `summarizeAiKpis`, `lib/ga4/ai-kpis.ts`).
 - Profound: visibility, share of voice and rank come from the visibility report (Visibility-type prompts by construction). Sentiment comes from `/v2/reports/sentiment` (Sentiment-type prompts by construction) through `lib/profound/sentiment-kpi.ts`, which reads category and brand from the client row only. "Used as a source %" is unavailable on Profound (no per-answer retrieval metric).
 - The GA4 KPI and Profound sentiment fetches run only when the layout includes `kpi-cards@2`.

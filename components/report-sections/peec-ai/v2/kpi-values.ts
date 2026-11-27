@@ -32,6 +32,11 @@ export function priorRank(rankings: BrandRanking[], you: BrandRanking): number {
   return 1 + rankings.filter((b) => b !== you && prior(b) > mine).length
 }
 
+/** Current rank by the same rule as priorRank: 1 + the number of other brands with strictly higher visibility, so a tie does not read as a move. */
+function currentRank(rankings: BrandRanking[], you: BrandRanking): number {
+  return 1 + rankings.filter((b) => b !== you && b.visibility > you.visibility).length
+}
+
 type Body = { value: string; delta: number | null; footer: string }
 
 const pct = (n: number, d: number): number | null => (d > 0 ? (100 * n) / d : null)
@@ -52,7 +57,7 @@ function aeoBody(id: KpiId, ctx: PeecCtx, you: BrandRanking): Body {
     case 'visibility-rank':
       return {
         value: `#${you.rank} of ${ctx.data.brandRankings.length}`,
-        delta: priorRank(ctx.data.brandRankings, you) - you.rank,
+        delta: priorRank(ctx.data.brandRankings, you) - currentRank(ctx.data.brandRankings, you),
         footer: 'Ranked by AI visibility among tracked brands',
       }
     case 'used-as-source': {
@@ -66,7 +71,7 @@ function aeoBody(id: KpiId, ctx: PeecCtx, you: BrandRanking): Body {
       return {
         value: String(Math.round(peecSentimentScore(you.sentiment))),
         delta: 50 * you.sentimentDelta,
-        footer: `Competitor avg · ${Math.round(peecSentimentScore(avg.sentiment))}`,
+        footer: `0–100 score · Competitor avg ${Math.round(peecSentimentScore(avg.sentiment))}`,
       }
     }
   }
@@ -117,6 +122,7 @@ export function computeKpiTile(id: KpiId, ctx: PeecCtx): KpiTileModel {
   }
 
   let body: Body
+  let state: KpiTileModel['state'] = 'ok'
   const profoundSentiment = ctx.provider === 'profound' && id === 'sentiment'
   if (source === 'ga4') {
     body = ga4Body(id, ctx)
@@ -127,6 +133,8 @@ export function computeKpiTile(id: KpiId, ctx: PeecCtx): KpiTileModel {
         ? { value: `${Math.round(s.now)}%`, delta: s.prior === null ? null : s.now - s.prior, footer: 'Share of positive mentions' }
         : { value: NO_VALUE, delta: null, footer: 'Profound data unavailable' }
   } else if (!ctx.you) {
+    // Clients never see this tile (the part drops non-ok tiles for them); staff see it dimmed.
+    state = 'unavailable'
     body = { value: NO_VALUE, delta: null, footer: 'Brand not identified' }
   } else {
     body = aeoBody(id, ctx, ctx.you)
@@ -138,5 +146,5 @@ export function computeKpiTile(id: KpiId, ctx: PeecCtx): KpiTileModel {
       body = { value: NO_VALUE, delta: null, footer: 'Not available with a model filter' }
     }
   }
-  return tile('ok', body)
+  return tile(state, body)
 }

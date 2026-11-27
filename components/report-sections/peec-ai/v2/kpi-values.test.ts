@@ -87,6 +87,24 @@ describe('computeKpiTile', () => {
     expect(t.delta).toBe(-1)
   })
 
+  it('rank delta is 0 on a tie, even when the tied brand sorts ahead', () => {
+    const a = brand({ rank: 1, name: 'A', visibility: 50 })
+    const t = brand({ rank: 2, name: 'T', visibility: 30 })
+    const you = brand({ rank: 3, name: 'You', visibility: 30, isYou: true })
+    const tile = computeKpiTile('visibility-rank', ctx({ d: { ...data, brandRankings: [a, t, you] } as PeecOverview }))
+    expect(tile.value).toBe('#3 of 3')
+    expect(tile.delta).toBe(0)
+  })
+
+  it('rank delta is 0 with many brands tied at 0%', () => {
+    const rows = [brand({ rank: 1, name: 'A', visibility: 40 })]
+    for (let i = 2; i <= 9; i++) rows.push(brand({ rank: i, name: `Z${i}`, visibility: 0 }))
+    rows.push(brand({ rank: 10, name: 'You', visibility: 0, isYou: true }))
+    const tile = computeKpiTile('visibility-rank', ctx({ d: { ...data, brandRankings: rows } as PeecOverview }))
+    expect(tile.value).toBe('#10 of 10')
+    expect(tile.delta).toBe(0)
+  })
+
   it('priorRank counts brands with a strictly higher prior visibility', () => {
     const a = brand({ name: 'A', visibility: 50, visibilityDelta: 20 })
     const you = brand({ name: 'You', visibility: 40, visibilityDelta: -15, isYou: true })
@@ -108,6 +126,19 @@ describe('computeKpiTile', () => {
     const t = computeKpiTile('sentiment', ctx())
     expect(t.value).toBe('59')
     expect(t.delta).toBeCloseTo(-0.75)
+    expect(t.footer).toBe('0–100 score · Competitor avg 55')
+  })
+
+  it('used as a source with no owned domain', () => {
+    const t = computeKpiTile('used-as-source', ctx({ d: { ...data, topDomains: [] } as PeecOverview }))
+    expect(t.value).toBe('--')
+    expect(t.footer).toBe('No owned domain cited')
+  })
+
+  it('leads footer names key events when there is no lead-event split', () => {
+    const w = (t: number, s: number): AiKpiWindow => ({ ...win(t, s, 0), leadsBySource: null })
+    const l = computeKpiTile('ai-leads', ctx({ kpi: { ga4: { status: 'ok', now: w(1000, 80), prior: w(900, 70) } } }))
+    expect(l.footer).toBe('GA4 key events from AI sessions')
   })
 
   it('ga4 tiles', () => {
@@ -203,5 +234,6 @@ describe('computeKpiTile', () => {
     const t = computeKpiTile('visibility', ctx({ d }))
     expect(t.value).toBe('--')
     expect(t.footer).toBe('Brand not identified')
+    expect(t.state).toBe('unavailable')
   })
 })

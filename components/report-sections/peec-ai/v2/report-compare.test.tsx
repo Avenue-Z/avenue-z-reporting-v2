@@ -98,6 +98,23 @@ describe('PeecAIReport KPI requests', () => {
     expect(filtered.map((a) => a.dateRange).sort()).toEqual([main, prior].sort())
   })
 
+  it('a v2 layout without kpi-cards@2 makes no KPI requests', async () => {
+    sectionConfig = {}
+    const { PeecAIReport } = await load(true, false)
+    await PeecAIReport({ audience: 'internal', clientSlug: 'renaissance', dateRange: 'last_30_days' })
+    expect(ga4Query).toHaveBeenCalledTimes(2)
+  })
+
+  it('compare none fetches no KPI prior window', async () => {
+    sectionConfig = { versions: { 'kpi-cards': 2 } }
+    const { PeecAIReport, deriveCompareRange } = await load(true, true)
+    await PeecAIReport({ audience: 'internal', clientSlug: 'renaissance', dateRange: 'last_30_days', compareRange: 'none' })
+    const prior = iso(deriveCompareRange('last_30_days', 'previous_period'))
+    // Only v1's own AI Referral Traffic prior query remains.
+    expect(ga4Query.mock.calls.filter((c) => c[0].dateRange === prior)).toHaveLength(1)
+    expect(ga4Query.mock.calls.length).toBeGreaterThan(2)
+  })
+
   it('v2 with no GA4 KPI saved makes no KPI requests', async () => {
     sectionConfig = { versions: { 'kpi-cards': 2 }, kpis: ['visibility'] }
     await run(true)
@@ -156,6 +173,22 @@ describe('PeecAIReport Profound sentiment KPI', () => {
     const { kpi, main, prior } = await run(true)
     expect(getProfoundSentimentKpi.mock.calls).toEqual([['avenue-z', main], ['avenue-z', prior]])
     expect(kpi.profoundSentiment).toEqual({ now: 62.4, prior: 60.1 })
+  })
+
+  it('compare none fetches only the current sentiment window', async () => {
+    profoundCategoryId = 'cat-1'
+    sectionConfig = { versions: { 'kpi-cards': 2 }, kpis: ['sentiment'] }
+    const { PeecAIReport } = await load(true, true)
+    await PeecAIReport({ audience: 'internal', clientSlug: 'avenue-z', dateRange: 'last_30_days', compareRange: 'none' })
+    expect(getProfoundSentimentKpi).toHaveBeenCalledTimes(1)
+  })
+
+  it('a model filter makes no sentiment calls', async () => {
+    profoundCategoryId = 'cat-1'
+    sectionConfig = { versions: { 'kpi-cards': 2 }, kpis: ['sentiment'] }
+    const { PeecAIReport } = await load(true, true)
+    await PeecAIReport({ audience: 'internal', clientSlug: 'avenue-z', dateRange: 'last_30_days', models: ['ChatGPT'] })
+    expect(getProfoundSentimentKpi).not.toHaveBeenCalled()
   })
 
   it('a rejected side becomes null and is logged', async () => {

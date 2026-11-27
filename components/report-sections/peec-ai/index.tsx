@@ -140,6 +140,30 @@ export async function PeecAIReport({
   const mainIso = `${mainDates.startDate},${mainDates.endDate}`
   const compareIso = compareDates ? `${compareDates.startDate},${compareDates.endDate}` : null
 
+  // Snapshot KPIs (v2 only). Every input to these gates is known here, so the GA4 and Profound KPI fetches start
+  // now and run alongside the main fetches below; they are settled after it. v1 layouts make no extra request.
+  // With compare 'none' every delta is hidden, so the prior windows are not fetched; with a model filter the
+  // Profound sentiment tile shows "--", so it is not fetched at all.
+  const saved = readSavedKpis(override?.kpis, clientSlug ?? '')
+  const hasKpiStrip = resolvedLayout.some((r) => r.id === 'kpi-cards' && r.version === 2)
+  const wantsGa4Kpi = saved === null || saved.some((id) => KPI_CATALOG[id].source === 'ga4')
+  const kpiPriorIso = compare === 'none' ? null : compareIso
+  const ga4KpiFetch =
+    hasKpiStrip && ga4Configured && clientSlug && wantsGa4Kpi
+      ? Promise.allSettled([
+          fetchAiKpiWindow(clientSlug, mainIso, config?.ga4Config),
+          kpiPriorIso ? fetchAiKpiWindow(clientSlug, kpiPriorIso, config?.ga4Config) : Promise.resolve(null),
+        ])
+      : null
+  const wantsSentiment = effectiveKpis(saved, { ga4Connected: ga4Configured, provider: 'profound' }).includes('sentiment')
+  const sentimentFetch =
+    hasKpiStrip && profoundConfigured && clientSlug && wantsSentiment && !models
+      ? Promise.allSettled([
+          getProfoundSentimentKpi(clientSlug, mainIso),
+          kpiPriorIso ? getProfoundSentimentKpi(clientSlug, kpiPriorIso) : Promise.resolve(null),
+        ])
+      : null
+
   // The two-argument call (no compareMode) for previous_period is deliberate: it keeps v1 cache keys (JSON.stringify(args)) unchanged.
   const [peecRes, profoundRes, aiNowRes, aiPriorRes] = await Promise.allSettled([
     peecConfigured ? (fetchMode === 'previous_year' ? getPeecOverview(clientSlug, dateRange, fetchMode) : getPeecOverview(clientSlug, dateRange)) : Promise.resolve(null),
@@ -175,17 +199,9 @@ export async function PeecAIReport({
     sessionsPrior:   aiPriorOk ? sumAiSessions(aiPriorRows) : null,
   }
 
-  // Snapshot KPIs (v2 only): the GA4 AI windows are fetched only when the layout has the v2 KPI strip, GA4 is
-  // configured, and the selection could show a GA4 KPI. v1 layouts make no extra request.
-  const saved = readSavedKpis(override?.kpis, clientSlug ?? '')
-  const hasKpiStrip = resolvedLayout.some((r) => r.id === 'kpi-cards' && r.version === 2)
-  const wantsGa4Kpi = saved === null || saved.some((id) => KPI_CATALOG[id].source === 'ga4')
   let ga4Kpi: Ga4KpiState = { status: 'not-configured' }
-  if (hasKpiStrip && ga4Configured && clientSlug && wantsGa4Kpi) {
-    const [nowRes, priorRes] = await Promise.allSettled([
-      fetchAiKpiWindow(clientSlug, mainIso, config?.ga4Config),
-      compareIso ? fetchAiKpiWindow(clientSlug, compareIso, config?.ga4Config) : Promise.resolve(null),
-    ])
+  if (ga4KpiFetch && clientSlug) {
+    const [nowRes, priorRes] = await ga4KpiFetch
     if (nowRes.status === 'fulfilled') {
       ga4Kpi = { status: 'ok', now: nowRes.value, prior: priorRes.status === 'fulfilled' ? priorRes.value : null }
     } else {
@@ -195,25 +211,20 @@ export async function PeecAIReport({
     }
     if (priorRes.status === 'rejected') {
       const name = priorRes.reason instanceof Error ? priorRes.reason.name : 'unknown'
-      console.error(`[aeo-kpis] ga4 failed slug=${clientSlug} window=${compareIso} error=${name}`)
+      console.error(`[aeo-kpis] ga4 failed slug=${clientSlug} window=${kpiPriorIso} error=${name}`)
     }
   }
-  // Profound sentiment (v2 only): fetched only when the strip is in the layout, Profound is configured, and the
-  // selection shows sentiment (the defaults do not, so it must be saved). A failed side is null on its own.
+  // A failed side is null on its own.
   let profoundSentiment: KpiInputs['profoundSentiment'] = null
-  const wantsSentiment = effectiveKpis(saved, { ga4Connected: ga4Configured, provider: 'profound' }).includes('sentiment')
-  if (hasKpiStrip && profoundConfigured && clientSlug && wantsSentiment) {
-    const [nowRes, priorRes] = await Promise.allSettled([
-      getProfoundSentimentKpi(clientSlug, mainIso),
-      compareIso ? getProfoundSentimentKpi(clientSlug, compareIso) : Promise.resolve(null),
-    ])
+  if (sentimentFetch) {
+    const [nowRes, priorRes] = await sentimentFetch
     const settle = (r: PromiseSettledResult<number | null>, window: string | null): number | null => {
       if (r.status === 'fulfilled') return r.value
       const name = r.reason instanceof Error ? r.reason.name : 'unknown'
       console.error(`[aeo-kpis] profound sentiment failed slug=${clientSlug} window=${window} error=${name}`)
       return null
     }
-    profoundSentiment = { now: settle(nowRes, mainIso), prior: settle(priorRes, compareIso) }
+    profoundSentiment = { now: settle(nowRes, mainIso), prior: settle(priorRes, kpiPriorIso) }
   }
   const kpi: KpiInputs = { saved, ga4Connected: ga4Configured, ga4: ga4Kpi, profoundSentiment }
 

@@ -116,6 +116,19 @@ describe('kpi-cards@2', () => {
     expect(container.querySelector('#aeo-section-05')).not.toBeNull()
   })
 
+  it('a client does not see the Brand not identified tiles; staff do, and the strip hides when none are left', () => {
+    const noYou = { ...FIXTURE_PEEC_CTX.data, brandRankings: FIXTURE_PEEC_CTX.data.brandRankings.map((b) => ({ ...b, isYou: false })) }
+    const base = ctxWith({ audience: 'client', saved: ['visibility', 'share-of-voice'] })
+    const client: PeecCtx = { ...base, you: undefined, data: noYou }
+    expect(kpiStripHidden(client)).toBe(true)
+    const c = renderPart(client)
+    expect(c.container.textContent).not.toContain('Brand not identified')
+    c.unmount()
+    const staff = renderPart({ ...client, audience: 'internal' })
+    expect(staff.container.textContent).toContain('Brand not identified')
+    expect(kpiStripHidden({ ...client, audience: 'internal' })).toBe(false)
+  })
+
   it('staff empty state', () => {
     renderPart(ctxWith({ audience: 'internal', saved: [] }))
     expect(screen.getByText('No KPIs selected. Use Edit KPIs to choose up to five.')).toBeTruthy()
