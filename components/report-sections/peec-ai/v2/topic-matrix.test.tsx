@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 
 const replace = vi.fn()
@@ -165,6 +165,12 @@ test('clicking Platforms writes aeoMatrix=platforms', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Platforms' }))
   expect(lastUrl().searchParams.get('aeoMatrix')).toBe('platforms')
   expect(lastUrl().searchParams.get('compareRange')).toBe('previous_year')
+})
+
+test('the Competitors and Platforms buttons sit in a group named Matrix view', () => {
+  render(<TopicMatrix {...PROPS} />)
+  const group = screen.getByRole('group', { name: 'Matrix view' })
+  expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['Competitors', 'Platforms'])
 })
 
 test('aeoMatrix=PLATFORMS reads as the default', () => {

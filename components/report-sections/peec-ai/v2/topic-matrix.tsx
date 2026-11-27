@@ -167,7 +167,7 @@ export function TopicMatrix({
     <div className="flex flex-col gap-3">
       {!exporting && (
         <div className="flex flex-wrap items-center justify-between gap-3" data-export-hide="">
-          <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">
+          <div role="group" aria-label="Matrix view" className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">
             {tab('Competitors', mode !== 'platforms', 'competitors')}
             {tab('Platforms', mode === 'platforms', 'platforms')}
           </div>

@@ -25,7 +25,9 @@ exports[`topic-matrix@1 golden (resolved matrix) 1`] = `
         data-export-hide=""
       >
         <div
+          aria-label="Matrix view"
           class="flex gap-1 rounded-lg bg-white/[0.04] p-0.5"
+          role="group"
         >
           <button
             aria-pressed="true"
