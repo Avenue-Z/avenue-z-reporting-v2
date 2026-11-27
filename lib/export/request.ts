@@ -21,6 +21,8 @@ export interface ExportRequest {
   deltas?: 'off'
   /** AEO Overview: the trend chart's `?aeoTrend=` (competitor keys, or `off`). The export page's chart reads it back from the URL. */
   aeoTrend?: string
+  /** AEO Overview: the topic matrix's `?aeoMatrix=` when it is not the default (Competitors). The matrix reads it back from the URL. */
+  aeoMatrix?: 'platforms' | 'all'
   /** The requester's IANA timezone, for the stamp and the filename date. */
   tz: string
 }
@@ -36,6 +38,11 @@ const AEO_TREND = /^(off|[a-z0-9-]{1,48}(,[a-z0-9-]{1,48}){0,6})$/
  *  than failing the export. */
 export function exportableAeoTrend(raw: unknown): string | null {
   return typeof raw === 'string' && AEO_TREND.test(raw) ? raw : null
+}
+
+/** The page's `aeoMatrix` if it is a non-default mode the export accepts, else null (the default prints without the param). */
+export function exportableAeoMatrix(raw: unknown): 'platforms' | 'all' | null {
+  return raw === 'platforms' || raw === 'all' ? raw : null
 }
 
 /** `tz` if it is an IANA timezone this runtime knows, else UTC. */
@@ -63,6 +70,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
   if (b.aeoMin != null && !(typeof b.aeoMin === 'number' && Number.isInteger(b.aeoMin) && b.aeoMin >= 1 && b.aeoMin <= 5)) return null
   if (b.deltas != null && b.deltas !== 'off') return null
   if (b.aeoTrend != null && exportableAeoTrend(b.aeoTrend) === null) return null
+  if (b.aeoMatrix != null && exportableAeoMatrix(b.aeoMatrix) === null) return null
   return {
     clientSlug: b.clientSlug,
     section,
@@ -74,6 +82,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     ...(b.aeoMin != null ? { aeoMin: b.aeoMin as number } : {}),
     ...(b.deltas === 'off' ? { deltas: 'off' as const } : {}),
     ...(b.aeoTrend != null ? { aeoTrend: b.aeoTrend as string } : {}),
+    ...(b.aeoMatrix != null ? { aeoMatrix: b.aeoMatrix as 'platforms' | 'all' } : {}),
     tz: safeTimeZone(b.tz),
   }
 }
@@ -89,6 +98,7 @@ export function exportPagePath(r: ExportRequest): string {
   if (r.aeoMin) sp.set('aeomin', String(r.aeoMin))
   if (r.deltas) sp.set('deltas', r.deltas)
   if (r.aeoTrend) sp.set('aeoTrend', r.aeoTrend)
+  if (r.aeoMatrix) sp.set('aeoMatrix', r.aeoMatrix)
   sp.set('tz', r.tz)
   return `/export/${r.clientSlug}/${r.section}?${sp.toString()}`
 }

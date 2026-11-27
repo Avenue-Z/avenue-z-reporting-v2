@@ -41,7 +41,7 @@ import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
 import { ModelFilter } from '@/components/report-sections/peec-ai/model-filter'
 import { parseModelsParam, serializeModelsParam, type AEOModel } from '@/lib/peec/models'
 import { isServerExportSection } from '@/lib/export/sections'
-import { exportableAeoTrend } from '@/lib/export/request'
+import { exportableAeoMatrix, exportableAeoTrend } from '@/lib/export/request'
 import { resolveExportView } from '@/lib/export/report-view'
 import { exportablePages } from '@/lib/export/pages'
 import { ExportPdfButton } from '@/components/export-pdf-button'
@@ -169,11 +169,11 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; deltas?: string; aeoTrend?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string; section?: string; subsection?: string; models?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; deltas?: string; aeoTrend?: string; aeoMatrix?: string }>
 }) {
   const { clientSlug } = await params
   await requirePortalAccess(clientSlug)
-  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, deltas: deltasParam, aeoTrend: aeoTrendParam } = await searchParams
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam, section, subsection: subsectionParam, models: modelsParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, deltas: deltasParam, aeoTrend: aeoTrendParam, aeoMatrix: aeoMatrixParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
@@ -255,6 +255,8 @@ export default async function PortalReportPage({
   const servedCompareRange = locked?.month ? locked.month.compareRange : compareRange
   // AEO Overview: the trend chart's selection for the PDF, when the export accepts it (a hand-edited value prints the default chart).
   const exportAeoTrend = activeSection === 'peec-ai' && !subsection ? exportableAeoTrend(aeoTrendParam) : null
+  // AEO Overview: the topic matrix's mode for the PDF, when it is not the default (Competitors).
+  const exportAeoMatrix = activeSection === 'peec-ai' && !subsection ? exportableAeoMatrix(aeoMatrixParam) : null
 
   const pageTitle =
     (activeSection === 'organic-social' && organicEntry)
@@ -328,6 +330,8 @@ export default async function PortalReportPage({
                 ...(activeSection === 'peec-ai' && !subsection && deltasParam === 'off' ? { deltas: 'off' as const } : {}),
                 // The trend chart's selection, read back by the chart from the export page's URL.
                 ...(exportAeoTrend ? { aeoTrend: exportAeoTrend } : {}),
+                // The topic matrix's mode, read back by the matrix from the export page's URL.
+                ...(exportAeoMatrix ? { aeoMatrix: exportAeoMatrix } : {}),
                 // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
                 ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
               } }
@@ -348,6 +352,7 @@ export default async function PortalReportPage({
             // Started from the AEO Overview: its page in the bulk export takes the Show deltas switch and the trend selection.
             ...(activeSection === 'peec-ai' && !subsection && deltasParam === 'off' ? { deltas: 'off' as const } : {}),
             ...(exportAeoTrend ? { aeoTrend: exportAeoTrend } : {}),
+            ...(exportAeoMatrix ? { aeoMatrix: exportAeoMatrix } : {}),
           }} />
       </StickyReportHeader>
 

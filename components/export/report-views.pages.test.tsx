@@ -308,6 +308,23 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     }
   })
 
+  test(`${routeName}: the Overview's export carries aeoMatrix, for the single export and the bulk one`, async () => {
+    for (const value of ['all', 'platforms']) {
+      const { single, bulk } = await onOverview({ aeoMatrix: value })
+      expect(single.aeoMatrix).toBe(value)
+      expect(bulk.aeoMatrix).toBe(value)
+    }
+  })
+
+  test(`${routeName}: the default or an unreadable aeoMatrix, or another AEO tab, carries none`, async () => {
+    for (const { single, bulk } of [
+      await onOverview({ aeoMatrix: 'competitors' }), await onOverview({ aeoMatrix: 'PLATFORMS' }), await onOverview({ aeoMatrix: 'all' }, 'pr-influence'),
+    ]) {
+      expect('aeoMatrix' in single).toBe(false)
+      expect('aeoMatrix' in bulk).toBe(false)
+    }
+  })
+
   test(`${routeName}: the Overview with Show deltas off sends deltas=off to the single export and the bulk one; another tab sends none`, async () => {
     const overview = await onOverview({ deltas: 'off' })
     expect(overview.single.deltas).toBe('off')

@@ -26,6 +26,8 @@ export interface ServerExport {
   deltas?: 'off'
   /** AEO Overview: the trend chart's selection (`?aeoTrend=`), when the page has one the export accepts. */
   aeoTrend?: string
+  /** AEO Overview: the topic matrix's mode (`?aeoMatrix=`) when it is not the default. */
+  aeoMatrix?: 'platforms' | 'all'
 }
 
 interface ExportPdfButtonProps {

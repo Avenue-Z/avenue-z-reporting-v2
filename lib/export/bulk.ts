@@ -25,9 +25,10 @@ export interface BulkRanges {
   /** The AEO Informed Social tab's range and min, set only when the export starts from that tab. */
   aeo?: AeoRange
   aeoMin?: number
-  /** The AEO Overview's Show deltas switch (off) and trend selection, set only when the export starts from that page. */
+  /** The AEO Overview's Show deltas switch (off), trend selection and topic matrix mode, set only when the export starts from that page. */
   deltas?: 'off'
   aeoTrend?: string
+  aeoMatrix?: 'platforms' | 'all'
 }
 
 export type PageResult = { ok: true; pdf: ArrayBuffer; filename: string } | { ok: false; error: string }
@@ -47,9 +48,10 @@ export function bulkRequest(page: ExportPage, r: BulkRanges): PageRequest {
     // Only the AEO Informed Social page takes the range and min the export was started with; every other body is as it was.
     ...(page.subsection === AEO_TAB_ID && r.aeo ? { aeo: r.aeo } : {}),
     ...(page.subsection === AEO_TAB_ID && r.aeoMin ? { aeoMin: r.aeoMin } : {}),
-    // Only the AEO Overview takes its Show deltas switch and trend selection; every other body is as it was.
+    // Only the AEO Overview takes its Show deltas switch, trend selection and matrix mode; every other body is as it was.
     ...(aeoOverview && r.deltas ? { deltas: r.deltas } : {}),
     ...(aeoOverview && r.aeoTrend ? { aeoTrend: r.aeoTrend } : {}),
+    ...(aeoOverview && r.aeoMatrix ? { aeoMatrix: r.aeoMatrix } : {}),
   }
 }
 

@@ -139,3 +139,13 @@ test('the AEO Overview page without deltas or aeoTrend in the ranges carries nei
   const body = bulkRequest(page('peec-ai'), { ...RANGES, fromSection: 'peec-ai' })
   expect('deltas' in body || 'aeoTrend' in body).toBe(false)
 })
+
+// AEO Overview v2 (slice 3): the topic matrix's mode reaches the Overview's own request only.
+test('only the AEO Overview page takes aeoMatrix', () => {
+  const fromOverview = { ...RANGES, fromSection: 'peec-ai', aeoMatrix: 'platforms' as const }
+  expect(bulkRequest(page('peec-ai'), fromOverview)).toEqual({ ...BODY, section: 'peec-ai', subsection: null, aeoMatrix: 'platforms' })
+  for (const p of [page('peec-ai', 'pr-influence'), page('peec-ai', 'content-impact'), page('paid-media', 'meta'), page('organic-social'), page('executive-overview')]) {
+    expect('aeoMatrix' in bulkRequest(p, fromOverview), p.key).toBe(false)
+  }
+  expect('aeoMatrix' in bulkRequest(page('peec-ai'), { ...RANGES, fromSection: 'peec-ai' })).toBe(false)
+})

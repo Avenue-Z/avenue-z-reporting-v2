@@ -1,0 +1,200 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`topic-matrix@1 golden (resolved matrix) 1`] = `
+<div
+  class="rounded-lg border border-white/[0.06] bg-bg-surface"
+  data-export-block=""
+>
+  <div
+    class="border-b border-white/[0.06] px-5 py-4"
+  >
+    <p
+      class="text-xs font-bold uppercase tracking-widest text-text-muted"
+    >
+      Where does the brand show up by topic?
+    </p>
+  </div>
+  <div
+    class="p-5"
+  >
+    <div
+      class="flex flex-col gap-3"
+    >
+      <div
+        class="flex flex-wrap items-center justify-between gap-3"
+        data-export-hide=""
+      >
+        <div
+          class="flex gap-1 rounded-lg bg-white/[0.04] p-0.5"
+        >
+          <button
+            aria-pressed="true"
+            class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all bg-white text-black shadow-sm"
+            type="button"
+          >
+            Competitors
+          </button>
+          <button
+            aria-pressed="false"
+            class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+            type="button"
+          >
+            Platforms
+          </button>
+        </div>
+        <div
+          class="flex items-center gap-2"
+        >
+          <button
+            aria-checked="false"
+            aria-label="Show all brands"
+            class="relative h-5 w-9 rounded-full transition-colors bg-white/20"
+            role="switch"
+            type="button"
+          >
+            <span
+              class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform "
+            />
+          </button>
+          <span
+            class="text-xs font-semibold uppercase tracking-widest text-text-muted"
+          >
+            Show all brands
+          </span>
+        </div>
+      </div>
+      <table
+        class="w-full border-separate border-spacing-1 text-xs"
+      >
+        <thead>
+          <tr>
+            <th
+              class="px-2 py-1.5 text-left font-semibold uppercase tracking-widest text-text-muted"
+              scope="col"
+            >
+              Topic
+            </th>
+            <th
+              class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white outline outline-1 outline-[#60FDFF]"
+              scope="col"
+            >
+              <span
+                class="inline-flex items-center gap-1.5"
+              >
+                <span
+                  aria-hidden="true"
+                  class="inline-block h-2 w-2 shrink-0 rounded-full"
+                  style="background-color: rgb(96, 253, 255);"
+                />
+                Acme Corp
+              </span>
+            </th>
+            <th
+              class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white"
+              scope="col"
+            >
+              <span
+                class="inline-flex items-center gap-1.5"
+              >
+                <span
+                  aria-hidden="true"
+                  class="inline-block h-2 w-2 shrink-0 rounded-full"
+                  style="background-color: rgb(255, 252, 96);"
+                />
+                Rival Inc
+              </span>
+            </th>
+            <th
+              class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white"
+              scope="col"
+            >
+              <span
+                class="inline-flex items-center gap-1.5"
+              >
+                <span
+                  aria-hidden="true"
+                  class="inline-block h-2 w-2 shrink-0 rounded-full"
+                  style="background-color: rgb(96, 52, 255);"
+                />
+                Beta LLC
+              </span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th
+              class="px-2 py-1.5 text-left font-semibold text-white"
+              scope="row"
+            >
+              Pricing
+            </th>
+            <td
+              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted outline outline-1 outline-[#60FDFF]"
+              data-brand="Acme Corp"
+              style="background-color: rgba(96, 253, 255, 0.404);"
+              title="-5.0 pts vs previous period"
+            >
+              45.0
+              %
+            </td>
+            <td
+              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted"
+              data-brand="Rival Inc"
+              style="background-color: rgba(96, 253, 255, 0.404);"
+              title="-5.0 pts vs previous period"
+            >
+              45.0
+              %
+            </td>
+            <td
+              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted"
+              data-brand="Beta LLC"
+              style="background-color: rgba(96, 253, 255, 0.116);"
+              title="-15.0 pts vs previous period"
+            >
+              5.0
+              %
+            </td>
+          </tr>
+          <tr>
+            <th
+              class="px-2 py-1.5 text-left font-semibold text-white"
+              scope="row"
+            >
+              Support
+            </th>
+            <td
+              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted outline outline-1 outline-[#60FDFF]"
+              data-brand="Acme Corp"
+              style="background-color: rgba(96, 253, 255, 0.26);"
+              title="No comparison data"
+            >
+              25.0
+              %
+            </td>
+            <td
+              class="rounded px-2 py-1.5 text-center tabular-nums font-semibold text-white"
+              data-brand="Rival Inc"
+              style="background-color: rgba(96, 253, 255, 0.62);"
+              title="No comparison data"
+            >
+              75.0
+              %
+            </td>
+            <td
+              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted"
+              data-brand="Beta LLC"
+              style="background-color: rgba(96, 253, 255, 0.35);"
+              title="No comparison data"
+            >
+              37.5
+              %
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;

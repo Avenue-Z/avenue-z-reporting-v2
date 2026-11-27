@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { exportPagePath, exportableAeoTrend, parseExportRequest, type ExportRequest } from './request'
+import { exportPagePath, exportableAeoMatrix, exportableAeoTrend, parseExportRequest, type ExportRequest } from './request'
 
 const ok: ExportRequest = { clientSlug: 'renaissance', section: 'organic-social', subsection: null, dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, models: null, tz: 'America/New_York' }
 
@@ -135,4 +135,30 @@ test('exportableAeoTrend keeps only a param the export would accept', () => {
   expect(exportableAeoTrend('off')).toBe('off')
   expect(exportableAeoTrend('GUARDIAN')).toBeNull()
   expect(exportableAeoTrend(undefined)).toBeNull()
+})
+
+// AEO Overview v2 (slice 3): the topic matrix's mode reaches the PDF through the export page's URL. Only a non-default mode is sent.
+test.each(['all', 'platforms'])('aeoMatrix %s is accepted and carried to the export path', (aeoMatrix) => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai', aeoMatrix })
+  expect(r?.aeoMatrix).toBe(aeoMatrix)
+  expect(new URL(exportPagePath(r as ExportRequest), 'http://x').searchParams.get('aeoMatrix')).toBe(aeoMatrix)
+})
+
+test.each(['competitors', 'x', 'PLATFORMS', '', 1])('aeoMatrix %j is refused', (aeoMatrix) => {
+  expect(parseExportRequest({ ...ok, section: 'peec-ai', aeoMatrix })).toBeNull()
+})
+
+test('no aeoMatrix leaves no key and no path param', () => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai' }) as ExportRequest
+  expect('aeoMatrix' in r).toBe(false)
+  expect(exportPagePath(r)).not.toContain('aeoMatrix')
+})
+
+test('exportableAeoMatrix keeps only a non-default mode the export would accept', () => {
+  expect(exportableAeoMatrix('all')).toBe('all')
+  expect(exportableAeoMatrix('platforms')).toBe('platforms')
+  expect(exportableAeoMatrix('competitors')).toBeNull()
+  expect(exportableAeoMatrix('x')).toBeNull()
+  expect(exportableAeoMatrix('PLATFORMS')).toBeNull()
+  expect(exportableAeoMatrix(undefined)).toBeNull()
 })
