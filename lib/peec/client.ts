@@ -22,7 +22,7 @@ function getKey(): string {
 }
 
 // projectId: when provided, overrides PEEC_AI_PROJECT_ID env var (multi-client support)
-async function peecPost<T>(
+export async function peecPost<T>(
   path: string,
   body: Record<string, unknown> = {},
   projectId?: string
@@ -49,7 +49,7 @@ async function peecPost<T>(
   return res.json()
 }
 
-async function peecGet<T>(
+export async function peecGet<T>(
   path: string,
   params: Record<string, string> = {},
   projectId?: string
@@ -68,7 +68,7 @@ async function peecGet<T>(
 
 // --- Raw API response types ---
 
-type ApiBrandRow = {
+export type ApiBrandRow = {
   brand: { id: string; name: string }
   date?: string
   prompt_id?: number | string
@@ -88,8 +88,9 @@ type ApiBrandRow = {
   mention_count: number
 }
 
-type ApiDomainRow = {
+export type ApiDomainRow = {
   domain: string
+  chat?: { id: string }
   classification: string
   model_channel?: { id: string }
   model?: { id: string }
@@ -250,7 +251,7 @@ type BrandAgg = {
   posCount: number
 }
 
-function aggregateBrandRows(rows: ApiBrandRow[]): Map<string, BrandAgg> {
+export function aggregateBrandRows(rows: ApiBrandRow[]): Map<string, BrandAgg> {
   const map = new Map<string, BrandAgg>()
   for (const row of rows) {
     const key = row.brand.id
@@ -281,7 +282,7 @@ function aggregateBrandRows(rows: ApiBrandRow[]): Map<string, BrandAgg> {
   return map
 }
 
-function aggToMetrics(agg: BrandAgg) {
+export function aggToMetrics(agg: BrandAgg) {
   return {
     visibility: agg.visTotal > 0 ? (agg.visCount / agg.visTotal) * 100 : 0,
     sov: agg.sovRows > 0 ? (agg.sovSum / agg.sovRows) * 100 : 0,
@@ -340,14 +341,15 @@ function groupByDay(rows: ApiBrandRow[]): DailyPoint[] {
 
 // --- Paginated fetch for the selected date range ---
 
-async function fetchAllRows(
+export async function fetchAllRows(
   body: Record<string, unknown>,
-  projectId?: string
+  projectId?: string,
+  maxRows = 10_000
 ): Promise<ApiBrandRow[]> {
   const limit = 500
   const allRows: ApiBrandRow[] = []
   let offset = 0
-  while (offset < 10000) {
+  while (offset < maxRows) {
     const page = await peecPost<{ data: ApiBrandRow[] }>(
       '/reports/brands',
       { ...body, limit, offset },
@@ -359,6 +361,17 @@ async function fetchAllRows(
     offset += limit
   }
   return allRows
+}
+
+export function normalizeSource(id: string): AEOModel | null {
+  const s = id.toLowerCase()
+  if (s.includes('openai') || s.includes('chatgpt')) return 'ChatGPT'
+  if (s.includes('perplexity')) return 'Perplexity'
+  if (s.includes('gemini')) return 'Gemini'
+  if (s.includes('claude')) return 'Claude'
+  if (s.includes('copilot')) return 'Copilot'
+  if (s.includes('google')) return 'Google'
+  return null
 }
 
 // --- Main export ---
@@ -552,17 +565,6 @@ async function getPeecOverviewImpl(clientSlug?: string, dateRange?: string, comp
     if (t.includes('ai ') || t.includes('artificial intelligence') || t.includes('machine learning') || t.includes('automation') || t.includes('aeo') || t.includes('answer engine') || t.includes('llm') || t.includes('chatgpt') || t.includes('generative')) return 'AI & Automation'
     if (t.includes('agency') || t.includes('firm') || t.includes(' hire') || t.includes('best ') || t.includes('top ') || t.includes('leading ')) return 'Agency Selection'
     return 'Digital Strategy'
-  }
-
-  function normalizeSource(id: string): string | null {
-    const s = id.toLowerCase()
-    if (s.includes('openai') || s.includes('chatgpt')) return 'ChatGPT'
-    if (s.includes('perplexity')) return 'Perplexity'
-    if (s.includes('gemini')) return 'Gemini'
-    if (s.includes('claude')) return 'Claude'
-    if (s.includes('copilot')) return 'Copilot'
-    if (s.includes('google')) return 'Google'
-    return null
   }
 
   // FB-023: Build per-prompt-per-model position maps for the CURRENT period.
