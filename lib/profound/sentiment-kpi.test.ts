@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const cachedOptions = vi.hoisted(() => new Map<string, unknown>())
 vi.mock('@/lib/cache', () => ({
@@ -12,9 +12,9 @@ vi.mock('./client', () => ({
   profoundPost: (...a: unknown[]) => profoundPost(...a),
   getCategoryId: vi.fn(async () => 'env-category'),
 }))
-vi.mock('@/lib/db/queries', () => ({
-  getClientBySlug: vi.fn(async () => ({ profoundCategoryId: 'cat-1', peecYourBrand: 'Avenue Z' })),
-}))
+let clientRow: { profoundCategoryId: string | null; peecYourBrand: string | null } | null = null
+const getClientBySlug = vi.fn(async (_slug: string) => clientRow)
+vi.mock('@/lib/db/queries', () => ({ getClientBySlug: (slug: string) => getClientBySlug(slug) }))
 
 import { getProfoundSentimentKpi } from './sentiment-kpi'
 
@@ -26,6 +26,17 @@ const LIVE = {
 
 beforeEach(() => {
   profoundPost.mockReset()
+  getClientBySlug.mockClear()
+  clientRow = { profoundCategoryId: 'cat-1', peecYourBrand: 'Avenue Z' }
+  // Another brand's settings in env: the tile must never fall back to them.
+  vi.stubEnv('PROFOUND_AI_YOUR_BRAND', 'Env Brand')
+  vi.stubEnv('PEEC_AI_YOUR_BRAND', 'Env Peec Brand')
+  vi.stubEnv('PROFOUND_CATEGORY_ID', 'env-category')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.restoreAllMocks()
 })
 
 describe('getProfoundSentimentKpi', () => {
@@ -41,6 +52,29 @@ describe('getProfoundSentimentKpi', () => {
       group_by: [],
       metrics: ['positive_sentiment', 'negative_sentiment'],
     })
+  })
+
+  it('uses the client row, never the env brand or category', async () => {
+    clientRow = { profoundCategoryId: 'cat-row', peecYourBrand: 'Row Brand' }
+    profoundPost.mockResolvedValue(LIVE)
+    await getProfoundSentimentKpi('acme', '2026-10-26,2026-11-24')
+    expect(getClientBySlug).toHaveBeenCalledWith('acme')
+    const body = profoundPost.mock.calls[0][1] as Record<string, unknown>
+    expect(body.category_id).toBe('cat-row')
+    expect(body.asset).toBe('Row Brand')
+  })
+
+  it.each([
+    ['no brand', { profoundCategoryId: 'cat-1', peecYourBrand: null }],
+    ['a blank brand', { profoundCategoryId: 'cat-1', peecYourBrand: '   ' }],
+    ['no category', { profoundCategoryId: null, peecYourBrand: 'Avenue Z' }],
+    ['no client row', null],
+  ])('is null and asks Profound nothing when the client row has %s', async (_label, row) => {
+    clientRow = row
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await getProfoundSentimentKpi('acme', '2026-10-26,2026-11-24')).toBeNull()
+    expect(profoundPost).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith('[aeo-kpis] profound sentiment not configured slug=acme')
   })
 
   it('returns the positive share of classified sentiment, 0-100', async () => {

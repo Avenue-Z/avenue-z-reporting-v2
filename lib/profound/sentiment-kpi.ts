@@ -10,8 +10,8 @@
 // or claim, so the request asks for the two shares only. No model filter: the tile shows `--` under one.
 
 import { cached } from '@/lib/cache'
+import { getClientBySlug } from '@/lib/db/queries'
 import { profoundPost } from './client'
-import { resolveProfoundConfig } from './sentiment'
 import { positiveShare } from './sentiment-normalize'
 
 type SentimentV2Row = { positive_sentiment?: number | null; negative_sentiment?: number | null }
@@ -19,7 +19,15 @@ type SentimentV2Row = { positive_sentiment?: number | null; negative_sentiment?:
 const finite = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) ? n : null)
 
 async function getProfoundSentimentKpiImpl(clientSlug: string, isoRange: string): Promise<number | null> {
-  const { categoryId, asset } = await resolveProfoundConfig(clientSlug)
+  // Category and brand come from this client's row only. No env fallback: that would show another brand's
+  // sentiment under this client's name. Either missing → null, and the tile shows --.
+  const client = await getClientBySlug(clientSlug)
+  const categoryId = client?.profoundCategoryId
+  const asset = client?.peecYourBrand
+  if (!categoryId || !asset?.trim()) {
+    console.warn(`[aeo-kpis] profound sentiment not configured slug=${clientSlug}`)
+    return null
+  }
   const [startDate, endDate] = isoRange.split(',')
   const resp = (await profoundPost('/v2/reports/sentiment', {
     category_id: categoryId,
@@ -42,7 +50,7 @@ async function getProfoundSentimentKpiImpl(clientSlug: string, isoRange: string)
  *  operational signal), so it must not mark the whole AEO page down, as for getWonStagesCompare in
  *  lib/salesforce/pipeline.ts. */
 export const getProfoundSentimentKpi = cached('profound', 'getProfoundSentimentKpi', getProfoundSentimentKpiImpl, {
-  version: 'v1-sentiment-v2-report',
+  version: 'v2-sentiment-v2-report-client-row',
   ttlSeconds: 3600,
   healthCritical: false,
   extractTags: ([clientSlug, isoRange]) => ({ client: clientSlug, dateRange: isoRange }),

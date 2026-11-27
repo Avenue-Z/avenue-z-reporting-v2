@@ -155,7 +155,7 @@ async function buildSourcesMap(
  * profoundCategoryId, same fallback shape as getProfoundOverviewImpl in
  * lib/profound/client.ts.
  */
-export async function resolveProfoundConfig(
+async function resolveProfoundConfig(
   clientSlug: string | null | undefined,
 ): Promise<{ categoryId: string; asset: string }> {
   if (clientSlug) {
