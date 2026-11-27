@@ -252,12 +252,16 @@ export async function setOverride(
   if (patch.note != null && patch.note.length > NOTE_MAX) throw new Error('note too long')
   const fields = definedEntries(patch, [])
   if (Object.keys(fields).length === 0) return
+  // A note keeps its own author and time (cleared with the note); a hidden-only patch must not re-attribute it.
+  const noteStamp = 'note' in fields
+    ? (fields.note === null ? { noteBy: null, noteAt: null } : { noteBy: by, noteAt: sql`now()` })
+    : {}
   await db
     .insert(techAuditIssueOverrides)
-    .values({ clientId, issueKey, ...fields, updatedBy: by })
+    .values({ clientId, issueKey, ...fields, ...noteStamp, updatedBy: by })
     .onConflictDoUpdate({
       target: [techAuditIssueOverrides.clientId, techAuditIssueOverrides.issueKey],
-      set: { ...fields, updatedBy: by, updatedAt: sql`now()` },
+      set: { ...fields, ...noteStamp, updatedBy: by, updatedAt: sql`now()` },
     })
 }
 

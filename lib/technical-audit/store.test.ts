@@ -334,6 +334,21 @@ describe('overrides', () => {
     await store.setOverride(CLIENT, 'missing-h1', { note: null }, 'b@x.com')
     expect((await store.getOverrides(CLIENT))[0].note).toBeNull()
   })
+  test('a note keeps its own author and time: hiding does not touch them, clearing the note clears them', async () => {
+    const row = async () => (await store.getOverrides(CLIENT))[0]
+    await store.setOverride(CLIENT, 'k', { hidden: true }, 'a@x.com')
+    expect(await row()).toMatchObject({ noteBy: null, noteAt: null })
+    await store.setOverride(CLIENT, 'k', { note: 'why' }, 'writer@x.com')
+    const noted = await row()
+    expect(noted.noteBy).toBe('writer@x.com')
+    expect(noted.noteAt).toBeInstanceOf(Date)
+    await store.setOverride(CLIENT, 'k', { hidden: false }, 'hider@x.com')
+    const after = await row()
+    expect(after).toMatchObject({ noteBy: 'writer@x.com', note: 'why', updatedBy: 'hider@x.com' })
+    expect(after.noteAt).toEqual(noted.noteAt)
+    await store.setOverride(CLIENT, 'k', { note: null }, 'hider@x.com')
+    expect(await row()).toMatchObject({ note: null, noteBy: null, noteAt: null })
+  })
   test('scopes to the client, ignores an empty patch, rejects an over-long note', async () => {
     await store.setOverride(OTHER, 'k', { hidden: true }, 'a@x.com')
     expect(await store.getOverrides(CLIENT)).toEqual([])

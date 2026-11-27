@@ -55,6 +55,15 @@ describe('IssueList', () => {
     expect(screen.queryByText('Hidden one')).toBeNull()
   })
 
+  it('team sees the note author and date; a client sees neither', () => {
+    const noted = [issue('A', { note: 'checking', noteBy: 'strategist@avenuez.com', noteAt: '2026-11-27T15:04:05.000Z' })]
+    const { unmount } = render(<IssueList clientSlug="acme" issues={noted} viewer="team" />)
+    expect(screen.getByText('strategist@avenuez.com · Nov 27, 2026')).toBeTruthy()
+    unmount()
+    render(<IssueList clientSlug="acme" issues={noted} viewer="client" />)
+    expect(screen.queryByText(/strategist@avenuez.com/)).toBeNull()
+  })
+
   it('a note with <b>tags</b> renders literally', () => {
     const { container } = render(<IssueList clientSlug="acme" issues={[issue('A', { note: 'see <b>tags</b>' })]} viewer="client" />)
     expect(screen.getByText('see <b>tags</b>')).toBeTruthy()

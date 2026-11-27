@@ -4,6 +4,8 @@ CREATE TABLE "tech_audit_issue_overrides" (
 	"issue_key" text NOT NULL,
 	"hidden" boolean DEFAULT false NOT NULL,
 	"note" text,
+	"note_by" text,
+	"note_at" timestamp with time zone,
 	"updated_by" text NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "tech_audit_issue_overrides_client_issue_key" UNIQUE("client_id","issue_key"),

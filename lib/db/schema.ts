@@ -878,6 +878,9 @@ export const techAuditIssueOverrides = pgTable('tech_audit_issue_overrides', {
   issueKey: text('issue_key').notNull(),
   hidden: boolean('hidden').notNull().default(false),
   note: text('note'),
+  // Who wrote the note and when; hiding a row must not re-attribute it, so these are not updated_by/updated_at.
+  noteBy: text('note_by'),
+  noteAt: timestamp('note_at', { withTimezone: true }),
   updatedBy: text('updated_by').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

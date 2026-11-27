@@ -188,7 +188,7 @@ describe('loadTechAuditView', () => {
     const src = (nativeIssueName: string, urlCount: number) =>
       ({ id: nativeIssueName, snapshotId: 's', source: 'sf', nativeIssueName, nativeSeverity: 'error', urlCount, device: null })
     const override = (issueKey: string, over: Record<string, unknown>) =>
-      ({ id: 'o', clientId: 'c1', issueKey, hidden: false, note: null, updatedBy: 'strategist@avenuez.com', updatedAt: new Date('2026-11-02T00:00:00Z'), ...over })
+      ({ id: 'o', clientId: 'c1', issueKey, hidden: false, note: null, noteBy: null, noteAt: null, updatedBy: 'hider@avenuez.com', updatedAt: new Date('2026-11-09T00:00:00Z'), ...over })
     beforeEach(() => {
       h.getSnapshotBundle.mockImplementation(async (_c: string, id: string) => {
         const snapshot = all.find((s) => s.id === id)
@@ -239,7 +239,7 @@ describe('loadTechAuditView', () => {
     })
 
     test('client props carry no noteBy/noteAt; team keeps them', async () => {
-      h.getOverrides.mockResolvedValue([override('sf:Small problem', { note: 'checking' })])
+      h.getOverrides.mockResolvedValue([override('sf:Small problem', { note: 'checking', noteBy: 'strategist@avenuez.com', noteAt: new Date('2026-11-02T00:00:00Z') })])
       const v = await loadTechAuditView('x', undefined, 'client', NOW)
       const row = v!.issues.find((i) => i.name === 'Small problem')!
       expect(row.note).toBe('checking')

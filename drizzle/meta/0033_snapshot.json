@@ -1,5 +1,5 @@
 {
-  "id": "4a305cb0-a47a-46cd-91d4-0fa5849554cf",
+  "id": "395a4bf1-b6f7-4f6f-9531-43199e949f1d",
   "prevId": "64175991-cd35-4c78-8891-a2bbba15a4d5",
   "version": "7",
   "dialect": "postgresql",
@@ -2520,6 +2520,18 @@
         "note": {
           "name": "note",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note_by": {
+          "name": "note_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note_at": {
+          "name": "note_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

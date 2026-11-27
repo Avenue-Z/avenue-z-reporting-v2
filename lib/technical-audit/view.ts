@@ -80,7 +80,7 @@ function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaite
       key: m.key, name: m.name, severity: m.severity, urls: m.urls, sources: m.sources, detail: m.detail,
       needsMapping: m.needsMapping, hidden, note: o?.note ?? null,
     }
-    return [viewer === 'team' && o?.note ? { ...base, noteBy: o.updatedBy, noteAt: o.updatedAt.toISOString() } : base]
+    return [viewer === 'team' && o?.note ? { ...base, noteBy: o.noteBy ?? undefined, noteAt: o.noteAt?.toISOString() } : base]
   })
 }
 

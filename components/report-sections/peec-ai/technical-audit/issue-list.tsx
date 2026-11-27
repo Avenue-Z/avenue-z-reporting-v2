@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useExportMode } from '@/components/export/export-mode'
 import type { Severity, TaIssueSource } from '@/lib/technical-audit/types'
 import type { ViewIssue, Viewer } from '@/lib/technical-audit/view'
+import { fmtDate } from './format'
 import { IssueRowControls } from './issue-row-controls'
 
 const SOURCE_LABEL: Record<TaIssueSource, string> = {
@@ -52,7 +53,9 @@ function IssueRow({ issue, index, clientSlug, team }: { issue: ViewIssue; index?
         {issue.note && (
           <p className="mt-1 whitespace-pre-wrap text-xs text-text-muted">
             {issue.note}
-            {team && issue.noteBy && <span className="block opacity-70">{issue.noteBy}</span>}
+            {team && issue.noteBy && (
+              <span className="block opacity-70">{issue.noteBy}{issue.noteAt && ` · ${fmtDate(issue.noteAt.slice(0, 10))}`}</span>
+            )}
           </p>
         )}
         {team && <IssueRowControls clientSlug={clientSlug} issueKey={issue.key} hidden={issue.hidden} note={issue.note} />}
