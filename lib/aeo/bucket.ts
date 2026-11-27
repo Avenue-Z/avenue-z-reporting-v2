@@ -9,7 +9,7 @@ function isoMonday(d: Date): Date {
   return m
 }
 
-function bucketKey(date: Date, g: BucketGranularity): string {
+export function bucketKey(date: Date, g: BucketGranularity): string {
   const y = date.getUTCFullYear()
   switch (g) {
     case 'daily':     return date.toISOString().slice(0, 10)

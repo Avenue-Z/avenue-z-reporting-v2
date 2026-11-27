@@ -277,3 +277,26 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     expect(bulkOf(button).pages).toEqual(exportablePages(CLIENT as ExportViewClient & typeof CLIENT))
   })
 }
+
+// AEO Overview v2 (slice 2): the trend chart's selection reaches the PDF through the export page's URL. On the Overview only, and
+// only a value the export request accepts, so a hand-edited param prints the default chart instead of failing the export.
+for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
+  const withTrend = async (aeoTrend: string, subsection?: string) => {
+    getClientBySlug.mockResolvedValue(CLIENT)
+    const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
+      searchParams: Promise.resolve({ section: 'peec-ai', ...Q, aeoTrend, ...(subsection ? { subsection } : {}) }) } as never))
+    if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
+    const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
+    return button.props.serverExport as Record<string, unknown>
+  }
+
+  test(`${routeName}: the Overview's export carries aeoTrend`, async () => {
+    expect((await withTrend('guardian,amwins')).aeoTrend).toBe('guardian,amwins')
+    expect((await withTrend('off')).aeoTrend).toBe('off')
+  })
+
+  test(`${routeName}: an unreadable aeoTrend, or another AEO tab, carries none`, async () => {
+    expect('aeoTrend' in (await withTrend('GUARDIAN'))).toBe(false)
+    expect('aeoTrend' in (await withTrend('guardian', 'pr-influence'))).toBe(false)
+  })
+}

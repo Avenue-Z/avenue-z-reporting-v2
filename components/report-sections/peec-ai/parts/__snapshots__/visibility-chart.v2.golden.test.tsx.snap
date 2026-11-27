@@ -1,0 +1,292 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`visibility-chart@2 golden (resolved chart) 1`] = `
+<div
+  class="rounded-lg border border-white/[0.06] bg-bg-surface p-5"
+  data-export-block=""
+>
+  <div
+    class="mb-4 flex items-start justify-between gap-4"
+  >
+    <p
+      class="text-xs text-text-muted"
+    >
+      Year to date
+    </p>
+    <div
+      class="flex gap-1 rounded-lg bg-white/[0.04] p-0.5"
+      data-export-hide=""
+    >
+      <button
+        class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+        type="button"
+      >
+        Daily
+      </button>
+      <button
+        class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all bg-white text-black shadow-sm"
+        type="button"
+      >
+        Weekly
+      </button>
+      <button
+        class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+        type="button"
+      >
+        Monthly
+      </button>
+      <button
+        class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+        type="button"
+      >
+        Quarterly
+      </button>
+    </div>
+  </div>
+  <div
+    class="flex gap-2"
+  >
+    <div
+      class="flex h-40 w-9 shrink-0 flex-col justify-between text-right"
+    >
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        53
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        40
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        27
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        13
+        %
+      </span>
+      <span
+        class="text-[10px] leading-none tabular-nums text-text-muted"
+      >
+        0
+        %
+      </span>
+    </div>
+    <div
+      class="relative h-40 flex-1"
+    >
+      <div
+        class="pointer-events-none absolute inset-0 flex flex-col justify-between"
+      >
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+        <div
+          class="w-full border-t border-white/[0.04]"
+        />
+      </div>
+      <svg
+        class="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+        preserveAspectRatio="none"
+        viewBox="0 0 100 100"
+      >
+        <polyline
+          data-brand="rival-inc"
+          fill="none"
+          points="10.00,33.96 30.00,30.19 50.00,26.42 70.00,22.64 90.00,18.87"
+          stroke="#FFFC60"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          vector-effect="non-scaling-stroke"
+        />
+        <polyline
+          data-brand="beta-llc"
+          fill="none"
+          points="10.00,62.26 30.00,58.49 50.00,54.72 70.00,50.94 90.00,47.17"
+          stroke="#6034FF"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          vector-effect="non-scaling-stroke"
+        />
+        <polyline
+          data-brand="acme-corp"
+          fill="none"
+          points="10.00,15.09 30.00,11.32 50.00,7.55 70.00,3.77 90.00,0.00"
+          stroke="#60FDFF"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2.5"
+          vector-effect="non-scaling-stroke"
+        />
+      </svg>
+      <div
+        class="absolute inset-0 flex"
+      >
+        <div
+          class="relative h-full flex-1"
+        />
+        <div
+          class="relative h-full flex-1"
+        />
+        <div
+          class="relative h-full flex-1"
+        />
+        <div
+          class="relative h-full flex-1"
+        />
+        <div
+          class="relative h-full flex-1"
+        />
+      </div>
+    </div>
+  </div>
+  <div
+    class="mt-2 flex gap-2"
+  >
+    <div
+      class="w-9 shrink-0"
+    />
+    <div
+      class="flex flex-1"
+    >
+      <div
+        class="flex-1 overflow-hidden text-center"
+      >
+        <span
+          class="text-[9px] tabular-nums text-text-muted"
+        >
+          Jan 5
+        </span>
+      </div>
+      <div
+        class="flex-1 overflow-hidden text-center"
+      >
+        <span
+          class="text-[9px] tabular-nums text-text-muted"
+        >
+          Apr 6
+        </span>
+      </div>
+      <div
+        class="flex-1 overflow-hidden text-center"
+      >
+        <span
+          class="text-[9px] tabular-nums text-text-muted"
+        >
+          Jul 6
+        </span>
+      </div>
+      <div
+        class="flex-1 overflow-hidden text-center"
+      >
+        <span
+          class="text-[9px] tabular-nums text-text-muted"
+        >
+          Oct 26
+        </span>
+      </div>
+      <div
+        class="flex-1 overflow-hidden text-center"
+      >
+        <span
+          class="text-[9px] tabular-nums text-text-muted"
+        >
+          Nov 16
+        </span>
+      </div>
+    </div>
+  </div>
+  <div
+    class="mt-4 flex flex-col gap-3"
+  >
+    <div
+      class="flex items-center gap-2"
+    >
+      <button
+        aria-checked="true"
+        aria-label="Show competitors"
+        class="relative h-5 w-9 rounded-full transition-colors bg-[#60FF80]"
+        role="switch"
+        type="button"
+      >
+        <span
+          class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform translate-x-4"
+        />
+      </button>
+      <span
+        class="text-xs font-semibold uppercase tracking-widest text-text-muted"
+      >
+        Show competitors
+      </span>
+    </div>
+    <div
+      class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-muted"
+    >
+      <label
+        class="flex items-center gap-1.5 font-semibold text-white"
+      >
+        <input
+          aria-label="Acme Corp"
+          checked=""
+          class="accent-[#60FDFF]"
+          disabled=""
+          readonly=""
+          type="checkbox"
+        />
+        <span
+          class="inline-block h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(96, 253, 255);"
+        />
+        Acme Corp
+      </label>
+      <label
+        class="flex items-center gap-1.5"
+      >
+        <input
+          aria-label="Rival Inc"
+          checked=""
+          type="checkbox"
+        />
+        <span
+          class="inline-block h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(255, 252, 96);"
+        />
+        Rival Inc
+      </label>
+      <label
+        class="flex items-center gap-1.5"
+      >
+        <input
+          aria-label="Beta LLC"
+          checked=""
+          type="checkbox"
+        />
+        <span
+          class="inline-block h-2 w-2 shrink-0 rounded-full"
+          style="background-color: rgb(96, 52, 255);"
+        />
+        Beta LLC
+      </label>
+    </div>
+  </div>
+</div>
+`;

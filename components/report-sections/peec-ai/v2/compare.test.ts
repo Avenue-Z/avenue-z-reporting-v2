@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { parseAeoCompare, fetchCompareMode, parseShowDeltas, compareSuffix } from './compare'
+import { parseAeoCompare, fetchCompareMode, parseShowDeltas, compareSuffix, periodWindows } from './compare'
 
 test.each([
   [undefined, 'previous_period'], [null, 'previous_period'], ['', 'previous_period'],
@@ -30,4 +30,14 @@ test('Content Impact treats compareRange none like a missing param', async () =>
   // The gapsPrior walk (content-impact.tsx) runs whenever compareRange !== 'previous_period': none and missing alike.
   const walks = (c: string | undefined) => c !== 'previous_period'
   expect(walks('none')).toBe(walks(undefined))
+})
+
+test('periodWindows: the selected period and the one comparison window the fetchers use', () => {
+  const range = 'custom:2026-10-25,2026-11-23'
+  expect(periodWindows(range, 'previous_period')).toEqual({
+    period: { start: '2026-10-25', end: '2026-11-23' },
+    comparePeriod: { start: '2026-09-25', end: '2026-10-24' },
+  })
+  expect(periodWindows(range, 'previous_year').comparePeriod).toEqual({ start: '2025-10-25', end: '2025-11-23' })
+  expect(periodWindows(range, 'none')).toEqual({ period: { start: '2026-10-25', end: '2026-11-23' }, comparePeriod: null })
 })

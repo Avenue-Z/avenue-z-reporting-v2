@@ -1,3 +1,5 @@
+import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+
 export type AeoCompare = 'previous_period' | 'previous_year' | 'none'
 
 export function parseAeoCompare(raw: string | null | undefined): AeoCompare {
@@ -29,4 +31,20 @@ export function overviewCompare(
   if (!isV2) return { compare: 'previous_period', showDeltas: true, fetchMode: 'previous_period' }
   const compare = parseAeoCompare(compareRange)
   return { compare, showDeltas: parseShowDeltas(deltas, compare), fetchMode: fetchCompareMode(compare) }
+}
+
+type DateWindow = { start: string; end: string }
+
+/**
+ * The selected period and its comparison window as dates, for the trend chart's shading. The comparison is the same
+ * window the v2 fetchers compare against (`deriveCompareRange` with `fetchCompareMode`); `null` when the page compares
+ * against nothing.
+ */
+export function periodWindows(dateRange: string, compare: AeoCompare): { period: DateWindow; comparePeriod: DateWindow | null } {
+  const main = parseDateRange(dateRange)
+  const prior = compare === 'none' ? null : deriveCompareRange(dateRange, fetchCompareMode(compare))
+  return {
+    period: { start: main.startDate, end: main.endDate },
+    comparePeriod: prior ? { start: prior.startDate, end: prior.endDate } : null,
+  }
 }

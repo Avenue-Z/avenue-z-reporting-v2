@@ -19,6 +19,8 @@ export interface ExportRequest {
   aeoMin?: number
   /** AEO Overview: the page's Show deltas switch is off (`deltas=off`). Absent means deltas show. */
   deltas?: 'off'
+  /** AEO Overview: the trend chart's `?aeoTrend=` (competitor keys, or `off`). The export page's chart reads it back from the URL. */
+  aeoTrend?: string
   /** The requester's IANA timezone, for the stamp and the filename date. */
   tz: string
 }
@@ -27,6 +29,14 @@ const SLUG = /^[a-z0-9-]{1,64}$/
 const RANGE = /^[A-Za-z0-9_:,-]{1,64}$/
 const MODELS = /^[A-Za-z,]{1,128}$/
 const AEO_RANGES: readonly AeoRange[] = ['month', 'ytd', 'all']
+/** `off`, or one to seven brand keys (components/report-sections/peec-ai/v2/brand-colors.ts `brandKey`), comma-separated. */
+const AEO_TREND = /^(off|[a-z0-9-]{1,48}(,[a-z0-9-]{1,48}){0,6})$/
+
+/** The page's `aeoTrend` if the export would accept it, else null: a hand-edited value prints the default chart rather
+ *  than failing the export. */
+export function exportableAeoTrend(raw: unknown): string | null {
+  return typeof raw === 'string' && AEO_TREND.test(raw) ? raw : null
+}
 
 /** `tz` if it is an IANA timezone this runtime knows, else UTC. */
 export function safeTimeZone(tz: unknown): string {
@@ -52,6 +62,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
   if (b.aeo != null && !AEO_RANGES.includes(b.aeo as AeoRange)) return null
   if (b.aeoMin != null && !(typeof b.aeoMin === 'number' && Number.isInteger(b.aeoMin) && b.aeoMin >= 1 && b.aeoMin <= 5)) return null
   if (b.deltas != null && b.deltas !== 'off') return null
+  if (b.aeoTrend != null && exportableAeoTrend(b.aeoTrend) === null) return null
   return {
     clientSlug: b.clientSlug,
     section,
@@ -62,6 +73,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     ...(b.aeo != null ? { aeo: b.aeo as AeoRange } : {}),
     ...(b.aeoMin != null ? { aeoMin: b.aeoMin as number } : {}),
     ...(b.deltas === 'off' ? { deltas: 'off' as const } : {}),
+    ...(b.aeoTrend != null ? { aeoTrend: b.aeoTrend as string } : {}),
     tz: safeTimeZone(b.tz),
   }
 }
@@ -76,6 +88,7 @@ export function exportPagePath(r: ExportRequest): string {
   if (r.aeo) sp.set('aeo', r.aeo)
   if (r.aeoMin) sp.set('aeomin', String(r.aeoMin))
   if (r.deltas) sp.set('deltas', r.deltas)
+  if (r.aeoTrend) sp.set('aeoTrend', r.aeoTrend)
   sp.set('tz', r.tz)
   return `/export/${r.clientSlug}/${r.section}?${sp.toString()}`
 }

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { exportPagePath, parseExportRequest, type ExportRequest } from './request'
+import { exportPagePath, exportableAeoTrend, parseExportRequest, type ExportRequest } from './request'
 
 const ok: ExportRequest = { clientSlug: 'renaissance', section: 'organic-social', subsection: null, dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, models: null, tz: 'America/New_York' }
 
@@ -112,4 +112,27 @@ test('no deltas leaves no key and no path param', () => {
 
 test('compareRange none is accepted', () => {
   expect(parseExportRequest({ ...ok, section: 'peec-ai', compareRange: 'none' })?.compareRange).toBe('none')
+})
+
+test.each(['off', 'guardian,amwins'])('aeoTrend %s is accepted and carried to the export path', (aeoTrend) => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai', aeoTrend })
+  expect(r?.aeoTrend).toBe(aeoTrend)
+  expect(new URL(exportPagePath(r as ExportRequest), 'http://x').searchParams.get('aeoTrend')).toBe(aeoTrend)
+})
+
+test.each(['Guardian', 'a,b,c,d,e,f,g,h', 'a;b', '', 'a,,b', 'x'.repeat(49), 7])('aeoTrend %j is refused', (aeoTrend) => {
+  expect(parseExportRequest({ ...ok, section: 'peec-ai', aeoTrend })).toBeNull()
+})
+
+test('no aeoTrend leaves no key and no path param', () => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai' }) as ExportRequest
+  expect('aeoTrend' in r).toBe(false)
+  expect(exportPagePath(r)).not.toContain('aeoTrend')
+})
+
+test('exportableAeoTrend keeps only a param the export would accept', () => {
+  expect(exportableAeoTrend('guardian,amwins')).toBe('guardian,amwins')
+  expect(exportableAeoTrend('off')).toBe('off')
+  expect(exportableAeoTrend('GUARDIAN')).toBeNull()
+  expect(exportableAeoTrend(undefined)).toBeNull()
 })
