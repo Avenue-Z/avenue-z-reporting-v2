@@ -1,0 +1,215 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`llm-breakdown@2 golden (resolved gauges) 1`] = `
+<div
+  class="flex flex-col gap-3"
+>
+  <div
+    class="flex gap-1 self-start rounded-lg bg-white/[0.04] p-0.5"
+    data-export-hide=""
+  >
+    <button
+      aria-pressed="true"
+      class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all bg-white text-black shadow-sm"
+      type="button"
+    >
+      Visibility
+    </button>
+    <button
+      aria-pressed="false"
+      class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+      type="button"
+    >
+      Share of voice
+    </button>
+    <button
+      aria-pressed="false"
+      class="rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all text-text-muted hover:text-white"
+      type="button"
+    >
+      Used as a source
+    </button>
+  </div>
+  <div
+    class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+  >
+    <div
+      class="flex flex-col items-center rounded-lg bg-bg-surface p-4"
+      data-export-block="true"
+    >
+      <svg
+        aria-label="ChatGPT: Visibility 42.3%"
+        class="w-full max-w-[220px]"
+        role="img"
+        viewBox="0 0 120 70"
+      >
+        <path
+          d="M 10 60 A 50 50 0 0 1 110 60"
+          fill="none"
+          stroke="#3a3a3a"
+          stroke-linecap="round"
+          stroke-width="10"
+        />
+        <path
+          d="M 10 60 A 50 50 0 0 1 48.022485197903904 11.45580220906345"
+          fill="none"
+          stroke="#10A37F"
+          stroke-linecap="round"
+          stroke-width="10"
+        />
+        <line
+          data-tick="true"
+          stroke="#FFFFFF"
+          stroke-width="2"
+          x1="55.11701643611035"
+          x2="52.973267554402696"
+          y1="19.291813212637635"
+          y2="1.4199263303809886"
+        />
+      </svg>
+      <p
+        class="mt-1 text-sm text-text-muted"
+      >
+        ChatGPT
+      </p>
+      <p
+        class="text-2xl font-semibold tabular-nums text-white"
+      >
+        42.3%
+      </p>
+      <p
+        class="text-xs"
+      >
+        <span
+          class="tabular-nums text-[#FF4444]"
+        >
+          -3.1 pts vs previous period
+        </span>
+      </p>
+      <p
+        class="text-xs text-text-muted"
+      >
+        Competitor avg 46.2%
+      </p>
+    </div>
+    <div
+      class="flex flex-col items-center rounded-lg bg-bg-surface p-4"
+      data-export-block="true"
+    >
+      <svg
+        aria-label="Gemini: Visibility 31.0%"
+        class="w-full max-w-[220px]"
+        role="img"
+        viewBox="0 0 120 70"
+      >
+        <path
+          d="M 10 60 A 50 50 0 0 1 110 60"
+          fill="none"
+          stroke="#3a3a3a"
+          stroke-linecap="round"
+          stroke-width="10"
+        />
+        <path
+          d="M 10 60 A 50 50 0 0 1 31.89583110739347 18.64597128627191"
+          fill="none"
+          stroke="#4285F4"
+          stroke-linecap="round"
+          stroke-width="10"
+        />
+        <line
+          data-tick="true"
+          stroke="#FFFFFF"
+          stroke-width="2"
+          x1="41.38638951067858"
+          x2="33.214560515366735"
+          y1="23.468732508276922"
+          y2="7.430615072886297"
+        />
+      </svg>
+      <p
+        class="mt-1 text-sm text-text-muted"
+      >
+        Gemini
+      </p>
+      <p
+        class="text-2xl font-semibold tabular-nums text-white"
+      >
+        31.0%
+      </p>
+      <p
+        class="text-xs"
+      >
+        <span
+          class="tabular-nums text-[#60FF80]"
+        >
+          +1.5 pts vs previous period
+        </span>
+      </p>
+      <p
+        class="text-xs text-text-muted"
+      >
+        Competitor avg 35.0%
+      </p>
+    </div>
+    <div
+      class="flex flex-col items-center rounded-lg bg-bg-surface p-4"
+      data-export-block="true"
+    >
+      <svg
+        aria-label="Google AI Overview: Visibility 120.0%"
+        class="w-full max-w-[220px]"
+        role="img"
+        viewBox="0 0 120 70"
+      >
+        <path
+          d="M 10 60 A 50 50 0 0 1 110 60"
+          fill="none"
+          stroke="#3a3a3a"
+          stroke-linecap="round"
+          stroke-width="10"
+        />
+        <path
+          d="M 10 60 A 50 50 0 0 1 110 60"
+          fill="none"
+          stroke="#34A853"
+          stroke-linecap="round"
+          stroke-width="10"
+        />
+        <line
+          data-tick="true"
+          stroke="#FFFFFF"
+          stroke-width="2"
+          x1="28.823355410398726"
+          x2="15.136048029598172"
+          y1="33.37263001846247"
+          y2="21.682565148519174"
+        />
+      </svg>
+      <p
+        class="mt-1 text-sm text-text-muted"
+      >
+        Google AI Overview
+      </p>
+      <p
+        class="text-2xl font-semibold tabular-nums text-white"
+      >
+        120.0%
+      </p>
+      <p
+        class="text-xs"
+      >
+        <span
+          class="text-text-muted"
+        >
+          No comparison data
+        </span>
+      </p>
+      <p
+        class="text-xs text-text-muted"
+      >
+        Competitor avg 22.5%
+      </p>
+    </div>
+  </div>
+</div>
+`;

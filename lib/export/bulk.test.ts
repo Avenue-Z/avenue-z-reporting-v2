@@ -149,3 +149,13 @@ test('only the AEO Overview page takes aeoMatrix', () => {
   }
   expect('aeoMatrix' in bulkRequest(page('peec-ai'), { ...RANGES, fromSection: 'peec-ai' })).toBe(false)
 })
+
+// AEO Overview v2 (slice 5): the gauge grid's metric reaches the Overview's own request only.
+test('only the AEO Overview page takes aeoGauge', () => {
+  const fromOverview = { ...RANGES, fromSection: 'peec-ai', aeoGauge: 'source' as const }
+  expect(bulkRequest(page('peec-ai'), fromOverview)).toEqual({ ...BODY, section: 'peec-ai', subsection: null, aeoGauge: 'source' })
+  for (const p of [page('peec-ai', 'pr-influence'), page('peec-ai', 'content-impact'), page('paid-media', 'meta'), page('organic-social'), page('executive-overview')]) {
+    expect('aeoGauge' in bulkRequest(p, fromOverview), p.key).toBe(false)
+  }
+  expect('aeoGauge' in bulkRequest(page('peec-ai'), { ...RANGES, fromSection: 'peec-ai' })).toBe(false)
+})

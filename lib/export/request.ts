@@ -23,6 +23,8 @@ export interface ExportRequest {
   aeoTrend?: string
   /** AEO Overview: the topic matrix's `?aeoMatrix=` when it is not the default (Competitors). The matrix reads it back from the URL. */
   aeoMatrix?: 'platforms' | 'all'
+  /** AEO Overview: the model gauges' `?aeoGauge=` when it is not the default (Visibility). The gauge grid reads it back from the URL. */
+  aeoGauge?: 'sov' | 'source'
   /** The requester's IANA timezone, for the stamp and the filename date. */
   tz: string
 }
@@ -43,6 +45,11 @@ export function exportableAeoTrend(raw: unknown): string | null {
 /** The page's `aeoMatrix` if it is a non-default mode the export accepts, else null (the default prints without the param). */
 export function exportableAeoMatrix(raw: unknown): 'platforms' | 'all' | null {
   return raw === 'platforms' || raw === 'all' ? raw : null
+}
+
+/** The page's `aeoGauge` if it is a non-default metric the export accepts, else null (the default prints without the param). */
+export function exportableAeoGauge(raw: unknown): 'sov' | 'source' | null {
+  return raw === 'sov' || raw === 'source' ? raw : null
 }
 
 /** `tz` if it is an IANA timezone this runtime knows, else UTC. */
@@ -71,6 +78,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
   if (b.deltas != null && b.deltas !== 'off') return null
   if (b.aeoTrend != null && exportableAeoTrend(b.aeoTrend) === null) return null
   if (b.aeoMatrix != null && exportableAeoMatrix(b.aeoMatrix) === null) return null
+  if (b.aeoGauge != null && exportableAeoGauge(b.aeoGauge) === null) return null
   return {
     clientSlug: b.clientSlug,
     section,
@@ -83,6 +91,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     ...(b.deltas === 'off' ? { deltas: 'off' as const } : {}),
     ...(b.aeoTrend != null ? { aeoTrend: b.aeoTrend as string } : {}),
     ...(b.aeoMatrix != null ? { aeoMatrix: b.aeoMatrix as 'platforms' | 'all' } : {}),
+    ...(b.aeoGauge != null ? { aeoGauge: b.aeoGauge as 'sov' | 'source' } : {}),
     tz: safeTimeZone(b.tz),
   }
 }
@@ -99,6 +108,7 @@ export function exportPagePath(r: ExportRequest): string {
   if (r.deltas) sp.set('deltas', r.deltas)
   if (r.aeoTrend) sp.set('aeoTrend', r.aeoTrend)
   if (r.aeoMatrix) sp.set('aeoMatrix', r.aeoMatrix)
+  if (r.aeoGauge) sp.set('aeoGauge', r.aeoGauge)
   sp.set('tz', r.tz)
   return `/export/${r.clientSlug}/${r.section}?${sp.toString()}`
 }

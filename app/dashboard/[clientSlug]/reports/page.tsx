@@ -34,7 +34,7 @@ import type { DashChannel } from '@/lib/organic-social/metrics'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { parseModelsParam, serializeModelsParam } from '@/lib/peec/models'
 import { isServerExportSection } from '@/lib/export/sections'
-import { exportableAeoMatrix, exportableAeoTrend } from '@/lib/export/request'
+import { exportableAeoGauge, exportableAeoMatrix, exportableAeoTrend } from '@/lib/export/request'
 import { resolveExportView } from '@/lib/export/report-view'
 import { exportablePages } from '@/lib/export/pages'
 import { SectionSkeleton } from './section-skeleton'
@@ -135,11 +135,11 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; deltas?: string; aeoTrend?: string; aeoMatrix?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string; models?: string; health?: string; aeo?: string; aeomin?: string; sl?: string; slview?: string; deltas?: string; aeoTrend?: string; aeoMatrix?: string; aeoGauge?: string }>
 }) {
   const { clientSlug } = await params
   await requireStaff()
-  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, deltas: deltasParam, aeoTrend: aeoTrendParam, aeoMatrix: aeoMatrixParam } = await searchParams
+  const { section, subsection: subsectionParam, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam, models: modelsParam, health: healthParam, aeo: aeoParam, aeomin: aeoMinParam, sl: slParam, slview: slViewParam, deltas: deltasParam, aeoTrend: aeoTrendParam, aeoMatrix: aeoMatrixParam, aeoGauge: aeoGaugeParam } = await searchParams
   // The AEO Informed Social tab's range and min competitors (spec 2026-11-12 sections 2 and 3): anything unreadable is Month and 2.
   const aeo = parseAeoRange(aeoParam)
   const aeoMin = parseAeoMin(aeoMinParam)
@@ -208,6 +208,8 @@ export default async function ReportPage({
   const exportAeoTrend = activeSection === 'peec-ai' && !subsection ? exportableAeoTrend(aeoTrendParam) : null
   // AEO Overview: the topic matrix's mode for the PDF, when it is not the default (Competitors).
   const exportAeoMatrix = activeSection === 'peec-ai' && !subsection ? exportableAeoMatrix(aeoMatrixParam) : null
+  // AEO Overview: the model gauges' metric for the PDF, when it is not the default (Visibility).
+  const exportAeoGauge = activeSection === 'peec-ai' && !subsection ? exportableAeoGauge(aeoGaugeParam) : null
 
   // Title: subsection name takes precedence, then section name. Organic Social keys the title on
   // the resolved entry's channel (null → "Organic Social"; else the platform label) — no
@@ -319,6 +321,8 @@ export default async function ReportPage({
                 ...(exportAeoTrend ? { aeoTrend: exportAeoTrend } : {}),
                 // The topic matrix's mode, read back by the matrix from the export page's URL.
                 ...(exportAeoMatrix ? { aeoMatrix: exportAeoMatrix } : {}),
+                // The model gauges' metric, read back by the gauge grid from the export page's URL.
+                ...(exportAeoGauge ? { aeoGauge: exportAeoGauge } : {}),
                 // The AEO Informed Social tab's range and min, on that tab only (every other body is unchanged).
                 ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
               } }
@@ -340,6 +344,7 @@ export default async function ReportPage({
             ...(activeSection === 'peec-ai' && !subsection && deltasParam === 'off' ? { deltas: 'off' as const } : {}),
             ...(exportAeoTrend ? { aeoTrend: exportAeoTrend } : {}),
             ...(exportAeoMatrix ? { aeoMatrix: exportAeoMatrix } : {}),
+            ...(exportAeoGauge ? { aeoGauge: exportAeoGauge } : {}),
           }} />
       </StickyReportHeader>
 

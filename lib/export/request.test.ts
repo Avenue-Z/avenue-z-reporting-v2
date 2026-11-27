@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { exportPagePath, exportableAeoMatrix, exportableAeoTrend, parseExportRequest, type ExportRequest } from './request'
+import { exportPagePath, exportableAeoGauge, exportableAeoMatrix, exportableAeoTrend, parseExportRequest, type ExportRequest } from './request'
 
 const ok: ExportRequest = { clientSlug: 'renaissance', section: 'organic-social', subsection: null, dateRange: 'custom:2026-09-01,2026-09-30', compareRange: null, models: null, tz: 'America/New_York' }
 
@@ -161,4 +161,29 @@ test('exportableAeoMatrix keeps only a non-default mode the export would accept'
   expect(exportableAeoMatrix('x')).toBeNull()
   expect(exportableAeoMatrix('PLATFORMS')).toBeNull()
   expect(exportableAeoMatrix(undefined)).toBeNull()
+})
+
+// AEO Overview v2 (slice 5): the gauge grid's metric reaches the PDF through the export page's URL. Only a non-default metric is sent.
+test.each(['sov', 'source'])('aeoGauge %s is accepted and carried to the export path', (aeoGauge) => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai', aeoGauge })
+  expect(r?.aeoGauge).toBe(aeoGauge)
+  expect(new URL(exportPagePath(r as ExportRequest), 'http://x').searchParams.get('aeoGauge')).toBe(aeoGauge)
+})
+
+test.each(['visibility', 'x', 'SOV', '', 1])('aeoGauge %j is refused', (aeoGauge) => {
+  expect(parseExportRequest({ ...ok, section: 'peec-ai', aeoGauge })).toBeNull()
+})
+
+test('no aeoGauge leaves no key and no path param', () => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai' }) as ExportRequest
+  expect('aeoGauge' in r).toBe(false)
+  expect(exportPagePath(r)).not.toContain('aeoGauge')
+})
+
+test('exportableAeoGauge keeps only a non-default metric the export would accept', () => {
+  expect(exportableAeoGauge('sov')).toBe('sov')
+  expect(exportableAeoGauge('source')).toBe('source')
+  expect(exportableAeoGauge('visibility')).toBeNull()
+  expect(exportableAeoGauge('x')).toBeNull()
+  expect(exportableAeoGauge(undefined)).toBeNull()
 })

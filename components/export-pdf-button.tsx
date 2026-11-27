@@ -28,6 +28,8 @@ export interface ServerExport {
   aeoTrend?: string
   /** AEO Overview: the topic matrix's mode (`?aeoMatrix=`) when it is not the default. */
   aeoMatrix?: 'platforms' | 'all'
+  /** AEO Overview: the model gauges' metric (`?aeoGauge=`) when it is not the default. */
+  aeoGauge?: 'sov' | 'source'
 }
 
 interface ExportPdfButtonProps {

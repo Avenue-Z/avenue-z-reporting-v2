@@ -325,6 +325,23 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     }
   })
 
+  test(`${routeName}: the Overview's export carries aeoGauge, for the single export and the bulk one`, async () => {
+    for (const value of ['sov', 'source']) {
+      const { single, bulk } = await onOverview({ aeoGauge: value })
+      expect(single.aeoGauge).toBe(value)
+      expect(bulk.aeoGauge).toBe(value)
+    }
+  })
+
+  test(`${routeName}: the default or an unreadable aeoGauge, or another AEO tab, carries none`, async () => {
+    for (const { single, bulk } of [
+      await onOverview({ aeoGauge: 'visibility' }), await onOverview({ aeoGauge: 'SOV' }), await onOverview({ aeoGauge: 'sov' }, 'pr-influence'),
+    ]) {
+      expect('aeoGauge' in single).toBe(false)
+      expect('aeoGauge' in bulk).toBe(false)
+    }
+  })
+
   test(`${routeName}: the Overview with Show deltas off sends deltas=off to the single export and the bulk one; another tab sends none`, async () => {
     const overview = await onOverview({ deltas: 'off' })
     expect(overview.single.deltas).toBe('off')
