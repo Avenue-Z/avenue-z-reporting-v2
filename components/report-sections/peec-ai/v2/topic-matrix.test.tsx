@@ -19,11 +19,11 @@ const BRANDS = ['Renaissance', 'Guardian', 'Amwins', 'Unum', 'MetLife', 'Aflac',
 const TOPICS = ['Differentiators', 'Ease of Doing Business', 'Member Experience']
 const cell = (value: number | null, delta: number | null = 1.25): MatrixCell => ({ value, delta })
 
-const byBrand: Record<string, Record<string, MatrixCell>> = Object.fromEntries(
-  TOPICS.map((t, ti) => [t, Object.fromEntries(BRANDS.map((b, bi) => [b, cell(80 - bi * 7 - ti, bi === 3 ? null : 1.25)]))]),
+const byBrand = new Map<string, Map<string, MatrixCell>>(
+  TOPICS.map((t, ti) => [t, new Map(BRANDS.map((b, bi) => [b, cell(80 - bi * 7 - ti, bi === 3 ? null : 1.25)]))]),
 )
 // One brand never seen on one topic: a null cell.
-byBrand['Member Experience'].Guardian = cell(null, null)
+byBrand.get('Member Experience')!.set('Guardian', cell(null, null))
 
 const PROPS: ComponentProps<typeof TopicMatrix> = {
   topics: TOPICS,
@@ -33,7 +33,7 @@ const PROPS: ComponentProps<typeof TopicMatrix> = {
     { model: 'ChatGPT', label: 'ChatGPT' },
     { model: 'Google', label: 'Google AI Overview' },
   ],
-  byModel: Object.fromEntries(TOPICS.map((t) => [t, { ChatGPT: cell(42.5), Google: cell(12.25, null) }])),
+  byModel: new Map(TOPICS.map((t) => [t, { ChatGPT: cell(42.5), Google: cell(12.25, null) }])),
   showDeltas: true,
   compareLabel: 'vs previous period',
 }
@@ -71,16 +71,38 @@ test('default: the client plus the first 7 competitors, the client header outlin
   expect(screen.getByRole('button', { name: 'Competitors' })).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('a cell prints one decimal on a cyan fill scaled by value; white text above 50%', () => {
+test('a cell prints one decimal on a cyan fill scaled by value; near-black text above 50%, white at or below', () => {
   const { container } = render(<TopicMatrix {...PROPS} />)
   const first = container.querySelector('tbody tr td[data-brand="Renaissance"]') as HTMLElement
   expect(first.textContent).toBe('80.0%')
   // 0.08 + 0.72 × 0.8 = 0.656
   expect(first.getAttribute('style')).toContain('rgba(96, 253, 255, 0.656)')
-  expect(first.className).toContain('text-white')
+  expect(first.className).toContain('text-[#0A0A0A]')
+  expect(first.className).not.toContain('text-white')
   const low = container.querySelector('tbody tr td[data-brand="Aetna"]') as HTMLElement
   expect(low.textContent).toBe('31.0%')
-  expect(low.className).not.toContain('text-white')
+  expect(low.className).toContain('text-white')
+})
+
+test('the text flips at 50: 50 is white, 50.1 near-black', () => {
+  const two = new Map([['T', new Map([['Renaissance', cell(50)], ['Guardian', cell(50.1)]])]])
+  const { container } = render(<TopicMatrix {...PROPS} topics={['T']} byBrand={two} brandCols={PROPS.brandCols.slice(0, 2)} />)
+  const at = (b: string) => (container.querySelector(`tbody td[data-brand="${b}"]`) as HTMLElement).className
+  expect(at('Renaissance')).toContain('text-white')
+  expect(at('Renaissance')).not.toContain('text-[#0A0A0A]')
+  expect(at('Guardian')).toContain('text-[#0A0A0A]')
+  expect(at('Guardian')).not.toContain('text-white')
+})
+
+test('the table is labelled and scrolls sideways on screen in every mode', () => {
+  for (const q of ['section=peec-ai', 'aeoMatrix=all', 'aeoMatrix=platforms']) {
+    search = q
+    const { container, unmount } = render(<TopicMatrix {...PROPS} />)
+    const table = container.querySelector('table')!
+    expect(table.getAttribute('aria-label')).toBe('Visibility by topic')
+    expect(table.parentElement!.className).toContain('overflow-x-auto')
+    unmount()
+  }
 })
 
 test('a null cell renders – with no fill', () => {
@@ -167,4 +189,42 @@ test('export mode: no buttons, and a line under the grid names the mode', () => 
 test('the export line counts the brands drawn when there are fewer than 8', () => {
   render(<ExportModeProvider><TopicMatrix {...PROPS} brandCols={PROPS.brandCols.slice(0, 3)} /></ExportModeProvider>)
   expect(screen.getByText('Competitors · top 3 brands')).toBeTruthy()
+})
+
+const MANY = Array.from({ length: 23 }, (_, i) => `Brand ${String(i).padStart(2, '0')}`)
+const manyProps = (): ComponentProps<typeof TopicMatrix> => ({
+  ...PROPS,
+  brandCols: MANY.map((name, i) => ({ name, color: '#6034FF', isYou: i === 0 })),
+  byBrand: new Map(TOPICS.map((t) => [t, new Map(MANY.map((b) => [b, cell(20)]))])),
+})
+
+test('export with all brands: the columns print in blocks of 10, the topic column repeated, no scroller', () => {
+  search = 'aeoMatrix=all'
+  const { container } = render(<ExportModeProvider><TopicMatrix {...manyProps()} /></ExportModeProvider>)
+  const tables = [...container.querySelectorAll('table')]
+  expect(tables).toHaveLength(3)
+  expect(tables.map((t) => headers(t).length)).toEqual([10, 10, 3])
+  expect(headers(tables[1])[0].textContent).toBe('Brand 10')
+  for (const t of tables) {
+    expect(t.querySelector('thead th')!.textContent).toBe('Topic')
+    expect(t.closest('[data-export-block]')).toBeTruthy()
+    expect(t.parentElement!.className).not.toContain('overflow-x-auto')
+  }
+  expect(new Set(tables.map((t) => t.closest('[data-export-block]'))).size).toBe(3)
+  expect(screen.getByText('All brands')).toBeTruthy()
+})
+
+test('export in Competitors mode: one table whose header names wrap', () => {
+  const { container } = render(<ExportModeProvider><TopicMatrix {...manyProps()} /></ExportModeProvider>)
+  const tables = container.querySelectorAll('table')
+  expect(tables).toHaveLength(1)
+  expect(headers(tables[0])).toHaveLength(8)
+  for (const th of headers(tables[0])) expect(th.className).not.toContain('whitespace-nowrap')
+  expect(tables[0].closest('[data-export-block]')).toBeTruthy()
+  expect(tables[0].parentElement!.className).not.toContain('overflow-x-auto')
+})
+
+test('on screen the header names stay on one line', () => {
+  const { container } = render(<TopicMatrix {...PROPS} />)
+  for (const th of headers(container)) expect(th.className).toContain('whitespace-nowrap')
 })

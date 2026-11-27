@@ -35,7 +35,8 @@ export function BrandTableV2({
   note,
 }: {
   rows: BrandRowV2[]
-  colors: Record<string, string>
+  /** Brand name -> dot color (`brandColors`); a Map, since brand names are vendor data. */
+  colors: ReadonlyMap<string, string>
   showDeltas: boolean
   usedAsSourceBasis: UsedAsSourceBasis
   note: string | null
@@ -93,7 +94,7 @@ export function BrandTableV2({
           <span
             aria-hidden="true"
             className="inline-block h-2 w-2 shrink-0 rounded-full"
-            style={{ backgroundColor: colors[r.name] ?? FALLBACK_COLOR }}
+            style={{ backgroundColor: colors.get(r.name) ?? FALLBACK_COLOR }}
           />
           <span className={cn('text-sm font-semibold', r.isYou ? 'text-[#60FDFF]' : 'text-white')}>{r.name}</span>
         </span>

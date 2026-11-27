@@ -3,10 +3,10 @@
 exports[`topic-matrix@1 golden (resolved matrix) 1`] = `
 <div
   class="rounded-lg border border-white/[0.06] bg-bg-surface"
-  data-export-block=""
 >
   <div
     class="border-b border-white/[0.06] px-5 py-4"
+    data-export-keep-with-next=""
   >
     <p
       class="text-xs font-bold uppercase tracking-widest text-text-muted"
@@ -63,137 +63,142 @@ exports[`topic-matrix@1 golden (resolved matrix) 1`] = `
           </span>
         </div>
       </div>
-      <table
-        class="w-full border-separate border-spacing-1 text-xs"
+      <div
+        class="overflow-x-auto"
       >
-        <thead>
-          <tr>
-            <th
-              class="px-2 py-1.5 text-left font-semibold uppercase tracking-widest text-text-muted"
-              scope="col"
-            >
-              Topic
-            </th>
-            <th
-              class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white outline outline-1 outline-[#60FDFF]"
-              scope="col"
-            >
-              <span
-                class="inline-flex items-center gap-1.5"
+        <table
+          aria-label="Visibility by topic"
+          class="w-full border-separate border-spacing-1 text-xs"
+        >
+          <thead>
+            <tr>
+              <th
+                class="px-2 py-1.5 text-left font-semibold uppercase tracking-widest text-text-muted"
+                scope="col"
+              >
+                Topic
+              </th>
+              <th
+                class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white outline outline-1 outline-[#60FDFF]"
+                scope="col"
               >
                 <span
-                  aria-hidden="true"
-                  class="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style="background-color: rgb(96, 253, 255);"
-                />
-                Acme Corp
-              </span>
-            </th>
-            <th
-              class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white"
-              scope="col"
-            >
-              <span
-                class="inline-flex items-center gap-1.5"
+                  class="inline-flex items-center gap-1.5"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="inline-block h-2 w-2 shrink-0 rounded-full"
+                    style="background-color: rgb(96, 253, 255);"
+                  />
+                  Acme Corp
+                </span>
+              </th>
+              <th
+                class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white"
+                scope="col"
               >
                 <span
-                  aria-hidden="true"
-                  class="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style="background-color: rgb(255, 252, 96);"
-                />
-                Rival Inc
-              </span>
-            </th>
-            <th
-              class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white"
-              scope="col"
-            >
-              <span
-                class="inline-flex items-center gap-1.5"
+                  class="inline-flex items-center gap-1.5"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="inline-block h-2 w-2 shrink-0 rounded-full"
+                    style="background-color: rgb(255, 252, 96);"
+                  />
+                  Rival Inc
+                </span>
+              </th>
+              <th
+                class="whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white"
+                scope="col"
               >
                 <span
-                  aria-hidden="true"
-                  class="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style="background-color: rgb(96, 52, 255);"
-                />
-                Beta LLC
-              </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th
-              class="px-2 py-1.5 text-left font-semibold text-white"
-              scope="row"
-            >
-              Pricing
-            </th>
-            <td
-              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted outline outline-1 outline-[#60FDFF]"
-              data-brand="Acme Corp"
-              style="background-color: rgba(96, 253, 255, 0.404);"
-              title="-5.0 pts vs previous period"
-            >
-              45.0
-              %
-            </td>
-            <td
-              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted"
-              data-brand="Rival Inc"
-              style="background-color: rgba(96, 253, 255, 0.404);"
-              title="-5.0 pts vs previous period"
-            >
-              45.0
-              %
-            </td>
-            <td
-              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted"
-              data-brand="Beta LLC"
-              style="background-color: rgba(96, 253, 255, 0.116);"
-              title="-15.0 pts vs previous period"
-            >
-              5.0
-              %
-            </td>
-          </tr>
-          <tr>
-            <th
-              class="px-2 py-1.5 text-left font-semibold text-white"
-              scope="row"
-            >
-              Support
-            </th>
-            <td
-              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted outline outline-1 outline-[#60FDFF]"
-              data-brand="Acme Corp"
-              style="background-color: rgba(96, 253, 255, 0.26);"
-              title="No comparison data"
-            >
-              25.0
-              %
-            </td>
-            <td
-              class="rounded px-2 py-1.5 text-center tabular-nums font-semibold text-white"
-              data-brand="Rival Inc"
-              style="background-color: rgba(96, 253, 255, 0.62);"
-              title="No comparison data"
-            >
-              75.0
-              %
-            </td>
-            <td
-              class="rounded px-2 py-1.5 text-center tabular-nums text-text-muted"
-              data-brand="Beta LLC"
-              style="background-color: rgba(96, 253, 255, 0.35);"
-              title="No comparison data"
-            >
-              37.5
-              %
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                  class="inline-flex items-center gap-1.5"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="inline-block h-2 w-2 shrink-0 rounded-full"
+                    style="background-color: rgb(96, 52, 255);"
+                  />
+                  Beta LLC
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th
+                class="px-2 py-1.5 text-left font-semibold text-white"
+                scope="row"
+              >
+                Pricing
+              </th>
+              <td
+                class="rounded px-2 py-1.5 text-center tabular-nums text-white outline outline-1 outline-[#60FDFF]"
+                data-brand="Acme Corp"
+                style="background-color: rgba(96, 253, 255, 0.404);"
+                title="-5.0 pts vs previous period"
+              >
+                45.0
+                %
+              </td>
+              <td
+                class="rounded px-2 py-1.5 text-center tabular-nums text-white"
+                data-brand="Rival Inc"
+                style="background-color: rgba(96, 253, 255, 0.404);"
+                title="-5.0 pts vs previous period"
+              >
+                45.0
+                %
+              </td>
+              <td
+                class="rounded px-2 py-1.5 text-center tabular-nums text-white"
+                data-brand="Beta LLC"
+                style="background-color: rgba(96, 253, 255, 0.116);"
+                title="-15.0 pts vs previous period"
+              >
+                5.0
+                %
+              </td>
+            </tr>
+            <tr>
+              <th
+                class="px-2 py-1.5 text-left font-semibold text-white"
+                scope="row"
+              >
+                Support
+              </th>
+              <td
+                class="rounded px-2 py-1.5 text-center tabular-nums text-white outline outline-1 outline-[#60FDFF]"
+                data-brand="Acme Corp"
+                style="background-color: rgba(96, 253, 255, 0.26);"
+                title="No comparison data"
+              >
+                25.0
+                %
+              </td>
+              <td
+                class="rounded px-2 py-1.5 text-center tabular-nums font-semibold text-[#0A0A0A]"
+                data-brand="Rival Inc"
+                style="background-color: rgba(96, 253, 255, 0.62);"
+                title="No comparison data"
+              >
+                75.0
+                %
+              </td>
+              <td
+                class="rounded px-2 py-1.5 text-center tabular-nums text-white"
+                data-brand="Beta LLC"
+                style="background-color: rgba(96, 253, 255, 0.35);"
+                title="No comparison data"
+              >
+                37.5
+                %
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>

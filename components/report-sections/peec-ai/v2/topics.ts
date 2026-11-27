@@ -1,4 +1,4 @@
-import type { PromptModelStat, PromptV2, TopicCell, TopicsPromptsV2, VisCount } from '@/lib/aeo/v2/types'
+import type { PromptModelStat, PromptV2, TopicAnswers, TopicCell, TopicsPromptsV2, VisCount } from '@/lib/aeo/v2/types'
 import { AEO_MODELS, type AEOModel } from '@/lib/peec/models'
 import { roundForUnit } from './delta'
 
@@ -8,86 +8,94 @@ export function visPct(c: VisCount | undefined): number | null {
 
 export type MatrixCell = { value: number | null; delta: number | null }
 
-type Sums = Record<string, Record<string, VisCount>>
-
-const keep = (cell: TopicCell, models: AEOModel[] | null) => models === null || models.includes(cell.model)
-
-/** Sums the selected models' cells per topic and brand, and each topic's answers (per model, the largest answers over brands). */
-function sumCells(cells: TopicCell[], models: AEOModel[] | null) {
-  const brandSums: Sums = {}
-  const topicModelAnswers: Record<string, Partial<Record<AEOModel, number>>> = {}
-  for (const cell of cells) {
-    if (!keep(cell, models)) continue
-    const b = ((brandSums[cell.topic] ??= {})[cell.brand] ??= { mentions: 0, answers: 0 })
-    b.mentions += cell.mentions
-    b.answers += cell.answers
-    const t = (topicModelAnswers[cell.topic] ??= {})
-    t[cell.model] = Math.max(t[cell.model] ?? 0, cell.answers)
-  }
-  const topicAnswers: Record<string, number> = {}
-  for (const [topic, byModel] of Object.entries(topicModelAnswers)) {
-    topicAnswers[topic] = Object.values(byModel).reduce((s, n) => s + (n ?? 0), 0)
-  }
-  return { brandSums, topicAnswers }
+/** Topic and brand names are vendor data, so every record keyed by one is a Map (a topic named `__proto__` is just a key). */
+export type TopicMatrixData = {
+  topics: string[]
+  /** Topic -> brand -> cell. */
+  byBrand: Map<string, Map<string, MatrixCell>>
+  /** Topic -> the client's cell per model. */
+  byModel: Map<string, Partial<Record<AEOModel, MatrixCell>>>
+  modelsPresent: AEOModel[]
 }
 
-function brandValue(s: ReturnType<typeof sumCells>, topic: string, brand: string): number | null {
-  if (!(s.topicAnswers[topic] > 0)) return null
-  return visPct(s.brandSums[topic]?.[brand]) ?? 0
+const selected = (model: AEOModel, models: AEOModel[] | null) => models === null || models.includes(model)
+
+function getOrSet<K, V>(map: Map<K, V>, key: K, make: () => V): V {
+  let v = map.get(key)
+  if (v === undefined) map.set(key, (v = make()))
+  return v
 }
+
+const sum = (m: Map<AEOModel, number> | undefined) => (m ? Array.from(m.values()).reduce((s, n) => s + n, 0) : 0)
+
+/** One window over the selected models: topic -> model -> all answers, and topic -> brand -> model -> mentions. */
+type Window = { answers: Map<string, Map<AEOModel, number>>; mentions: Map<string, Map<string, Map<AEOModel, number>>> }
+
+function windowOf(cells: TopicCell[], totals: TopicAnswers[], models: AEOModel[] | null): Window {
+  const answers: Window['answers'] = new Map()
+  for (const t of totals) {
+    if (!selected(t.model, models)) continue
+    const byModel = getOrSet(answers, t.topic, () => new Map<AEOModel, number>())
+    byModel.set(t.model, (byModel.get(t.model) ?? 0) + t.answers)
+  }
+  const mentions: Window['mentions'] = new Map()
+  for (const c of cells) {
+    if (!selected(c.model, models)) continue
+    const byModel = getOrSet(getOrSet(mentions, c.topic, () => new Map<string, Map<AEOModel, number>>()), c.brand, () => new Map<AEOModel, number>())
+    byModel.set(c.model, (byModel.get(c.model) ?? 0) + c.mentions)
+  }
+  return { answers, mentions }
+}
+
+/** Mentions out of all answers, in percent: 0 when there were answers and no mention, null when there were no answers. */
+const share = (mentions: number, answers: number) => (answers > 0 ? (mentions / answers) * 100 : null)
+
+/** A brand's visibility on a topic: its mentions over the selected models out of the topic's answers on those models. */
+const topicValue = (w: Window, topic: string, brand: string) => share(sum(w.mentions.get(topic)?.get(brand)), sum(w.answers.get(topic)))
+
+const modelValue = (w: Window, topic: string, brand: string, model: AEOModel) =>
+  share(w.mentions.get(topic)?.get(brand)?.get(model) ?? 0, w.answers.get(topic)?.get(model) ?? 0)
 
 function diff(value: number | null, prior: number | null): number | null {
   return value != null && prior != null ? value - prior : null
 }
 
-export function topicMatrix(
-  data: TopicsPromptsV2,
-  models: AEOModel[] | null,
-): {
-  topics: string[]
-  byBrand: Record<string, Record<string, MatrixCell>>
-  byModel: Record<string, Partial<Record<AEOModel, MatrixCell>>>
-  modelsPresent: AEOModel[]
-} {
-  const cur = sumCells(data.cells, models)
-  const pri = sumCells(data.cellsPrior, models)
-  const brands = new Set<string>()
+/**
+ * The section 04 matrix over the selected models. Every cell divides a brand's mentions by the topic's total answers
+ * (`topicAnswers`), never by the answers on the brand's own cells, which a provider omits when the brand had no mention.
+ * Rows are every topic with answers, sorted by the client's value (desc), then name. `you` defaults to the data's client.
+ */
+export function topicMatrix(data: TopicsPromptsV2, models: AEOModel[] | null, you: string | null = data.you): TopicMatrixData {
+  const cur = windowOf(data.cells, data.topicAnswers, models)
+  const pri = windowOf(data.cellsPrior, data.topicAnswersPrior, models)
   const present = new Set<AEOModel>()
-  for (const cell of data.cells) {
-    if (!keep(cell, models)) continue
-    brands.add(cell.brand)
-    present.add(cell.model)
-  }
+  for (const byModel of cur.answers.values()) for (const [model, n] of byModel) if (n > 0) present.add(model)
   const modelsPresent = AEO_MODELS.filter((m) => present.has(m))
+  if (you === null) return { topics: [], byBrand: new Map(), byModel: new Map(), modelsPresent }
 
-  const byBrand: Record<string, Record<string, MatrixCell>> = {}
-  for (const topic of Object.keys(cur.topicAnswers)) {
-    if (!(cur.topicAnswers[topic] > 0)) continue
-    const row: Record<string, MatrixCell> = {}
+  const brands = new Set<string>([you])
+  for (const c of data.cells) if (selected(c.model, models)) brands.add(c.brand)
+
+  const byBrand: TopicMatrixData['byBrand'] = new Map()
+  const byModel: TopicMatrixData['byModel'] = new Map()
+  for (const [topic, answers] of cur.answers) {
+    if (!(sum(answers) > 0)) continue
+    const row = new Map<string, MatrixCell>()
     for (const brand of brands) {
-      const value = brandValue(cur, topic, brand)
-      row[brand] = { value, delta: diff(value, brandValue(pri, topic, brand)) }
+      const value = topicValue(cur, topic, brand)
+      row.set(brand, { value, delta: diff(value, topicValue(pri, topic, brand)) })
     }
-    byBrand[topic] = row
+    byBrand.set(topic, row)
+    const perModel: Partial<Record<AEOModel, MatrixCell>> = {}
+    for (const model of modelsPresent) {
+      const value = modelValue(cur, topic, you, model)
+      perModel[model] = { value, delta: diff(value, modelValue(pri, topic, you, model)) }
+    }
+    byModel.set(topic, perModel)
   }
 
-  const you = data.you
-  if (you === null) return { topics: [], byBrand, byModel: {}, modelsPresent }
-
-  const clientValue = (topic: string) => byBrand[topic]?.[you]?.value ?? null
-  const topics = Object.keys(byBrand)
-    .filter((t) => (cur.brandSums[t]?.[you]?.answers ?? 0) > 0)
-    .sort((a, b) => (clientValue(b) ?? 0) - (clientValue(a) ?? 0) || a.localeCompare(b))
-
-  const priorByKey = new Map<string, TopicCell>()
-  for (const cell of data.cellsPrior) if (cell.brand === you) priorByKey.set(`${cell.topic}\0${cell.model}`, cell)
-  const byModel: Record<string, Partial<Record<AEOModel, MatrixCell>>> = {}
-  for (const cell of data.cells) {
-    if (cell.brand !== you || !keep(cell, models)) continue
-    const value = visPct(cell)
-    const prior = visPct(priorByKey.get(`${cell.topic}\0${cell.model}`))
-    ;(byModel[cell.topic] ??= {})[cell.model] = { value, delta: diff(value, prior) }
-  }
+  const clientValue = (topic: string) => byBrand.get(topic)?.get(you)?.value ?? 0
+  const topics = Array.from(byBrand.keys()).sort((a, b) => clientValue(b) - clientValue(a) || a.localeCompare(b))
   return { topics, byBrand, byModel, modelsPresent }
 }
 

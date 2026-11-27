@@ -26,7 +26,7 @@ export async function VisibilityV2Section({
   const series: TrendSeries[] = v.brands.map((b) => ({
     key: brandKey(b.name),
     name: b.name,
-    color: colors[b.name] ?? FALLBACK_COLOR,
+    color: colors.get(b.name) ?? FALLBACK_COLOR,
     isYou: b.isYou,
     points: pointsByName.get(b.name) ?? [],
   }))

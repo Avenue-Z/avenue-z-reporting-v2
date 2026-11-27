@@ -22,7 +22,7 @@ const rows = (youRank: number | null, n = 14) =>
 
 const ui = (r: BrandRowV2[], over: Partial<Parameters<typeof BrandTableV2>[0]> = {}) => (
   <TooltipProvider>
-    <BrandTableV2 rows={r} colors={{}} showDeltas usedAsSourceBasis="answers" note={null} {...over} />
+    <BrandTableV2 rows={r} colors={new Map()} showDeltas usedAsSourceBasis="answers" note={null} {...over} />
   </TooltipProvider>
 )
 const bodyRows = (c: HTMLElement) => [...c.querySelectorAll('tbody tr')]
@@ -132,4 +132,11 @@ test('re-sorting by another column still pins the client when it falls outside t
   expect(trs[0].textContent).toContain('Brand 1')
   expect(trs[10].hasAttribute('data-pinned')).toBe(true)
   expect(trs[10].textContent).toContain('Brand 14')
+})
+
+test('a brand named like an Object property without a color gets the fallback dot', () => {
+  const { container } = render(ui([row(1, { name: 'constructor' }), row(2, { name: 'Acme' })], { colors: new Map([['Acme', '#6034FF']]) }))
+  const dots = [...container.querySelectorAll('tbody span[aria-hidden="true"]')].map((d) => d.getAttribute('style'))
+  expect(dots[0]).toContain('rgb(107, 114, 128)')
+  expect(dots[1]).toContain('rgb(96, 52, 255)')
 })

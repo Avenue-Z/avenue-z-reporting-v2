@@ -1,11 +1,12 @@
 // AEO Overview v2, section 04 (Peec): per-(topic, brand, model) visibility counts for the matrix and the client brand's
 // per-prompt stats for Prompt Performance, for the current and comparison windows. Unlike v1's single 5,000-row page
-// (223 of Renaissance's 300 prompt x model cells), this pages through every row. Topic = peecPromptTopic, the one rule v1 uses.
+// (223 of Renaissance's 300 prompt x model cells), this pages through every row. Topic = the prompt's first subject tag (v1's
+// peecPromptTopic); a prompt v1 would place by keyword inference goes under Other here.
 import { cached } from '@/lib/cache'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { resolveYou } from '@/lib/aeo/v2/you'
 import type { AEOModel } from './models'
-import type { CompareMode, PromptModelStat, PromptV2, TopicCell, TopicsPromptsV2 } from '@/lib/aeo/v2/types'
+import type { CompareMode, PromptModelStat, PromptV2, TopicAnswers, TopicCell, TopicsPromptsV2 } from '@/lib/aeo/v2/types'
 import { fetchAllRows, normalizeSource, peecGet, peecPromptTopic, type ApiBrandRow } from './client'
 import { getPeecRoster } from './roster'
 
@@ -30,6 +31,41 @@ function sumCells(rows: ApiBrandRow[], topicOf: Map<string, string>): TopicCell[
     else cells.set(key, { topic, brand: r.brand.name, model, mentions: r.visibility_count, answers: r.visibility_total })
   }
   return Array.from(cells.values())
+}
+
+/**
+ * All answers per topic and model. Every brand row of one prompt x model carries the same `visibility_total`, so it is
+ * counted once per prompt x model channel x model (the first brand row seen), then summed over the topic's prompts.
+ */
+function sumTopicAnswers(rows: ApiBrandRow[], topicOf: Map<string, string>): TopicAnswers[] {
+  const seen = new Set<string>()
+  const totals = new Map<string, TopicAnswers>()
+  for (const r of rows) {
+    const model = modelOf(r)
+    const id = promptIdOf(r)
+    const topic = id ? topicOf.get(id) : undefined
+    if (!model || !topic) continue
+    const raw = `${id}\u0000${r.model_channel?.id ?? ''}\u0000${r.model?.id ?? ''}`
+    if (seen.has(raw)) continue
+    seen.add(raw)
+    const key = `${topic}\u0000${model}`
+    const t = totals.get(key)
+    if (t) t.answers += r.visibility_total
+    else totals.set(key, { topic, model, answers: r.visibility_total })
+  }
+  return Array.from(totals.values())
+}
+
+/** Brands in visibility-rank order over every row (mentions out of answers, summed), for `resolveYou`'s tie-break. */
+function rankedBrands(rows: ApiBrandRow[], ownByName: ReadonlyMap<string, boolean> | undefined): { name: string; isOwn: boolean }[] {
+  const sums = new Map<string, { c: number; t: number }>()
+  for (const r of rows) {
+    const s = sums.get(r.brand.name)
+    if (s) { s.c += r.visibility_count; s.t += r.visibility_total } else sums.set(r.brand.name, { c: r.visibility_count, t: r.visibility_total })
+  }
+  return Array.from(sums.entries())
+    .map(([name, s]) => ({ name, isOwn: ownByName?.get(name) ?? false, visibility: s.t > 0 ? s.c / s.t : 0 }))
+    .sort((a, b) => b.visibility - a.visibility)
 }
 
 /** The client brand's stats per prompt and model. */
@@ -63,12 +99,12 @@ export function buildPeecTopicsPrompts(input: {
   const meta = new Map<string, { text: string; topic: string }>()
   for (const p of input.prompts) {
     const text = (p.messages ?? []).map((m) => m.content).filter(Boolean).join(' ').trim() || '(untitled prompt)'
-    meta.set(p.id, { text, topic: peecPromptTopic(p.tags, text, tagNameById).group })
+    const t = peecPromptTopic(p.tags, text, tagNameById)
+    meta.set(p.id, { text, topic: t.topicSource === 'inferred' ? 'Other' : t.group })
   }
   const topicOf = new Map(Array.from(meta.entries()).map(([id, m]) => [id, m.topic]))
 
-  const brands = Array.from(new Set(input.rows.map((r) => r.brand.name)))
-  const you = resolveYou(brands.map((name) => ({ name, isOwn: input.ownByName?.get(name) ?? false })), input.yourBrand)
+  const you = resolveYou(rankedBrands(input.rows, input.ownByName), input.yourBrand)
 
   const current = youStats(input.rows, you)
   const prior = youStats(input.rowsPrior, you)
@@ -79,7 +115,14 @@ export function buildPeecTopicsPrompts(input: {
     if (!cur) continue
     prompts.push({ id, text: m.text, topic: m.topic, current: cur, prior: priorPromptIds.has(id) ? (prior.get(id) ?? {}) : null })
   }
-  return { you, cells: sumCells(input.rows, topicOf), cellsPrior: sumCells(input.rowsPrior, topicOf), prompts }
+  return {
+    you,
+    cells: sumCells(input.rows, topicOf),
+    cellsPrior: sumCells(input.rowsPrior, topicOf),
+    topicAnswers: sumTopicAnswers(input.rows, topicOf),
+    topicAnswersPrior: sumTopicAnswers(input.rowsPrior, topicOf),
+    prompts,
+  }
 }
 
 async function getPeecTopicsPromptsV2Impl(clientSlug: string, dateRange: string, compareMode: CompareMode): Promise<TopicsPromptsV2> {
@@ -114,7 +157,8 @@ async function getPeecTopicsPromptsV2Impl(clientSlug: string, dateRange: string,
 }
 
 export const getPeecTopicsPromptsV2 = cached('peec', 'getTopicsPromptsV2', getPeecTopicsPromptsV2Impl, {
-  version: 'v1',
+  // v2: the result gained topicAnswers (lib/cache.ts: bump on a shape change).
+  version: 'v2',
   healthCritical: false,
   extractTags: ([clientSlug]) => ({ client: clientSlug }),
 })

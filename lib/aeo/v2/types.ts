@@ -45,4 +45,13 @@ export type PromptV2 = {
   /** null when the prompt had no answers in the comparison window. */
   prior: Partial<Record<AEOModel, PromptModelStat>> | null
 }
-export type TopicsPromptsV2 = { you: string | null; cells: TopicCell[]; cellsPrior: TopicCell[]; prompts: PromptV2[] }
+/** All answers on one topic and model, whether or not a brand was mentioned: the denominator of every matrix cell. */
+export type TopicAnswers = { topic: string; model: AEOModel; answers: number }
+export type TopicsPromptsV2 = {
+  you: string | null
+  cells: TopicCell[]
+  cellsPrior: TopicCell[]
+  topicAnswers: TopicAnswers[]
+  topicAnswersPrior: TopicAnswers[]
+  prompts: PromptV2[]
+}

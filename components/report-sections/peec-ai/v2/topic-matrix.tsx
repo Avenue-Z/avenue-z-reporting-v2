@@ -18,6 +18,11 @@ const outlined = (className: string, isYou: boolean) => (isYou ? `${className} $
 
 /** The fill grows with the value: 8% cyan at 0, 80% at 100. */
 const fill = (value: number) => `rgba(96,253,255,${(0.08 + 0.72 * (value / 100)).toFixed(3)})`
+/** Above 50% the fill is light enough that white text loses contrast, so it turns near-black. */
+const textClass = (value: number) => (value > 50 ? 'font-semibold text-[#0A0A0A]' : 'text-white')
+
+/** Brand columns per printed table when every brand is shown: a PDF page has no sideways scroll. */
+export const EXPORT_BRANDS_PER_TABLE = 10
 
 function modeLine(mode: MatrixMode, brands: number): string {
   if (mode === 'all') return 'All brands'
@@ -42,9 +47,10 @@ export function TopicMatrix({
 }: {
   topics: string[]
   brandCols: BrandCol[]
-  byBrand: Record<string, Record<string, MatrixCell>>
+  /** Topic -> brand -> cell (Maps: topic and brand names are vendor data). */
+  byBrand: ReadonlyMap<string, ReadonlyMap<string, MatrixCell>>
   modelCols: ModelCol[]
-  byModel: Record<string, Partial<Record<AEOModel, MatrixCell>>>
+  byModel: ReadonlyMap<string, Partial<Record<AEOModel, MatrixCell>>>
   showDeltas: boolean
   compareLabel: string
 }) {
@@ -57,8 +63,8 @@ export function TopicMatrix({
   const shownBrands = mode === 'all' ? brandCols : brandCols.slice(0, MATRIX_DEFAULT_COMPETITORS + 1)
   const cols: Col[] =
     mode === 'platforms'
-      ? modelCols.map(({ model, label }) => ({ key: model, label, color: null, isYou: false, cell: (t) => byModel[t]?.[model] }))
-      : shownBrands.map(({ name, color, isYou }) => ({ key: name, label: name, color, isYou, cell: (t) => byBrand[t]?.[name] }))
+      ? modelCols.map(({ model, label }) => ({ key: model, label, color: null, isYou: false, cell: (t) => byModel.get(t)?.[model] }))
+      : shownBrands.map(({ name, color, isYou }) => ({ key: name, label: name, color, isYou, cell: (t) => byBrand.get(t)?.get(name) }))
 
   function write(next: MatrixMode) {
     const params = new URLSearchParams(searchParams.toString())
@@ -88,16 +94,17 @@ export function TopicMatrix({
     return c.delta == null ? 'No comparison data' : `${formatDelta(c.delta, 'pts')} ${compareLabel}`.trim()
   }
 
-  const table = (
-    <table className="w-full border-separate border-spacing-1 text-xs">
+  const table = (shown: Col[]) => (
+    <table aria-label="Visibility by topic" className="w-full border-separate border-spacing-1 text-xs">
       <thead>
         <tr>
           <th scope="col" className="px-2 py-1.5 text-left font-semibold uppercase tracking-widest text-text-muted">Topic</th>
-          {cols.map((c) => (
+          {shown.map((c) => (
             <th
               key={c.key}
               scope="col"
-              className={outlined('whitespace-nowrap rounded px-2 py-1.5 text-center font-semibold text-white', c.isYou)}
+              // On paper the names wrap so the columns fit the page; on screen the table scrolls instead.
+              className={outlined(cn(!exporting && 'whitespace-nowrap', 'rounded px-2 py-1.5 text-center font-semibold text-white'), c.isYou)}
             >
               <span className="inline-flex items-center gap-1.5">
                 {c.color && (
@@ -113,7 +120,7 @@ export function TopicMatrix({
         {topics.map((topic) => (
           <tr key={topic}>
             <th scope="row" className="px-2 py-1.5 text-left font-semibold text-white">{topic}</th>
-            {cols.map((c) => {
+            {shown.map((c) => {
               const cell = c.cell(topic)
               const dataKey = mode === 'platforms' ? { 'data-model': c.key } : { 'data-brand': c.key }
               if (!cell || cell.value == null) {
@@ -129,10 +136,7 @@ export function TopicMatrix({
                   {...dataKey}
                   title={title(cell)}
                   style={{ backgroundColor: fill(cell.value) }}
-                  className={outlined(
-                    cn('rounded px-2 py-1.5 text-center tabular-nums', cell.value > 50 ? 'font-semibold text-white' : 'text-text-muted'),
-                    c.isYou,
-                  )}
+                  className={outlined(cn('rounded px-2 py-1.5 text-center tabular-nums', textClass(cell.value)), c.isYou)}
                 >
                   {cell.value.toFixed(1)}%
                 </td>
@@ -143,6 +147,19 @@ export function TopicMatrix({
       </tbody>
     </table>
   )
+
+  // On screen one table that scrolls sideways. On paper every brand prints in tables of EXPORT_BRANDS_PER_TABLE columns,
+  // each its own unbreakable block; the other modes fit the page as one table.
+  const chunks: Col[][] = []
+  if (exporting && mode === 'all') for (let i = 0; i < cols.length; i += EXPORT_BRANDS_PER_TABLE) chunks.push(cols.slice(i, i + EXPORT_BRANDS_PER_TABLE))
+  else chunks.push(cols)
+  const grids = exporting
+    ? chunks.map((chunk, i) => (
+        <div key={i} data-export-block="">
+          {table(chunk)}
+        </div>
+      ))
+    : <div className="overflow-x-auto">{table(cols)}</div>
 
   return (
     <div className="flex flex-col gap-3">
@@ -169,7 +186,7 @@ export function TopicMatrix({
           )}
         </div>
       )}
-      {mode === 'all' ? <div className="overflow-x-auto">{table}</div> : table}
+      {grids}
       {exporting && <p className="text-xs text-text-muted">{modeLine(mode, shownBrands.length)}</p>}
     </div>
   )

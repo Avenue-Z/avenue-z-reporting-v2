@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { render } from '@testing-library/react'
-import type { TopicCell, TopicsPromptsV2, VisibilityV2 } from '@/lib/aeo/v2/types'
+import type { TopicAnswers, TopicCell, TopicsPromptsV2, VisibilityV2 } from '@/lib/aeo/v2/types'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn() }),
@@ -32,6 +32,7 @@ const VIS: VisibilityV2 = {
 
 const c = (topic: string, brand: string, model: TopicCell['model'], mentions: number, answers: number): TopicCell =>
   ({ topic, brand, model, mentions, answers })
+const t = (topic: string, model: TopicAnswers['model'], answers: number): TopicAnswers => ({ topic, model, answers })
 const TOPICS: TopicsPromptsV2 = {
   you: 'Acme Corp',
   cells: [
@@ -42,6 +43,8 @@ const TOPICS: TopicsPromptsV2 = {
   cellsPrior: [
     c('Pricing', 'Acme Corp', 'ChatGPT', 5, 10), c('Pricing', 'Rival Inc', 'ChatGPT', 5, 10), c('Pricing', 'Beta LLC', 'ChatGPT', 2, 10),
   ],
+  topicAnswers: [t('Pricing', 'ChatGPT', 10), t('Pricing', 'Gemini', 10), t('Support', 'ChatGPT', 8)],
+  topicAnswersPrior: [t('Pricing', 'ChatGPT', 10)],
   prompts: [],
 }
 
@@ -94,10 +97,37 @@ test('previous year is the window both loaders fetch', async () => {
   expect(getVisibilityV2).toHaveBeenCalledWith('peec', 'fixture-client', 'last_30_days', 'previous_year')
 })
 
-test('renders nothing without a client, or with no topics', async () => {
-  expect(await TopicMatrixSection({ ctx: pick({ ...CTX, clientSlug: undefined }) })).toBeNull()
-  vi.mocked(getTopicsPromptsV2).mockResolvedValue({ ...TOPICS, cells: [] })
-  expect(await TopicMatrixSection({ ctx: pick(CTX) })).toBeNull()
+test('says there is no topic data without a client slug, a client brand, or topics', async () => {
+  const empty = async (ctx: PeecCtx) => {
+    const { container, unmount } = render(<>{await TopicMatrixSection({ ctx: pick(ctx) })}</>)
+    expect(container.textContent).toContain('No topic data for this period.')
+    expect(container.querySelector('table')).toBeNull()
+    unmount()
+  }
+  await empty({ ...CTX, clientSlug: undefined })
+  vi.mocked(getTopicsPromptsV2).mockResolvedValue({ ...TOPICS, topicAnswers: [] })
+  await empty(CTX)
+  vi.mocked(getTopicsPromptsV2).mockResolvedValue({ ...TOPICS, you: null })
+  vi.mocked(getVisibilityV2).mockResolvedValue({ ...VIS, brands: VIS.brands.map((b) => ({ ...b, isYou: false })) })
+  await empty(CTX)
+})
+
+test('the client column is the brand table client, even when the topic data names another', async () => {
+  vi.mocked(getTopicsPromptsV2).mockResolvedValue({ ...TOPICS, you: 'Rival Inc' })
+  const { container } = render(<>{await TopicMatrixSection({ ctx: pick(CTX) })}</>)
+  const cols = [...container.querySelectorAll('thead th')].slice(1)
+  expect(cols[0].textContent).toBe('Acme Corp')
+  expect(cols[0].querySelector('span[style]')!.getAttribute('style')).toContain('rgb(96, 253, 255)')
+})
+
+test('brands in the topic data but not in the brand table follow the ranked ones, by name', async () => {
+  vi.mocked(getTopicsPromptsV2).mockResolvedValue({
+    ...TOPICS,
+    cells: [...TOPICS.cells, c('Pricing', 'Zeta Co', 'ChatGPT', 1, 10), c('Pricing', 'Alpha Co', 'ChatGPT', 2, 10)],
+  })
+  const { container } = render(<>{await TopicMatrixSection({ ctx: pick({ ...CTX }) })}</>)
+  // The default view shows the client + 7; all five fit.
+  expect([...container.querySelectorAll('thead th')].slice(1).map((h) => h.textContent)).toEqual(['Acme Corp', 'Rival Inc', 'Beta LLC', 'Alpha Co', 'Zeta Co'])
 })
 
 test('the part wraps the async section in an error boundary around Suspense, passing plain ctx fields', () => {

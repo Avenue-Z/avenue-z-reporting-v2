@@ -11,10 +11,10 @@ test('BRAND_PALETTE has the twelve approved hexes in order', () => {
 
 test('brandColors gives "you" the primary cyan and the rest palette slots by sorted name', () => {
   const colors = brandColors(['Unum', 'Renaissance', 'Aflac'], 'Renaissance')
-  expect(colors.Renaissance).toBe(CHART_COLORS.primary)
-  expect(colors.Renaissance).toBe('#60FDFF')
-  expect(colors.Aflac).toBe('#6034FF')
-  expect(colors.Unum).toBe('#FFFC60')
+  expect(colors.get('Renaissance')).toBe(CHART_COLORS.primary)
+  expect(colors.get('Renaissance')).toBe('#60FDFF')
+  expect(colors.get('Aflac')).toBe('#6034FF')
+  expect(colors.get('Unum')).toBe('#FFFC60')
 })
 
 test('brandColors does not depend on roster order', () => {
@@ -25,14 +25,22 @@ test('brandColors does not depend on roster order', () => {
 
 test('brandColors with no "you" gives every brand a palette slot', () => {
   const colors = brandColors(['Unum', 'Aflac'], null)
-  expect(colors).toEqual({ Aflac: '#6034FF', Unum: '#FFFC60' })
+  expect(colors).toEqual(new Map([['Aflac', '#6034FF'], ['Unum', '#FFFC60']]))
 })
 
 test('brandColors wraps the palette after twelve other brands', () => {
   const roster = Array.from({ length: 13 }, (_, i) => `Brand ${String(i).padStart(2, '0')}`)
   const colors = brandColors(roster, null)
-  expect(colors['Brand 00']).toBe(BRAND_PALETTE[0])
-  expect(colors['Brand 12']).toBe(BRAND_PALETTE[0])
+  expect(colors.get('Brand 00')).toBe(BRAND_PALETTE[0])
+  expect(colors.get('Brand 12')).toBe(BRAND_PALETTE[0])
+})
+
+test('brandColors keys brand names safely: a brand named constructor or __proto__ is just a name', () => {
+  const colors = brandColors(['constructor', '__proto__', 'Acme'], 'Acme')
+  expect(colors.get('Acme')).toBe(CHART_COLORS.primary)
+  expect(colors.get('__proto__')).toBe(BRAND_PALETTE[0])
+  expect(colors.get('constructor')).toBe(BRAND_PALETTE[1])
+  expect(colors.get('toString')).toBeUndefined()
 })
 
 test('brandKey lowercases and hyphenates', () => {

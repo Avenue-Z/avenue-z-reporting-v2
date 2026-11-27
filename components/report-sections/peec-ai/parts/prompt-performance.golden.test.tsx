@@ -21,7 +21,7 @@ const stat = (mentions: number, answers: number, posSum: number, posCount: numbe
 const p = (id: string, cur: PromptV2['current'], prior: PromptV2['prior']): PromptV2 =>
   ({ id, text: `Prompt ${id}`, topic: 'Pricing', current: cur, prior })
 const DATA: TopicsPromptsV2 = {
-  you: 'Acme Corp', cells: [], cellsPrior: [],
+  you: 'Acme Corp', cells: [], cellsPrior: [], topicAnswers: [], topicAnswersPrior: [],
   prompts: [
     p('a', { ChatGPT: stat(6, 10, 6, 6), Gemini: stat(3, 10, 6, 3) }, { ChatGPT: stat(5, 10, 15, 5) }),
     p('b', { ChatGPT: stat(2, 8, 6, 2) }, null),
@@ -59,10 +59,16 @@ test('the model filter is applied', async () => {
   expect(container.textContent).not.toContain('Model filter not applied')
 })
 
-test('renders nothing without a client, or with no prompts', async () => {
-  expect(await PromptPerformanceSection({ ctx: pick({ ...CTX, clientSlug: undefined }) })).toBeNull()
+test('says there is no prompt data without a client, or with no prompts', async () => {
+  const empty = async (ctx: PeecCtx) => {
+    const { container, unmount } = render(<>{await PromptPerformanceSection({ ctx: pick(ctx) })}</>)
+    expect(container.textContent).toContain('No prompt data for this period.')
+    expect(container.querySelector('table')).toBeNull()
+    unmount()
+  }
+  await empty({ ...CTX, clientSlug: undefined })
   vi.mocked(getTopicsPromptsV2).mockResolvedValue({ ...DATA, prompts: [] })
-  expect(await PromptPerformanceSection({ ctx: pick(CTX) })).toBeNull()
+  await empty(CTX)
 })
 
 test('the part wraps the async section in an error boundary around Suspense', () => {

@@ -11,16 +11,17 @@ export const FALLBACK_COLOR = '#6B7280'
 /**
  * Colors for a brand roster. "You" gets the primary cyan; every other brand takes a palette slot
  * by its position in name order. It depends only on the roster, never on rank, so colors do not
- * shuffle between periods.
+ * shuffle between periods. A Map, since brand names are vendor data (a brand named `constructor`
+ * must not read an Object property); look a name up with `.get(name) ?? FALLBACK_COLOR`.
  */
-export function brandColors(roster: readonly string[], you: string | null): Record<string, string> {
-  const colors: Record<string, string> = {}
-  if (you !== null && roster.includes(you)) colors[you] = CHART_COLORS.primary
+export function brandColors(roster: readonly string[], you: string | null): Map<string, string> {
+  const colors = new Map<string, string>()
+  if (you !== null && roster.includes(you)) colors.set(you, CHART_COLORS.primary)
   const others = roster
     .filter((name) => name !== you)
     .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
   others.forEach((name, i) => {
-    colors[name] = BRAND_PALETTE[i % BRAND_PALETTE.length]
+    colors.set(name, BRAND_PALETTE[i % BRAND_PALETTE.length])
   })
   return colors
 }

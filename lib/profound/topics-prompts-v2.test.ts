@@ -22,17 +22,17 @@ const assets: ProfoundAsset[] = [
   { name: 'Avenue Z', website: 'avenuez.com', alternateDomains: [], isOwned: true },
   { name: 'iPullRank', website: 'ipullrank.com', alternateDomains: [], isOwned: false },
 ]
-const cell = (topic: string, model: string, asset: string, mentions: number, executions: number): ProfoundNamedRow => ({
+const cell = (topic: string | null, model: string, asset: string, mentions: number, executions: number): ProfoundNamedRow => ({
   dims: { topic, model, asset_name: asset },
   metrics: { mentions_count: mentions, executions },
 })
-const run = (id: string, text: string, topic: string, model: string, executions: number): ProfoundNamedRow => ({
+const run = (id: string, text: string, topic: string | null, model: string, executions: number): ProfoundNamedRow => ({
   dims: { prompt_id: id, prompt: text, topic, model },
   metrics: { executions },
 })
-const youRow = (id: string, model: string, mentions: number, pos: number): ProfoundNamedRow => ({
+const youRow = (id: string, model: string, mentions: number, pos?: number): ProfoundNamedRow => ({
   dims: { prompt_id: id, model },
-  metrics: { mentions_count: mentions, average_position: pos },
+  metrics: pos === undefined ? { mentions_count: mentions } : { mentions_count: mentions, average_position: pos },
 })
 
 describe('profoundModel', () => {
@@ -81,6 +81,60 @@ describe('buildProfoundTopicsPrompts', () => {
     expect(p2.topic).toBe('SEO')
     expect(p2.text).toBe('new one')
   })
+  it('sums the runs report executions by topic and model as the topic totals', () => {
+    const o = buildProfoundTopicsPrompts({ ...base, runs: [...base.runs, run('p3', 'x', 'SEO', 'Google Gemini', 7), run('p4', 'y', 'SEO', 'Bard', 9)] })
+    expect(o.topicAnswers).toEqual([
+      { topic: 'SEO', model: 'ChatGPT', answers: 62 },
+      { topic: 'SEO', model: 'Gemini', answers: 7 },
+    ])
+    expect(out.topicAnswersPrior).toEqual([{ topic: 'SEO', model: 'ChatGPT', answers: 50 }])
+  })
+  it('puts a null topic under Other in both the cells and the prompts', () => {
+    const o = buildProfoundTopicsPrompts({
+      ...base,
+      cells: [cell(null, 'ChatGPT', 'Avenue Z', 2, 6)],
+      runs: [run('p9', 'no topic', null, 'ChatGPT', 6)],
+      you: [youRow('p9', 'ChatGPT', 2, 1)],
+    })
+    expect(o.cells).toEqual([{ topic: 'Other', brand: 'Avenue Z', model: 'ChatGPT', mentions: 2, answers: 6 }])
+    expect(o.prompts.map((p) => p.topic)).toEqual(['Other'])
+    expect(o.topicAnswers).toEqual([{ topic: 'Other', model: 'ChatGPT', answers: 6 }])
+  })
+  it('counts a position only when average_position is a finite number', () => {
+    const o = buildProfoundTopicsPrompts({
+      ...base,
+      runs: [run('a', 'a', 'SEO', 'ChatGPT', 5), run('b', 'b', 'SEO', 'ChatGPT', 5)],
+      you: [youRow('a', 'ChatGPT', 3), { dims: { prompt_id: 'b', model: 'ChatGPT' }, metrics: { mentions_count: 2, average_position: Number.NaN } }],
+    })
+    for (const p of o.prompts) {
+      expect(p.current.ChatGPT?.posCount).toBe(0)
+      expect(p.current.ChatGPT?.posSum).toBe(0)
+      expect(p.current.ChatGPT?.mentions).toBeGreaterThan(0)
+    }
+  })
+  it('resolves you over assets in visibility-rank order, so a tie goes to the best-ranked', () => {
+    const owned = assets.map((a) => ({ ...a, isOwned: true }))
+    const o = buildProfoundTopicsPrompts({ ...base, assets: owned, yourBrand: '', cells: [cell('SEO', 'ChatGPT', 'Avenue Z', 1, 20), cell('SEO', 'ChatGPT', 'iPullRank', 8, 20)] })
+    expect(o.you).toBe('iPullRank')
+  })
+})
+
+describe('unmapped Profound models', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  beforeEach(() => warn.mockClear())
+  it('warns once per fetch, naming each dropped model', () => {
+    buildProfoundTopicsPrompts({
+      assets, yourBrand: 'Avenue Z',
+      cells: [cell('SEO', 'Bard', 'Avenue Z', 1, 1)], cellsPrior: [cell('SEO', 'Grok', 'Avenue Z', 1, 1)],
+      runs: [run('p', 'p', 'SEO', 'Bard', 2)], runsPrior: [], you: [youRow('p', 'Bard', 1, 1)], youPrior: [],
+    })
+    const calls = warn.mock.calls.filter(([m]) => String(m).startsWith('[profound] unmapped'))
+    expect(calls).toEqual([['[profound] unmapped models dropped: Bard, Grok']])
+  })
+  it('says nothing when every model maps', () => {
+    buildProfoundTopicsPrompts({ assets, yourBrand: 'Avenue Z', cells: [], cellsPrior: [], runs: [], runsPrior: [], you: [], youPrior: [] })
+    expect(warn.mock.calls.filter(([m]) => String(m).startsWith('[profound] unmapped'))).toHaveLength(0)
+  })
 })
 
 describe('getProfoundTopicsPromptsV2', () => {
@@ -108,6 +162,24 @@ describe('getProfoundTopicsPromptsV2', () => {
     const you = calls.filter(([, b]) => !b.dimensions.includes('asset_name') && b.filters)
     expect(you).toHaveLength(2)
     for (const [, b] of you) expect(b.filters).toEqual([{ field: 'asset_name', operator: 'is', value: 'Avenue Z' }])
+  })
+
+  it('filters the client rows by the best-ranked of several owned assets', async () => {
+    vi.mocked(getClientBySlug).mockResolvedValue({ profoundCategoryId: 'cat1', peecYourBrand: null } as never)
+    vi.mocked(getProfoundAssets).mockResolvedValue(assets.map((a) => ({ ...a, isOwned: true })))
+    vi.mocked(profoundPost).mockImplementation((async (_p: string, body: { dimensions: string[]; metrics: string[] }) => {
+      const dims = [...body.dimensions].sort()
+      const metrics = [...body.metrics].sort()
+      const data = dims.includes('asset_name')
+        ? [{ dimensions: ['Avenue Z', 'ChatGPT', 'SEO'], metrics: [20, 1] }, { dimensions: ['iPullRank', 'ChatGPT', 'SEO'], metrics: [20, 9] }]
+        : []
+      return { info: { query: { dimensions: dims, metrics } }, data }
+    }) as never)
+    const out = await getProfoundTopicsPromptsV2('avenue-z', 'last_30_days', 'previous_period')
+    expect(out.you).toBe('iPullRank')
+    const calls = vi.mocked(profoundPost).mock.calls as unknown as [string, { dimensions: string[]; filters?: { value: unknown }[] }][]
+    const you = calls.filter(([, b]) => !b.dimensions.includes('asset_name') && b.filters)
+    expect(you.map(([, b]) => b.filters![0].value)).toEqual(['iPullRank', 'iPullRank'])
   })
 
   it('throws without a category and without assets', async () => {

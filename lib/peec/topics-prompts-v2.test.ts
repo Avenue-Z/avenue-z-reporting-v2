@@ -54,10 +54,25 @@ describe('peecPromptTopic', () => {
 
 describe('buildPeecTopicsPrompts', () => {
   const out = buildPeecTopicsPrompts({ prompts, tags, rows, rowsPrior, yourBrand: 'Renaissance' })
-  it('assigns topics: first subject tag, else v1 inference', () => {
+  it('assigns topics: the first subject tag, else Other (v1 infers one; v2 does not)', () => {
     const by = Object.fromEntries(out.prompts.map((p) => [p.id, p.topic]))
     expect(by.P1).toBe('Credibility w/Brokers')
-    expect(by.P2).toBe('Agency Selection')
+    expect(by.P2).toBe('Other')
+    expect(out.cells.filter((c) => c.topic === 'Other').map((c) => c.brand).sort()).toEqual(['Guardian', 'Renaissance'])
+  })
+  it('counts each topic x model total once per prompt x model, not once per brand row', () => {
+    expect(out.topicAnswers).toEqual([
+      { topic: 'Credibility w/Brokers', model: 'ChatGPT', answers: 10 },
+      { topic: 'Credibility w/Brokers', model: 'Gemini', answers: 10 },
+      { topic: 'Other', model: 'ChatGPT', answers: 5 },
+    ])
+    expect(out.topicAnswersPrior).toEqual([{ topic: 'Credibility w/Brokers', model: 'ChatGPT', answers: 10 }])
+  })
+  it('sums topic totals over the topic prompts', () => {
+    const p3 = { id: 'P3', messages: [{ content: 'x' }], tags: [{ id: 't-subj' }] }
+    const extra = [row('P3', 'Renaissance', 'chatgpt-scraper', 1, 7), row('P3', 'Guardian', 'chatgpt-scraper', 0, 7)]
+    const o = buildPeecTopicsPrompts({ prompts: [...prompts, p3], tags, rows: [...rows, ...extra], rowsPrior: [], yourBrand: 'Renaissance' })
+    expect(o.topicAnswers.find((t) => t.topic === 'Credibility w/Brokers' && t.model === 'ChatGPT')?.answers).toBe(17)
   })
   it('sums one cell per topic, brand and model, Guardian included', () => {
     const c = out.cells.find((x) => x.topic === 'Credibility w/Brokers' && x.brand === 'Guardian' && x.model === 'ChatGPT')
@@ -80,6 +95,11 @@ describe('buildPeecTopicsPrompts', () => {
     expect(out.you).toBe('Renaissance')
     const own = buildPeecTopicsPrompts({ prompts, tags, rows, rowsPrior, yourBrand: '', ownByName: new Map([['Guardian', true]]) })
     expect(own.you).toBe('Guardian')
+  })
+  it('resolves you over brands in visibility-rank order, so a tie goes to the best-ranked brand', () => {
+    // Both own and no configured name: Guardian (9 of 15) outranks Renaissance (7 of 25) though Renaissance is seen first.
+    const tie = buildPeecTopicsPrompts({ prompts, tags, rows, rowsPrior, yourBrand: '', ownByName: new Map([['Renaissance', true], ['Guardian', true]]) })
+    expect(tie.you).toBe('Guardian')
   })
   it('drops a prompt with no current rows', () => {
     const o = buildPeecTopicsPrompts({ prompts, tags, rows: rows.slice(0, 2), rowsPrior, yourBrand: 'Renaissance' })
