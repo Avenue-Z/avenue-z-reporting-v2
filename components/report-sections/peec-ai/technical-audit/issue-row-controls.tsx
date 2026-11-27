@@ -3,15 +3,18 @@
 // PDF export (the list decides). Errors show inline; no window.confirm (browser dialogs break the headless export).
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { setIssueOverride } from '@/app/actions/tech-audit'
+import { setIssueHidden, setIssueOverride } from '@/app/actions/tech-audit'
 
 const NOTE_MAX = 280
 const BAD = '#FF4444'
 const BTN = 'rounded-full px-3 py-1 text-xs font-bold text-white disabled:opacity-50'
 
-export function IssueRowControls({ clientSlug, issueKey, hidden, note }: {
+export function IssueRowControls({ clientSlug, issueKey, hideKeys, hidden, note }: {
   clientSlug: string
+  /** The override row notes are written to. */
   issueKey: string
+  /** Every key Hide/Unhide writes, so the hidden state survives an issue-map change. */
+  hideKeys: string[]
   hidden: boolean
   note: string | null
 }) {
@@ -21,10 +24,12 @@ export function IssueRowControls({ clientSlug, issueKey, hidden, note }: {
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
-  function save(patch: { hidden?: boolean; note?: string | null }, done?: () => void) {
+  function save(patch: { hidden: boolean } | { note: string | null }, done?: () => void) {
     setError(null)
     start(async () => {
-      const r = await setIssueOverride({ clientSlug, issueKey, ...patch })
+      const r = 'hidden' in patch
+        ? await setIssueHidden({ clientSlug, issueKeys: hideKeys, hidden: patch.hidden })
+        : await setIssueOverride({ clientSlug, issueKey, ...patch })
       if (!r.ok) { setError(r.error); return }
       done?.()
       router.refresh()

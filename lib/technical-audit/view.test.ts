@@ -231,50 +231,122 @@ describe('loadTechAuditView', () => {
       expect(t!.issues.find((i) => i.key === 'x-key')).toMatchObject({ hidden: true, note: 'known' })
     })
 
-    test('the canonical-key override wins over a contributor override', async () => {
-      h.getOverrides.mockResolvedValue([override('ahrefs:X', { hidden: true }), override('x-key', { hidden: false, note: 'shown' })])
+    test('a contributor row that is hidden hides the row; the canonical note still wins', async () => {
+      h.getOverrides.mockResolvedValue([override('ahrefs:X', { hidden: true, note: 'old' }), override('x-key', { hidden: false, note: 'shown' })])
       h.issueMap = new Map([['ahrefs:X', { key: 'x-key', name: 'X issue' }]])
       withIssues([ahrefsRow('X', 500)])
-      const v = await loadTechAuditView('x', undefined, 'client', NOW)
-      expect(v!.issues.map((i) => [i.key, i.note])).toEqual([['x-key', 'shown']])
+      expect((await loadTechAuditView('x', undefined, 'client', NOW))!.issues).toEqual([])
+      const t = await loadTechAuditView('x', undefined, 'team', NOW)
+      expect(t!.issues[0]).toMatchObject({ hidden: true, note: 'shown', overrideKey: 'x-key' })
     })
 
-    test('team gets the key of the override row in effect; the client never sees overrideKey', async () => {
-      h.getOverrides.mockResolvedValue([override('sf:Foo', { hidden: true })])
-      h.issueMap = new Map([['sf:Foo', { key: 'foo', name: 'Foo issue' }]])
+    // Override rows written exactly as the store does: setOverride upserts one row (a note stamps author/time);
+    // setHidden upserts hidden on every key and leaves notes alone.
+    let rows: Record<string, unknown>[]
+    const setNote = (key: string, note: string) => {
+      rows = rows.some((r) => r.issueKey === key)
+        ? rows.map((r) => (r.issueKey === key ? { ...r, note, noteBy: 'w@avenuez.com' } : r))
+        : [...rows, override(key, { note, noteBy: 'w@avenuez.com' })]
+    }
+    const setHiddenKeys = (keys: string[], hidden: boolean) => {
+      for (const key of new Set(keys)) {
+        rows = rows.some((r) => r.issueKey === key)
+          ? rows.map((r) => (r.issueKey === key ? { ...r, hidden } : r))
+          : [...rows, override(key, { hidden })]
+      }
+    }
+    const teamRow = async (key: string) => (await loadTechAuditView('x', undefined, 'team', NOW))!.issues.find((i) => i.key === key)!
+    const clientKeys = async () => (await loadTechAuditView('x', undefined, 'client', NOW))!.issues.map((i) => i.key)
+    const hideViaControls = async (key: string, hidden = true) => setHiddenKeys((await teamRow(key)).hideKeys!, hidden)
+    const noteViaControls = async (key: string, note: string) => { const r = await teamRow(key); setNote(r.overrideKey ?? r.key, note) }
+    const FOO = new Map([['sf:Foo', { key: 'foo', name: 'Foo issue' }]])
+    beforeEach(() => {
+      rows = []
+      h.getOverrides.mockImplementation(async () => rows)
+    })
+
+    test('team gets overrideKey and hideKeys; the client never sees either', async () => {
+      rows = [override('sf:Foo', { hidden: true })]
+      h.issueMap = FOO
       withIssues([sfRow('Foo', 500), sfRow('Bar', 2)])
-      const t = await loadTechAuditView('x', undefined, 'team', NOW)
-      expect(t!.issues.find((i) => i.key === 'foo')).toMatchObject({ hidden: true, overrideKey: 'sf:Foo' })
+      const t = await teamRow('foo')
+      expect(t).toMatchObject({ hidden: true, overrideKey: 'foo', hideKeys: ['foo', 'sf:Foo'] })
+      expect(await clientKeys()).toEqual(['sf:Bar'])
       const v = await loadTechAuditView('x', undefined, 'client', NOW)
-      expect(v!.issues.map((i) => i.key)).toEqual(['sf:Bar'])
-      for (const i of v!.issues) expect(i).not.toHaveProperty('overrideKey')
-      expect(JSON.stringify(v)).not.toContain('overrideKey')
+      for (const i of v!.issues) { expect(i).not.toHaveProperty('overrideKey'); expect(i).not.toHaveProperty('hideKeys') }
+      expect(JSON.stringify(v)).not.toMatch(/overrideKey|hideKeys/)
     })
 
     test('with no override the team overrideKey is the row key', async () => {
-      h.issueMap = new Map([['sf:Foo', { key: 'foo', name: 'Foo issue' }]])
+      h.issueMap = FOO
       withIssues([sfRow('Foo', 500), sfRow('Bar', 2)])
       const t = await loadTechAuditView('x', undefined, 'team', NOW)
       expect(t!.issues.map((i) => [i.key, i.overrideKey])).toEqual([['foo', 'foo'], ['sf:Bar', 'sf:Bar']])
     })
 
-    test('hide unmapped, then map, then add a note leaves the client with no row', async () => {
-      // Overrides as setOverride writes them: one row per issueKey, patched in place.
-      let rows = [override('sf:Foo', { hidden: true })]
-      const write = (key: string, patch: Record<string, unknown>) => {
-        rows = rows.some((r) => r.issueKey === key)
-          ? rows.map((r) => (r.issueKey === key ? { ...r, ...patch } : r))
-          : [...rows, override(key, patch)]
-      }
-      h.getOverrides.mockImplementation(async () => rows)
+    test('hide unmapped, map, add a note: still hidden', async () => {
       withIssues([sfRow('Foo', 500)])
-      h.issueMap = new Map([['sf:Foo', { key: 'foo', name: 'Foo issue' }]])
-      // The controls write to the key the team view reports.
-      const row = (await loadTechAuditView('x', undefined, 'team', NOW))!.issues[0]
-      write(row.overrideKey ?? row.key, { note: 'looking into it' })
-      expect(rows).toHaveLength(1)
-      const v = await loadTechAuditView('x', undefined, 'client', NOW)
-      expect(v!.issues).toEqual([])
+      await hideViaControls('sf:Foo')
+      h.issueMap = FOO
+      await noteViaControls('foo', 'looking into it')
+      expect(await clientKeys()).toEqual([])
+      expect((await teamRow('foo'))).toMatchObject({ hidden: true, note: 'looking into it' })
+    })
+
+    test('(a) hide while mapped, then the mapping is removed or changed: still hidden', async () => {
+      withIssues([sfRow('Foo', 500), sfRow('Bar', 2)])
+      h.issueMap = FOO
+      await hideViaControls('foo')
+      h.issueMap = new Map()
+      expect(await clientKeys()).toEqual(['sf:Bar'])
+      h.issueMap = new Map([['sf:Foo', { key: 'bar', name: 'Bar issue' }]])
+      expect(await clientKeys()).toEqual(['sf:Bar'])
+    })
+
+    test('(b) note while mapped, then unmap + hide, then remap: still hidden', async () => {
+      withIssues([sfRow('Foo', 500)])
+      h.issueMap = FOO
+      await noteViaControls('foo', 'n')
+      h.issueMap = new Map()
+      await hideViaControls('sf:Foo')
+      h.issueMap = FOO
+      expect(await clientKeys()).toEqual([])
+      expect(await teamRow('foo')).toMatchObject({ hidden: true, note: 'n', overrideKey: 'foo' })
+    })
+
+    test('(c) two contributors, only one hidden: hidden', async () => {
+      rows = [override('ahrefs:X', { hidden: false, note: 'n' }), override('sf:Y', { hidden: true })]
+      h.issueMap = new Map([['ahrefs:X', { key: 'foo', name: 'Foo' }], ['sf:Y', { key: 'foo', name: 'Foo' }]])
+      withIssues([ahrefsRow('X', 5), sfRow('Y', 9)])
+      expect(await clientKeys()).toEqual([])
+      expect(await teamRow('foo')).toMatchObject({ hidden: true, note: 'n', overrideKey: 'ahrefs:X' })
+    })
+
+    test('a note saved under sf:Foo survives a Hide on the mapped row', async () => {
+      rows = [override('sf:Foo', { note: 'keep me', noteBy: 'w@avenuez.com' })]
+      h.issueMap = FOO
+      withIssues([sfRow('Foo', 500)])
+      expect(await teamRow('foo')).toMatchObject({ note: 'keep me', overrideKey: 'sf:Foo' })
+      await hideViaControls('foo')
+      expect(await teamRow('foo')).toMatchObject({ hidden: true, note: 'keep me' })
+      expect(await clientKeys()).toEqual([])
+    })
+
+    test('Unhide clears every key and the client sees the row again', async () => {
+      withIssues([sfRow('Foo', 500)])
+      h.issueMap = FOO
+      await hideViaControls('foo')
+      expect(await clientKeys()).toEqual([])
+      await hideViaControls('foo', false)
+      expect(rows.every((r) => !r.hidden)).toBe(true)
+      expect(await clientKeys()).toEqual(['foo'])
+    })
+
+    test('an Ahrefs not-indexable-only row hidden unmapped stays hidden once the pair shares a key', async () => {
+      withIssues([ahrefsRow('Z (not indexable)', 4)])
+      await hideViaControls('ahrefs:Z')
+      withIssues([ahrefsRow('Z', 10), ahrefsRow('Z (not indexable)', 4)])
+      expect(await clientKeys()).toEqual([])
     })
 
     test('client props carry no noteBy/noteAt; team keeps them', async () => {

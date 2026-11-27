@@ -265,6 +265,20 @@ export async function setOverride(
     })
 }
 
+/** Hide or unhide several override rows of one brand in a single statement (atomic). Notes and their author/time are
+ *  untouched; a missing row is created. */
+export async function setHidden(clientId: string, issueKeys: string[], hidden: boolean, by: string): Promise<void> {
+  const keys = [...new Set(issueKeys)]
+  if (keys.length === 0) return
+  await db
+    .insert(techAuditIssueOverrides)
+    .values(keys.map((issueKey) => ({ clientId, issueKey, hidden, updatedBy: by })))
+    .onConflictDoUpdate({
+      target: [techAuditIssueOverrides.clientId, techAuditIssueOverrides.issueKey],
+      set: { hidden, updatedBy: by, updatedAt: sql`now()` },
+    })
+}
+
 /** Subquery: the snapshot id, only if it belongs to the client. */
 function ownSnapshot(clientId: string, snapshotId: string) {
   return db.select({ id: techAuditSnapshots.id }).from(techAuditSnapshots)

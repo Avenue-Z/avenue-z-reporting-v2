@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/db/queries', () => ({ getClientBySlug: vi.fn() }))
 vi.mock('@/lib/technical-audit/store', () => ({
-  getSnapshotBundle: vi.fn(), completeRun: vi.fn(), setSnapshotStatus: vi.fn(), setOverride: vi.fn(),
+  getSnapshotBundle: vi.fn(), completeRun: vi.fn(), setSnapshotStatus: vi.fn(), setOverride: vi.fn(), setHidden: vi.fn(),
 }))
 vi.mock('@/lib/technical-audit/gsc-export', () => ({
   MAX_GSC_BYTES: 2_097_152, parseGscPageIndexing: vi.fn(), parseGscCwv: vi.fn(),
@@ -15,9 +15,9 @@ vi.mock('@/lib/technical-audit/gsc-export', () => ({
 import { auth } from '@/auth'
 import { revalidatePath } from 'next/cache'
 import { getClientBySlug } from '@/lib/db/queries'
-import { completeRun, getSnapshotBundle, setOverride, setSnapshotStatus } from '@/lib/technical-audit/store'
+import { completeRun, getSnapshotBundle, setHidden, setOverride, setSnapshotStatus } from '@/lib/technical-audit/store'
 import { parseGscCwv, parseGscPageIndexing } from '@/lib/technical-audit/gsc-export'
-import { publishSnapshot, setIssueOverride, unpublishSnapshot, uploadGscExport } from './tech-audit'
+import { publishSnapshot, setIssueHidden, setIssueOverride, unpublishSnapshot, uploadGscExport } from './tech-audit'
 
 const SNAP = '3f0c2a52-7a53-4a55-9c1e-1b1f2f3a4b5c'
 const FILE_NAME = 'private-file-name.xlsx'
@@ -235,6 +235,39 @@ describe('setIssueOverride', () => {
   test('a failed write is a plain message', async () => {
     vi.mocked(setOverride).mockRejectedValue(new Error('secret-row'))
     expect(await setIssueOverride({ clientSlug: 'a-client', issueKey: 'k', hidden: true })).toEqual({ ok: false, error: 'Could not save. Try again.' })
+    expect(logged()).not.toContain('secret-row')
+  })
+})
+
+describe('setIssueHidden', () => {
+  const ok = { clientSlug: 'a-client', issueKeys: ['foo', 'sf:Foo'], hidden: true }
+  test('writes every key in one call, scoped to the session client', async () => {
+    expect(await setIssueHidden(ok)).toEqual({ ok: true })
+    expect(setHidden).toHaveBeenCalledTimes(1)
+    expect(setHidden).toHaveBeenCalledWith('client-1', ['foo', 'sf:Foo'], true, 'writer@avenuez.com')
+    expect(revalidatePath).toHaveBeenCalledWith('/dashboard/[clientSlug]/reports', 'page')
+  })
+  test.each([
+    ['an empty list', { issueKeys: [] }],
+    ['an oversize list', { issueKeys: Array.from({ length: 21 }, (_, i) => `k${i}`) }],
+    ['a list that is not an array', { issueKeys: 'foo' }],
+    ['an empty key', { issueKeys: ['ok', ''] }],
+    ['an over-long key', { issueKeys: ['ok', 'k'.repeat(301)] }],
+    ['a key that is not a string', { issueKeys: ['ok', 5] }],
+    ['a hidden that is not a boolean', { hidden: 'yes' }],
+  ])('%s is refused and writes nothing', async (_n, over) => {
+    expect((await setIssueHidden({ ...ok, ...over } as never)).ok).toBe(false)
+    expect(setHidden).not.toHaveBeenCalled()
+  })
+  test('exactly 20 keys is accepted', async () => {
+    expect((await setIssueHidden({ ...ok, issueKeys: Array.from({ length: 20 }, (_, i) => `k${i}`) })).ok).toBe(true)
+  })
+  test('an unknown client and a failed write are plain results', async () => {
+    vi.mocked(getClientBySlug).mockResolvedValue(null as never)
+    expect(await setIssueHidden(ok)).toEqual({ ok: false, error: 'client not found' })
+    vi.mocked(getClientBySlug).mockResolvedValue({ id: 'client-1', slug: 'a-client' } as never)
+    vi.mocked(setHidden).mockRejectedValue(new Error('secret-row'))
+    expect(await setIssueHidden(ok)).toEqual({ ok: false, error: 'Could not save. Try again.' })
     expect(logged()).not.toContain('secret-row')
   })
 })

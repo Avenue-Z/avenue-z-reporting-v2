@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { getClientBySlug } from '@/lib/db/queries'
 import { isTechAuditStaff } from '@/lib/technical-audit/staff'
 import { MAX_GSC_BYTES, parseGscCwv, parseGscPageIndexing } from '@/lib/technical-audit/gsc-export'
-import { completeRun, getSnapshotBundle, setOverride, setSnapshotStatus } from '@/lib/technical-audit/store'
+import { completeRun, getSnapshotBundle, setHidden, setOverride, setSnapshotStatus } from '@/lib/technical-audit/store'
 import type { TechAuditMetricsInsert } from '@/lib/technical-audit/store'
 import type { Parsed, SourceIssue, TaSource } from '@/lib/technical-audit/types'
 
@@ -21,6 +21,8 @@ const SAVE_FAILED = fail('Could not save. Try again.')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const NOTE_MAX = 280
 const ISSUE_KEY_MAX = 300
+/** A merged issue has at most a handful of contributors (one canonical key plus each tool's native row). */
+const HIDE_KEYS_MAX = 20
 const SLOTS = ['gsc_indexing', 'gsc_cwv_mobile', 'gsc_cwv_desktop'] as const
 type Slot = (typeof SLOTS)[number]
 
@@ -182,6 +184,33 @@ export async function setIssueOverride(
     await setOverride(client.id, issueKey, patch, email)
   } catch {
     console.error(`[tech-audit] ${client.slug} override failed`)
+    return SAVE_FAILED
+  }
+  revalidateReports()
+  return { ok: true }
+}
+
+/** Hide or unhide one issue row under every key it may be stored under (its canonical key and each contributor's
+ *  `source:native` key), so a later issue-map change cannot bring a hidden row back. One atomic write; notes untouched. */
+export async function setIssueHidden(
+  input: { clientSlug: string; issueKeys: string[]; hidden: boolean },
+): Promise<Result> {
+  const email = await staffEmail()
+  if (!email) return FORBIDDEN
+  if (typeof input !== 'object' || input === null) return fail('invalid request')
+  const slug = asSlug(input.clientSlug)
+  if (!slug) return fail('invalid client')
+  const { issueKeys, hidden } = input
+  if (typeof hidden !== 'boolean') return fail('invalid hidden value')
+  if (!Array.isArray(issueKeys) || issueKeys.length === 0 || issueKeys.length > HIDE_KEYS_MAX) return fail('invalid issue')
+  if (issueKeys.some((k) => typeof k !== 'string' || !k || k.length > ISSUE_KEY_MAX)) return fail('invalid issue')
+
+  const client = await getClientBySlug(slug)
+  if (!client) return fail('client not found')
+  try {
+    await setHidden(client.id, issueKeys, hidden, email)
+  } catch {
+    console.error(`[tech-audit] ${client.slug} hide failed`)
     return SAVE_FAILED
   }
   revalidateReports()

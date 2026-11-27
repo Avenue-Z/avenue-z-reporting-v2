@@ -72,10 +72,10 @@ const endsNotIndexable = (name: string) => name.toLowerCase().endsWith(NOT_INDEX
  * The tool-level contributor a detail row belongs to. Ahrefs reports an issue's indexable and non-indexable URLs as
  * two rows (the latter named `<name> (not indexable)`); the sets are disjoint, so they are one contributor.
  */
-function contributorId(source: TaIssueSource, nativeName: string): string {
-  const base = source === 'ahrefs' && endsNotIndexable(nativeName) ? nativeName.slice(0, -NOT_INDEXABLE_SUFFIX.length) : nativeName
-  return `${source}:${base}`
+export function baseNativeName(source: TaIssueSource, nativeName: string): string {
+  return source === 'ahrefs' && endsNotIndexable(nativeName) ? nativeName.slice(0, -NOT_INDEXABLE_SUFFIX.length) : nativeName
 }
+const contributorId = (source: TaIssueSource, nativeName: string) => `${source}:${baseNativeName(source, nativeName)}`
 
 /**
  * Merge per-tool issues into one ranked list. URLs = max across contributors (never the sum across tools; an Ahrefs
@@ -107,12 +107,14 @@ export function mergeIssues(issues: SourceIssue[], map: IssueMap): MergedIssue[]
   for (const issue of issues) {
     if (!Number.isFinite(issue.urlCount) || issue.urlCount <= 0) continue
     const mapped = lookup(issue.source, issue.nativeName)
-    const key = mapped?.key ?? `${issue.source}:${issue.nativeName}`
+    // An unmapped Ahrefs pair shares one row (keyed and named without the suffix), like a mapped one.
+    const baseName = baseNativeName(issue.source, issue.nativeName)
+    const key = mapped?.key ?? `${issue.source}:${baseName}`
     const severity = normalizeSeverity(issue.source, issue.nativeName, issue.nativeSeverity)
     let g = groups.get(key)
     if (!g) {
       g = {
-        key, name: mapped?.name ?? issue.nativeName, severity, urls: 0,
+        key, name: mapped?.name ?? baseName, severity, urls: 0,
         sources: [], detail: [], needsMapping: !mapped, priority: 0,
       }
       groups.set(key, g)

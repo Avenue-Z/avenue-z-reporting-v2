@@ -58,7 +58,7 @@ function IssueRow({ issue, index, clientSlug, team }: { issue: ViewIssue; index?
             )}
           </p>
         )}
-        {team && <IssueRowControls clientSlug={clientSlug} issueKey={issue.overrideKey ?? issue.key} hidden={issue.hidden} note={issue.note} />}
+        {team && <IssueRowControls clientSlug={clientSlug} issueKey={issue.overrideKey ?? issue.key} hideKeys={issue.hideKeys ?? [issue.key]} hidden={issue.hidden} note={issue.note} />}
       </td>
       <td className="px-3 py-3 text-sm font-bold capitalize" style={{ color: SEVERITY_COLOR[issue.severity] }}>{issue.severity}</td>
       <td className="px-3 py-3 text-sm text-white">{issue.urls.toLocaleString('en-US')}</td>

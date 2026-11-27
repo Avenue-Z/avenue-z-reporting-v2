@@ -349,6 +349,17 @@ describe('overrides', () => {
     await store.setOverride(CLIENT, 'k', { note: null }, 'hider@x.com')
     expect(await row()).toMatchObject({ note: null, noteBy: null, noteAt: null })
   })
+  test('setHidden writes every key at once, keeps notes, unhides all, and scopes to the client', async () => {
+    await store.setOverride(CLIENT, 'sf:Foo', { note: 'why' }, 'writer@x.com')
+    await store.setHidden(CLIENT, ['foo', 'sf:Foo', 'foo'], true, 'hider@x.com')
+    const rows = async () => (await store.getOverrides(CLIENT)).sort((a, b) => a.issueKey.localeCompare(b.issueKey))
+    expect((await rows()).map((r) => [r.issueKey, r.hidden])).toEqual([['foo', true], ['sf:Foo', true]])
+    expect((await rows())[1]).toMatchObject({ note: 'why', noteBy: 'writer@x.com', updatedBy: 'hider@x.com' })
+    await store.setHidden(CLIENT, ['foo', 'sf:Foo'], false, 'hider@x.com')
+    expect((await rows()).map((r) => r.hidden)).toEqual([false, false])
+    await store.setHidden(CLIENT, [], true, 'a@x.com')
+    expect(await store.getOverrides(OTHER)).toEqual([])
+  })
   test('scopes to the client, ignores an empty patch, rejects an over-long note', async () => {
     await store.setOverride(OTHER, 'k', { hidden: true }, 'a@x.com')
     expect(await store.getOverrides(CLIENT)).toEqual([])

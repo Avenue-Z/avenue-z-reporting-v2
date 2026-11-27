@@ -5,7 +5,7 @@ import type { KpiKey, ViewMetrics } from './kpis'
 import { getOverrides, getSnapshotBundle, getSnapshots } from './store'
 import type { OverrideRow, RunRow, SnapshotRow } from './store'
 import { loadIssueMap } from './issue-map'
-import { mergeIssues, type MergedIssue } from './issues'
+import { baseNativeName, mergeIssues, type MergedIssue } from './issues'
 import type { SourceIssue, TaIssueSource } from './types'
 
 export type Viewer = 'team' | 'client'
@@ -28,8 +28,11 @@ export type ViewIssue = Pick<MergedIssue, 'key' | 'name' | 'severity' | 'urls' |
   note: string | null
   noteBy?: string
   noteAt?: string
-  /** Team only: the `issueKey` of the override row in effect (or `key` when none), so edits hit that row. */
+  /** Team only: the `issueKey` of the override row whose note is in effect (or `key` when none), so note edits hit it. */
   overrideKey?: string
+  /** Team only: every key this row's override may be stored under (canonical + each contributor's `source:native`);
+   *  Hide/Unhide writes all of them so no later issue-map change can bring a hidden row back. */
+  hideKeys?: string[]
 }
 /** Where the selected snapshot's commentary stands, for the publish checklist. */
 export type SnapshotCommentaryState = 'none' | 'draft' | 'approved'
@@ -73,19 +76,22 @@ const isIssueSource = (v: string): v is TaIssueSource => v === 'ahrefs' || v ===
 function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaited<ReturnType<typeof loadIssueMap>>, viewer: Viewer): ViewIssue[] {
   const byKey = new Map(overrides.map((o) => [o.issueKey, o]))
   return mergeIssues(rows, map).flatMap((m): ViewIssue[] => {
-    // A row hidden or noted while unmapped was saved under `source:native`; it keeps that once the map gives it a
-    // canonical key. The canonical key's own override wins.
-    const o = byKey.get(m.key) ?? m.detail.map((d) => byKey.get(`${d.source}:${d.nativeName}`)).find(Boolean)
-    // Staff edits write to this row, so a note can't spawn a second (visible) row beside a hidden one.
+    // An override may sit under the canonical key or under any contributor's `source:native` key (saved while the row
+    // was unmapped or mapped differently). Hidden if ANY of them is hidden, so no map change can resurface a hidden row.
+    // The note comes from the canonical row, else the first contributor row that has one (a hide-only row never shadows it).
+    const hideKeys = [...new Set([m.key, ...m.detail.flatMap((d) => [
+      `${d.source}:${d.nativeName}`, `${d.source}:${baseNativeName(d.source, d.nativeName)}`])])]
+    const candidates = hideKeys.flatMap((k) => byKey.get(k) ?? [])
+    const hidden = candidates.some((c) => c.hidden)
+    const o = candidates.find((c) => c.note)
     const overrideKey = o?.issueKey ?? m.key
-    const hidden = o?.hidden ?? false
     if (viewer === 'client' && hidden) return []
     const base: ViewIssue = {
       key: m.key, name: m.name, severity: m.severity, urls: m.urls, sources: m.sources, detail: m.detail,
       needsMapping: m.needsMapping, hidden, note: o?.note ?? null,
     }
     if (viewer !== 'team') return [base]
-    return [{ ...base, overrideKey, ...(o?.note ? { noteBy: o.noteBy ?? undefined, noteAt: o.noteAt?.toISOString() } : {}) }]
+    return [{ ...base, overrideKey, hideKeys, ...(o?.note ? { noteBy: o.noteBy ?? undefined, noteAt: o.noteAt?.toISOString() } : {}) }]
   })
 }
 

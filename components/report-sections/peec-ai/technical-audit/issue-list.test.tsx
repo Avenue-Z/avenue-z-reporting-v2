@@ -8,7 +8,10 @@ import { IssueList } from './issue-list'
 const refresh = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 const setIssueOverride = vi.fn()
-vi.mock('@/app/actions/tech-audit', () => ({ setIssueOverride: (...a: unknown[]) => setIssueOverride(...a) }))
+const setIssueHidden = vi.fn()
+vi.mock('@/app/actions/tech-audit', () => ({
+  setIssueOverride: (...a: unknown[]) => setIssueOverride(...a), setIssueHidden: (...a: unknown[]) => setIssueHidden(...a),
+}))
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -24,21 +27,22 @@ const issues = [
 
 describe('IssueList', () => {
   it('team view shows the hidden count and Unhide, and Hide on visible rows', async () => {
-    setIssueOverride.mockResolvedValue({ ok: true })
+    setIssueHidden.mockResolvedValue({ ok: true })
     render(<IssueList clientSlug="acme" issues={issues} viewer="team" />)
     expect(screen.getByText('Hidden by strategist (1)')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Unhide' }))
-    await waitFor(() => expect(setIssueOverride).toHaveBeenCalledWith({ clientSlug: 'acme', issueKey: 'Hidden one', hidden: false }))
+    await waitFor(() => expect(setIssueHidden).toHaveBeenCalledWith({ clientSlug: 'acme', issueKeys: ['Hidden one'], hidden: false }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     expect(screen.getAllByRole('button', { name: 'Hide' })).toHaveLength(2)
     expect(screen.getByText('Needs mapping')).toBeTruthy()
   })
 
-  it('writes Hide and notes to the override row in effect, not the canonical key', async () => {
+  it('Hide writes every key; notes write to the override row in effect', async () => {
     setIssueOverride.mockResolvedValue({ ok: true })
-    render(<IssueList clientSlug="acme" issues={[issue('foo', { overrideKey: 'sf:Foo' })]} viewer="team" />)
+    setIssueHidden.mockResolvedValue({ ok: true })
+    render(<IssueList clientSlug="acme" issues={[issue('foo', { overrideKey: 'sf:Foo', hideKeys: ['foo', 'sf:Foo'] })]} viewer="team" />)
     fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
-    await waitFor(() => expect(setIssueOverride).toHaveBeenCalledWith({ clientSlug: 'acme', issueKey: 'sf:Foo', hidden: true }))
+    await waitFor(() => expect(setIssueHidden).toHaveBeenCalledWith({ clientSlug: 'acme', issueKeys: ['foo', 'sf:Foo'], hidden: true }))
     fireEvent.click(screen.getByRole('button', { name: 'Add note' }))
     fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'hi' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save note' }))

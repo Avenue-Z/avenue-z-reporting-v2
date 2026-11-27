@@ -47,6 +47,13 @@ describe('mergeIssues Ahrefs indexable + not-indexable', () => {
     expect(mergeIssues([ah('Page has links to broken page (not indexable)', 91)], m)[0].urls).toBe(91)
   })
 
+  it('keys an unmapped Ahrefs pair as one row without the suffix, summed', () => {
+    const r = mergeIssues([ah('Orphan', 20), ah('Orphan (not indexable)', 5)], new Map())
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatchObject({ key: 'ahrefs:Orphan', name: 'Orphan', urls: 25, needsMapping: true })
+    expect(r[0].detail.map((d) => d.nativeName)).toEqual(['Orphan', 'Orphan (not indexable)'])
+  })
+
   it('does not sum an SF name that happens to end in (not indexable)', () => {
     const r = mergeIssues([
       { source: 'sf', nativeName: 'Thing', nativeSeverity: 'High', urlCount: 10 },
