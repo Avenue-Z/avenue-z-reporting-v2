@@ -32,6 +32,7 @@ export default defineConfig({
       'lib/ga4/first-visit.test.ts',
       'lib/ga4/order-by.test.ts',
       'lib/ga4/lead-events.test.ts',
+      'lib/ga4/ai-kpis.test.ts',
       'lib/concurrency.test.ts',
       'lib/content-calendar/pages.test.ts',
       'lib/peec/content-performance-rows.test.ts',
