@@ -80,7 +80,8 @@ async function fetchSheetRows(): Promise<string[][]> {
 
 // Cached as entries: unstable_cache serializes to JSON, which cannot hold a Map. A Sheet with no valid rows is a
 // failure (thrown, so never cached as an empty map); a failure is replayed for 5 minutes so an outage costs one
-// Sheets timeout per window, not one per render.
+// Sheets timeout per window, not one per render. healthCritical is false: an unset or unreachable Sheet falls back to
+// the built-in list and the page renders fine, so it must not count as a vendor failure in the health beacon.
 const fetchSheetEntries = cached(
   'tech-audit',
   'issue-map',
@@ -89,7 +90,7 @@ const fetchSheetEntries = cached(
     if (entries.length === 0) throw new Error('issue map Sheet has no valid rows')
     return entries
   },
-  { ttlSeconds: 3600, negativeTtlSeconds: 300 },
+  { ttlSeconds: 3600, negativeTtlSeconds: 300, healthCritical: false },
 )
 
 function loadFallback(): IssueMap {
