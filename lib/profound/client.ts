@@ -53,6 +53,19 @@ export async function profoundPost(
   return res.json()
 }
 
+export async function profoundGet(path: string): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { 'X-API-Key': getKey() },
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    console.error(`[profound] ${res.status} ${path}:`, text)
+    throw new Error(`Profound API error ${res.status}: ${path}`)
+  }
+  return res.json()
+}
+
 export async function getCategoryId(): Promise<string> {
   const envId = process.env.PROFOUND_CATEGORY_ID
   if (envId) return envId
