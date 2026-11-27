@@ -34,6 +34,8 @@ export interface SortableTableProps<T> {
    *  shown after the page as one extra row (`data-pinned`). Absent: the output is unchanged. */
   pinnedRow?: (row: T) => boolean
   emptyMessage?: string
+  /** Export only: let the rows split between pages even when the table is short enough to be one block. */
+  exportBreakable?: boolean
 }
 
 type SortDir = 'asc' | 'desc' | null
@@ -67,6 +69,7 @@ export function SortableTable<T>({
   rowClassName,
   pinnedRow,
   emptyMessage = 'No rows to display.',
+  exportBreakable = false,
 }: SortableTableProps<T>) {
   const [sortKey, setSortKey]   = useState<string | null>(defaultSortKey ?? null)
   const [sortDir, setSortDir]   = useState<SortDir>(defaultSortDir ?? null)
@@ -181,7 +184,7 @@ export function SortableTable<T>({
   if (exportMode) {
     return (
       // A table short enough for a page is one unbreakable block (spec 2026-10-08 §5); a longer one splits between rows.
-      <div data-export-table="" {...(visibleRows.length <= EXPORT_BLOCK_ROWS ? { 'data-export-block': '' } : {})}>
+      <div data-export-table="" {...(visibleRows.length <= EXPORT_BLOCK_ROWS && !exportBreakable ? { 'data-export-block': '' } : {})}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-white/[0.04]">

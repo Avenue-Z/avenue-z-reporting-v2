@@ -16,6 +16,8 @@ const CHIPS: { id: Group; label: string }[] = [
   { id: 'same', label: 'No change' },
 ]
 
+const MOVERS_SHOWN = 12
+
 const RANK_TOOLTIP = 'Average position of the brand in AI answers that mention it, across the selected models. Lower is better.'
 
 /**
@@ -63,6 +65,14 @@ export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfR
     if (c) counts[c] += 1
   }
   const visible = active === 'all' ? rows : rows.filter((r) => promptChange(r) === active)
+  // The PDF prints the biggest movers instead of the first page: the 12 largest gains and the 12 largest losses, ordered
+  // by the same Rank Δ accessor the table sorts by (entered above every gain, dropped below every loss).
+  const movers = exporting && showDeltas
+  const byDelta = (change: 'gained' | 'lost', dir: 1 | -1) =>
+    rows
+      .filter((r) => promptChange(r) === change)
+      .sort((a, b) => dir * ((rankDeltaColumn.accessor!(b) as number) - (rankDeltaColumn.accessor!(a) as number)))
+      .slice(0, MOVERS_SHOWN)
 
   const columns: SortableColumn<PromptPerfRow>[] = [
     {
@@ -124,6 +134,24 @@ export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfR
           ))}
         </div>
       )}
+      {movers ? (
+        <>
+          {([['Biggest gains', byDelta('gained', 1), 'No prompts gained rank this period.'], ['Biggest losses', byDelta('lost', -1), 'No prompts lost rank this period.']] as const).map(
+            ([title, list, empty]) => (
+              <div key={title}>
+                <p className="px-5 pb-2 pt-4 text-[11px] font-bold uppercase tracking-widest text-text-muted" data-export-keep-with-next="">
+                  {title}
+                </p>
+                {list.length === 0 ? (
+                  <p className="px-5 pb-4 text-xs text-text-muted">{empty}</p>
+                ) : (
+                  <SortableTable columns={columns} rows={list} rowKey={(r) => r.id} exportBreakable />
+                )}
+              </div>
+            ),
+          )}
+        </>
+      ) : (
       <SortableTable
         columns={columns}
         rows={visible}
@@ -133,6 +161,7 @@ export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfR
         initialPageSize={25}
         emptyMessage="No prompts in this group."
       />
+      )}
     </div>
   )
 }

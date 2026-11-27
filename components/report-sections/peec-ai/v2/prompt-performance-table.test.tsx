@@ -153,7 +153,7 @@ test('the Rank header explains the figure', () => {
   )
 })
 
-test('in export mode a chip chosen on screen is ignored: every row of page 1 prints', () => {
+test('in export mode a chip chosen on screen is ignored: the gains and losses print', () => {
   const { container, rerender } = render(ui(MOVES))
   fireEvent.click(chip('Lost'))
   expect(order(container)).toHaveLength(2)
@@ -161,7 +161,7 @@ test('in export mode a chip chosen on screen is ignored: every row of page 1 pri
   try {
     rerender(ui(MOVES))
     expect(screen.queryByRole('button', { name: /^Lost/ })).toBeNull()
-    expect(order(container)).toHaveLength(7)
+    expect(order(container)).toHaveLength(4)
   } finally {
     forced.exporting = false
   }
@@ -169,11 +169,71 @@ test('in export mode a chip chosen on screen is ignored: every row of page 1 pri
 
 test('in the export the card is not one block: the title keeps with the table and a long table splits between rows', () => {
   const many = Array.from({ length: 20 }, (_, i) => row(`p${i}`, { rankDelta: i }))
-  const { container } = render(<ExportModeProvider>{ui(many)}</ExportModeProvider>)
+  const { container } = render(<ExportModeProvider>{ui(many, false)}</ExportModeProvider>)
   expect((container.firstChild as HTMLElement).hasAttribute('data-export-block')).toBe(false)
   // Over SortableTable's 15-row limit nothing holds the table whole: it breaks between its rows.
   expect(container.querySelector('[data-export-block]')).toBeNull()
   expect(container.querySelectorAll('tbody tr[data-export-row]')).toHaveLength(20)
   const title = screen.getByText('How is the brand ranking on each tracked prompt?').parentElement!
   expect(title.hasAttribute('data-export-keep-with-next')).toBe(true)
+})
+
+const bulk = (n: number, prefix: string, delta: (i: number) => number) =>
+  Array.from({ length: n }, (_, i) => row(`${prefix}${i}`, { rankDelta: delta(i), rank: 2, priorRank: 2 + delta(i) }))
+const GAINS = bulk(15, 'g', (i) => i + 1) // g14 is the biggest gain
+const LOSSES = bulk(14, 'l', (i) => -(i + 1)) // l13 is the biggest loss
+const SAMES = bulk(3, 's', () => 0)
+const exportUi = (rows: PromptPerfRow[], showDeltas = true) => render(<ExportModeProvider>{ui(rows, showDeltas)}</ExportModeProvider>)
+const tables = (c: HTMLElement) => [...c.querySelectorAll('[data-export-table]')] as HTMLElement[]
+const rowsOf = (t: HTMLElement) => [...t.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('td')!.textContent)
+
+test('export prints the 12 biggest gains and the 12 biggest losses, worst and best first', () => {
+  const all = [...SAMES, ...GAINS, ...LOSSES, ENTERED, DROPPED]
+  const { container } = exportUi(all)
+  const [gains, losses] = tables(container)
+  expect(tables(container)).toHaveLength(2)
+  expect(rowsOf(gains)).toEqual(['Prompt entered', ...Array.from({ length: 11 }, (_, i) => `Prompt g${14 - i}`)])
+  expect(rowsOf(losses)).toEqual(['Prompt dropped', ...Array.from({ length: 11 }, (_, i) => `Prompt l${13 - i}`)])
+  expect(container.textContent).not.toContain('Prompt s0')
+  expect(screen.getByText('Biggest gains')).toBeTruthy()
+  expect(screen.getByText('Biggest losses')).toBeTruthy()
+  expect(screen.getByText('Biggest gains').closest('[data-export-keep-with-next]')).toBeTruthy()
+  expect(screen.getByText('Biggest losses').closest('[data-export-keep-with-next]')).toBeTruthy()
+  expect(screen.queryByText(/^Showing/)).toBeNull()
+  expect(screen.queryByRole('button')).toBeNull()
+  // Same columns as on screen; the rows split between pages, so no table is one block.
+  expect([...gains.querySelectorAll('th')].map((t) => t.textContent)).toEqual(['Prompt', 'Topic', 'Rank', 'Rank Δ', 'Visibility', 'Δ'])
+  expect(container.querySelector('[data-export-block]')).toBeNull()
+  expect(gains.querySelectorAll('tbody tr[data-export-row]')).toHaveLength(12)
+})
+
+test('export with no losses prints the empty line under Biggest losses', () => {
+  const { container } = exportUi([...GAINS.slice(0, 3), ...SAMES])
+  expect(rowsOf(tables(container)[0])).toHaveLength(3)
+  expect(container.textContent).toContain('No prompts lost rank this period.')
+  expect(container.textContent).not.toContain('No prompts gained rank this period.')
+  expect(tables(container)).toHaveLength(1)
+})
+
+test('export with no gains prints the empty line under Biggest gains', () => {
+  const { container } = exportUi(LOSSES.slice(0, 2))
+  expect(container.textContent).toContain('No prompts gained rank this period.')
+  expect(rowsOf(tables(container)[0])).toEqual(['Prompt l1', 'Prompt l0'])
+})
+
+test('export without deltas keeps one table: 25 rows, Rank ascending', () => {
+  const rows = Array.from({ length: 32 }, (_, i) => row(`r${i}`, { rank: 32 - i }))
+  const { container } = exportUi(rows, false)
+  expect(tables(container)).toHaveLength(1)
+  expect(screen.queryByText('Biggest gains')).toBeNull()
+  const o = rowsOf(tables(container)[0])
+  expect(o).toHaveLength(25)
+  expect(o[0]).toBe('Prompt r31')
+})
+
+test('on screen the same 32 rows are unchanged: chips and a 25-row page', () => {
+  const { container } = render(ui([...SAMES, ...GAINS, ...LOSSES]))
+  expect(chip('Gained').textContent).toBe('Gained 15')
+  expect(order(container)).toHaveLength(25)
+  expect(screen.queryByText('Biggest gains')).toBeNull()
 })
