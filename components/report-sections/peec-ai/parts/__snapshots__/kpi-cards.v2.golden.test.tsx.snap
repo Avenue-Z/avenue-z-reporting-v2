@@ -1,0 +1,185 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`kpi-cards@2 golden 1`] = `
+<div>
+  <div
+    class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5"
+  >
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+      data-export-block=""
+    >
+      <div
+        class="flex items-center justify-between gap-2"
+      >
+        <p
+          class="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          AI visibility
+        </p>
+        <span
+          class="rounded-full border border-white/[0.12] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-text-muted"
+        >
+          Peec
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        55.2%
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        +3.1 pts vs previous period
+      </p>
+      <p
+        class="mt-1.5 truncate text-xs text-text-muted"
+        title="Competitor avg · 32.5%"
+      >
+        Competitor avg · 32.5%
+      </p>
+    </div>
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+      data-export-block=""
+    >
+      <div
+        class="flex items-center justify-between gap-2"
+      >
+        <p
+          class="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          AI share of voice
+        </p>
+        <span
+          class="rounded-full border border-white/[0.12] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-text-muted"
+        >
+          Peec
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        28.4%
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        +1.2 pts vs previous period
+      </p>
+      <p
+        class="mt-1.5 truncate text-xs text-text-muted"
+        title="Competitor avg · 18.2%"
+      >
+        Competitor avg · 18.2%
+      </p>
+    </div>
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+      data-export-block=""
+    >
+      <div
+        class="flex items-center justify-between gap-2"
+      >
+        <p
+          class="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          Used as a source %
+        </p>
+        <span
+          class="rounded-full border border-white/[0.12] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-text-muted"
+        >
+          Peec
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        72.4%
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        +4.2 pts vs previous period
+      </p>
+      <p
+        class="mt-1.5 truncate text-xs text-text-muted"
+        title="Answers that retrieved acme.com"
+      >
+        Answers that retrieved acme.com
+      </p>
+    </div>
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+      data-export-block=""
+    >
+      <div
+        class="flex items-center justify-between gap-2"
+      >
+        <p
+          class="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          AI search sessions
+        </p>
+        <span
+          class="rounded-full border border-white/[0.12] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-text-muted"
+        >
+          GA4
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        80
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        +14.3% vs previous period
+      </p>
+      <p
+        class="mt-1.5 truncate text-xs text-text-muted"
+        title="GA4 sessions from AI referrers"
+      >
+        GA4 sessions from AI referrers
+      </p>
+    </div>
+    <div
+      class="rounded-lg border border-white/[0.08] bg-bg-surface px-6 py-5"
+      data-export-block=""
+    >
+      <div
+        class="flex items-center justify-between gap-2"
+      >
+        <p
+          class="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-text-muted"
+        >
+          AI search leads
+        </p>
+        <span
+          class="rounded-full border border-white/[0.12] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-text-muted"
+        >
+          GA4
+        </span>
+      </div>
+      <p
+        class="mt-2 text-3xl font-extrabold tabular-nums text-white"
+      >
+        8
+      </p>
+      <p
+        class="mt-1 text-sm font-bold text-[#60FF80]"
+      >
+        +33.3% vs previous period
+      </p>
+      <p
+        class="mt-1.5 truncate text-xs text-text-muted"
+        title="GA4 key events from AI sessions"
+      >
+        GA4 key events from AI sessions
+      </p>
+    </div>
+  </div>
+</div>
+`;

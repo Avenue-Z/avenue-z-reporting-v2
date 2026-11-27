@@ -4,6 +4,7 @@ import type { PartRegistry } from '@/lib/report-sections/types'
 import type { PeecCtx } from '../ctx'
 import { overviewSynopsisV1 } from './overview-synopsis'
 import { kpiCardsV1 } from './kpi-cards'
+import { kpiCardsV2 } from './kpi-cards.v2'
 import { visibilityChartV1 } from './visibility-chart'
 import { llmBreakdownV1 } from './llm-breakdown'
 import { winnersLosersV1 } from './winners-losers'
@@ -15,7 +16,7 @@ import { footerV1 } from './footer'
 
 export const PEEC_PARTS: PartRegistry<PeecCtx> = {
   'overview-synopsis': { 1: overviewSynopsisV1 },
-  'kpi-cards':         { 1: kpiCardsV1 },
+  'kpi-cards':         { 1: kpiCardsV1, 2: kpiCardsV2 },
   'visibility-chart':  { 1: visibilityChartV1 },
   'llm-breakdown':     { 1: llmBreakdownV1 },
   'winners-losers':    { 1: winnersLosersV1 },

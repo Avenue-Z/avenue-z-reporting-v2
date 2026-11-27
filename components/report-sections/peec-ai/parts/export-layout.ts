@@ -4,6 +4,7 @@
 export const PEEC_EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'overview-synopsis@1': 'block',
   'kpi-cards@1': 'block',
+  'kpi-cards@2': 'block',
   'visibility-chart@1': 'own',   // the chart card is its own block (visibility-chart.tsx)
   'llm-breakdown@1': 'own',      // a table
   'winners-losers@1': 'own',     // each card a block (winners-losers-cards.tsx)

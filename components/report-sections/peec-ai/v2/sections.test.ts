@@ -11,9 +11,10 @@ describe('isV2Layout', () => {
     expect(isV2Layout([p('a', 1)], map)).toBe(false)
     expect(isV2Layout([p('a', 2)], map)).toBe(true)
   })
-  test('default map is empty so always false', () => {
-    expect(V2_PART_SECTIONS).toEqual({})
-    expect(isV2Layout([p('a', 2)])).toBe(false)
+  test('default map holds only the v2 parts built so far', () => {
+    expect(V2_PART_SECTIONS).toEqual({ 'kpi-cards@2': '01' })
+    expect(isV2Layout([p('kpi-cards', 1)])).toBe(false)
+    expect(isV2Layout([p('kpi-cards', 2)])).toBe(true)
   })
 })
 

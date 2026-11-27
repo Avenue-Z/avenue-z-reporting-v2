@@ -30,6 +30,7 @@ import { overviewCompare, type AeoCompare } from './v2/compare'
 import { OverviewBody } from './v2/overview-body'
 import { OverviewSectionNav } from './v2/section-nav'
 import { DeltasSwitch } from './v2/deltas-switch'
+import { kpiStripHidden } from './parts/kpi-cards.v2'
 import { SharedPartsHeader } from '@/components/report-sections/shared/shared-parts-header'
 
 // --- Per-provider section (shared markup; renders via parts registry) ---
@@ -66,7 +67,9 @@ export function ProviderSection({
   kpi?: KpiInputs
 }) {
   const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience, compare, showDeltas, kpi })
-  const resolved = resolveSection(template, override)
+  const resolvedAll = resolveSection(template, override)
+  // A client whose Snapshot KPI strip would be empty gets no section 01 and no nav entry.
+  const resolved = resolvedAll.filter((r) => !(r.id === 'kpi-cards' && r.version === 2 && kpiStripHidden(ctx)))
 
   const renderPart = (r: (typeof resolved)[number]): ReactNode => {
     const impl = lookup(registry, r.id, r.version)
