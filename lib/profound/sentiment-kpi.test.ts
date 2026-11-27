@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/cache', () => ({ cached: (_v: string, _f: string, impl: unknown) => impl }))
+const cachedOptions = vi.hoisted(() => new Map<string, unknown>())
+vi.mock('@/lib/cache', () => ({
+  cached: (_v: string, fn: string, impl: unknown, options: unknown) => {
+    cachedOptions.set(fn, options)
+    return impl
+  },
+}))
 const profoundPost = vi.fn()
 vi.mock('./client', () => ({
   profoundPost: (...a: unknown[]) => profoundPost(...a),
@@ -57,6 +63,10 @@ describe('getProfoundSentimentKpi', () => {
     expect(await getProfoundSentimentKpi('avenue-z', '2026-10-26,2026-11-24')).toBeNull()
     profoundPost.mockResolvedValue({ info: {}, data: [{ positive_sentiment: 0, negative_sentiment: 0 }] })
     expect(await getProfoundSentimentKpi('avenue-z', '2026-10-26,2026-11-24')).toBeNull()
+  })
+
+  it('is not health-critical: a failure only blanks one tile', () => {
+    expect(cachedOptions.get('getProfoundSentimentKpi')).toEqual(expect.objectContaining({ healthCritical: false }))
   })
 
   it('propagates a Profound failure', async () => {

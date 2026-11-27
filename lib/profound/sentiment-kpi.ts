@@ -37,9 +37,13 @@ async function getProfoundSentimentKpiImpl(clientSlug: string, isoRange: string)
 }
 
 /** The brand's positive share of classified sentiment (0-100) for `isoRange` ('YYYY-MM-DD,YYYY-MM-DD'), or null
- *  when the window has no classified mentions. Rejects when Profound fails. One-hour TTL, keyed per client. */
+ *  when the window has no classified mentions. Rejects when Profound fails. One-hour TTL, keyed per client.
+ *  Not health-critical: a failure only turns one KPI tile to `--` (the [aeo-kpis] log at the call site is the
+ *  operational signal), so it must not mark the whole AEO page down, as for getWonStagesCompare in
+ *  lib/salesforce/pipeline.ts. */
 export const getProfoundSentimentKpi = cached('profound', 'getProfoundSentimentKpi', getProfoundSentimentKpiImpl, {
   version: 'v1-sentiment-v2-report',
   ttlSeconds: 3600,
+  healthCritical: false,
   extractTags: ([clientSlug, isoRange]) => ({ client: clientSlug, dateRange: isoRange }),
 })
