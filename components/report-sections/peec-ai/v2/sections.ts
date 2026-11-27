@@ -36,6 +36,7 @@ type SectionMap = Readonly<Record<string, OverviewSectionId>>
 export const V2_PART_SECTIONS: SectionMap = {
   'visibility-chart@2': '02',
   'brand-rankings@2': '02',
+  'llm-breakdown@2': '03',
   'topic-matrix@1': '04',
   'prompt-performance@1': '04',
 }

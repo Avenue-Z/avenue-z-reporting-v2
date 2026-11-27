@@ -7,6 +7,7 @@ export const PEEC_EXPORT_LAYOUT: Record<string, 'own' | 'block'> = {
   'visibility-chart@1': 'own',   // the chart card is its own block (visibility-chart.tsx)
   'visibility-chart@2': 'own',   // the chart card is one block (data-export-block)
   'llm-breakdown@1': 'own',      // a table
+  'llm-breakdown@2': 'own',      // each gauge is its own block (data-export-block)
   'winners-losers@1': 'own',     // each card a block (winners-losers-cards.tsx)
   'brand-rankings@1': 'own',     // a table
   'brand-rankings@2': 'own',     // a table

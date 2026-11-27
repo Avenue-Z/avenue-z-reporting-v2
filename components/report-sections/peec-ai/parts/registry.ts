@@ -7,6 +7,7 @@ import { kpiCardsV1 } from './kpi-cards'
 import { visibilityChartV1 } from './visibility-chart'
 import { visibilityChartV2 } from './visibility-chart.v2'
 import { llmBreakdownV1 } from './llm-breakdown'
+import { llmBreakdownV2 } from './llm-breakdown.v2'
 import { winnersLosersV1 } from './winners-losers'
 import { brandRankingsV1 } from './brand-rankings'
 import { brandRankingsV2 } from './brand-rankings.v2'
@@ -21,7 +22,7 @@ export const PEEC_PARTS: PartRegistry<PeecCtx> = {
   'overview-synopsis': { 1: overviewSynopsisV1 },
   'kpi-cards':         { 1: kpiCardsV1 },
   'visibility-chart':  { 1: visibilityChartV1, 2: visibilityChartV2 },
-  'llm-breakdown':     { 1: llmBreakdownV1 },
+  'llm-breakdown':     { 1: llmBreakdownV1, 2: llmBreakdownV2 },
   'winners-losers':    { 1: winnersLosersV1 },
   'brand-rankings':    { 1: brandRankingsV1, 2: brandRankingsV2 },
   'topic-matrix':      { 1: topicMatrixV1 },

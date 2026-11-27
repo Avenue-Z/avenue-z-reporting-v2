@@ -37,4 +37,9 @@ describe('groupParts', () => {
     expect(g.filter((x) => x.showHeader)).toHaveLength(2)
     expect(sectionsPresent(g)).toEqual(['02', '04'])
   })
+  test('the real map puts llm-breakdown@2 in section 03 between 02 and 04', () => {
+    const g = groupParts([p('visibility-chart', 2), p('brand-rankings', 2), p('llm-breakdown', 2), p('topic-matrix', 1), p('prompt-performance', 1)])
+    expect(g.map((x) => x.section)).toEqual(['02', '03', '04'])
+    expect(sectionsPresent(g)).toEqual(['02', '03', '04'])
+  })
 })

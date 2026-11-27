@@ -65,7 +65,9 @@ Slice 2 (02 Visibility vs Competitors) adds `visibility-chart@2` and `brand-rank
 
 Slice 3 (04 Topics & Prompts) adds `topic-matrix@1` and `prompt-performance@1` and replaces `winners-losers`. **Read the current staging override first and add only this slice's entries**: put both new parts in `extraParts` (`version: 1`), add `"winners-losers"` to `hidden`, and in `order` put `topic-matrix` then `prompt-performance` where `winners-losers` stood (after `llm-breakdown`). Slices 4 and 6 edit the same JSON.
 
-Staging override after slice 3 (after slice 2 it was the same without the slice 3 entries). The three `hidden` entries are the removals every v2 layout makes; add the v1 part each
+Slice 5 (03 Performance by AI Model) adds `llm-breakdown@2`. **Read the current staging override first and add only this slice's entries**: add `"llm-breakdown": 2` to `versions`. `order` already lists `llm-breakdown` between `brand-rankings` (02) and `topic-matrix` (04), so it stays the full list below. Slices 4 and 6 edit the same JSON.
+
+Staging override after slices 3 and 5 (after slice 2 it was the same without the slice 3 entries). The three `hidden` entries are the removals every v2 layout makes; add the v1 part each
 later slice replaces as that slice lands, list its replacement in `extraParts`/`versions`, and insert its id into `order`
 at its place on the page (`order` always names every visible part):
 
@@ -73,7 +75,7 @@ at its place on the page (`order` always names every visible part):
 {
   "peec-ai": {
     "hidden": ["domains-row", "competitor-visibility", "competitor-gaps", "winners-losers"],
-    "versions": { "visibility-chart": 2, "brand-rankings": 2 },
+    "versions": { "visibility-chart": 2, "brand-rankings": 2, "llm-breakdown": 2 },
     "extraParts": [{ "id": "topic-matrix", "version": 1 }, { "id": "prompt-performance", "version": 1 }],
     "order": ["overview-synopsis", "kpi-cards", "visibility-chart", "brand-rankings", "llm-breakdown", "topic-matrix", "prompt-performance", "footer"]
   }
