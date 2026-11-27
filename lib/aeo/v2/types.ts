@@ -60,5 +60,6 @@ export type TopicsPromptsV2 = {
 export type ModelMetricV2 = { you: number | null; youPrior: number | null; competitorAvg: number | null }
 /** Section 03: one AI model's three gauges. */
 export type ModelStatV2 = { model: AEOModel; visibility: ModelMetricV2; sov: ModelMetricV2; usedAsSource: ModelMetricV2 }
-/** `models` follows AEO_MODELS order and holds only models where the client has answers in the current window. */
+/** `models` follows AEO_MODELS order. Peec lists the models where the client has answers in the current window; Profound
+ *  lists every model with a row for any tracked asset (the client reads 0 on a model where it has none). */
 export type ModelsV2 = { models: ModelStatV2[]; usedAsSourceBasis: UsedAsSourceBasis }

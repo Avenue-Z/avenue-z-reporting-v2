@@ -55,6 +55,28 @@ describe('ModelGauge', () => {
     expect(container.querySelectorAll('[data-tick]')).toHaveLength(1)
     expect(screen.getByText('Competitor avg 46.2%')).toBeTruthy()
   })
+  test('you 0 draws the track only, no fill path', () => {
+    const { container } = render(gauge(metric({ you: 0 })))
+    expect(container.querySelectorAll('path')).toHaveLength(1)
+    expect(screen.getByText('0.0%')).toBeTruthy()
+  })
+  test('the tick for a 46.2% competitor average sits at -6.84 degrees, radius 41 to 59', () => {
+    // The same formula as the gauge: angle = -90 + v / 100 * 180 on a 50-radius arc centred at (60, 60), tick 9 either side.
+    const angle = -90 + (46.2 / 100) * 180
+    expect(angle).toBeCloseTo(-6.84, 10)
+    expect(gaugeArc(46.2).angle).toBeCloseTo(angle, 10)
+    const rad = (angle * Math.PI) / 180
+    const at = (r: number) => ({ x: 60 + r * Math.sin(rad), y: 60 - r * Math.cos(rad) })
+    const tick = render(gauge(metric())).container.querySelector('[data-tick]')!
+    const [inner, outer] = [at(41), at(59)]
+    expect(Number(tick.getAttribute('x1'))).toBeCloseTo(inner.x, 10)
+    expect(Number(tick.getAttribute('y1'))).toBeCloseTo(inner.y, 10)
+    expect(Number(tick.getAttribute('x2'))).toBeCloseTo(outer.x, 10)
+    expect(Number(tick.getAttribute('y2'))).toBeCloseTo(outer.y, 10)
+    // Left of centre and just under the top of the arc.
+    expect(inner.x).toBeLessThan(60)
+    expect(outer.y).toBeCloseTo(1.42, 2)
+  })
   test('null value prints a dash', () => {
     render(gauge(metric({ you: null })))
     expect(screen.getByText('–')).toBeTruthy()
