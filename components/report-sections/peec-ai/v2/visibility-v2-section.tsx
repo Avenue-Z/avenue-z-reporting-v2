@@ -1,11 +1,11 @@
 import { getVisibilityV2 } from '@/lib/aeo/v2/visibility'
 import type { PeecCtx } from '../ctx'
-import { brandColors, brandKey } from './brand-colors'
+import { FALLBACK_COLOR, brandColors, brandKey } from './brand-colors'
 import { fetchCompareMode, periodWindows } from './compare'
 import { BrandTrendChart, type TrendSeries } from './brand-trend-chart'
 
-/** No brand without a roster color; a name the roster lacks is drawn grey rather than not at all. */
-const FALLBACK_COLOR = '#A3A3A3'
+/** Two decimals is far finer than the chart draws or the tooltip prints (one decimal); it keeps float noise out of the payload. */
+const round2 = (n: number) => Math.round(n * 100) / 100
 
 /**
  * Section 02's trend chart, fetched server-side. One series per brand in the brand table's order (visibility desc), so
@@ -22,7 +22,7 @@ export async function VisibilityV2Section({
 
   const you = v.brands.find((b) => b.isYou)?.name ?? null
   const colors = brandColors(v.roster, you)
-  const pointsByName = new Map(v.trend.map((t) => [t.name, t.points]))
+  const pointsByName = new Map(v.trend.map((t) => [t.name, t.points.map((p) => ({ ...p, visibility: round2(p.visibility) }))]))
   const series: TrendSeries[] = v.brands.map((b) => ({
     key: brandKey(b.name),
     name: b.name,

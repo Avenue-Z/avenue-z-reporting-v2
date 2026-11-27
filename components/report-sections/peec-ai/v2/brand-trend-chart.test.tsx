@@ -178,3 +178,23 @@ test('the note shows when given', () => {
   render(<BrandTrendChart {...PROPS} note="Model filter not applied here: all models." />)
   expect(screen.getByText('Model filter not applied here: all models.')).toBeTruthy()
 })
+
+// Final review M2: with no client brand identified, competitors off would draw nothing, so the switch is hidden and a line says
+// why; competitors on still draws.
+test('no client brand: no Show competitors switch, a muted line above the chart, competitors still drawn', () => {
+  const noClient = SERIES.map((s) => ({ ...s, isYou: false }))
+  const { container } = render(<BrandTrendChart {...PROPS} series={noClient} competitorKeysByVisibility={['renaissance', ...KEYS]} />)
+  expect(screen.queryByRole('switch', { name: 'Show competitors' })).toBeNull()
+  const msg = screen.getByText('Client brand not identified for this project.')
+  expect(msg.className).toContain('text-text-muted')
+  // Above the chart: before the plot area in document order.
+  const plot = container.querySelector('svg')!
+  expect(msg.compareDocumentPosition(plot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(polylines(container).map((p) => p.dataset.brand).sort()).toEqual(['amwins', 'guardian', 'renaissance', 'unum'])
+})
+
+test('with a client brand there is no not-identified line', () => {
+  render(<BrandTrendChart {...PROPS} />)
+  expect(screen.queryByText('Client brand not identified for this project.')).toBeNull()
+  expect(screen.getByRole('switch', { name: 'Show competitors' })).toBeTruthy()
+})

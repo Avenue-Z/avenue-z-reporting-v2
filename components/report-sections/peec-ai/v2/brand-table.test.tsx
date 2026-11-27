@@ -1,7 +1,13 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { BrandRowV2 } from '@/lib/aeo/v2/types'
+import { PEEC, PROFOUND } from '@/lib/peec/metric-definitions'
+import { ExportModeProvider } from '@/components/export/export-mode'
+
+// A hover tooltip's text lives in a portal opened on hover; render it as an attribute so the definition shown can be read.
+vi.mock('@/components/ui/info-tooltip', () => ({ InfoTooltip: ({ text }: { text: string }) => <span data-tooltip={text} /> }))
+
 import { BrandTableV2 } from './brand-table'
 
 const row = (rank: number, over: Partial<BrandRowV2> = {}): BrandRowV2 => ({
@@ -93,4 +99,37 @@ test('no Position column; title, client color and shading', () => {
 test('a note is shown when given', () => {
   render(ui(rows(3), { note: 'Model filter not applied here: all models.' }))
   expect(screen.getByText('Model filter not applied here: all models.')).toBeTruthy()
+})
+
+// Final review M3: Profound's table quotes Profound's definitions, not Peec's.
+test('the Visibility and Share of voice tooltips quote the provider', () => {
+  const tip = (c: HTMLElement, label: string) =>
+    [...c.querySelectorAll('th')].find((th) => th.textContent?.startsWith(label))!.querySelector('[data-tooltip]')!.getAttribute('data-tooltip')
+  const a = render(ui(rows(3)))
+  expect(tip(a.container, 'Visibility')).toBe(PEEC.visibility.text)
+  expect(tip(a.container, 'Share of voice')).toBe(PEEC.sov.text)
+  a.unmount()
+  const b = render(ui(rows(3), { usedAsSourceBasis: 'citations' }))
+  expect(tip(b.container, 'Visibility')).toBe(PROFOUND.visibility.text)
+  expect(tip(b.container, 'Share of voice')).toBe(PROFOUND.sov.text)
+})
+
+// Final review M6: the PDF prints the pinned client too, and re-sorting keeps the pin.
+test('export mode prints the pinned client row after the first page', () => {
+  const { container } = render(<ExportModeProvider>{ui(rows(14))}</ExportModeProvider>)
+  const trs = bodyRows(container)
+  expect(trs).toHaveLength(11)
+  expect(trs[10].hasAttribute('data-pinned')).toBe(true)
+  expect(trs[10].hasAttribute('data-export-row')).toBe(true)
+  expect(trs[10].textContent).toContain('#14')
+})
+
+test('re-sorting by another column still pins the client when it falls outside the page', () => {
+  const { container } = render(ui(rows(14)))
+  fireEvent.click(screen.getByRole('button', { name: 'Sort by Brand' }))
+  const trs = bodyRows(container)
+  expect(trs).toHaveLength(11)
+  expect(trs[0].textContent).toContain('Brand 1')
+  expect(trs[10].hasAttribute('data-pinned')).toBe(true)
+  expect(trs[10].textContent).toContain('Brand 14')
 })

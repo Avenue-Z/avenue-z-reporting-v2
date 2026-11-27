@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import { CHART_COLORS } from '@/lib/constants'
-import { BRAND_PALETTE, brandColors, brandKey } from './brand-colors'
+import { BRAND_PALETTE, FALLBACK_COLOR, brandColors, brandKey } from './brand-colors'
 
 test('BRAND_PALETTE has the twelve approved hexes in order', () => {
   expect(BRAND_PALETTE).toEqual([
@@ -45,4 +45,10 @@ test('brandKey strips diacritics', () => {
 
 test('brandKey collapses punctuation runs and trims hyphens', () => {
   expect(brandKey('  Dearborn Group, Inc. ')).toBe('dearborn-group-inc')
+})
+
+// Final review M7: one fallback grey for a brand the roster lacks, distinct from every palette slot.
+test('FALLBACK_COLOR is a grey outside the palette', () => {
+  expect(FALLBACK_COLOR).toBe('#6B7280')
+  expect((BRAND_PALETTE as readonly string[]).includes(FALLBACK_COLOR)).toBe(false)
 })

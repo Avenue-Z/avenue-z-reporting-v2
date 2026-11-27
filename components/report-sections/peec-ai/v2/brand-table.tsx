@@ -2,12 +2,11 @@
 
 import { cn } from '@/lib/utils'
 import type { BrandRowV2, UsedAsSourceBasis } from '@/lib/aeo/v2/types'
-import { PEEC } from '@/lib/peec/metric-definitions'
+import { PEEC, PROFOUND } from '@/lib/peec/metric-definitions'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
 import { SortableTable, type SortableColumn } from '../sortable-table'
 import { deltaColumn } from './delta-columns'
-
-const FALLBACK_COLOR = '#A3A3A3'
+import { FALLBACK_COLOR } from './brand-colors'
 
 const USED_AS_SOURCE = {
   answers: {
@@ -42,6 +41,8 @@ export function BrandTableV2({
   note: string | null
 }) {
   const used = USED_AS_SOURCE[usedAsSourceBasis]
+  // Citation share is Profound's basis: its table quotes Profound's own definitions.
+  const defs = usedAsSourceBasis === 'citations' ? PROFOUND : PEEC
   const metric = (
     key: 'visibility' | 'sov' | 'usedAsSource',
     label: string,
@@ -98,8 +99,8 @@ export function BrandTableV2({
         </span>
       ),
     },
-    ...metric('visibility', 'Visibility', PEEC.visibility.text),
-    ...metric('sov', 'Share of voice', PEEC.sov.text),
+    ...metric('visibility', 'Visibility', defs.visibility.text),
+    ...metric('sov', 'Share of voice', defs.sov.text),
     ...metric('usedAsSource', used.label, used.tooltip),
   ]
 
@@ -107,7 +108,7 @@ export function BrandTableV2({
     <div className="rounded-lg border border-white/[0.06] bg-bg-surface">
       <div className="flex items-center gap-1.5 border-b border-white/[0.06] px-5 py-4" data-export-keep-with-next="">
         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Which brands appear most often in AI answers?</p>
-        <InfoTooltip text={`Brand visibility across all brands tracked. ${PEEC.visibility.text}`} />
+        <InfoTooltip text={`Brand visibility across all brands tracked. ${defs.visibility.text}`} />
       </div>
       {note && <p className="px-5 pt-3 text-xs text-text-muted">{note}</p>}
       <SortableTable

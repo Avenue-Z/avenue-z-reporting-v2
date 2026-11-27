@@ -107,3 +107,14 @@ test('the part wraps the async section in an error boundary around Suspense, pas
   expect(isValidElement(child) && child.type).toBe(VisibilityV2Section)
   expect((child as ReactElement<{ ctx: unknown }>).props.ctx).toEqual(pick(CTX))
 })
+
+// Final review M9: trend points are rounded to 2 decimals on the server, so the client payload carries no float noise.
+test('trend visibility reaches the chart rounded to 2 decimals', async () => {
+  vi.mocked(getVisibilityV2).mockResolvedValue({
+    ...FIXTURE,
+    trend: [{ name: 'Acme Corp', isYou: true, points: [{ date: '2026-11-16', visibility: 33.33333333 }, { date: '2026-11-17', visibility: 12.3456 }] }],
+  })
+  const el = await VisibilityV2Section({ ctx: pick(CTX) })
+  const series = (el as ReactElement<{ series: { name: string; points: { visibility: number }[] }[] }>).props.series
+  expect(series.find((s) => s.name === 'Acme Corp')!.points.map((p) => p.visibility)).toEqual([33.33, 12.35])
+})

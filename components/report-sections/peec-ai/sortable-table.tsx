@@ -139,6 +139,21 @@ export function SortableTable<T>({
     return i >= initialPageSize ? { row: sortedRows[i], index: i } : null
   })()
 
+  // The pinned row's cells, the same on the page and in the export.
+  const pinnedCells = (p: { row: T; index: number }) => columns.map((col) => {
+    const align = col.align ?? 'left'
+    const cellContent = col.render
+      ? col.render(p.row, p.index)
+      : col.accessor
+        ? String(col.accessor(p.row) ?? '')
+        : String((p.row as Record<string, unknown>)[col.key] ?? '')
+    return (
+      <td key={col.key} className={cn('px-4 py-3', align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left', col.cellClassName)}>
+        {cellContent}
+      </td>
+    )
+  })
+
   const totalAfterFilter = sortedRows.length
   const activeFilterCount = Object.values(filters).filter((v) => v.trim() !== '').length
 
@@ -212,19 +227,7 @@ export function SortableTable<T>({
             ))}
             {pinned && (
               <tr key="pinned" data-export-row="" data-pinned="" className={cn('border-t border-dashed border-white/20', rowClassName ? rowClassName(pinned.row) : '')}>
-                {columns.map((col) => {
-                  const align = col.align ?? 'left'
-                  const cellContent = col.render
-                    ? col.render(pinned.row, pinned.index)
-                    : col.accessor
-                      ? String(col.accessor(pinned.row) ?? '')
-                      : String((pinned.row as Record<string, unknown>)[col.key] ?? '')
-                  return (
-                    <td key={col.key} className={cn('px-4 py-3', align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left', col.cellClassName)}>
-                      {cellContent}
-                    </td>
-                  )
-                })}
+                {pinnedCells(pinned)}
               </tr>
             )}
           </tbody>
@@ -400,19 +403,7 @@ export function SortableTable<T>({
                   rowClassName ? rowClassName(pinned.row) : '',
                 )}
               >
-                {columns.map((col) => {
-                  const align = col.align ?? 'left'
-                  const cellContent = col.render
-                    ? col.render(pinned.row, pinned.index)
-                    : col.accessor
-                      ? String(col.accessor(pinned.row) ?? '')
-                      : String((pinned.row as Record<string, unknown>)[col.key] ?? '')
-                  return (
-                    <td key={col.key} className={cn('px-4 py-3', align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left', col.cellClassName)}>
-                      {cellContent}
-                    </td>
-                  )
-                })}
+                {pinnedCells(pinned)}
               </tr>
             )}
           </tbody>

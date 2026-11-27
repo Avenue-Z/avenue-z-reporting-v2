@@ -34,7 +34,8 @@ function summaryLine(clientName: string | null, competitors: number, g: BucketGr
  * Section 02's year-to-date visibility trend, one line per brand. The competitor selection lives in the URL
  * (`aeoTrend`, ./trend-selection.ts) so the PDF export draws the same lines; the granularity is local, weekly by default.
  * Competitors off draws the client's line alone with the selected period shaded, and its comparison period in a lighter
- * tone when deltas show.
+ * tone when deltas show. With no client brand identified there is no client line, so the switch is hidden and a muted line
+ * says so; the competitor lines still draw.
  */
 export function BrandTrendChart({
   series,
@@ -167,6 +168,8 @@ export function BrandTrendChart({
         )}
       </div>
 
+      {!client && <p className="mb-3 text-xs text-text-muted">Client brand not identified for this project.</p>}
+
       <div className="flex gap-2">
         <div className="flex h-40 w-9 shrink-0 flex-col justify-between text-right">
           {[chartMax, chartMax * 0.75, chartMax * 0.5, chartMax * 0.25, 0].map((v, i) => (
@@ -233,7 +236,8 @@ export function BrandTrendChart({
       </div>
 
       <div className="mt-4 flex flex-col gap-3">
-        {!exporting && (
+        {/* Without a client line, competitors off would draw nothing: no switch then. */}
+        {!exporting && client && (
           <div className="flex items-center gap-2">
             <button
               type="button"
