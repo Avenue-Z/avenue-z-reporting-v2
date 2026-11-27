@@ -161,7 +161,7 @@ test('in export mode a chip chosen on screen is ignored: the gains and losses pr
   try {
     rerender(ui(MOVES))
     expect(screen.queryByRole('button', { name: /^Lost/ })).toBeNull()
-    expect(order(container)).toHaveLength(4)
+    expect(order(container)).toEqual(['Prompt entered', 'Prompt gained', 'Prompt dropped', 'Prompt lost'])
   } finally {
     forced.exporting = false
   }

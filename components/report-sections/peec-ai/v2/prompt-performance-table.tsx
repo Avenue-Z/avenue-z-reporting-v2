@@ -51,7 +51,7 @@ const rankDeltaColumn: SortableColumn<PromptPerfRow> = {
 
 /**
  * Section 04's Prompt Performance table: the client's average rank and visibility on each tracked prompt. The filter
- * chips are local state; New rows and rows with no rank change appear under All only. The PDF prints All, without chips.
+ * chips are local state; New rows and rows with no rank change appear under All only. The PDF has no chips: with deltas it prints two tables, the 12 biggest gains and the 12 biggest losses; without deltas, the first 25 rows by Rank.
  */
 export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfRow[]; showDeltas: boolean }) {
   const [group, setGroup] = useState<Group>('all')
