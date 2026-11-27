@@ -5,8 +5,10 @@ exports[`llm-breakdown@2 golden (resolved gauges) 1`] = `
   class="flex flex-col gap-3"
 >
   <div
+    aria-label="Gauge metric"
     class="flex gap-1 self-start rounded-lg bg-white/[0.04] p-0.5"
     data-export-hide=""
+    role="group"
   >
     <button
       aria-pressed="true"

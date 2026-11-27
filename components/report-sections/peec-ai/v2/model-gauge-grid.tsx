@@ -13,16 +13,20 @@ const pick = (s: ModelStatV2, m: GaugeMetric) => (m === 'visibility' ? s.visibil
 
 /**
  * Section 03's gauges, one per AI model. All three metrics arrive as plain data; the metric shown lives in the URL
- * (`aeoGauge`, ./gauge-metric.ts), so switching needs no server round trip and the PDF prints the same metric.
- * `compareSuffix` is the comparison's wording, passed in because ./compare.ts is server-only.
+ * (`aeoGauge`, ./gauge-metric.ts), so the PDF prints the same metric. Switching replaces the URL, which re-renders the
+ * page through the server; the fetchers are cached, so that costs no new vendor call.
+ * `compareSuffix` is the comparison's wording, passed in because ./compare.ts is server-only. `filterActive` says whether a
+ * model filter is on, which decides the empty line.
  */
 export function ModelGaugeGrid({
   models,
+  filterActive,
   basis,
   showDeltas,
   compareSuffix,
 }: {
   models: ModelStatV2[]
+  filterActive: boolean
   basis: UsedAsSourceBasis
   showDeltas: boolean
   compareSuffix: string
@@ -37,7 +41,9 @@ export function ModelGaugeGrid({
   if (models.length === 0) {
     return (
       <div className="rounded-lg border border-white/[0.06] bg-bg-surface" data-export-block="">
-        <p className="px-5 py-4 text-sm text-text-muted">No data for the selected models.</p>
+        <p className="px-5 py-4 text-sm text-text-muted">
+          {filterActive ? 'No data for the selected models.' : 'No AI model data for this period.'}
+        </p>
       </div>
     )
   }
@@ -57,7 +63,12 @@ export function ModelGaugeGrid({
         // Each gauge is its own unbreakable block; the line keeps with the first, so it never ends a page alone.
         <p className="text-xs text-text-muted" data-export-keep-with-next="">{`Metric shown: ${label}`}</p>
       ) : (
-        <div className="flex gap-1 self-start rounded-lg bg-white/[0.04] p-0.5" data-export-hide="">
+        <div
+          role="group"
+          aria-label="Gauge metric"
+          className="flex gap-1 self-start rounded-lg bg-white/[0.04] p-0.5"
+          data-export-hide=""
+        >
           {METRICS.map((m) => (
             <button
               key={m}

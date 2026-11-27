@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import type { ModelStatV2, ModelsV2 } from '@/lib/aeo/v2/types'
 
@@ -28,6 +28,7 @@ const MODELS: ModelStatV2[] = [stat('ChatGPT', 60), stat('Gemini', 40), stat('Go
 
 const PROPS: ComponentProps<typeof ModelGaugeGrid> = {
   models: MODELS,
+  filterActive: false,
   basis: 'answers',
   showDeltas: true,
   compareSuffix: 'vs previous period',
@@ -121,8 +122,23 @@ test('the change line follows showDeltas and the comparison wording', () => {
   expect(screen.queryByText(/vs previous period/)).toBeNull()
 })
 
+test('the metric buttons sit in a group named Gauge metric', () => {
+  render(<ModelGaugeGrid {...PROPS} />)
+  const group = screen.getByRole('group', { name: 'Gauge metric' })
+  expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['Visibility', 'Share of voice', 'Used as a source'])
+})
+
+test('no models with a filter: the selected-models line; with no filter: the no-data-for-this-period line', () => {
+  const one = render(<ModelGaugeGrid {...PROPS} models={[]} filterActive />)
+  expect(one.getByText('No data for the selected models.')).toBeTruthy()
+  one.unmount()
+  render(<ModelGaugeGrid {...PROPS} models={[]} filterActive={false} />)
+  expect(screen.getByText('No AI model data for this period.')).toBeTruthy()
+  expect(screen.queryByText('No data for the selected models.')).toBeNull()
+})
+
 test('no models: the muted empty line, as an export block, and no buttons', () => {
-  const { container } = render(<ModelGaugeGrid {...PROPS} models={[]} />)
+  const { container } = render(<ModelGaugeGrid {...PROPS} models={[]} filterActive />)
   const line = screen.getByText('No data for the selected models.')
   expect(line.closest('[data-export-block]')).toBeTruthy()
   expect(line.className).toContain('text-text-muted')
@@ -175,14 +191,23 @@ test('ModelsSection applies the model filter: Gemini alone is one gauge, no note
   expect(container.textContent).not.toContain('not applied')
 })
 
-test('ModelsSection: a selected model with no data, or no client, shows the empty line', async () => {
-  vi.mocked(getModelsV2).mockResolvedValue({ ...DATA, models: MODELS.filter((m) => m.model !== 'Claude') })
-  const one = render(<>{await ModelsSection({ ctx: { ...CTX, models: ['Claude'] } })}</>)
-  expect(one.getByText('No data for the selected models.')).toBeTruthy()
-  one.unmount()
-  vi.mocked(getModelsV2).mockClear()
-  const two = render(<>{await ModelsSection({ ctx: { ...CTX, clientSlug: undefined } })}</>)
-  expect(two.getByText('No data for the selected models.')).toBeTruthy()
+test('ModelsSection: a selected model missing from the data shows the selected-models line', async () => {
+  // The data has ChatGPT only, so filtering to Gemini genuinely leaves nothing.
+  vi.mocked(getModelsV2).mockResolvedValue({ ...DATA, models: [stat('ChatGPT', 60)] })
+  const { container } = render(<>{await ModelsSection({ ctx: { ...CTX, models: ['Gemini'] } })}</>)
+  expect(screen.getByText('No data for the selected models.')).toBeTruthy()
+  expect(gauges(container)).toHaveLength(0)
+})
+
+test('ModelsSection: no models and no filter (no client resolved, or no data) shows the no-data line', async () => {
+  vi.mocked(getModelsV2).mockResolvedValue({ ...DATA, models: [] })
+  render(<>{await ModelsSection({ ctx: CTX })}</>)
+  expect(screen.getByText('No AI model data for this period.')).toBeTruthy()
+})
+
+test('ModelsSection: no clientSlug renders nothing and fetches nothing, like the sibling sections', async () => {
+  const { container } = render(<>{await ModelsSection({ ctx: { ...CTX, clientSlug: undefined } })}</>)
+  expect(container.innerHTML).toBe('')
   expect(getModelsV2).not.toHaveBeenCalled()
 })
 
