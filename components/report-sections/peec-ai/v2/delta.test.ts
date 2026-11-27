@@ -26,3 +26,11 @@ test('deltaTone with unit uses the displayed rounding', () => {
   expect(deltaTone(0.6, 'higher', 'places')).toBe('good')
   expect(deltaTone(-0.04, 'higher', 'pct')).toBe('neutral')
 })
+test.each([
+  [0.5, '↑ 1 place'], [-0.5, '↓ 1 place'], [1.5, '↑ 2 places'], [-1.5, '↓ 2 places'], [-0.49, '0 places'],
+])('formatDelta(%s, places) = %s', (v, want) => expect(formatDelta(v, 'places')).toBe(want))
+test('deltaTone agrees with the rounded places value', () => {
+  expect(deltaTone(-0.5, 'higher', 'places')).toBe('bad')
+  expect(deltaTone(0.5, 'higher', 'places')).toBe('good')
+  expect(deltaTone(-0.49, 'higher', 'places')).toBe('neutral')
+})
