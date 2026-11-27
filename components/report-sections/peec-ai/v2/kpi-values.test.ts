@@ -177,6 +177,27 @@ describe('computeKpiTile', () => {
     expect(computeKpiTile('sentiment', ctx({ provider: 'profound' })).value).toBe('--')
   })
 
+  it('profound sentiment from the v2 report: value, delta in pts, footer, badge', () => {
+    const t = computeKpiTile('sentiment', ctx({ provider: 'profound', kpi: { profoundSentiment: { now: 62.4, prior: 60.1 } } }))
+    expect(t.value).toBe('62%')
+    expect(t.delta).toBeCloseTo(2.3)
+    expect(t.footer).toBe('Share of positive mentions')
+    expect(t.badge).toBe('Profound')
+  })
+
+  it('profound sentiment with no current value shows -- and no delta', () => {
+    const t = computeKpiTile('sentiment', ctx({ provider: 'profound', kpi: { profoundSentiment: { now: null, prior: 60 } } }))
+    expect(t.value).toBe('--')
+    expect(t.delta).toBeNull()
+    expect(t.footer).toBe('Profound data unavailable')
+  })
+
+  it('profound sentiment with no prior has no delta', () => {
+    const t = computeKpiTile('sentiment', ctx({ provider: 'profound', kpi: { profoundSentiment: { now: 62.4, prior: null } } }))
+    expect(t.value).toBe('62%')
+    expect(t.delta).toBeNull()
+  })
+
   it('no identified brand', () => {
     const d = { ...data, brandRankings: data.brandRankings.map((b) => ({ ...b, isYou: false })) } as PeecOverview
     const t = computeKpiTile('visibility', ctx({ d }))

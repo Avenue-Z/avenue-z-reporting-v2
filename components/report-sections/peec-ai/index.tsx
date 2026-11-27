@@ -1,11 +1,12 @@
 import { getPeecOverview } from '@/lib/peec/client'
 import type { PeecOverview } from '@/lib/peec/client'
 import { getProfoundOverview } from '@/lib/profound/client'
+import { getProfoundSentimentKpi } from '@/lib/profound/sentiment-kpi'
 import type { ProfoundOverview } from '@/lib/profound/client'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
 import { fetchAiKpiWindow, type Ga4KpiState } from '@/lib/ga4/ai-kpis'
 import { readSavedKpis } from '@/lib/report-sections/aeo-kpis'
-import { KPI_CATALOG } from './v2/kpi-catalog'
+import { KPI_CATALOG, effectiveKpis } from './v2/kpi-catalog'
 import type { KpiInputs } from './ctx'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
@@ -197,7 +198,24 @@ export async function PeecAIReport({
       console.error(`[aeo-kpis] ga4 failed slug=${clientSlug} window=${compareIso} error=${name}`)
     }
   }
-  const kpi: KpiInputs = { saved, ga4Connected: ga4Configured, ga4: ga4Kpi, profoundSentiment: null }
+  // Profound sentiment (v2 only): fetched only when the strip is in the layout, Profound is configured, and the
+  // selection shows sentiment (the defaults do not, so it must be saved). A failed side is null on its own.
+  let profoundSentiment: KpiInputs['profoundSentiment'] = null
+  const wantsSentiment = effectiveKpis(saved, { ga4Connected: ga4Configured, provider: 'profound' }).includes('sentiment')
+  if (hasKpiStrip && profoundConfigured && clientSlug && wantsSentiment) {
+    const [nowRes, priorRes] = await Promise.allSettled([
+      getProfoundSentimentKpi(clientSlug, mainIso),
+      compareIso ? getProfoundSentimentKpi(clientSlug, compareIso) : Promise.resolve(null),
+    ])
+    const settle = (r: PromiseSettledResult<number | null>, window: string | null): number | null => {
+      if (r.status === 'fulfilled') return r.value
+      const name = r.reason instanceof Error ? r.reason.name : 'unknown'
+      console.error(`[aeo-kpis] profound sentiment failed slug=${clientSlug} window=${window} error=${name}`)
+      return null
+    }
+    profoundSentiment = { now: settle(nowRes, mainIso), prior: settle(priorRes, compareIso) }
+  }
+  const kpi: KpiInputs = { saved, ga4Connected: ga4Configured, ga4: ga4Kpi, profoundSentiment }
 
   const availableProviders: AeoProvider[] = []
   if (peecData)     availableProviders.push('peec')
