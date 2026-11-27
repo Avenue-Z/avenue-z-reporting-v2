@@ -163,6 +163,7 @@ export const FIXTURE_PEEC_CTX: PeecCtx = {
   audience: 'client',
   compare: 'previous_period',
   showDeltas: true,
+  kpi: { saved: null, ga4Connected: false, ga4: { status: 'not-configured' }, profoundSentiment: null },
   you: {
     rank: 1,
     name: 'Acme Corp',

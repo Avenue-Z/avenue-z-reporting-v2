@@ -13,8 +13,25 @@ import type { PeecOverview, TrackedPrompt } from '@/lib/peec/client'
 import type { ProfoundOverview } from '@/lib/profound/client'
 import type { AIReferralKPI } from './index'
 import type { AeoCompare } from './v2/compare'
+import type { KpiId } from '@/lib/report-sections/aeo-kpis'
+import type { Ga4KpiState } from '@/lib/ga4/ai-kpis'
 
 type Overview = PeecOverview | ProfoundOverview
+
+/** AEO Overview v2 Snapshot KPIs: what the tiles need beyond the Peec/Profound overview. v1 parts ignore it. */
+export type KpiInputs = {
+  saved: KpiId[] | null
+  ga4Connected: boolean
+  ga4: Ga4KpiState
+  profoundSentiment: { now: number | null; prior: number | null } | null
+}
+
+export const DEFAULT_KPI_INPUTS: KpiInputs = {
+  saved: null,
+  ga4Connected: false,
+  ga4: { status: 'not-configured' },
+  profoundSentiment: null,
+}
 
 /** Who the report is rendered for: the Avenue Z dashboard ('internal') or the client portal and PDF export ('client'). */
 export type ReportAudience = 'internal' | 'client'
@@ -34,6 +51,8 @@ export type PeecCtx = {
   compare: AeoCompare
   /** AEO Overview v2: the Show deltas switch. v1 parts ignore it. */
   showDeltas: boolean
+  /** AEO Overview v2: Snapshot KPI inputs. v1 parts ignore it. */
+  kpi: KpiInputs
   you: Overview['brandRankings'][number] | undefined
   modelActive: boolean
   llmFiltered: Overview['llmBreakdown']
@@ -63,6 +82,7 @@ export function buildPeecCtx(args: {
   audience: ReportAudience
   compare?: AeoCompare
   showDeltas?: boolean
+  kpi?: KpiInputs
 }): PeecCtx {
   const { data, provider, models, aiTraffic } = args
 
@@ -113,6 +133,7 @@ export function buildPeecCtx(args: {
     audience: args.audience,
     compare: args.compare ?? 'previous_period',
     showDeltas: args.showDeltas ?? true,
+    kpi: args.kpi ?? DEFAULT_KPI_INPUTS,
     you,
     modelActive,
     llmFiltered,

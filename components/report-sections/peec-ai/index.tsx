@@ -3,6 +3,10 @@ import type { PeecOverview } from '@/lib/peec/client'
 import { getProfoundOverview } from '@/lib/profound/client'
 import type { ProfoundOverview } from '@/lib/profound/client'
 import { ProviderTabs, type AeoProvider } from './provider-tabs'
+import { fetchAiKpiWindow, type Ga4KpiState } from '@/lib/ga4/ai-kpis'
+import { readSavedKpis } from '@/lib/report-sections/aeo-kpis'
+import { KPI_CATALOG } from './v2/kpi-catalog'
+import type { KpiInputs } from './ctx'
 import { ga4Query, parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import type { GA4Row } from '@/lib/ga4/types'
 import { isAiSource, aiSourceModel } from '@/lib/constants'
@@ -46,6 +50,7 @@ export function ProviderSection({
   audience,
   compare,
   showDeltas,
+  kpi,
 }: {
   data: Overview
   provider: AeoProvider
@@ -58,8 +63,9 @@ export function ProviderSection({
   audience: ReportAudience
   compare: AeoCompare
   showDeltas: boolean
+  kpi?: KpiInputs
 }) {
-  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience, compare, showDeltas })
+  const ctx = buildPeecCtx({ data, provider, models: models ?? null, aiTraffic, clientSlug, dateRange, audience, compare, showDeltas, kpi })
   const resolved = resolveSection(template, override)
 
   const renderPart = (r: (typeof resolved)[number]): ReactNode => {
@@ -113,7 +119,8 @@ export async function PeecAIReport({
   const dbTemplate = await getSectionTemplate('peec-ai')
   const template = dbTemplate ?? PEEC_TEMPLATE
   const override = config?.reportSectionConfig?.['peec-ai']
-  const { compare, showDeltas, fetchMode } = overviewCompare(isV2Layout(resolveSection(template, override), V2_PART_SECTIONS), compareRange, deltas)
+  const resolvedLayout = resolveSection(template, override)
+  const { compare, showDeltas, fetchMode } = overviewCompare(isV2Layout(resolvedLayout, V2_PART_SECTIONS), compareRange, deltas)
   const peecConfigured = !!config?.peecCustomerProjectId
   const profoundConfigured = !!config?.profoundCategoryId
 
@@ -163,6 +170,31 @@ export async function PeecAIReport({
     sessionsPrior:   aiPriorOk ? sumAiSessions(aiPriorRows) : null,
   }
 
+  // Snapshot KPIs (v2 only): the GA4 AI windows are fetched only when the layout has the v2 KPI strip, GA4 is
+  // configured, and the selection could show a GA4 KPI. v1 layouts make no extra request.
+  const saved = readSavedKpis(override?.kpis, clientSlug ?? '')
+  const hasKpiStrip = resolvedLayout.some((r) => r.id === 'kpi-cards' && r.version === 2)
+  const wantsGa4Kpi = saved === null || saved.some((id) => KPI_CATALOG[id].source === 'ga4')
+  let ga4Kpi: Ga4KpiState = { status: 'not-configured' }
+  if (hasKpiStrip && ga4Configured && clientSlug && wantsGa4Kpi) {
+    const [nowRes, priorRes] = await Promise.allSettled([
+      fetchAiKpiWindow(clientSlug, mainIso, config?.ga4Config),
+      compareIso ? fetchAiKpiWindow(clientSlug, compareIso, config?.ga4Config) : Promise.resolve(null),
+    ])
+    if (nowRes.status === 'fulfilled') {
+      ga4Kpi = { status: 'ok', now: nowRes.value, prior: priorRes.status === 'fulfilled' ? priorRes.value : null }
+    } else {
+      ga4Kpi = { status: 'error' }
+      const name = nowRes.reason instanceof Error ? nowRes.reason.name : 'unknown'
+      console.error(`[aeo-kpis] ga4 failed slug=${clientSlug} window=${mainIso} error=${name}`)
+    }
+    if (priorRes.status === 'rejected') {
+      const name = priorRes.reason instanceof Error ? priorRes.reason.name : 'unknown'
+      console.error(`[aeo-kpis] ga4 failed slug=${clientSlug} window=${compareIso} error=${name}`)
+    }
+  }
+  const kpi: KpiInputs = { saved, ga4Connected: ga4Configured, ga4: ga4Kpi, profoundSentiment: null }
+
   const availableProviders: AeoProvider[] = []
   if (peecData)     availableProviders.push('peec')
   if (profoundData) availableProviders.push('profound')
@@ -172,8 +204,8 @@ export async function PeecAIReport({
   }
 
   const sections: Partial<Record<AeoProvider, React.ReactNode>> = {}
-  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} compare={compare} showDeltas={showDeltas} />
-  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} compare={compare} showDeltas={showDeltas} />
+  if (peecData)     sections.peec     = <ProviderSection data={peecData}     provider="peec"     models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} compare={compare} showDeltas={showDeltas} kpi={kpi} />
+  if (profoundData) sections.profound = <ProviderSection data={profoundData} provider="profound" models={models} aiTraffic={aiTraffic} clientSlug={clientSlug} dateRange={dateRange} template={template} override={override} audience={audience} compare={compare} showDeltas={showDeltas} kpi={kpi} />
 
   return (
     <>
