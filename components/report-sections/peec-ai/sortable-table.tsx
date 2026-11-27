@@ -30,6 +30,9 @@ export interface SortableTableProps<T> {
   defaultSortDir?: 'asc' | 'desc'
   onRowClick?: (row: T) => void
   rowClassName?: (row: T) => string
+  /** Paginated tables only: when the first matching row of the sorted, filtered rows falls outside the visible page, it is
+   *  shown after the page as one extra row (`data-pinned`). Absent: the output is unchanged. */
+  pinnedRow?: (row: T) => boolean
   emptyMessage?: string
 }
 
@@ -62,6 +65,7 @@ export function SortableTable<T>({
   defaultSortDir,
   onRowClick,
   rowClassName,
+  pinnedRow,
   emptyMessage = 'No rows to display.',
 }: SortableTableProps<T>) {
   const [sortKey, setSortKey]   = useState<string | null>(defaultSortKey ?? null)
@@ -128,6 +132,12 @@ export function SortableTable<T>({
   const visibleRows = initialPageSize && !showAll
     ? sortedRows.slice(0, initialPageSize)
     : sortedRows
+
+  const pinned = (() => {
+    if (!pinnedRow || !initialPageSize || showAll || sortedRows.length <= initialPageSize) return null
+    const i = sortedRows.findIndex(pinnedRow)
+    return i >= initialPageSize ? { row: sortedRows[i], index: i } : null
+  })()
 
   const totalAfterFilter = sortedRows.length
   const activeFilterCount = Object.values(filters).filter((v) => v.trim() !== '').length
@@ -200,6 +210,23 @@ export function SortableTable<T>({
                 })}
               </tr>
             ))}
+            {pinned && (
+              <tr key="pinned" data-export-row="" data-pinned="" className={cn('border-t border-dashed border-white/20', rowClassName ? rowClassName(pinned.row) : '')}>
+                {columns.map((col) => {
+                  const align = col.align ?? 'left'
+                  const cellContent = col.render
+                    ? col.render(pinned.row, pinned.index)
+                    : col.accessor
+                      ? String(col.accessor(pinned.row) ?? '')
+                      : String((pinned.row as Record<string, unknown>)[col.key] ?? '')
+                  return (
+                    <td key={col.key} className={cn('px-4 py-3', align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left', col.cellClassName)}>
+                      {cellContent}
+                    </td>
+                  )
+                })}
+              </tr>
+            )}
           </tbody>
         </table>
         {initialPageSize && totalAfterFilter > initialPageSize && (
@@ -361,6 +388,32 @@ export function SortableTable<T>({
                   </tr>
                 )
               })
+            )}
+            {pinned && (
+              <tr
+                key="pinned"
+                data-pinned=""
+                onClick={onRowClick ? () => onRowClick(pinned.row) : undefined}
+                className={cn(
+                  'border-t border-dashed border-white/20 transition-colors hover:bg-white/[0.02]',
+                  onRowClick && 'cursor-pointer',
+                  rowClassName ? rowClassName(pinned.row) : '',
+                )}
+              >
+                {columns.map((col) => {
+                  const align = col.align ?? 'left'
+                  const cellContent = col.render
+                    ? col.render(pinned.row, pinned.index)
+                    : col.accessor
+                      ? String(col.accessor(pinned.row) ?? '')
+                      : String((pinned.row as Record<string, unknown>)[col.key] ?? '')
+                  return (
+                    <td key={col.key} className={cn('px-4 py-3', align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left', col.cellClassName)}>
+                      {cellContent}
+                    </td>
+                  )
+                })}
+              </tr>
             )}
           </tbody>
         </table>
