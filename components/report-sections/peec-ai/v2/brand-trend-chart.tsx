@@ -34,8 +34,8 @@ function summaryLine(clientName: string | null, competitors: number, g: BucketGr
  * Section 02's year-to-date visibility trend, one line per brand. The competitor selection lives in the URL
  * (`aeoTrend`, ./trend-selection.ts) so the PDF export draws the same lines; the granularity is local, weekly by default.
  * Competitors off draws the client's line alone with the selected period shaded, and its comparison period in a lighter
- * tone when deltas show. With no client brand identified there is no client line, so the switch is hidden and a muted line
- * says so; the competitor lines still draw.
+ * tone when deltas show. With no client brand identified there is no client line, so the switch is hidden, a muted line
+ * says so, and `aeoTrend=off` reads as the default: the competitor lines always draw.
  */
 export function BrandTrendChart({
   series,
@@ -59,7 +59,10 @@ export function BrandTrendChart({
   const [granularity, setGranularity] = useState<BucketGranularity>('weekly')
   const [hovered, setHovered] = useState<number | null>(null)
 
-  const selection = parseTrendParam(searchParams.get(TREND_PARAM), competitorKeysByVisibility)
+  const client = series.find((s) => s.isYou) ?? null
+  const parsed = parseTrendParam(searchParams.get(TREND_PARAM), competitorKeysByVisibility)
+  // Without a client line, competitors off would draw nothing and the switch is hidden: read `off` as the default instead.
+  const selection = client || parsed.competitors ? parsed : defaultTrendSelection(competitorKeysByVisibility)
 
   const bucketed = useMemo(
     () => series.map((s) => ({ s, buckets: bucketDaily(s.points, granularity) })),
@@ -74,7 +77,6 @@ export function BrandTrendChart({
   }, [bucketed])
 
   const seriesByKey = new Map(series.map((s) => [s.key, s]))
-  const client = series.find((s) => s.isYou) ?? null
   const legendCompetitors = competitorKeysByVisibility
     .map((key) => seriesByKey.get(key))
     .filter((s): s is TrendSeries => s !== undefined && !s.isYou)

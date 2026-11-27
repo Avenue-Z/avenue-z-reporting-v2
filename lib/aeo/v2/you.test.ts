@@ -44,8 +44,15 @@ describe('resolveYou', () => {
   })
   it('with a configured name, takes the first of several exact matches and warns', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect(resolveYou([{ name: 'Acme', isOwn: false }, { name: ' acme ', isOwn: true }], 'ACME')).toBe('Acme')
+    expect(resolveYou([{ name: 'Acme', isOwn: false }, { name: ' acme ', isOwn: false }], 'ACME')).toBe('Acme')
     expect(warn).toHaveBeenCalledTimes(1)
     expect(warn.mock.calls[0][0]).toContain('[aeo-v2] several brands match the client: Acme,  acme ; using Acme')
+  })
+  // Security review ruling: among several exact matches, the provider's own brand wins the tie; the warn stays.
+  it('with a configured name, prefers the own brand among several exact matches and warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(resolveYou([{ name: 'Acme', isOwn: false }, { name: ' acme ', isOwn: true }], 'ACME')).toBe(' acme ')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0][0]).toContain('[aeo-v2] several brands match the client: Acme,  acme ; using  acme ')
   })
 })

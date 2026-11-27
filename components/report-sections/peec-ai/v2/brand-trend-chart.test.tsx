@@ -198,3 +198,13 @@ test('with a client brand there is no not-identified line', () => {
   expect(screen.queryByText('Client brand not identified for this project.')).toBeNull()
   expect(screen.getByRole('switch', { name: 'Show competitors' })).toBeTruthy()
 })
+
+// Coordinator ruling (concern 1): with no client line, aeoTrend=off would leave an empty chart and no switch, so it reads as the default.
+test('no client brand and aeoTrend=off: the default competitors are drawn', () => {
+  search = 'section=peec-ai&aeoTrend=off'
+  const noClient = SERIES.map((s) => ({ ...s, isYou: false }))
+  const { container } = render(<BrandTrendChart {...PROPS} series={noClient} competitorKeysByVisibility={['renaissance', ...KEYS]} />)
+  expect(polylines(container).map((p) => p.dataset.brand).sort()).toEqual(['amwins', 'guardian', 'renaissance', 'unum'])
+  expect(screen.getByRole('checkbox', { name: 'Guardian' })).toBeChecked()
+  expect(container.querySelector('[data-band]')).toBeNull()
+})

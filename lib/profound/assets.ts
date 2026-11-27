@@ -33,13 +33,21 @@ export const getProfoundAssets = cached('profound', 'getAssets', getProfoundAsse
   extractTags: ([categoryId]) => ({ category: categoryId }),
 })
 
-/** A website as Profound stores it (possibly a URL) as a bare lowercase host: no protocol, path, query, port or trailing dot. */
+/** A website as Profound stores it (possibly a URL) as a bare lowercase host, parsed with the URL API (credentials, port,
+ *  path, query and trailing dots dropped). '' when it doesn't parse, or the host has no dot or starts with one, so an entry
+ *  like `com` can never become a suffix that matches a whole TLD. No public-suffix list: `co.uk` is kept. */
 function hostOf(raw: string): string {
-  return raw.trim().toLowerCase()
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
-    .replace(/[/?#].*$/, '')
-    .replace(/:\d*$/, '')
-    .replace(/\.+$/, '')
+  const s = raw.trim()
+  if (!s) return ''
+  const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : s.startsWith('//') ? `https:${s}` : `https://${s}`
+  let host: string
+  try {
+    host = new URL(url).hostname
+  } catch {
+    return ''
+  }
+  host = host.toLowerCase().replace(/\.+$/, '')
+  return host.includes('.') && !host.startsWith('.') ? host : ''
 }
 
 /** The asset's website and alternate domains as bare hosts, empty entries dropped. */

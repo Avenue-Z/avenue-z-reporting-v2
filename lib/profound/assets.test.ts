@@ -15,6 +15,17 @@ describe('assetDomains', () => {
     expect(assetDomains(asset('avenuez.com:443'))).toEqual(['avenuez.com'])
     expect(assetDomains(asset('avenuez.com.'))).toEqual(['avenuez.com'])
   })
+  // Security review ruling: parsed with the URL API; never a suffix key a whole TLD would match.
+  it('drops a host with no dot or a leading dot, and anything unparseable', () => {
+    expect(assetDomains(asset('com'))).toEqual([])
+    expect(assetDomains(asset('.avenuez.com'))).toEqual([])
+    expect(assetDomains(asset('https://exa mple.com'))).toEqual([])
+    expect(assetDomains(asset('co.uk'))).toEqual(['co.uk'])
+  })
+  it('strips credentials and an explicit port, and reads a protocol-relative host', () => {
+    expect(assetDomains(asset('https://user@avenuez.com:8443/x'))).toEqual(['avenuez.com'])
+    expect(assetDomains(asset('//avenuez.com/path'))).toEqual(['avenuez.com'])
+  })
   it('normalises alternate domains too and drops empty entries', () => {
     expect(assetDomains(asset(null, ['http://Blog.AvenueZ.com/', '  ', 'https://']))).toEqual(['blog.avenuez.com'])
   })
