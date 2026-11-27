@@ -30,3 +30,12 @@ describe('assetDomains', () => {
     expect(assetDomains(asset(null, ['http://Blog.AvenueZ.com/', '  ', 'https://']))).toEqual(['blog.avenuez.com'])
   })
 })
+
+describe('assetDomains www handling', () => {
+  const a = (website: string) => ({ name: 'x', website, alternateDomains: [], isOwned: false })
+  it('strips a leading www. and never lets www.com become the key com', () => {
+    expect(assetDomains(a('www.com'))).toEqual([])
+    expect(assetDomains(a('www.avenuez.com'))).toEqual(['avenuez.com'])
+    expect(assetDomains(a('https://www.avenuez.com/x'))).toEqual(['avenuez.com'])
+  })
+})

@@ -35,7 +35,7 @@ export const getProfoundAssets = cached('profound', 'getAssets', getProfoundAsse
 
 /** A website as Profound stores it (possibly a URL) as a bare lowercase host, parsed with the URL API (credentials, port,
  *  path, query and trailing dots dropped). '' when it doesn't parse, or the host has no dot or starts with one, so an entry
- *  like `com` can never become a suffix that matches a whole TLD. No public-suffix list: `co.uk` is kept. */
+ *  like `com` (or `www.com`) can never become a suffix that matches a whole TLD. No public-suffix list: `co.uk` is kept. */
 function hostOf(raw: string): string {
   const s = raw.trim()
   if (!s) return ''
@@ -46,7 +46,7 @@ function hostOf(raw: string): string {
   } catch {
     return ''
   }
-  host = host.toLowerCase().replace(/\.+$/, '')
+  host = host.toLowerCase().replace(/\.+$/, '').replace(/^www\./, '')
   return host.includes('.') && !host.startsWith('.') ? host : ''
 }
 
