@@ -30,6 +30,8 @@ const cite = (model: string, host: string, share: number): ProfoundNamedRow => (
   metrics: { citation_share: share },
 })
 
+const overallRow = (asset: string, v: number): ProfoundNamedRow => ({ dims: { asset_name: asset }, metrics: { visibility_score: v } })
+
 const base = {
   assets,
   yourBrand: 'Avenue Z',
@@ -49,6 +51,7 @@ const base = {
     cite('Google AI Overviews', 'youtube.com', 0.1),
   ],
   citesPrior: [cite('ChatGPT', 'avenuez.com', 0.04)],
+  overall: [overallRow('Avenue Z', 0.15), overallRow('iPullRank', 0.1)],
 }
 
 describe('buildProfoundModels', () => {
@@ -101,6 +104,33 @@ describe('buildProfoundModels', () => {
     const o = buildProfoundModels({ ...base, assets: owned, yourBrand: '' })
     expect(o.models.find((m) => m.model === 'ChatGPT')!.visibility.you).toBeCloseTo(18.59, 6)
   })
+  it('keeps only the first raw model (sorted) when two Profound names map to one bucket, and warns', () => {
+    // 'Gemini' and 'Google Gemini' both map to Gemini; 'Gemini' sorts first.
+    const o = buildProfoundModels({
+      ...base,
+      vis: [...base.vis, vis('Gemini', 'Avenue Z', 0.3, 0.6), vis('Gemini', 'iPullRank', 0.2, 0.2)],
+      cites: [...base.cites, cite('Gemini', 'avenuez.com', 0.07), cite('Google Gemini', 'avenuez.com', 0.5)],
+    })
+    const gemini = o.models.find((m) => m.model === 'Gemini')!
+    expect(gemini.visibility.you).toBeCloseTo(30, 6) // not 30 + 5
+    expect(gemini.sov.you).toBeCloseTo(60, 6)
+    expect(gemini.visibility.competitorAvg).toBeCloseTo(20, 6)
+    expect(gemini.usedAsSource.you).toBeCloseTo(7, 6) // not 7 + 50
+    const calls = warn.mock.calls.filter(([m]) => String(m).startsWith('[profound] several models'))
+    expect(calls).toEqual([['[profound] several models map to Gemini: Gemini, Google Gemini; using Gemini']])
+  })
+  it('ranks owned assets for you by overall visibility, not the sum over models', () => {
+    // Per model, iPullRank sums higher (0.5 + 0.5); overall, Avenue Z is the more visible.
+    const owned = assets.map((a) => ({ ...a, isOwned: true }))
+    const o = buildProfoundModels({
+      ...base,
+      assets: owned,
+      yourBrand: '',
+      vis: [vis('ChatGPT', 'Avenue Z', 0.4, 0.3), vis('ChatGPT', 'iPullRank', 0.5, 0.1), vis('Google Gemini', 'iPullRank', 0.5, 0.1)],
+      overall: [overallRow('Avenue Z', 0.6), overallRow('iPullRank', 0.3)],
+    })
+    expect(o.models.find((m) => m.model === 'ChatGPT')!.visibility.you).toBeCloseTo(40, 6)
+  })
   it('is empty when nobody is the client', () => {
     expect(buildProfoundModels({ ...base, yourBrand: 'Nobody' }).models).toEqual([])
   })
@@ -124,11 +154,17 @@ describe('getProfoundModelsV2', () => {
   it('scopes citations to visibility prompts and visibility to the tracked assets only', async () => {
     await getProfoundModelsV2('avenue-z', 'last_30_days', 'previous_period')
     const calls = vi.mocked(profoundPost).mock.calls as unknown as [string, { filters?: { field: string; operator: string; value: unknown }[] }][]
-    expect(calls).toHaveLength(4)
+    expect(calls).toHaveLength(5)
     const cites = calls.filter(([p]) => p === '/v1/reports/citations')
     const visCalls = calls.filter(([p]) => p === '/v1/reports/visibility')
     expect(cites).toHaveLength(2)
-    expect(visCalls).toHaveLength(2)
+    expect(visCalls).toHaveLength(3)
+    // The ranking call is section 02's: overall visibility per asset, current window.
+    const overall = (vi.mocked(profoundPost).mock.calls as unknown as [string, { dimensions: string[]; metrics: string[] }][])
+      .filter(([p, b]) => p === '/v1/reports/visibility' && b.dimensions.length === 1)
+    expect(overall).toHaveLength(1)
+    expect(overall[0][1].dimensions).toEqual(['asset_name'])
+    expect(overall[0][1].metrics).toContain('visibility_score')
     for (const [, b] of cites) expect(b.filters?.some((f) => f.field === 'analysis_type' && f.value === 'visibility')).toBe(true)
     for (const [, b] of visCalls) {
       expect(b.filters).toEqual([{ field: 'asset_name', operator: 'in', value: ['Avenue Z', 'iPullRank'] }])

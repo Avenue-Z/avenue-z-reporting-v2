@@ -4,30 +4,28 @@
 // citations from Visibility-type prompts that point at the brand's own domains (usedAsSourceBasis 'citations').
 import { cached } from '@/lib/cache'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
-import { bareDomain, sameOrSubdomain } from '@/lib/aeo-outbound/own-rows'
 import { resolveYou } from '@/lib/aeo/v2/you'
 import type { DailyPoint } from '@/lib/aeo/types'
 import type { BrandRowV2, BrandTrend, CompareMode, VisibilityV2 } from '@/lib/aeo/v2/types'
-import { assetDomains, getProfoundAssets, type ProfoundAsset } from './assets'
+import { getProfoundAssets, type ProfoundAsset } from './assets'
 import { profoundPostAll, visibilityPromptsOnly, type ProfoundNamedRow } from './report-rows'
+import { usedAsSource } from './used-as-source'
 
 const BRAND_METRICS = ['visibility_score', 'share_of_voice']
 const CITATION_METRICS = ['citation_share', 'count']
 const YTD_MAX_ROWS = 50_000
 
-/** The share of the window's citations pointing at the asset's domains, in percent. Null when the asset has no domain or the
- *  window has no citation rows at all (no figure, never a fabricated 0; Peec's rule in lib/aeo/v2/used-as-source.ts). */
-function usedAsSource(asset: ProfoundAsset, cites: ProfoundNamedRow[]): number | null {
-  const sites = assetDomains(asset).map(bareDomain).filter(Boolean)
-  if (sites.length === 0 || cites.length === 0) return null
-  let sum = 0
-  for (const c of cites) {
-    const host = c.dims.hostname
-    if (!host) continue
-    const h = bareDomain(host)
-    if (sites.some((s) => sameOrSubdomain(h, s))) sum += (c.metrics.citation_share ?? 0) * 100
-  }
-  return sum
+/** Every tracked asset (one missing from the answer at 0) in overall visibility-rank order, from an `['asset_name']`
+ *  visibility report, so several name matches resolve to the best-ranked. Sections 02 and 03 both pick "you" from it. */
+export function rankAssets(
+  assets: readonly ProfoundAsset[],
+  overall: readonly ProfoundNamedRow[],
+): { name: string; isOwn: boolean; visibility: number }[] {
+  const visByName = new Map<string, number>()
+  for (const r of overall) if (r.dims.asset_name) visByName.set(r.dims.asset_name, r.metrics.visibility_score ?? 0)
+  return assets
+    .map((a) => ({ name: a.name, isOwn: a.isOwned, visibility: visByName.get(a.name) ?? 0 }))
+    .sort((a, b) => b.visibility - a.visibility)
 }
 
 export function buildProfoundBrandRows(
@@ -116,14 +114,7 @@ async function getProfoundVisibilityV2Impl(clientSlug: string, dateRange: string
     }, YTD_MAX_ROWS),
   ])
 
-  // Every tracked brand (one missing from the current answer at 0), in visibility-rank order, so several matches resolve to the
-  // best-ranked.
-  const visByName = new Map<string, number>()
-  for (const r of cur) if (r.dims.asset_name) visByName.set(r.dims.asset_name, r.metrics.visibility_score ?? 0)
-  const ranked = assets
-    .map((a) => ({ name: a.name, isOwn: a.isOwned, visibility: visByName.get(a.name) ?? 0 }))
-    .sort((a, b) => b.visibility - a.visibility)
-  const you = resolveYou(ranked, yourBrand)
+  const you = resolveYou(rankAssets(assets, cur), yourBrand)
 
   return {
     roster: names,
