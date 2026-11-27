@@ -13,6 +13,49 @@ const fourxx: SourceIssue[] = [
   { source: 'ahrefs', nativeName: '4XX page', nativeSeverity: 'Error', urlCount: 132 },
 ]
 
+describe('mergeIssues Ahrefs indexable + not-indexable', () => {
+  const m: IssueMap = new Map([
+    ['ahrefs:Page has links to broken page', { key: 'broken-links', name: 'Pages with broken links' }],
+    ['sf:Broken links', { key: 'broken-links', name: 'Pages with broken links' }],
+    ['ahrefs:404 page', { key: 'broken-internal-4xx', name: 'Broken internal pages (4xx)' }],
+    ['ahrefs:4XX page', { key: 'broken-internal-4xx', name: 'Broken internal pages (4xx)' }],
+    ['sf:Thing', { key: 'thing', name: 'Thing' }],
+  ])
+  const ah = (nativeName: string, urlCount: number): SourceIssue => ({ source: 'ahrefs', nativeName, nativeSeverity: 'Error', urlCount })
+
+  it('sums the pair into one contributor and keeps both native names in the detail', () => {
+    const [r] = mergeIssues([ah('Page has links to broken page', 872), ah('Page has links to broken page (not indexable)', 91)], m)
+    expect(r.urls).toBe(963)
+    expect(r.detail.map((d) => [d.nativeName, d.urlCount])).toEqual([
+      ['Page has links to broken page', 872], ['Page has links to broken page (not indexable)', 91],
+    ])
+  })
+
+  it('still takes the max of overlapping same-tool issues that map to one key', () => {
+    expect(mergeIssues([ah('404 page', 54), ah('4XX page', 54)], m)[0].urls).toBe(54)
+  })
+
+  it('takes the max across sources, not the sum', () => {
+    const r = mergeIssues([
+      ah('Page has links to broken page', 872), ah('Page has links to broken page (not indexable)', 91),
+      { source: 'sf', nativeName: 'Broken links', nativeSeverity: 'High', urlCount: 1000 },
+    ], m)
+    expect(r[0].urls).toBe(1000)
+  })
+
+  it('counts a not-indexable variant on its own as its own count', () => {
+    expect(mergeIssues([ah('Page has links to broken page (not indexable)', 91)], m)[0].urls).toBe(91)
+  })
+
+  it('does not sum an SF name that happens to end in (not indexable)', () => {
+    const r = mergeIssues([
+      { source: 'sf', nativeName: 'Thing', nativeSeverity: 'High', urlCount: 10 },
+      { source: 'sf', nativeName: 'Thing (not indexable)', nativeSeverity: 'High', urlCount: 7 },
+    ], m)
+    expect(r[0].urls).toBe(10)
+  })
+})
+
 describe('mergeIssues', () => {
   it('merges three tools\' 4xx rows into one with max URLs', () => {
     const [m, ...rest] = mergeIssues(fourxx, map)

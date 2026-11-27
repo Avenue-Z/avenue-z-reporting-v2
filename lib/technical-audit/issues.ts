@@ -1,3 +1,4 @@
+import { NOT_INDEXABLE_SUFFIX } from './ahrefs'
 import type { Severity, SourceIssue, TaIssueSource } from './types'
 
 /** Ranking weights (spec §6.4). */
@@ -65,9 +66,20 @@ export function priorityOf(severity: Severity, urls: number, sourceCount: number
 const maxSeverity = (a: Severity, b: Severity): Severity =>
   SEVERITY_ORDER.indexOf(a) >= SEVERITY_ORDER.indexOf(b) ? a : b
 
+const endsNotIndexable = (name: string) => name.toLowerCase().endsWith(NOT_INDEXABLE_SUFFIX)
+
 /**
- * Merge per-tool issues into one ranked list. URLs = max across contributors (never the sum),
- * severity = highest contributor. Zero/invalid-count rows are dropped (nothing to investigate).
+ * The tool-level contributor a detail row belongs to. Ahrefs reports an issue's indexable and non-indexable URLs as
+ * two rows (the latter named `<name> (not indexable)`); the sets are disjoint, so they are one contributor.
+ */
+function contributorId(source: TaIssueSource, nativeName: string): string {
+  const base = source === 'ahrefs' && endsNotIndexable(nativeName) ? nativeName.slice(0, -NOT_INDEXABLE_SUFFIX.length) : nativeName
+  return `${source}:${base}`
+}
+
+/**
+ * Merge per-tool issues into one ranked list. URLs = max across contributors (never the sum across tools; an Ahrefs
+ * indexable + not-indexable pair is one contributor and is summed), severity = highest contributor. Zero/invalid-count rows are dropped (nothing to investigate).
  */
 export function mergeIssues(issues: SourceIssue[], map: IssueMap): MergedIssue[] {
   let normalizedIndex: Map<string, { key: string; name: string }> | undefined
@@ -82,7 +94,7 @@ export function mergeIssues(issues: SourceIssue[], map: IssueMap): MergedIssue[]
   }
   // Exact name first, then without Task 3's " (not indexable)" suffix, then without a " (desktop|mobile)" suffix.
   const lookup = (source: TaIssueSource, nativeName: string) => {
-    const base1 = nativeName.replace(/ \(not indexable\)$/i, '')
+    const base1 = endsNotIndexable(nativeName) ? nativeName.slice(0, -NOT_INDEXABLE_SUFFIX.length) : nativeName
     const base2 = nativeName.replace(/ \((desktop|mobile)\)$/i, '')
     for (const n of [nativeName, base1, base2]) {
       const hit = find(`${source}:${n}`)
@@ -106,7 +118,6 @@ export function mergeIssues(issues: SourceIssue[], map: IssueMap): MergedIssue[]
       groups.set(key, g)
     }
     g.severity = maxSeverity(g.severity, severity)
-    g.urls = Math.max(g.urls, issue.urlCount)
     if (!g.sources.includes(issue.source)) g.sources.push(issue.source)
     const existing = g.detail.find((d) => d.source === issue.source && d.nativeName === issue.nativeName)
     if (existing) existing.urlCount = Math.max(existing.urlCount, issue.urlCount)
@@ -117,6 +128,12 @@ export function mergeIssues(issues: SourceIssue[], map: IssueMap): MergedIssue[]
   for (const g of out) {
     g.sources.sort((a, b) => SOURCE_ORDER.indexOf(a) - SOURCE_ORDER.indexOf(b))
     g.detail.sort((a, b) => SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source))
+    const perContributor = new Map<string, number>()
+    for (const d of g.detail) {
+      const id = contributorId(d.source, d.nativeName)
+      perContributor.set(id, (perContributor.get(id) ?? 0) + d.urlCount)
+    }
+    g.urls = Math.max(...perContributor.values())
     g.priority = priorityOf(g.severity, g.urls, g.sources.length)
   }
   return out.sort(

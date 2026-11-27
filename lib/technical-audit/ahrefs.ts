@@ -35,6 +35,9 @@ export function parseAhrefsProjects(json: unknown, snapshotDate: string): Parsed
   return { ok: true, value: { crawlDate: date, healthScore: health_score } }
 }
 
+/** Appended to an Ahrefs issue name for its non-indexable URLs, which Ahrefs reports as a separate row. */
+export const NOT_INDEXABLE_SUFFIX = ' (not indexable)'
+
 export function parseAhrefsIssues(json: unknown): SourceIssue[] {
   const rows = isRecord(json) ? json.issues : undefined
   if (!Array.isArray(rows)) return []
@@ -46,7 +49,7 @@ export function parseAhrefsIssues(json: unknown): SourceIssue[] {
     if (typeof crawled !== 'number' || !(crawled > 0)) continue
     out.push({
       source: 'ahrefs',
-      nativeName: is_indexable === false ? `${name} (not indexable)` : name,
+      nativeName: is_indexable === false ? `${name}${NOT_INDEXABLE_SUFFIX}` : name,
       nativeSeverity: importance,
       urlCount: crawled,
     })
