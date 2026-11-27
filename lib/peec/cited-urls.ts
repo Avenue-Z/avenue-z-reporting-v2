@@ -16,6 +16,7 @@ import {
 import {
   emptyCitedUrls,
   joinWindows,
+  windowTooLong,
   type CitedUrls,
   type IsoWindow,
   type SourceType,
@@ -131,6 +132,7 @@ async function getPeecCitedUrlsImpl(
   current: IsoWindow,
   prior: IsoWindow | null,
 ): Promise<CitedUrls> {
+  if (windowTooLong(current) || (prior && windowTooLong(prior))) return emptyCitedUrls('peec', { tooLong: true })
   const { getClientBySlug } = await import('@/lib/db/queries')
   const pid = (await getClientBySlug(clientSlug))?.peecCustomerProjectId
   if (!pid) return emptyCitedUrls('peec')

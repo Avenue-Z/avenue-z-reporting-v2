@@ -148,6 +148,12 @@ describe('getPeecCitedUrls', () => {
     expect(out.compared).toBe(false)
   })
 
+  it('a window over 92 days is tooLong and never fetches', async () => {
+    const out = await getPeecCitedUrls('c', { startDate: '2026-01-01', endDate: '2026-04-03' }, null)
+    expect(out.tooLong).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('no Peec project → empty, no fetch', async () => {
     getClientBySlug.mockResolvedValue({ peecCustomerProjectId: null })
     const out = await getPeecCitedUrls('c', cur, pri)

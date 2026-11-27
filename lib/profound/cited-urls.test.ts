@@ -22,6 +22,8 @@ const sse = (total: number, answers: string[][]) =>
 describe('profoundPageKey', () => {
   it.each([
     ['https://www.siegemedia.com//services/geo?utm_source=chatgpt.com', 'siegemedia.com/services/geo'],
+    ['https://a.com/', 'a.com'],
+    ['https://a.com/?x=1', 'a.com/?x=1'],
     ['https://minuttia.com/best/#:~:text=x', 'minuttia.com/best/'],
     ['https://www.youtube.com/watch?v=abc&utm_source=x', 'youtube.com/watch?v=abc'],
     ['https://seller-us.tiktok.com/partners/us/?seller_type=2', 'seller-us.tiktok.com/partners/us/?seller_type=2'],
@@ -138,6 +140,40 @@ describe('getProfoundCitedUrls', () => {
     const v1 = calls.find(([u]) => u.includes('/v1/reports/citations'))![1]
     expect(v1.filters[0].field).toBe('analysis_type')
     expect(calls.some(([u]) => u.includes('/v1/reports/visibility'))).toBe(false)
+  })
+
+  it('stream request is no-store', async () => {
+    await getProfoundCitedUrls('c', win, null)
+    const init = fetchMock.mock.calls.find(([u]) => String(u).includes('/v2/prompts/answers/stream'))![1]
+    expect(init.cache).toBe('no-store')
+  })
+
+  it('prior makes two streams and one categories request', async () => {
+    await getProfoundCitedUrls('c', win, { startDate: '2026-09-01', endDate: '2026-09-30' })
+    const urls = fetchMock.mock.calls.map(([u]) => String(u))
+    expect(urls.filter((u) => u.includes('/v2/prompts/answers/stream'))).toHaveLength(2)
+    expect(urls.filter((u) => u.includes('/v1/reports/citations'))).toHaveLength(1)
+  })
+
+  it('a failing prior stream rejects the call', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    let streams = 0
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes('/v2/prompts/answers/stream')) {
+        streams += 1
+        if (streams === 2) return new Response('boom', { status: 500 })
+        return new Response(sse(1, [['https://a.com/p']]), { status: 200 })
+      }
+      return new Response(JSON.stringify({ info: { query: { dimensions: ['citation_category', 'hostname', 'url'] } }, data: [] }), { status: 200 })
+    })
+    await expect(getProfoundCitedUrls('c', win, { startDate: '2026-09-01', endDate: '2026-09-30' })).rejects.toThrow(/500/)
+    err.mockRestore()
+  })
+
+  it('a window over 92 days is tooLong and never fetches', async () => {
+    const out = await getProfoundCitedUrls('c', { startDate: '2026-01-01', endDate: '2026-04-03' }, null)
+    expect(out.tooLong).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('no category id gives an empty result', async () => {

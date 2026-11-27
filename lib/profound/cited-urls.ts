@@ -7,6 +7,7 @@ import { profoundPost } from '@/lib/profound/client'
 import {
   emptyCitedUrls,
   joinWindows,
+  windowTooLong,
   type CitedUrls,
   type IsoWindow,
   type SourceType,
@@ -178,7 +179,7 @@ async function fetchStream(categoryId: string, w: IsoWindow): Promise<ProfoundSt
   })
   if (!res.ok) {
     const body = await res.text()
-    console.error(`[profound] ${res.status} ${STREAM_PATH}:`, body.slice(0, 300))
+    console.error(`[cited-sources] profound ${res.status} ${STREAM_PATH}:`, body.slice(0, 300))
     throw new Error(`Profound API error ${res.status}: ${STREAM_PATH}`)
   }
   return parseAnswerStream(await res.text())
@@ -200,8 +201,8 @@ async function fetchCategories(categoryId: string, w: IsoWindow): Promise<Profou
   )
   const rows = parseCategoryRows(res as Parameters<typeof parseCategoryRows>[0])
   const total = res.info?.total_rows
-  if (typeof total === 'number' && total > res.data.length) {
-    console.warn('[cited-sources] profound categories truncated', { total, received: res.data.length })
+  if (typeof total === 'number' && total > (res.data ?? []).length) {
+    console.warn('[cited-sources] profound categories truncated', { total, received: (res.data ?? []).length })
   }
   return rows
 }
@@ -211,6 +212,7 @@ async function getProfoundCitedUrlsImpl(
   current: IsoWindow,
   prior: IsoWindow | null,
 ): Promise<CitedUrls> {
+  if (windowTooLong(current) || (prior && windowTooLong(prior))) return emptyCitedUrls('profound', { tooLong: true })
   const { getClientBySlug } = await import('@/lib/db/queries')
   const categoryId = (await getClientBySlug(clientSlug))?.profoundCategoryId
   if (!categoryId) return emptyCitedUrls('profound')
