@@ -109,4 +109,12 @@ describe('windowTooLong', () => {
     expect(windowTooLong({ startDate: '2026-01-01', endDate: '2026-04-02' })).toBe(false)
     expect(windowTooLong({ startDate: '2026-01-01', endDate: '2026-04-03' })).toBe(true)
   })
+
+  it('fails closed on malformed or inverted windows', () => {
+    expect(windowTooLong({ startDate: 'banana', endDate: '2026-03-01' })).toBe(true)
+    expect(windowTooLong({ startDate: '2026-03-01', endDate: 'banana' })).toBe(true)
+    expect(windowTooLong({ startDate: '2026-13-45', endDate: '2026-03-01' })).toBe(true)
+    expect(windowTooLong({ startDate: '2026-03-02', endDate: '2026-03-01' })).toBe(true)
+    expect(windowTooLong({ startDate: '2026-03-01', endDate: '2026-03-01' })).toBe(false)
+  })
 })

@@ -58,14 +58,23 @@ export function providerHasPageType(provider: Provider): boolean {
 
 export type IsoWindow = { startDate: string; endDate: string }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+
+// UTC midnight for a real calendar day, or NaN for anything malformed (e.g. 2026-13-45).
 function utcDay(iso: string): number {
+  if (!ISO_DAY.test(iso)) return NaN
   const [y, m, d] = iso.split('-').map(Number)
-  return Date.UTC(y, m - 1, d)
+  const t = Date.UTC(y, m - 1, d)
+  return new Date(t).toISOString().slice(0, 10) === iso ? t : NaN
 }
 
+// Fails closed: a malformed or inverted window counts as too long, so it never reaches a vendor.
 export function windowTooLong(w: IsoWindow): boolean {
-  const days = Math.round((utcDay(w.endDate) - utcDay(w.startDate)) / 86_400_000) + 1
-  return days > MAX_URL_WINDOW_DAYS
+  const start = utcDay(w.startDate)
+  const end = utcDay(w.endDate)
+  if (Number.isNaN(start) || Number.isNaN(end)) return true
+  const days = Math.round((end - start) / 86_400_000) + 1
+  return days < 1 || days > MAX_URL_WINDOW_DAYS
 }
 
 export function emptyCitedUrls(provider: Provider, opts?: { tooLong?: boolean }): CitedUrls {
