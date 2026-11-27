@@ -121,3 +121,21 @@ test('only the AEO Informed Social page takes aeo and aeoMin; every other body i
   const fromElsewhere = bulkRequest(page('organic-social', 'organic-aeo-informed'), { ...RANGES, fromSection: 'organic-social' })
   expect('aeo' in fromElsewhere || 'aeoMin' in fromElsewhere).toBe(false)
 })
+
+// AEO Overview v2 (final review C1): the Overview exports through the bulk picker, so its Show deltas switch and trend selection
+// must reach its own request; every other page's body is unchanged.
+test('only the AEO Overview page takes deltas and aeoTrend', () => {
+  const fromOverview = { ...RANGES, fromSection: 'peec-ai', deltas: 'off' as const, aeoTrend: 'guardian,amwins' }
+  expect(bulkRequest(page('peec-ai'), fromOverview)).toEqual({
+    ...BODY, section: 'peec-ai', subsection: null, deltas: 'off', aeoTrend: 'guardian,amwins',
+  })
+  for (const p of [page('peec-ai', 'pr-influence'), page('peec-ai', 'content-impact'), page('paid-media', 'meta'), page('organic-social'), page('executive-overview')]) {
+    const body = bulkRequest(p, fromOverview)
+    expect('deltas' in body || 'aeoTrend' in body, p.key).toBe(false)
+  }
+})
+
+test('the AEO Overview page without deltas or aeoTrend in the ranges carries neither key', () => {
+  const body = bulkRequest(page('peec-ai'), { ...RANGES, fromSection: 'peec-ai' })
+  expect('deltas' in body || 'aeoTrend' in body).toBe(false)
+})

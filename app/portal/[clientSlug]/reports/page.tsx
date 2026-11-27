@@ -345,6 +345,9 @@ export default async function PortalReportPage({
             lockedMonths: hasReportingMonths(client),
             // Started from the AEO tab: its page in the bulk export takes the same range and min (lib/export/bulk.ts).
             ...(organicEntry?.view === 'aeo-informed' ? { aeo, aeoMin } : {}),
+            // Started from the AEO Overview: its page in the bulk export takes the Show deltas switch and the trend selection.
+            ...(activeSection === 'peec-ai' && !subsection && deltasParam === 'off' ? { deltas: 'off' as const } : {}),
+            ...(exportAeoTrend ? { aeoTrend: exportAeoTrend } : {}),
           }} />
       </StickyReportHeader>
 

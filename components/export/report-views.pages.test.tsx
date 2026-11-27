@@ -278,25 +278,43 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
   })
 }
 
-// AEO Overview v2 (slice 2): the trend chart's selection reaches the PDF through the export page's URL. On the Overview only, and
-// only a value the export request accepts, so a hand-edited param prints the default chart instead of failing the export.
+// AEO Overview v2 (slice 2): the trend chart's selection and the Show deltas switch reach the PDF through the export page's URL. On the
+// Overview only, and only a value the export request accepts, so a hand-edited param prints the default chart instead of failing the
+// export. The Overview's Export PDF opens the bulk picker (final review C1), so what the picker is given is asserted too, not only
+// serverExport.
 for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: DashboardSpa })) {
-  const withTrend = async (aeoTrend: string, subsection?: string) => {
+  const onOverview = async (extra: Record<string, string>, subsection?: string) => {
     getClientBySlug.mockResolvedValue(CLIENT)
     const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
-      searchParams: Promise.resolve({ section: 'peec-ai', ...Q, aeoTrend, ...(subsection ? { subsection } : {}) }) } as never))
+      searchParams: Promise.resolve({ section: 'peec-ai', ...Q, ...extra, ...(subsection ? { subsection } : {}) }) } as never))
     if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
     const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
-    return button.props.serverExport as Record<string, unknown>
+    return { single: button.props.serverExport as Record<string, unknown>, bulk: button.props.bulk as Record<string, unknown> }
   }
+  const withTrend = (aeoTrend: string, subsection?: string) => onOverview({ aeoTrend }, subsection)
 
-  test(`${routeName}: the Overview's export carries aeoTrend`, async () => {
-    expect((await withTrend('guardian,amwins')).aeoTrend).toBe('guardian,amwins')
-    expect((await withTrend('off')).aeoTrend).toBe('off')
+  test(`${routeName}: the Overview's export carries aeoTrend, for the single export and the bulk one`, async () => {
+    for (const value of ['guardian,amwins', 'off']) {
+      const { single, bulk } = await withTrend(value)
+      expect(single.aeoTrend).toBe(value)
+      expect(bulk.aeoTrend).toBe(value)
+    }
   })
 
   test(`${routeName}: an unreadable aeoTrend, or another AEO tab, carries none`, async () => {
-    expect('aeoTrend' in (await withTrend('GUARDIAN'))).toBe(false)
-    expect('aeoTrend' in (await withTrend('guardian', 'pr-influence'))).toBe(false)
+    for (const { single, bulk } of [await withTrend('GUARDIAN'), await withTrend('guardian', 'pr-influence')]) {
+      expect('aeoTrend' in single).toBe(false)
+      expect('aeoTrend' in bulk).toBe(false)
+    }
+  })
+
+  test(`${routeName}: the Overview with Show deltas off sends deltas=off to the single export and the bulk one; another tab sends none`, async () => {
+    const overview = await onOverview({ deltas: 'off' })
+    expect(overview.single.deltas).toBe('off')
+    expect(overview.bulk.deltas).toBe('off')
+    for (const { single, bulk } of [await onOverview({}), await onOverview({ deltas: 'off' }, 'pr-influence')]) {
+      expect('deltas' in single).toBe(false)
+      expect('deltas' in bulk).toBe(false)
+    }
   })
 }

@@ -25,6 +25,9 @@ export interface BulkRanges {
   /** The AEO Informed Social tab's range and min, set only when the export starts from that tab. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The AEO Overview's Show deltas switch (off) and trend selection, set only when the export starts from that page. */
+  deltas?: 'off'
+  aeoTrend?: string
 }
 
 export type PageResult = { ok: true; pdf: ArrayBuffer; filename: string } | { ok: false; error: string }
@@ -32,6 +35,7 @@ export type PageResult = { ok: true; pdf: ArrayBuffer; filename: string } | { ok
 /** B5: the current page's ranges where the sidebar would carry them (carriesRange), else the page's default; the
  *  Executive Overview's fixed window (#354); only AEO takes `models`. */
 export function bulkRequest(page: ExportPage, r: BulkRanges): PageRequest {
+  const aeoOverview = page.section === 'peec-ai' && page.subsection === null
   const fixed = page.section === 'executive-overview' || !carriesRange(r.lockedMonths, r.fromSection === 'organic-social', page.section)
   return {
     clientSlug: r.clientSlug,
@@ -43,6 +47,9 @@ export function bulkRequest(page: ExportPage, r: BulkRanges): PageRequest {
     // Only the AEO Informed Social page takes the range and min the export was started with; every other body is as it was.
     ...(page.subsection === AEO_TAB_ID && r.aeo ? { aeo: r.aeo } : {}),
     ...(page.subsection === AEO_TAB_ID && r.aeoMin ? { aeoMin: r.aeoMin } : {}),
+    // Only the AEO Overview takes its Show deltas switch and trend selection; every other body is as it was.
+    ...(aeoOverview && r.deltas ? { deltas: r.deltas } : {}),
+    ...(aeoOverview && r.aeoTrend ? { aeoTrend: r.aeoTrend } : {}),
   }
 }
 
