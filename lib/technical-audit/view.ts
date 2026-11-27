@@ -5,7 +5,7 @@ import type { KpiKey, ViewMetrics } from './kpis'
 import { getOverrides, getSnapshotBundle, getSnapshots } from './store'
 import type { OverrideRow, RunRow, SnapshotRow } from './store'
 import { loadIssueMap } from './issue-map'
-import { baseNativeName, mergeIssues, type MergedIssue } from './issues'
+import { mergeIssues, type MergedIssue } from './issues'
 import type { SourceIssue, TaIssueSource } from './types'
 
 export type Viewer = 'team' | 'client'
@@ -79,8 +79,9 @@ function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaite
     // An override may sit under the canonical key or under any contributor's `source:native` key (saved while the row
     // was unmapped or mapped differently). Hidden if ANY of them is hidden, so no map change can resurface a hidden row.
     // The note comes from the canonical row, else the first contributor row that has one (a hide-only row never shadows it).
-    const hideKeys = [...new Set([m.key, ...m.detail.flatMap((d) => [
-      `${d.source}:${d.nativeName}`, `${d.source}:${baseNativeName(d.source, d.nativeName)}`])])]
+    // Exact keys only, so within one snapshot a key belongs to exactly one row (canonical keys never look like
+    // `source:native`, see parseIssueMapCsv; an unmapped row's own key is its `source:native`).
+    const hideKeys = [...new Set([m.key, ...m.detail.map((d) => `${d.source}:${d.nativeName}`)])]
     const candidates = hideKeys.flatMap((k) => byKey.get(k) ?? [])
     const hidden = candidates.some((c) => c.hidden)
     const o = candidates.find((c) => c.note)

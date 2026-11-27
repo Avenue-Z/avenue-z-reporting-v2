@@ -69,11 +69,25 @@ describe('ISSUE_MAP_FALLBACK', () => {
     expect(new Set(keys).size).toBe(keys.length)
     expect(keys.length).toBeGreaterThanOrEqual(183 + 6)
     expect(keys).toEqual(expect.arrayContaining(['ahrefs:302 redirect', 'gsc_indexing:Soft 404', 'sf:Internal Client Error (4xx)', 'ahrefs:4XX page']))
+    expect(ISSUE_MAP_FALLBACK.filter((r) => /^(ahrefs|sf|gsc_indexing|gsc_cwv):/.test(r.key))).toEqual([])
     expect(keys.filter((k) => / \((not indexable|desktop|mobile)\)$/i.test(k))).toEqual([])
   })
 })
 
 describe('parseIssueMapCsv / rows', () => {
+  it('skips a canonical key shaped like source:native and counts it as malformed', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const map = parseIssueMapCsv([
+      ['source', 'native_issue_name', 'canonical_issue_key', 'canonical_issue_name', 'reviewed'],
+      ['ahrefs', 'X', 'sf:Y', 'Bad', ''],
+      ['sf', 'Y', 'gsc_cwv:Z', 'Bad', ''],
+      ['ahrefs', 'W', 'fine-key', 'Fine', ''],
+    ])
+    expect([...map.keys()]).toEqual(['ahrefs:W'])
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('skipped 2 malformed'))
+    warn.mockRestore()
+  })
+
   it('skips malformed rows, bad sources and keeps the first of duplicate mappings', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const map = parseIssueMapCsv([

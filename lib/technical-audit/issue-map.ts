@@ -12,6 +12,9 @@ const HEADERS = ['source', 'native_issue_name', 'canonical_issue_key', 'canonica
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly'
 const FETCH_TIMEOUT_MS = 10_000
 
+/** True for a key that starts with a known source followed by `:`; reserved for unmapped rows' override keys. */
+export const hasSourcePrefix = (key: string) => SOURCES.some((s) => key.startsWith(`${s}:`))
+
 /** Minimal RFC 4180 parser (quoted fields, escaped quotes, CRLF). */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = []
@@ -46,7 +49,8 @@ export function parseIssueMapCsv(rows: string[][]): IssueMap {
   let duplicates = 0
   for (const r of rows.slice(1)) {
     const [source, native, key, name] = idx.map((i) => (r[i] ?? '').trim())
-    if (!SOURCES.includes(source) || !native || !key) {
+    // A canonical key shaped like `source:native` would collide with the override keys of unmapped rows.
+    if (!SOURCES.includes(source) || !native || !key || hasSourcePrefix(key)) {
       if (r.some((c) => c.trim())) skipped++
       continue
     }

@@ -342,6 +342,33 @@ describe('loadTechAuditView', () => {
       expect(await clientKeys()).toEqual(['foo'])
     })
 
+    test('no key belongs to the hideKeys of two rows; hiding one row never touches another', async () => {
+      // X -> foo, "X (not indexable)" -> bar (split variants); an unmapped pair; an overlapping 404/4XX pair.
+      h.issueMap = new Map([
+        ['ahrefs:X', { key: 'foo', name: 'Foo' }],
+        ['ahrefs:X (not indexable)', { key: 'bar', name: 'Bar' }],
+        ['ahrefs:404 page', { key: 'example-issue', name: 'Example' }],
+        ['ahrefs:4XX page', { key: 'example-issue', name: 'Example' }],
+      ])
+      withIssues([
+        ahrefsRow('X', 30), ahrefsRow('X (not indexable)', 20), ahrefsRow('Orphan', 9), ahrefsRow('Orphan (not indexable)', 4),
+        ahrefsRow('404 page', 7), ahrefsRow('4XX page', 7),
+      ])
+      const issues = (await loadTechAuditView('x', undefined, 'team', NOW))!.issues
+      expect(issues.map((i) => i.key).sort()).toEqual(['ahrefs:Orphan', 'bar', 'example-issue', 'foo'])
+      const all = issues.flatMap((i) => i.hideKeys!)
+      expect(new Set(all).size).toBe(all.length)
+
+      await hideViaControls('foo')
+      await hideViaControls('bar', false)
+      expect(await clientKeys()).not.toContain('foo')
+      expect(await clientKeys()).toContain('bar')
+      await hideViaControls('foo', false)
+      await hideViaControls('bar')
+      expect(await clientKeys()).toContain('foo')
+      expect(await clientKeys()).not.toContain('bar')
+    })
+
     test('an Ahrefs not-indexable-only row hidden unmapped stays hidden once the pair shares a key', async () => {
       withIssues([ahrefsRow('Z (not indexable)', 4)])
       await hideViaControls('ahrefs:Z')
