@@ -34,6 +34,17 @@ describe('IssueList', () => {
     expect(screen.getByText('Needs mapping')).toBeTruthy()
   })
 
+  it('writes Hide and notes to the override row in effect, not the canonical key', async () => {
+    setIssueOverride.mockResolvedValue({ ok: true })
+    render(<IssueList clientSlug="acme" issues={[issue('foo', { overrideKey: 'sf:Foo' })]} viewer="team" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
+    await waitFor(() => expect(setIssueOverride).toHaveBeenCalledWith({ clientSlug: 'acme', issueKey: 'sf:Foo', hidden: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add note' }))
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'hi' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save note' }))
+    await waitFor(() => expect(setIssueOverride).toHaveBeenCalledWith({ clientSlug: 'acme', issueKey: 'sf:Foo', note: 'hi' }))
+  })
+
   it('numbers visible rows 1..n and uses the exact headers', () => {
     render(<IssueList clientSlug="acme" issues={issues} viewer="team" />)
     expect(within(screen.getAllByRole('table')[0]).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['#', 'Issue', 'Severity', 'URLs affected', 'Sources'])

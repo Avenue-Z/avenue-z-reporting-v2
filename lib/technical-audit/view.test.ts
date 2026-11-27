@@ -206,7 +206,8 @@ describe('loadTechAuditView', () => {
 
     const ahrefsRow = (nativeIssueName: string, urlCount: number) =>
       ({ id: nativeIssueName, snapshotId: 's', source: 'ahrefs', nativeIssueName, nativeSeverity: 'error', urlCount, device: null })
-    const withIssues = (rows: ReturnType<typeof ahrefsRow>[]) => h.getSnapshotBundle.mockImplementation(async (_c: string, id: string) => {
+    const sfRow = (nativeIssueName: string, urlCount: number) => src(nativeIssueName, urlCount)
+    const withIssues = (rows: (ReturnType<typeof ahrefsRow> | ReturnType<typeof src>)[]) => h.getSnapshotBundle.mockImplementation(async (_c: string, id: string) => {
       const snapshot = all.find((s) => s.id === id)
       return snapshot ? { snapshot, runs: [], metrics: metrics(90), issues: rows } : null
     })
@@ -238,6 +239,44 @@ describe('loadTechAuditView', () => {
       expect(v!.issues.map((i) => [i.key, i.note])).toEqual([['x-key', 'shown']])
     })
 
+    test('team gets the key of the override row in effect; the client never sees overrideKey', async () => {
+      h.getOverrides.mockResolvedValue([override('sf:Foo', { hidden: true })])
+      h.issueMap = new Map([['sf:Foo', { key: 'foo', name: 'Foo issue' }]])
+      withIssues([sfRow('Foo', 500), sfRow('Bar', 2)])
+      const t = await loadTechAuditView('x', undefined, 'team', NOW)
+      expect(t!.issues.find((i) => i.key === 'foo')).toMatchObject({ hidden: true, overrideKey: 'sf:Foo' })
+      const v = await loadTechAuditView('x', undefined, 'client', NOW)
+      expect(v!.issues.map((i) => i.key)).toEqual(['sf:Bar'])
+      for (const i of v!.issues) expect(i).not.toHaveProperty('overrideKey')
+      expect(JSON.stringify(v)).not.toContain('overrideKey')
+    })
+
+    test('with no override the team overrideKey is the row key', async () => {
+      h.issueMap = new Map([['sf:Foo', { key: 'foo', name: 'Foo issue' }]])
+      withIssues([sfRow('Foo', 500), sfRow('Bar', 2)])
+      const t = await loadTechAuditView('x', undefined, 'team', NOW)
+      expect(t!.issues.map((i) => [i.key, i.overrideKey])).toEqual([['foo', 'foo'], ['sf:Bar', 'sf:Bar']])
+    })
+
+    test('hide unmapped, then map, then add a note leaves the client with no row', async () => {
+      // Overrides as setOverride writes them: one row per issueKey, patched in place.
+      let rows = [override('sf:Foo', { hidden: true })]
+      const write = (key: string, patch: Record<string, unknown>) => {
+        rows = rows.some((r) => r.issueKey === key)
+          ? rows.map((r) => (r.issueKey === key ? { ...r, ...patch } : r))
+          : [...rows, override(key, patch)]
+      }
+      h.getOverrides.mockImplementation(async () => rows)
+      withIssues([sfRow('Foo', 500)])
+      h.issueMap = new Map([['sf:Foo', { key: 'foo', name: 'Foo issue' }]])
+      // The controls write to the key the team view reports.
+      const row = (await loadTechAuditView('x', undefined, 'team', NOW))!.issues[0]
+      write(row.overrideKey ?? row.key, { note: 'looking into it' })
+      expect(rows).toHaveLength(1)
+      const v = await loadTechAuditView('x', undefined, 'client', NOW)
+      expect(v!.issues).toEqual([])
+    })
+
     test('client props carry no noteBy/noteAt; team keeps them', async () => {
       h.getOverrides.mockResolvedValue([override('sf:Small problem', { note: 'checking', noteBy: 'strategist@avenuez.com', noteAt: new Date('2026-11-02T00:00:00Z') })])
       const v = await loadTechAuditView('x', undefined, 'client', NOW)
@@ -245,6 +284,7 @@ describe('loadTechAuditView', () => {
       expect(row.note).toBe('checking')
       expect(row).not.toHaveProperty('noteBy')
       expect(row).not.toHaveProperty('noteAt')
+      expect(row).not.toHaveProperty('overrideKey')
       const t = await loadTechAuditView('x', undefined, 'team', NOW)
       expect(t!.issues.find((i) => i.name === 'Small problem')).toMatchObject({ noteBy: 'strategist@avenuez.com', noteAt: '2026-11-02T00:00:00.000Z' })
     })

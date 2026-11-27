@@ -22,12 +22,14 @@ export type ViewSnapshot = {
   publishedBy?: string | null
   publishedAt?: Date | null
 }
-/** Client-safe issue projection. `noteBy`/`noteAt` (staff email, timestamp) are team only. */
+/** Client-safe issue projection. `noteBy`/`noteAt` (staff email, timestamp) and `overrideKey` are team only. */
 export type ViewIssue = Pick<MergedIssue, 'key' | 'name' | 'severity' | 'urls' | 'sources' | 'detail' | 'needsMapping'> & {
   hidden: boolean
   note: string | null
   noteBy?: string
   noteAt?: string
+  /** Team only: the `issueKey` of the override row in effect (or `key` when none), so edits hit that row. */
+  overrideKey?: string
 }
 /** Where the selected snapshot's commentary stands, for the publish checklist. */
 export type SnapshotCommentaryState = 'none' | 'draft' | 'approved'
@@ -74,13 +76,16 @@ function toViewIssues(rows: SourceIssue[], overrides: OverrideRow[], map: Awaite
     // A row hidden or noted while unmapped was saved under `source:native`; it keeps that once the map gives it a
     // canonical key. The canonical key's own override wins.
     const o = byKey.get(m.key) ?? m.detail.map((d) => byKey.get(`${d.source}:${d.nativeName}`)).find(Boolean)
+    // Staff edits write to this row, so a note can't spawn a second (visible) row beside a hidden one.
+    const overrideKey = o?.issueKey ?? m.key
     const hidden = o?.hidden ?? false
     if (viewer === 'client' && hidden) return []
     const base: ViewIssue = {
       key: m.key, name: m.name, severity: m.severity, urls: m.urls, sources: m.sources, detail: m.detail,
       needsMapping: m.needsMapping, hidden, note: o?.note ?? null,
     }
-    return [viewer === 'team' && o?.note ? { ...base, noteBy: o.noteBy ?? undefined, noteAt: o.noteAt?.toISOString() } : base]
+    if (viewer !== 'team') return [base]
+    return [{ ...base, overrideKey, ...(o?.note ? { noteBy: o.noteBy ?? undefined, noteAt: o.noteAt?.toISOString() } : {}) }]
   })
 }
 
