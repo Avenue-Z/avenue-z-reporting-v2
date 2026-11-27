@@ -13,7 +13,7 @@ vi.mock('./client', async (orig) => ({
 }))
 
 import { buildPeecBrandRows, getPeecVisibilityV2 } from './visibility-v2'
-import { peecPost, fetchAllRows, type ApiBrandRow } from './client'
+import { peecPost, peecGet, fetchAllRows, type ApiBrandRow } from './client'
 import { getPeecRoster } from './roster'
 
 function row(id: string, name: string, count: number, total: number, sov = 0, date?: string): ApiBrandRow {
@@ -50,12 +50,13 @@ describe('buildPeecBrandRows', () => {
     expect(by.Renaissance.usedAsSource).toBeNull()
     expect(by.Renaissance.usedAsSourcePrior).toBeNull()
   })
-  it('flags nobody when yourBrand is empty', () => {
-    expect(buildPeecBrandRows(current, prior, new Map(), new Map(), '').some((r) => r.isYou)).toBe(false)
+  it('flags nobody when you is null', () => {
+    expect(buildPeecBrandRows(current, prior, new Map(), new Map(), null).some((r) => r.isYou)).toBe(false)
   })
 })
 
 describe('getPeecVisibilityV2', () => {
+  const peecGetMock = vi.mocked(peecGet)
   const post = vi.mocked(peecPost)
   const fetchAll = vi.mocked(fetchAllRows)
   const domain = (d: string) => ({ domain: d, retrieved_chat_count: 10, total_chat_count: 100 })
@@ -99,5 +100,68 @@ describe('getPeecVisibilityV2', () => {
     const res = await getPeecVisibilityV2('renaissance', 'last_30_days', 'previous_period')
     expect(chatCalls()).toHaveLength(2)
     expect(res.brands.find((b) => b.name === 'Renaissance')?.usedAsSource).toBeCloseTo(1) // 1 distinct answer / 100
+  })
+
+  it('fails closed without a configured project, ignoring the env fallback', async () => {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    vi.mocked(getClientBySlug).mockResolvedValueOnce({ peecCustomerProjectId: null, peecYourBrand: 'Renaissance' } as never)
+    vi.stubEnv('PEEC_AI_PROJECT_ID', 'or_env')
+    await expect(getPeecVisibilityV2('renaissance', 'last_30_days', 'previous_period')).rejects.toThrow('[peec] no Peec project configured for renaissance')
+    expect(post).not.toHaveBeenCalled()
+    expect(peecGetMock).not.toHaveBeenCalled()
+    vi.unstubAllEnvs()
+  })
+
+  it('does not take your brand from the env', async () => {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    vi.mocked(getClientBySlug).mockResolvedValueOnce({ peecCustomerProjectId: 'or_test', peecYourBrand: null } as never)
+    vi.stubEnv('PEEC_AI_YOUR_BRAND', 'Guardian')
+    setup(['renaissance.com'])
+    post.mockImplementation(async (path) => (path === '/reports/domains' ? { data: [] } : { data: current }) as never)
+    const res = await getPeecVisibilityV2('renaissance', 'last_30_days', 'previous_period')
+    expect(res.brands.filter((b) => b.isYou).map((b) => b.name)).toEqual(['Renaissance']) // the roster's own flag, not the env
+    vi.unstubAllEnvs()
+  })
+
+  it('marks one you by exact name, not substring', async () => {
+    const { getClientBySlug } = await import('@/lib/db/queries')
+    vi.mocked(getClientBySlug).mockResolvedValueOnce({ peecCustomerProjectId: 'or_test', peecYourBrand: 'Allstate' } as never)
+    vi.mocked(getPeecRoster).mockResolvedValue([
+      { id: 'a', name: 'Allstate', isOwn: false, domains: [] }, { id: 'b', name: 'Allstate Benefits', isOwn: false, domains: [] },
+    ])
+    const rows = [row('a', 'Allstate', 1, 10, 0, '2026-01-01'), row('b', 'Allstate Benefits', 2, 10, 0, '2026-01-01')]
+    fetchAll.mockResolvedValue(rows)
+    post.mockImplementation(async (path) => (path === '/reports/domains' ? { data: [] } : { data: rows }) as never)
+    const res = await getPeecVisibilityV2('x', 'last_30_days', 'previous_period')
+    expect(res.brands.filter((b) => b.isYou).map((b) => b.name)).toEqual(['Allstate'])
+    expect(res.trend.filter((t) => t.isYou).map((t) => t.name)).toEqual(['Allstate'])
+  })
+
+  it('stops chat_id paging after 5 pages and leaves the multi-row brand null', async () => {
+    setup(['renaissance.com', 'tenncare.renaissance.com'])
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const full = Array.from({ length: 10_000 }, () => ({ domain: 'renaissance.com', chat: { id: 'c1' } }))
+    post.mockImplementation(async (path, body) => {
+      if ((body as { dimensions?: string[] }).dimensions?.[0] === 'chat_id') return { data: full } as never
+      return (path === '/reports/domains'
+        ? { data: [domain('renaissance.com'), domain('tenncare.renaissance.com'), domain('guardian.com')] } : { data: current }) as never
+    })
+    const res = await getPeecVisibilityV2('renaissance', 'last_30_days', 'previous_period')
+    expect(chatCalls()).toHaveLength(10) // 5 pages per window, two windows
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[peec] chat_id rows hit 50000 for renaissance; distinct answers unavailable'))
+    expect(res.brands.find((b) => b.name === 'Renaissance')?.usedAsSource).toBeNull()
+    warn.mockRestore()
+  })
+
+  it('skips a trend day with no data and warns at the YTD ceiling', async () => {
+    setup(['renaissance.com'])
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ytd = [row('r', 'Renaissance', 0, 0, 0, '2026-01-01'), row('r', 'Renaissance', 1, 4, 0, '2026-01-02')]
+    fetchAll.mockResolvedValue(Array.from({ length: 20_000 }, (_, i) => ytd[i % 2]))
+    post.mockImplementation(async (path) => (path === '/reports/domains' ? { data: [] } : { data: current }) as never)
+    const res = await getPeecVisibilityV2('renaissance', 'last_30_days', 'previous_period')
+    expect(res.trend.find((t) => t.name === 'Renaissance')?.points).toEqual([{ date: '2026-01-02', visibility: 25 }])
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[peec] YTD trend rows hit 20000 for renaissance'))
+    warn.mockRestore()
   })
 })

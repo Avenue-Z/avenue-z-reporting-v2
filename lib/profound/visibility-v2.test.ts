@@ -60,8 +60,8 @@ describe('buildProfoundBrandRows', () => {
     expect(az.isYou).toBe(true)
     expect(rows.find((r) => r.name === 'iPullRank')!.isYou).toBe(false)
   })
-  it('falls back to isOwned when no your-brand name', () => {
-    const r = buildProfoundBrandRows(assets, current, prior, cites, [], '')
+  it('flags only the resolved you', () => {
+    const r = buildProfoundBrandRows(assets, current, prior, cites, [], 'Avenue Z')
     expect(r.find((x) => x.name === 'Avenue Z')!.isYou).toBe(true)
     expect(r.find((x) => x.name === 'iPullRank')!.isYou).toBe(false)
   })
@@ -100,6 +100,13 @@ describe('getProfoundVisibilityV2', () => {
     expect(res.usedAsSourceBasis).toBe('citations')
     expect(res.roster).toEqual(['Avenue Z', 'iPullRank', 'NoSite'])
     expect(res.trend.find((t) => t.name === 'Avenue Z')!.points[0]).toEqual({ date: '2026-11-01', visibility: 10 })
+  })
+
+  it('flags the owned asset as you even when peecYourBrand is a substring of another name', async () => {
+    vi.mocked(getClientBySlug).mockResolvedValue({ profoundCategoryId: 'cat1', peecYourBrand: 'Rank' } as never)
+    const res = await getProfoundVisibilityV2('avenue-z', 'last_30_days', 'previous_period')
+    expect(res.brands.filter((b) => b.isYou).map((b) => b.name)).toEqual(['Avenue Z'])
+    expect(res.trend.filter((t) => t.isYou).map((t) => t.name)).toEqual(['Avenue Z'])
   })
 
   it('returns an empty result without a category', async () => {

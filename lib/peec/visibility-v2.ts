@@ -3,6 +3,7 @@
 // the metric math is the same aggregateBrandRows + aggToMetrics v1's brand table uses, so the two pages agree.
 import { cached } from '@/lib/cache'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+import { resolveYou } from '@/lib/aeo/v2/you'
 import type { DailyPoint } from '@/lib/aeo/types'
 import type { BrandRowV2, BrandTrend, CompareMode, VisibilityV2 } from '@/lib/aeo/v2/types'
 import {
@@ -23,16 +24,15 @@ import { getPeecRoster, type PeecRosterBrand } from './roster'
 
 const DOMAIN_LIMIT = 10_000
 const YTD_MAX_ROWS = 20_000
-
-const isYouName = (name: string, yourBrand: string) =>
-  yourBrand ? name.toLowerCase().includes(yourBrand.toLowerCase()) : false
+const CHAT_PAGES_MAX = 5
+const CHAT_MAX_ROWS = CHAT_PAGES_MAX * DOMAIN_LIMIT
 
 export function buildPeecBrandRows(
   current: ApiBrandRow[],
   prior: ApiBrandRow[],
   used: Map<string, number | null>,
   usedPrior: Map<string, number | null>,
-  yourBrand: string,
+  you: string | null,
 ): BrandRowV2[] {
   const currentAgg = aggregateBrandRows(current)
   const priorAgg = aggregateBrandRows(prior)
@@ -43,7 +43,7 @@ export function buildPeecBrandRows(
       const prev = p ? aggToMetrics(p) : null
       return {
         name: agg.name,
-        isYou: isYouName(agg.name, yourBrand),
+        isYou: agg.name === you,
         visibility: curr.visibility,
         visibilityPrior: prev ? prev.visibility : null,
         sov: curr.sov,
@@ -56,7 +56,7 @@ export function buildPeecBrandRows(
     .map((b, i) => ({ ...b, rank: i + 1 }))
 }
 
-function buildTrend(rows: ApiBrandRow[], yourBrand: string): BrandTrend[] {
+function buildTrend(rows: ApiBrandRow[], you: string | null): BrandTrend[] {
   const byBrand = new Map<string, Map<string, { c: number; t: number }>>()
   for (const r of rows) {
     if (!r.date) continue
@@ -69,8 +69,9 @@ function buildTrend(rows: ApiBrandRow[], yourBrand: string): BrandTrend[] {
   return Array.from(byBrand.entries()).map(([name, days]) => {
     const points: DailyPoint[] = Array.from(days.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, { c, t }]) => ({ date, visibility: t > 0 ? (c / t) * 100 : 0 }))
-    return { name, isYou: isYouName(name, yourBrand), points }
+      .filter(([, { t }]) => t > 0)
+      .map(([date, { c, t }]) => ({ date, visibility: (c / t) * 100 }))
+    return { name, isYou: name === you, points }
   }).filter((t) => t.points.length > 0)
 }
 
@@ -82,6 +83,7 @@ async function usedForWindow(
   roster: PeecRosterBrand[],
   window: { start_date: string; end_date: string },
   pid: string,
+  clientSlug: string,
 ): Promise<Map<string, number | null>> {
   const res = await peecPost<{ data: ApiDomainRow[] }>('/reports/domains', { ...window, limit: DOMAIN_LIMIT }, pid)
   const data = res.data ?? []
@@ -92,6 +94,7 @@ async function usedForWindow(
   if (multi.length > 0) {
     const values = Array.from(new Set(multi.flatMap((m) => m.domains)))
     const chatRows: { domain: string; chat?: { id: string } }[] = []
+    let capped = false
     for (let offset = 0; ; offset += DOMAIN_LIMIT) {
       const page = await peecPost<{ data: ApiDomainRow[] }>('/reports/domains', {
         ...window,
@@ -103,8 +106,10 @@ async function usedForWindow(
       const batch = page.data ?? []
       chatRows.push(...batch)
       if (batch.length < DOMAIN_LIMIT) break
+      if (chatRows.length >= CHAT_MAX_ROWS) { capped = true; break }
     }
-    distinct = distinctAnswersByBrand(multi, chatRows)
+    if (capped) console.warn(`[peec] chat_id rows hit ${CHAT_MAX_ROWS} for ${clientSlug}; distinct answers unavailable`)
+    else distinct = distinctAnswersByBrand(multi, chatRows)
   }
   return usedAsSourceByBrand(roster, rows, distinct)
 }
@@ -112,9 +117,9 @@ async function usedForWindow(
 async function getPeecVisibilityV2Impl(clientSlug: string, dateRange: string, compareMode: CompareMode): Promise<VisibilityV2> {
   const { getClientBySlug } = await import('@/lib/db/queries')
   const config = await getClientBySlug(clientSlug)
-  const pid = config?.peecCustomerProjectId ?? process.env.PEEC_AI_PROJECT_ID
-  if (!pid) throw new Error(`No Peec project for ${clientSlug}`)
-  const yourBrand = config?.peecYourBrand ?? process.env.PEEC_AI_YOUR_BRAND ?? ''
+  const pid = config?.peecCustomerProjectId
+  if (!pid) throw new Error(`[peec] no Peec project configured for ${clientSlug}`)
+  const yourBrand = config?.peecYourBrand ?? ''
 
   const mainDates = parseDateRange(dateRange)
   const compareDates = deriveCompareRange(dateRange, compareMode) ?? mainDates
@@ -129,12 +134,20 @@ async function getPeecVisibilityV2Impl(clientSlug: string, dateRange: string, co
     peecPost<{ data: ApiBrandRow[] }>('/reports/brands', { ...prior }, pid),
     fetchAllRows({ ...ytd, dimensions: ['date'] }, pid, YTD_MAX_ROWS),
   ])
-  const [used, usedPrior] = await Promise.all([usedForWindow(roster, current, pid), usedForWindow(roster, prior, pid)])
+  const [used, usedPrior] = await Promise.all([usedForWindow(roster, current, pid, clientSlug), usedForWindow(roster, prior, pid, clientSlug)])
+
+  if (ytdRows.length >= YTD_MAX_ROWS) console.warn(`[peec] YTD trend rows hit ${YTD_MAX_ROWS} for ${clientSlug}; the chart may be truncated`)
+  // Brands in visibility-rank order, so several matches resolve to the best-ranked one.
+  const ownByName = new Map(roster.map((b) => [b.name, b.isOwn]))
+  const ranked = Array.from(aggregateBrandRows(currentRes.data ?? []).values())
+    .map((agg) => ({ name: agg.name, isOwn: ownByName.get(agg.name) ?? false, visibility: aggToMetrics(agg).visibility }))
+    .sort((a, b) => b.visibility - a.visibility)
+  const you = resolveYou(ranked, yourBrand)
 
   return {
     roster: roster.map((b) => b.name),
-    brands: buildPeecBrandRows(currentRes.data ?? [], priorRes.data ?? [], used, usedPrior, yourBrand),
-    trend: buildTrend(ytdRows, yourBrand),
+    brands: buildPeecBrandRows(currentRes.data ?? [], priorRes.data ?? [], used, usedPrior, you),
+    trend: buildTrend(ytdRows, you),
     usedAsSourceBasis: 'answers',
   }
 }

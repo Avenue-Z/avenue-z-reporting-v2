@@ -5,6 +5,7 @@
 import { cached } from '@/lib/cache'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
 import { bareDomain, sameOrSubdomain } from '@/lib/aeo-outbound/own-rows'
+import { resolveYou } from '@/lib/aeo/v2/you'
 import type { DailyPoint } from '@/lib/aeo/types'
 import type { BrandRowV2, BrandTrend, CompareMode, VisibilityV2 } from '@/lib/aeo/v2/types'
 import { assetDomains, getProfoundAssets, type ProfoundAsset } from './assets'
@@ -35,12 +36,11 @@ export function buildProfoundBrandRows(
   prior: ProfoundNamedRow[],
   cites: ProfoundNamedRow[],
   citesPrior: ProfoundNamedRow[],
-  yourBrand: string,
+  you: string | null,
 ): BrandRowV2[] {
   const byName = new Map(assets.map((a) => [a.name, a]))
   const priorByName = new Map<string, ProfoundNamedRow>()
   for (const r of prior) if (r.dims.asset_name) priorByName.set(r.dims.asset_name, r)
-  const you = yourBrand.toLowerCase()
   const out: Omit<BrandRowV2, 'rank'>[] = []
   for (const r of current) {
     const name = r.dims.asset_name
@@ -50,7 +50,7 @@ export function buildProfoundBrandRows(
     const hasDomain = assetDomains(asset).length > 0
     out.push({
       name,
-      isYou: you ? name.toLowerCase().includes(you) : asset.isOwned,
+      isYou: name === you,
       visibility: (r.metrics.visibility_score ?? 0) * 100,
       visibilityPrior: p ? (p.metrics.visibility_score ?? 0) * 100 : null,
       sov: (r.metrics.share_of_voice ?? 0) * 100,
@@ -62,9 +62,8 @@ export function buildProfoundBrandRows(
   return out.sort((a, b) => b.visibility - a.visibility).map((b, i) => ({ ...b, rank: i + 1 }))
 }
 
-function buildTrend(rows: ProfoundNamedRow[], assets: ProfoundAsset[], yourBrand: string): BrandTrend[] {
+function buildTrend(rows: ProfoundNamedRow[], assets: ProfoundAsset[], you: string | null): BrandTrend[] {
   const byName = new Map(assets.map((a) => [a.name, a]))
-  const you = yourBrand.toLowerCase()
   const byBrand = new Map<string, DailyPoint[]>()
   for (const r of rows) {
     const name = r.dims.asset_name
@@ -76,7 +75,7 @@ function buildTrend(rows: ProfoundNamedRow[], assets: ProfoundAsset[], yourBrand
   }
   return Array.from(byBrand.entries()).map(([name, pts]) => ({
     name,
-    isYou: you ? name.toLowerCase().includes(you) : !!byName.get(name)?.isOwned,
+    isYou: name === you,
     points: pts.sort((a, b) => a.date.localeCompare(b.date)),
   }))
 }
@@ -115,10 +114,18 @@ async function getProfoundVisibilityV2Impl(clientSlug: string, dateRange: string
     }, YTD_MAX_ROWS),
   ])
 
+  // Tracked brands present in the current answer, in visibility-rank order, so several matches resolve to the best-ranked.
+  const ownByName = new Map(assets.map((a) => [a.name, a.isOwned]))
+  const ranked = cur
+    .filter((r) => r.dims.asset_name && ownByName.has(r.dims.asset_name))
+    .sort((a, b) => (b.metrics.visibility_score ?? 0) - (a.metrics.visibility_score ?? 0))
+    .map((r) => ({ name: r.dims.asset_name as string, isOwn: ownByName.get(r.dims.asset_name as string) === true }))
+  const you = resolveYou(ranked, yourBrand)
+
   return {
     roster: names,
-    brands: buildProfoundBrandRows(assets, cur, pri, cites, citesPrior, yourBrand),
-    trend: buildTrend(ytdRows, assets, yourBrand),
+    brands: buildProfoundBrandRows(assets, cur, pri, cites, citesPrior, you),
+    trend: buildTrend(ytdRows, assets, you),
     usedAsSourceBasis: 'citations',
   }
 }
