@@ -36,6 +36,8 @@ type SectionMap = Readonly<Record<string, OverviewSectionId>>
 export const V2_PART_SECTIONS: SectionMap = {
   'visibility-chart@2': '02',
   'brand-rankings@2': '02',
+  'topic-matrix@1': '04',
+  'prompt-performance@1': '04',
 }
 
 const keyOf = (r: ResolvedPart) => `${r.id}@${r.version}`
