@@ -137,6 +137,17 @@ const COLUMN_CASES = [
   }],
 ] as const
 
+/** The one deliberate difference (the last look fixes, L3, #527): on the kit, Add annotation shows the artifact's "+ " before
+ *  its name, in a span hidden from screen readers. A copy of the kit render with exactly those spans removed (only inside an
+ *  Add annotation button) must still read like @2, value for value. */
+function withoutAddPlus(el: HTMLElement): HTMLElement {
+  const copy = el.cloneNode(true) as HTMLElement
+  copy.querySelectorAll('button > span[aria-hidden="true"]').forEach((sp) => {
+    if (sp.textContent === '+ ' && sp.parentElement?.textContent === '+ Add annotation') sp.remove()
+  })
+  return copy
+}
+
 describe.each(VIEWS)('ytd-review@5 reads exactly as @2, for %s', (_who, view, exporting) => {
   test.each(CASES)('%s', async (_name, ctx, arrange, kind) => {
     arrange()
@@ -148,7 +159,7 @@ describe.each(VIEWS)('ytd-review@5 reads exactly as @2, for %s', (_who, view, ex
     // The same chart, handed the same data, series, notes and dots, plus the kit's two options.
     expect(kitCharts.map((c) => { const { shaded, frameless, ...rest } = c.props; return [c.name, rest, shaded, frameless] }))
       .toEqual(oldCharts.map((c) => [c.name, c.props, true, true]))
-    expectSameValues(draw(old, exporting), draw(kitted, exporting))
+    expectSameValues(draw(old, exporting), withoutAddPlus(draw(kitted, exporting)))
   })
   test.each(COLUMN_CASES)('%s', async (_name, ctx, arrange) => {
     arrange()
@@ -161,7 +172,7 @@ describe.each(VIEWS)('ytd-review@5 reads exactly as @2, for %s', (_who, view, ex
     // Each column card is handed the bar chart's own months and values.
     expect(kitCharts.map((c) => c.props.points)).toEqual(oldCharts.map((c) => dataOf(c).map((d) => ({ label: d.month, value: d[keyOf(c)] }))))
     // Every value and month is a label a viewer reads on the kit's columns.
-    const k = draw(kitted, exporting)
+    const k = withoutAddPlus(draw(kitted, exporting))
     for (const c of oldCharts) for (const d of dataOf(c)) {
       expect(visibleValues(k)).toContain(Number(d[keyOf(c)]).toLocaleString('en-US'))
       expect(visibleValues(k)).toContain(String(d.month))

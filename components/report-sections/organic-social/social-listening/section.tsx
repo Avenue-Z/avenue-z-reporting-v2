@@ -25,7 +25,7 @@ import { buildTopicView, NOT_READY_TEXT, servedMonths, topicPills } from '@/lib/
 import { monthlyCommentary } from '@/components/report-sections/commentary/monthly'
 import { Fallback } from '../parts/shared'
 import { BrandPage } from './brand'
-import { StaffNote } from '../design/frames'
+import { GlowMark, StaffNote } from '../design/frames'
 import { IndustryPage } from './industry'
 import { PreviewToggle, TopicPills } from './pills'
 import { UploadControl } from './upload'
@@ -108,7 +108,8 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
     // lands on ?sl=industry, which the month picker and the locked-month redirect keep, sees the text (#476).
     if (exporting && topic !== 'brand') return null
     return (
-      <div className={s.root}>
+      <div className={`${s.root} ${s.tight}`}>
+        {!exporting && <GlowMark />}
         {toggle && <div className={s.topics}><span className={s.spacer} />{toggle}</div>}
         <div className={s.view}><Slot text={NOT_READY_TEXT} /></div>
       </div>
@@ -131,9 +132,11 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
       }
     }
     if (clientView && !approvedBoxes.has(id)) continue
-    // A preview renders each box as the client would see it: approved text only, no controls.
+    // A preview renders each box as the client would see it: approved text only, no controls. It keeps the real role so the
+    // box resolves the same month as the page, and the preview flag shows the client's entry for it (the last look fixes, D2).
     boxes[id] = await monthlyCommentary({
-      client, role: previewing ? 'CLIENT_VIEWER' : role, email: previewing ? null : (email ?? null), viewKey: slBoxViewKey(id), requestedRange: servedRange, labels: slBoxLabels(id), entries,
+      client, role, email: previewing ? null : (email ?? null), viewKey: slBoxViewKey(id), requestedRange: servedRange, labels: slBoxLabels(id), entries,
+      ...(previewing ? { preview: true } : {}),
       Panel: SlAnalysis,
     })
   }
@@ -162,7 +165,10 @@ export async function SocialListeningSection({ clientSlug, servedRange, role, em
   const props = { view, boxes, clientSlug, range: servedRange, caps, upload, topicName, cols, exporting, notes, sort }
   const topics = setting.industryTopic ? `Talkwalker topics: ${setting.brandTopic}, and ${setting.industryTopic}` : `Talkwalker topic: ${setting.brandTopic}`
   return (
-    <div className={s.root}>
+    // The artifact's line height (kit .tight), as the other kit tabs (my call 2026-11-26, the last look fixes).
+    <div className={`${s.root} ${s.tight}`}>
+      {/* L1, D1: Social Listening has no old look, so it always carries the glow's marker (never in the PDF). */}
+      {!exporting && <GlowMark />}
       {!exporting && (
         <div className={s.topics}>
           <TopicPills topic={shown} industry={pills.industry} brandLabel={`Brand: ${setting.brandTopic}`} industryLabel={`Industry: ${setting.industryTopic ?? ''}`} />

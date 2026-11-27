@@ -17,13 +17,16 @@ import { SHARED_PARTS, SHARED_PART_PLACEMENT, type SharedCtx, type SharedPlaceme
  *  client hasn't opted in. Place in the section's RSC parent, above client children (and,
  *  for the bottom placement, after them). */
 export async function SharedPartsHeader({
-  viewKey, configKey = viewKey, clientSlug, requestedRange, placement = 'top',
-}: { viewKey: CommentaryViewKey; configKey?: CommentaryViewKey; clientSlug: string; requestedRange?: string; placement?: SharedPlacement }) {
+  viewKey, configKey = viewKey, clientSlug, requestedRange, placement = 'top', preview,
+}: { viewKey: CommentaryViewKey; configKey?: CommentaryViewKey; clientSlug: string; requestedRange?: string; placement?: SharedPlacement
+  /** Staff's "Preview as client" (Organic Social only). Absent: the ctx is exactly as before. */
+  preview?: boolean }) {
   const client = await getClientBySlug(clientSlug) // React.cache-memoized: N headers → 1 fetch/render
   const resolved = resolveSharedParts(client?.reportSectionConfig?.[configKey]?.sharedParts, SHARED_PARTS as unknown as PartRegistry<unknown>)
     .filter((r) => (SHARED_PART_PLACEMENT[r.id] ?? 'top') === placement)
   if (resolved.length === 0) return null
-  const ctx: SharedCtx = requestedRange === undefined ? { slug: clientSlug, viewKey } : { slug: clientSlug, viewKey, requestedRange }
+  const base: SharedCtx = requestedRange === undefined ? { slug: clientSlug, viewKey } : { slug: clientSlug, viewKey, requestedRange }
+  const ctx: SharedCtx = preview ? { ...base, preview: true } : base
   return (
     <>
       {resolved.map((r) => {

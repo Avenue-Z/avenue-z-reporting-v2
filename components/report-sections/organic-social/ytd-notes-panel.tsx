@@ -102,8 +102,8 @@ function EditorPanel({ notes, controls, title, look }: { notes: YtdGraphNotes; c
 
   return (
     <div className="no-print space-y-2">
-      <button type="button" className={look === 'kit' ? kit.pill : noteButton(undefined)} aria-expanded={!!form} onClick={() => { setSaved(null); setForm((f) => (f ? null : {})) }}>
-        Add annotation
+      <button type="button" className={look === 'kit' ? kit.tbtn : noteButton(undefined)} aria-expanded={!!form} onClick={() => { setSaved(null); setForm((f) => (f ? null : {})) }}>
+        {look === 'kit' && <span aria-hidden="true">+ </span>}Add annotation
       </button>
       {form && (
         <MonthForm key={form.fixed ?? 'new'} look={look} controls={controls} fixed={form.fixed} initial={form.initial} rows={rows}

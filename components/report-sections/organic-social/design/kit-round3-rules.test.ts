@@ -43,7 +43,16 @@ test.each(OS_KIT_FILES)('every kit.root in %s carries kit.tight', (file) => {
   expect(lines.length).toBeGreaterThan(0)
   for (const l of lines) expect(l, l.trim()).toContain('kit.tight')
 })
-test('Social Listening and AEO Informed never take .tight', () => {
-  const dirs = ['components/report-sections/organic-social/social-listening', 'components/report-sections/organic-social/aeo-informed']
-  for (const d of dirs) for (const f of readdirSync(d)) if (/\.tsx?$/.test(f)) expect(read(`${d}/${f}`), `${d}/${f}`).not.toMatch(/\.tight\b/)
+// Changed 2026-11-26 (my call, the last look fixes): Social Listening takes the artifact's line height too, so it matches the
+// artifact it was built from (measured: its Preview as client button 39px vs the artifact's 37, its pills 32 vs 30). Both of
+// its kit roots carry it, and so does the preview toggle row the other tabs got. AEO Informed's own blocks still never do.
+test('both Social Listening kit roots and the preview toggle row carry .tight', () => {
+  const roots = read('components/report-sections/organic-social/social-listening/section.tsx').split('\n').filter((l) => /className=\{`?\$?\{?s\.root/.test(l))
+  expect(roots.length).toBe(2)
+  for (const l of roots) expect(l, l.trim()).toContain('s.tight')
+  expect(read('components/report-sections/organic-social/preview-row.tsx')).toMatch(/\$\{kit\.root\} \$\{kit\.tight\} \$\{kit\.topics\}/)
+})
+test('AEO Informed never takes .tight', () => {
+  const d = 'components/report-sections/organic-social/aeo-informed'
+  for (const f of readdirSync(d)) if (/\.tsx?$/.test(f)) expect(read(`${d}/${f}`), `${d}/${f}`).not.toMatch(/\.tight\b/)
 })

@@ -105,7 +105,7 @@ function getReportComponent(
       if (subsection === 'paid-search') return <PaidSearchReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
       return <PaidMediaOverviewReport clientSlug={clientSlug} dateRange={dateRange} />
     case 'organic-social':
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slPreview ? { slPreview: true } : {}), ...(slCols.length ? { slCols } : {}), ...(slSort !== 'posts' ? { slSort } : {}) } : {})} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slCols.length ? { slCols } : {}), ...(slSort !== 'posts' ? { slSort } : {}) } : {})} {...(slPreview ? { slPreview: true } : {})} />
     default:
       return null
   }
@@ -183,6 +183,7 @@ export default async function ReportPage({
     if (compareRangeParam) sp.set('compareRange', compareRangeParam)
     if (periodParam)       sp.set('period', periodParam)
     if (modelsParam)       sp.set('models', modelsParam)
+    if (slPreview)         sp.set('slview', 'client') // staff's preview survives the landing redirect (the last look fixes, L5)
     sp.set('section', defaultSection)
     redirect(`/dashboard/${clientSlug}/reports?${sp.toString()}`)
   }
@@ -354,7 +355,7 @@ export default async function ReportPage({
             identically to a plain Overview visit, or it forces a needless remount
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}${activeSection === 'organic-social' && organicEntry?.view !== 'social-listening' && slPreview ? ':pv=client' : ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, period, submittedBy, models, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, slCols, slSort)}
         </Suspense>
       </ReportErrorBoundary>

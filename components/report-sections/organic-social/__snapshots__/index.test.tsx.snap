@@ -347,3 +347,504 @@ exports[`OrganicSocialBody output is unchanged for a client without reportingMon
   },
 }
 `;
+
+exports[`locked months in the section > old-look month: the body is unchanged for staff and a client, with and without designFrom (pinned before the last look fixes) 1`] = `
+{
+  "designFrom 2026-11, CLIENT_VIEWER": {
+    "key": null,
+    "props": {
+      "children": [
+        {
+          "key": "platform-headlines@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "HeadlinesSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "HeadlinesSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "follower-graph@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "FollowerSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "engagement-trend@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "TrendSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "top-content@2",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "TopContentV2Section",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TopContentSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+      ],
+    },
+    "type": "react.fragment",
+  },
+  "designFrom 2026-11, INTERNAL_ADMIN": {
+    "key": null,
+    "props": {
+      "children": [
+        {
+          "key": "platform-headlines@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "HeadlinesSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "HeadlinesSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "follower-graph@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "FollowerSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "engagement-trend@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "TrendSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "top-content@2",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "TopContentV2Section",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TopContentSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+      ],
+    },
+    "type": "react.fragment",
+  },
+  "no designFrom, CLIENT_VIEWER": {
+    "key": null,
+    "props": {
+      "children": [
+        {
+          "key": "platform-headlines@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "HeadlinesSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "HeadlinesSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "follower-graph@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "FollowerSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "engagement-trend@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "TrendSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "top-content@2",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "CLIENT_VIEWER",
+                    "view": null,
+                  },
+                  "type": "TopContentV2Section",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TopContentSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+      ],
+    },
+    "type": "react.fragment",
+  },
+  "no designFrom, INTERNAL_ADMIN": {
+    "key": null,
+    "props": {
+      "children": [
+        {
+          "key": "platform-headlines@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "HeadlinesSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "HeadlinesSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "follower-graph@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "FollowerSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "engagement-trend@1",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "TrendSection",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TrendSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+        {
+          "key": "top-content@2",
+          "props": {
+            "children": {
+              "key": null,
+              "props": {
+                "children": {
+                  "key": null,
+                  "props": {
+                    "channel": "INSTAGRAM",
+                    "clientSlug": "c",
+                    "compareRange": "custom:2026-08-01,2026-08-31",
+                    "dateRange": "custom:2026-09-01,2026-09-30",
+                    "role": "INTERNAL_ADMIN",
+                    "view": null,
+                  },
+                  "type": "TopContentV2Section",
+                },
+                "fallback": {
+                  "key": null,
+                  "props": {},
+                  "type": "TopContentSkeleton",
+                },
+              },
+              "type": "react.suspense",
+            },
+          },
+          "type": "div",
+        },
+      ],
+    },
+    "type": "react.fragment",
+  },
+}
+`;

@@ -203,10 +203,23 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     expect(button.props.serverExport).toMatchObject({ subsection: 'organic-social-listening', compareRange: report.props.compareRange })
     expect(exportReportElement(view, { ...params, compareRange: report.props.compareRange as string }).props).toEqual({ ...withoutSl, exporting: true })
   })
-  test(`${routeName}: slview=client turns on the preview on this tab only`, async () => {
+  test(`${routeName}: slview=client turns on the preview on every Organic Social tab (the last look fixes, L5), and only with it`, async () => {
     expect((await onPageWith(Route, 'organic-social-listening', { slview: 'client' })).report.props).toMatchObject({ slPreview: true })
     expect((await onPageWith(Route, 'organic-social-listening', {})).report.props).not.toHaveProperty('slPreview')
-    expect((await onPageWith(Route, 'organic-instagram', { slview: 'client' })).report.props).not.toHaveProperty('slPreview')
+    expect((await onPageWith(Route, 'organic-instagram', { slview: 'client' })).report.props).toMatchObject({ slPreview: true })
+    expect((await onPageWith(Route, 'organic-instagram', {})).report.props).not.toHaveProperty('slPreview')
+  })
+  test(`${routeName}: a preview remounts every Organic Social tab (its Suspense key carries it), so per-view chart state starts fresh`, async () => {
+    const keyOf = async (sub: string, extra: Record<string, string>) => {
+      getClientBySlug.mockResolvedValue(SL_CLIENT)
+      const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }), searchParams: Promise.resolve({ section: 'organic-social', subsection: sub, ...Q, ...extra }) } as never))
+      if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
+      const [susp] = findElements(r.element, (e) => findElements(e, (x) => REPORTS.has(nameOf(x.type))).length > 0 && String(e.key ?? '').startsWith('organic-social:'))
+      return String(susp.key)
+    }
+    for (const sub of ['organic-instagram', 'organic-social-listening']) {
+      expect(await keyOf(sub, { slview: 'client' }), sub).not.toBe(await keyOf(sub, {}))
+    }
   })
   test(`${routeName}: anything but sl=industry is brand, and no other tab gets sl`, async () => {
     expect((await onPageWith(Route, 'organic-social-listening', { sl: 'nope' })).report.props).toMatchObject({ sl: 'brand' })

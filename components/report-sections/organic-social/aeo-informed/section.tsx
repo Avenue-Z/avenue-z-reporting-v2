@@ -16,6 +16,7 @@ import { AeoGraphs } from './graphs'
 import { AeoTiles } from './tiles'
 import { AeoTable } from './aeo-table'
 import kit from '../design/kit.module.css'
+import { GlowMark } from '../design/frames'
 import {
   COMPETITOR_LINE, COMPETITOR_TABLE_TITLE, NO_DATA_FOR_WINDOW, TIMEOUT_TEXT, URL_GAPS_LINE, URL_GAPS_TITLE, notStartedText, ownTableTitle, periodLine,
 } from './copy'
@@ -49,6 +50,13 @@ export async function AeoInformedSection({ clientSlug, servedRange, aeo, aeoMin,
   const parsed = parseAeoInformedSetting(client.dashSocialConfig?.aeoInformedSocial)
   if (parsed.kind !== 'ok' || !client.peecCustomerProjectId) return null
   const setting = parsed.setting
+  // The design kit (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md, Task 10): only when the client's setting asks
+  // for it (`design: "kit"`, setting.ts), the tiles and the graphs take the kit's look inside the kit's colours. Without it,
+  // the tab is exactly as before (kit.test.tsx's snapshots, recorded before this change). Option B: and only on a served month on or
+  // after the client's designFrom, the same rule as the rest of the report (design-from.ts); the body logs a malformed one.
+  // Worked out here, before any early return, so every state of a kit month carries the glow's marker (the last look fixes, L1).
+  const kitLook = setting.design === 'kit' && kitActive(client, monthKey)
+  const glow = kitLook ? <GlowMark /> : null
 
   // One clock per request (requestClock): its New York date decides the lock, as for Dash; the UTC date the window and the as-of.
   const clock = requestClock()
@@ -57,7 +65,7 @@ export async function AeoInformedSection({ clientSlug, servedRange, aeo, aeoMin,
     w = aeoWindow({ servedRange, range: aeo, allTimeFrom: setting.allTimeFrom, today: addDays(clock.lastCompleteUtcDay, 1) })
   } catch (e) {
     console.error(`[aeo-informed] window failed slug=${clientSlug} range=${aeo} error=${e instanceof Error ? e.name : 'Error'}`)
-    return <Fallback kind="error" />
+    return glow ? <>{glow}<Fallback kind="error" /></> : <Fallback kind="error" />
   }
 
   const controls = (
@@ -66,27 +74,23 @@ export async function AeoInformedSection({ clientSlug, servedRange, aeo, aeoMin,
       {w.kind === 'ok' && <p className="text-xs text-text-muted">{periodLine(w.window, w.previousDays)}</p>}
     </div>
   )
-  if (w.kind === 'not-started') return <div className="space-y-6">{controls}<NoData message={notStartedText(w.monthLabel)} /></div>
-  if (w.kind === 'before-data') return <div className="space-y-6">{controls}<NoData message={NO_DATA_FOR_WINDOW} /></div>
+  if (w.kind === 'not-started') return <div className="space-y-6">{glow}{controls}<NoData message={notStartedText(w.monthLabel)} /></div>
+  if (w.kind === 'before-data') return <div className="space-y-6">{glow}{controls}<NoData message={NO_DATA_FOR_WINDOW} /></div>
 
   const data = await getAeoTabData({
     client: { id: client.id, slug: client.slug, dashSocialConfig: client.dashSocialConfig }, projectId: client.peecCustomerProjectId, setting,
     window: w.window, asOf: w.asOf, min: aeoMin, range: aeo, deadlineMs, today: clock.today,
   })
-  if (data.kind === 'no-chats') return <div className="space-y-6">{controls}<NoData message={NO_DATA_FOR_WINDOW} /></div>
-  if (data.kind === 'error') return <div className="space-y-6">{controls}<Fallback kind={data.reason} timeoutText={TIMEOUT_TEXT} /></div>
+  if (data.kind === 'no-chats') return <div className="space-y-6">{glow}{controls}<NoData message={NO_DATA_FOR_WINDOW} /></div>
+  if (data.kind === 'error') return <div className="space-y-6">{glow}{controls}<Fallback kind={data.reason} timeoutText={TIMEOUT_TEXT} /></div>
 
   // A locked and a live result render the same way, as the Dash tabs do.
   const r = data.result
   const showChange = w.previousDays !== null
   const brands = r.meta.brands
-  // The design kit (plan docs/superpowers/plans/2026-11-23-os-design-phase1.md, Task 10): only when the client's setting asks
-  // for it (`design: "kit"`, setting.ts), the tiles and the graphs take the kit's look inside the kit's colours. Without it,
-  // the tab is exactly as before (kit.test.tsx's snapshots, recorded before this change). Option B: and only on a served month on or
-  // after the client's designFrom, the same rule as the rest of the report (design-from.ts); the body logs a malformed one.
-  const kitLook = setting.design === 'kit' && kitActive(client, monthKey)
   return (
-    <div className={kitLook ? `${kit.root} space-y-8` : 'space-y-8'}>
+    <div className={kitLook ? `${kit.root} space-y-10` : 'space-y-8'}>
+      {glow}
       {controls}
       <section data-aeo-block="graphs" data-export-block="">
         <AeoGraphs graphs={r.graphs} fourthGraph={setting.fourthGraph} {...(kitLook ? { look: 'kit' as const } : {})} />

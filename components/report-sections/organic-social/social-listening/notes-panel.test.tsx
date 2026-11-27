@@ -13,6 +13,7 @@ const refresh = vi.hoisted(() => vi.fn())
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 
 import { SlNotesPanel } from './notes-panel'
+import kit from '../design/kit.module.css'
 import type { SlChartNotes } from '@/lib/organic-social/social-listening/notes'
 
 const MARK = { at: '2026-10-14', n: 1, label: 'Oct 14', text: 'AMA went live' }
@@ -82,4 +83,24 @@ test('a refused save shows the reason and keeps the form open', async () => {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save draft' })) })
   expect(screen.getByRole('alert').textContent).toBe('That day has not happened yet.')
   expect(refresh).not.toHaveBeenCalled()
+})
+
+// The last look fixes, L3 (spec 2026-11-26): Social Listening is always on the kit, so its note controls take the same kit
+// controls the Organic Social notes got in round 3 (control-look.ts), and Add annotation reads "+ Add annotation" as the
+// artifact's "+ Add post" (index.html:1050).
+test('every note control is the kit\'s: Add annotation, the form\'s fields and buttons, its box and each row\'s buttons', () => {
+  const { container } = render(<SlNotesPanel notes={EDITOR} title="Results over time" />)
+  const add = screen.getByRole('button', { name: 'Add annotation' })
+  expect(add.className).toBe(kit.tbtn)
+  expect(add.textContent).toBe('+ Add annotation')
+  const rowButtons = [...within(screen.getByRole('list', { name: 'Notes on Results over time' })).getAllByRole('button')]
+  expect(rowButtons.length).toBeGreaterThan(0)
+  for (const b of rowButtons) expect(b.className, b.textContent ?? '').toBe(`no-print whitespace-nowrap ${kit.tbtn}`)
+  fireEvent.click(add)
+  const form = within(container).getByRole('group', { name: 'Note' })
+  expect(form.className).toContain('border-[var(--border)] bg-[var(--subtle)]')
+  expect(within(form).getByRole('button', { name: 'Save draft' }).className).toBe(kit.tbtn)
+  expect(within(form).getByRole('button', { name: 'Cancel' }).className).toBe(kit.tbtn)
+  expect(within(form).getByRole('textbox', { name: 'Note text' }).className).toBe(`${kit.field} px-2 py-1 text-xs min-w-[12rem] flex-1`)
+  expect(within(form).getByRole('combobox').className).toBe(`${kit.field} px-2 py-1 text-xs`)
 })

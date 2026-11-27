@@ -73,10 +73,11 @@ describe('rows', () => {
     expect(cls(rows[0].row, 'pair')).toBe(true)
   })
 
-  test('industry: share of sentiment and the month-by-month chart stay side by side, as on the approved tab; nothing else is paired', async () => {
-    const rows = pairedRows(await page({ topic: 'industry' }))
-    expect(rows.map((r) => r.titles)).toEqual([['Share of sentiment', 'Sentiment, October']])
-    expect(cls(rows[0].row, 'pair')).toBe(true)
+  test('industry: nothing is paired; share of sentiment has a full row of its own once its neighbour is removed', async () => {
+    const root = await page({ topic: 'industry' })
+    expect(pairedRows(root)).toEqual([])
+    const item = cardTitled(root, 'Share of sentiment')!.parentElement!
+    expect(item.parentElement!.tagName).toBe('SECTION')
   })
 
   test('the donuts keep the approved markup inside their cards', async () => {
@@ -116,12 +117,13 @@ describe('brand copy', () => {
   })
 })
 
-describe('industry month-by-month card (Q3: stays until Savannah answers)', () => {
-  test('it is still drawn, on a full row of its own', async () => {
-    const root = await page({ topic: 'industry' })
-    const card = cardTitled(root, 'Sentiment, ')
-    expect(card).toBeDefined()
-    expect(card!.nextElementSibling?.querySelector('[data-box]')?.getAttribute('data-box')).toBe('i-ytd')
+describe("industry month-by-month card: removed (Savannah's list, 2026-11-24: \"Sentiment, may to october. Remove this\")", () => {
+  test('neither the card nor its box is drawn, for staff, a client or the PDF', async () => {
+    for (const o of [{}, { role: 'CLIENT_VIEWER', email: null }, { exporting: true }] as const) {
+      const root = await page({ topic: 'industry', ...o })
+      expect(cardTitled(root, 'Sentiment, ')).toBeUndefined()
+      expect(root.querySelector('[data-box="i-ytd"]')).toBeNull()
+    }
   })
 
   test('the conversation box still shows for staff when the month has no industry upload', async () => {
@@ -155,11 +157,10 @@ describe('line views and the toggle', () => {
     expect(ariaOf(posneu)).toMatch(/^Positive \+ neutral and negative by month/)
   })
 
-  test('industry: sentiment over time and the month-by-month chart start on the line, with the toggle', async () => {
+  test('industry: sentiment over time starts on the line, with the toggle (the month-by-month chart was removed)', async () => {
     const root = await page({ topic: 'industry' })
     expect(toggleOf(cardTitled(root, 'Sentiment over time')!)).toEqual(['Line:true', 'Columns:false'])
     expect(ariaOf(cardTitled(root, 'Sentiment over time')!)).toBe('Results per day by sentiment, as lines')
-    expect(toggleOf(cardTitled(root, 'Sentiment, ')!)).toEqual(['Line:true', 'Columns:false'])
   })
 
   test('a chart the URL set to columns starts on its columns, which are the chart as it was before', async () => {

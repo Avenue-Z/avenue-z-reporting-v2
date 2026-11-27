@@ -128,7 +128,7 @@ function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: str
       return <TicketSalesReport clientSlug={clientSlug} />
     case 'organic-social':
       // aeo and aeoMin reach the section on the AEO Informed Social tab only; every other tab's props are unchanged.
-      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slPreview ? { slPreview: true } : {}), ...(slCols.length ? { slCols } : {}), ...(slSort !== 'posts' ? { slSort } : {}) } : {})} />
+      return <OrganicSocialReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} channel={channel} view={view} {...(view === 'aeo-informed' ? { aeo, aeoMin } : {})} {...(view === 'social-listening' ? { sl, ...(slCols.length ? { slCols } : {}), ...(slSort !== 'posts' ? { slSort } : {}) } : {})} {...(slPreview ? { slPreview: true } : {})} />
     case 'demand-overview':
       return <DemandOverviewReport clientSlug={clientSlug} />
     case 'executive-overview':
@@ -362,7 +362,7 @@ export default async function PortalReportPage({
             identically to a plain Overview visit, or it forces a needless remount
             (PR #174 review). The key also gives each tab and month its own trend chart:
             the chart seeds its legend once per instance (organic-social/trends.tsx). */}
-        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}`} fallback={<SectionSkeleton />}>
+        <Suspense key={`${activeSection}:${activeSection === 'organic-social' ? (organicEntry?.id ?? '') : (subsection ?? '')}:${servedDateRange}:${servedCompareRange ?? ''}:${modelsParam ?? ''}${organicEntry?.view === 'aeo-informed' ? `:aeo=${aeo}:${aeoMin}` : ''}${organicEntry?.view === 'social-listening' ? `:sl=${sl}:${slPreview ? 'client' : 'staff'}` : ''}${activeSection === 'organic-social' && organicEntry?.view !== 'social-listening' && slPreview ? ':pv=client' : ''}`} fallback={<SectionSkeleton />}>
           {getReportComponent(activeSection, clientSlug, servedDateRange, servedCompareRange, subsection, models, submittedBy, organicEntry?.channel ?? null, organicEntry?.view ?? null, aeo, aeoMin, sl, slPreview, slCols, slSort)}
         </Suspense>
       </ReportErrorBoundary>

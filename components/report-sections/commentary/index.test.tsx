@@ -159,3 +159,20 @@ describe('CommentarySection: labels and the Recommendations key', () => {
     }
   })
 })
+
+// The last look fixes, L5: a client without locked months (no month to resolve), in staff's "Preview as client": the box gets
+// exactly what a client gets (no edit, no approve, no history, redacted entries).
+describe('CommentarySection in staff\'s preview', () => {
+  beforeEach(() => { captured = null; vi.stubEnv('COMMENTARY_APPROVERS', 'thomas@avenuez.com') })
+  afterEach(() => { vi.unstubAllEnvs(); rows.byKey = null })
+  test('an approver previewing gets the client\'s props, byte for byte', async () => {
+    const { CommentarySection } = await import('./index')
+    mockAuth.mockResolvedValue({ user: { email: 'someone@clientco.com' } })
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai' }))
+    const asClient = JSON.stringify(captured)
+    captured = null
+    mockAuth.mockResolvedValue({ user: { email: 'thomas@avenuez.com', role: 'INTERNAL_ADMIN' } })
+    render(await CommentarySection({ clientSlug: 'acme', viewKey: 'peec-ai', preview: true }))
+    expect(JSON.stringify(captured)).toBe(asClient)
+  })
+})

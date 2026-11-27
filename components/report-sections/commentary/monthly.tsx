@@ -19,7 +19,7 @@ type MonthlyClient = { id: string; slug: string; dashSocialConfig?: unknown }
  *  clock as the section, so both serve the same month. `entries`, when given, are rows already read for several boxes
  *  at once (the Social Listening tab's one prefix read, spec 2026-11-19 section 9): the box keeps the rows of its own
  *  view key and makes no query. Without it the box reads its own view, as every other caller does. */
-export async function monthlyCommentary({ client, role, email, viewKey, requestedRange, labels, entries: prefetched, Panel = CommentaryPanel, look }: {
+export async function monthlyCommentary({ client, role, email, viewKey, requestedRange, labels, entries: prefetched, Panel = CommentaryPanel, look, preview }: {
   client: MonthlyClient; role: unknown; email: string | null; viewKey: CommentaryViewKey; requestedRange: string | undefined
   labels: CommentaryLabels; entries?: CommentaryEntry[]
   /** The design kit's look, passed through to the Panel unchanged (CommentarySection decides when). Absent: no key. */
@@ -27,6 +27,10 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
   /** The box that renders the entries. Default: CommentaryPanel, as every report uses. The Social Listening tab passes its
    *  own (the approved mockup's look) with the same props and the same commentary actions. */
   Panel?: ComponentType<ComponentProps<typeof CommentaryPanel>>
+  /** Staff's "Preview as client" (the last look fixes, L5, D2): the month is still resolved with the real role, so the box
+   *  shows the same month as the parts; it then shows only the entry a client gets for that month (the one the PDF prints,
+   *  clientMonthEntry), read-only, with no history and no staff notes, or nothing when the client gets none. */
+  preview?: boolean
 }) {
   const viewer = viewerForRole(role)
   const capabilities = viewer === 'team'
@@ -39,13 +43,35 @@ export async function monthlyCommentary({ client, role, email, viewKey, requeste
   // was delivered (commentary@1). Never adds a look the caller did not ask for (Social Listening passes none).
   const kitLook = look && kitActive(client, month?.key ?? null) ? { look } : {}
   if (!month) {
-    if (!capabilities.canEdit) return null
+    if (!capabilities.canEdit || preview) return null
     return (
       <Panel clientSlug={client.slug} viewKey={viewKey} entries={[]} initialId={null} clientEntryId={null}
         capabilities={capabilities} history={[]} emptyText="No reporting months yet" labels={labels} {...kitLook} />
     )
   }
   const all = prefetched ? prefetched.filter((e) => e.viewKey === viewKey) : await getCommentaryForView(client.id, viewKey)
+  if (preview) {
+    const clientMonthsForPreview = lockedRangeFor(client, 'CLIENT_VIEWER', requestedRange, clock)?.months ?? []
+    const shown = clientMonthEntry(all, month.key, clientMonthsForPreview)
+    if (!shown) return null
+    const safe = toClientSafeEntry(shown)
+    return (
+      <Panel
+        key={month.key}
+        clientSlug={client.slug}
+        viewKey={viewKey}
+        entries={[safe]}
+        initialId={safe.id}
+        clientEntryId={safe.id}
+        capabilities={{ canEdit: false, canApprove: false }}
+        history={[]}
+        defaultPeriod={{ start: firstOf(month.key), end: lastOf(month.key) }}
+        emptyText={emptyMonthText(labels, monthTitle(month.key))}
+        labels={labels}
+        {...kitLook}
+      />
+    )
+  }
   const visible = visibleEntries(all, capabilities)
   const cutoff = viewer === 'client' ? lastOf(locked!.months[0].key) : null
   const eligible = eligibleEntries(visible, month.key, cutoff)

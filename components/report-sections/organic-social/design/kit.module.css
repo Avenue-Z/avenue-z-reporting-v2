@@ -252,3 +252,20 @@
   .hrow { grid-template-columns: 110px 1fr; }
   .mrow, .mhead { grid-template-columns: 100px 1fr 52px 64px; }
 }
+/* The last look fixes, L2 (spec 2026-11-26): an Organic Social kit tab's parts stack with the artifact's 40px section gap
+   (index.html:115, the same as .view above). The wrapper keeps 40px to the Recommendations box after it; the tab's own
+   space-y-8 (32px, zero specificity in Tailwind v4) gives way to this rule. */
+.parts { display: flex; flex-direction: column; gap: 40px; }
+.parts:not(:last-child) { margin-block-end: 40px; }
+/* The last look fixes, L1 (spec 2026-11-26; trial docs/findings/2026-11-26-os-glow-trial.md): the artifact's page glow
+   (index.html:39-43, over its --bg #000000), painted on the page's `main` while a kit tab's marker (GlowMark, frames.tsx)
+   is inside it. Not on body: the shell's opaque bg-black div would cover it. The export page has no `main`, so it can't
+   print. No layering changes. */
+.glowMark { display: none; }
+:global(main):has(.glowMark) {
+  background:
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(0,60,60,0.5) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 80% 100%, rgba(30,0,80,0.4) 0%, transparent 60%),
+    #000000;
+  background-attachment: fixed;
+}

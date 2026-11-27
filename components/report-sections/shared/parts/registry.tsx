@@ -5,7 +5,10 @@ import { recommendationsViewKeyFor, type CommentaryViewKey } from '@/lib/comment
 import type { PartImpl, PartRegistry } from '@/lib/report-sections/types'
 
 /** Minimal context every shared part receives. `requestedRange` is set only by Organic Social. */
-export type SharedCtx = { slug: string; viewKey: CommentaryViewKey; requestedRange?: string }
+export type SharedCtx = { slug: string; viewKey: CommentaryViewKey; requestedRange?: string
+  /** Staff's "Preview as client" (Organic Social only, the last look fixes L5). Absent everywhere else, so every other
+   *  department's box gets exactly the props it got before. */
+  preview?: true }
 
 export type SharedPlacement = 'top' | 'bottom'
 
@@ -17,8 +20,8 @@ export const commentaryPart: PartImpl<SharedCtx> = {
   published: true,
   defaultLabel: 'Insights',
   render: (ctx) => ctx.requestedRange === undefined
-    ? <CommentarySection clientSlug={ctx.slug} viewKey={ctx.viewKey} />
-    : <CommentarySection clientSlug={ctx.slug} viewKey={ctx.viewKey} requestedRange={ctx.requestedRange} />,
+    ? <CommentarySection clientSlug={ctx.slug} viewKey={ctx.viewKey} {...(ctx.preview ? { preview: true } : {})} />
+    : <CommentarySection clientSlug={ctx.slug} viewKey={ctx.viewKey} requestedRange={ctx.requestedRange} {...(ctx.preview ? { preview: true } : {})} />,
 }
 
 /** Recommendations: the same section under the view's recommendations key, at the bottom. A view with no
@@ -32,8 +35,8 @@ export const recommendationsPart: PartImpl<SharedCtx> = {
     const viewKey = recommendationsViewKeyFor(ctx.viewKey)
     if (!viewKey) return null
     return ctx.requestedRange === undefined
-      ? <CommentarySection clientSlug={ctx.slug} viewKey={viewKey} labels={RECOMMENDATIONS_LABELS} />
-      : <CommentarySection clientSlug={ctx.slug} viewKey={viewKey} requestedRange={ctx.requestedRange} labels={RECOMMENDATIONS_LABELS} />
+      ? <CommentarySection clientSlug={ctx.slug} viewKey={viewKey} labels={RECOMMENDATIONS_LABELS} {...(ctx.preview ? { preview: true } : {})} />
+      : <CommentarySection clientSlug={ctx.slug} viewKey={viewKey} requestedRange={ctx.requestedRange} labels={RECOMMENDATIONS_LABELS} {...(ctx.preview ? { preview: true } : {})} />
   },
 }
 

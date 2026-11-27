@@ -48,6 +48,12 @@ export function SlBoxLabel({ children }: { children: ReactNode }) {
   return <p className={f.label}>{children}</p>
 }
 
+/** The kit page glow's marker (the last look fixes, L1): while it is inside `main`, kit.module.css paints the artifact's
+ *  glow there. Hidden, aria-hidden, and hidden in the PDF. Render it once per kit tab. */
+export function GlowMark() {
+  return <span hidden aria-hidden="true" className={s.glowMark} data-export-hide="" />
+}
+
 /** A staff-only line (never in the client view), in the mockup's notice style. */
 export function StaffNote({ children }: { children: ReactNode }) {
   return <div className={s.notice} role="note"><b>Staff</b><span>{children}</span></div>
