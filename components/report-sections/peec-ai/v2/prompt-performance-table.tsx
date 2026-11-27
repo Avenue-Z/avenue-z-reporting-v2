@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useExportMode } from '@/components/export/export-mode'
 import { cn } from '@/lib/utils'
 import { SortableTable, type SortableColumn } from '../sortable-table'
-import { deltaColumn } from './delta-columns'
+import { deltaTone, formatDelta } from './delta'
+import { TONE_CLASS, deltaColumn } from './delta-columns'
 import { promptChange, type PromptPerfRow } from './topics'
 
 type Group = 'all' | 'gained' | 'lost' | 'same'
@@ -15,8 +16,39 @@ const CHIPS: { id: Group; label: string }[] = [
   { id: 'same', label: 'No change' },
 ]
 
+const RANK_TOOLTIP = 'Average position of the brand in AI answers that mention it, across the selected models. Lower is better.'
+
 /**
- * Section 05's Prompt Performance table: the client's average rank and visibility on each tracked prompt. The filter
+ * Rank Δ: places moved (prior − current), `New` for a prompt with no answers in the comparison window, and words for a
+ * prompt the client entered (`Newly ranked`) or left (`No longer ranked`) with answers in both windows. Sorting puts
+ * entered above every numeric gain and dropped below every numeric loss; New and no data sink last in both directions.
+ */
+const rankDeltaColumn: SortableColumn<PromptPerfRow> = {
+  key: 'rankDelta',
+  label: 'Rank Δ',
+  align: 'right',
+  sortable: true,
+  filterable: false,
+  accessor: (r) =>
+    r.isNew ? null : r.rankChange === 'entered' ? Number.MAX_VALUE : r.rankChange === 'dropped' ? -Number.MAX_VALUE : r.rankDelta,
+  render: (r) => {
+    const [text, tone] = r.isNew
+      ? ['New', 'neutral' as const]
+      : r.rankChange === 'entered'
+        ? ['Newly ranked', 'good' as const]
+        : r.rankChange === 'dropped'
+          ? ['No longer ranked', 'bad' as const]
+          : [formatDelta(r.rankDelta, 'places'), deltaTone(r.rankDelta, 'higher', 'places')]
+    return (
+      <span className={cn('tabular-nums', TONE_CLASS[tone])} title={text === '–' ? 'No comparison data' : undefined}>
+        {text}
+      </span>
+    )
+  },
+}
+
+/**
+ * Section 04's Prompt Performance table: the client's average rank and visibility on each tracked prompt. The filter
  * chips are local state; New rows and rows with no rank change appear under All only. The PDF prints All, without chips.
  */
 export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfRow[]; showDeltas: boolean }) {
@@ -45,6 +77,7 @@ export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfR
     {
       key: 'rank',
       label: 'Rank',
+      tooltip: RANK_TOOLTIP,
       align: 'right',
       filterable: false,
       accessor: (r) => r.rank,
@@ -52,9 +85,7 @@ export function PromptPerformanceTable({ rows, showDeltas }: { rows: PromptPerfR
     },
   ]
   if (showDeltas) {
-    columns.push(
-      deltaColumn<PromptPerfRow>({ key: 'rankDelta', label: 'Rank Δ', accessor: (r) => r.rankDelta, unit: 'places', betterWhen: 'higher', isNew: (r) => r.isNew }),
-    )
+    columns.push(rankDeltaColumn)
   }
   columns.push({
     key: 'visibility',

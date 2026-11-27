@@ -177,16 +177,45 @@ describe('promptPerformanceRows', () => {
     expect(r.visibilityPrior).toBe(25)
     expect(r.visibilityDelta).toBe(75)
   })
-  it('prior {} is not New and not ranked', () => {
+  it('prior {} has no answers on any model, so it is New', () => {
     const [r] = promptPerformanceRows([prompt({ current: { ChatGPT: stat(1, 1, 1, 1) }, prior: {} })], null)
-    expect(r.isNew).toBe(false)
+    expect(r.isNew).toBe(true)
     expect(r.priorRank).toBeNull()
     expect(r.rankDelta).toBeNull()
+    expect(r.rankChange).toBeNull()
+  })
+  it('New is decided on the selected models: no prior answers on them is New', () => {
+    const p = prompt({ current: { ChatGPT: stat(1, 2, 1, 1), Gemini: stat(1, 2, 2, 1) }, prior: { ChatGPT: stat(1, 2, 3, 1) } })
+    const [all] = promptPerformanceRows([p], null)
+    expect(all.isNew).toBe(false)
+    const [gem] = promptPerformanceRows([p], ['Gemini'])
+    expect(gem.isNew).toBe(true)
+    expect(gem.visibilityPrior).toBeNull()
+    expect(gem.rankChange).toBeNull()
+  })
+  it('entered: ranked now, answers but no rank in the prior window', () => {
+    const [r] = promptPerformanceRows([prompt({ current: { ChatGPT: stat(1, 4, 2, 1) }, prior: { ChatGPT: stat(0, 4, 0, 0) } })], null)
+    expect(r.isNew).toBe(false)
+    expect(r.rankChange).toBe('entered')
+    expect(r.rankDelta).toBeNull()
+    expect(promptChange(r)).toBe('gained')
+  })
+  it('dropped: ranked in the prior window, not now', () => {
+    const [r] = promptPerformanceRows([prompt({ current: { ChatGPT: stat(0, 4, 0, 0) }, prior: { ChatGPT: stat(1, 4, 2, 1) } })], null)
+    expect(r.rankChange).toBe('dropped')
+    expect(promptChange(r)).toBe('lost')
+  })
+  it('ranked in both windows, or in neither, is not a rank change', () => {
+    const both = promptPerformanceRows([prompt({ current: { ChatGPT: stat(1, 4, 2, 1) }, prior: { ChatGPT: stat(1, 4, 2, 1) } })], null)[0]
+    expect(both.rankChange).toBeNull()
+    const neither = promptPerformanceRows([prompt({ current: { ChatGPT: stat(0, 4, 0, 0) }, prior: { ChatGPT: stat(0, 4, 0, 0) } })], null)[0]
+    expect(neither.rankChange).toBeNull()
+    expect(promptChange(neither)).toBeNull()
   })
 })
 
 describe('promptChange', () => {
-  const row = (rankDelta: number | null) => ({ rankDelta }) as PromptPerfRow
+  const row = (rankDelta: number | null) => ({ rankDelta, rankChange: null }) as PromptPerfRow
   it('classifies', () => {
     expect(promptChange(row(0.5))).toBe('gained')
     expect(promptChange(row(-0.5))).toBe('lost')

@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import type { SortableColumn } from '../sortable-table'
 import { deltaTone, formatDelta, type DeltaUnit } from './delta'
 
-const TONE_CLASS = {
+export const TONE_CLASS = {
   good: 'text-[#60FF80]',
   bad: 'text-[#FF4444]',
   neutral: 'text-text-muted',

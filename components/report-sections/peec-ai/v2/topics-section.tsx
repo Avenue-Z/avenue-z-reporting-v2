@@ -77,7 +77,7 @@ export async function TopicMatrixSection({
   )
 }
 
-/** Section 05's Prompt Performance table, fetched server-side on the same comparison window; the model filter is applied
+/** Section 04's Prompt Performance table, fetched server-side on the same comparison window; the model filter is applied
  *  (only the selected models are summed). */
 export async function PromptPerformanceSection({
   ctx,

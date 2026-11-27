@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { render } from '@testing-library/react'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { PromptV2, TopicsPromptsV2 } from '@/lib/aeo/v2/types'
 
 vi.mock('next/navigation', () => ({
@@ -46,14 +47,14 @@ test('prompt-performance@1 is version 1, labelled', () => {
 })
 
 test('prompt-performance@1 golden', async () => {
-  const { container, getByText } = render(<>{await PromptPerformanceSection({ ctx: pick(CTX) })}</>)
+  const { container, getByText } = render(<TooltipProvider>{await PromptPerformanceSection({ ctx: pick(CTX) })}</TooltipProvider>)
   expect(getTopicsPromptsV2).toHaveBeenCalledWith('peec', 'fixture-client', 'last_30_days', 'previous_period')
   expect(getByText('How is the brand ranking on each tracked prompt?')).toBeTruthy()
   expect(container.firstChild).toMatchSnapshot()
 })
 
 test('the model filter is applied', async () => {
-  const { container } = render(<>{await PromptPerformanceSection({ ctx: pick({ ...CTX, models: ['Gemini'], modelActive: true }) })}</>)
+  const { container } = render(<TooltipProvider>{await PromptPerformanceSection({ ctx: pick({ ...CTX, models: ['Gemini'], modelActive: true }) })}</TooltipProvider>)
   const names = [...container.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('td')!.textContent)
   expect(names).not.toContain('Prompt b')
   expect(container.textContent).not.toContain('Model filter not applied')
@@ -61,7 +62,7 @@ test('the model filter is applied', async () => {
 
 test('says there is no prompt data without a client, or with no prompts', async () => {
   const empty = async (ctx: PeecCtx) => {
-    const { container, unmount } = render(<>{await PromptPerformanceSection({ ctx: pick(ctx) })}</>)
+    const { container, unmount } = render(<TooltipProvider>{await PromptPerformanceSection({ ctx: pick(ctx) })}</TooltipProvider>)
     expect(container.textContent).toContain('No prompt data for this period.')
     expect(container.querySelector('table')).toBeNull()
     unmount()
@@ -69,6 +70,13 @@ test('says there is no prompt data without a client, or with no prompts', async 
   await empty({ ...CTX, clientSlug: undefined })
   vi.mocked(getTopicsPromptsV2).mockResolvedValue({ ...DATA, prompts: [] })
   await empty(CTX)
+})
+
+test('New is decided on the selected models', async () => {
+  // Prompt a had prior answers on ChatGPT only: with Gemini selected it has none, so it is New.
+  const { container } = render(<TooltipProvider>{await PromptPerformanceSection({ ctx: pick({ ...CTX, models: ['Gemini'], modelActive: true }) })}</TooltipProvider>)
+  const a = [...container.querySelectorAll('tbody tr')].find((tr) => tr.querySelector('td')!.textContent === 'Prompt a')!
+  expect(a.querySelectorAll('td')[3].textContent).toBe('New')
 })
 
 test('the part wraps the async section in an error boundary around Suspense', () => {

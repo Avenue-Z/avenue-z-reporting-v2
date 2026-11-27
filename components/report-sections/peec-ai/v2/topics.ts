@@ -106,6 +106,9 @@ export type PromptPerfRow = {
   rank: number | null
   priorRank: number | null
   rankDelta: number | null
+  /** Ranked in one window and not the other, with answers in both: entered = ranked now only, dropped = ranked before only. */
+  rankChange: 'entered' | 'dropped' | null
+  /** No answers in the comparison window on the selected models. */
   isNew: boolean
   visibility: number
   visibilityPrior: number | null
@@ -133,7 +136,8 @@ export function promptPerformanceRows(prompts: PromptV2[], models: AEOModel[] | 
   for (const p of prompts) {
     const cur = sumStats(p.current, models)
     if (cur.answers === 0) continue
-    const prior = p.prior === null ? null : sumStats(p.prior, models)
+    const summed = p.prior === null ? null : sumStats(p.prior, models)
+    const prior = summed && summed.answers > 0 ? summed : null
     const rank = rankOf(cur)
     const priorRank = prior ? rankOf(prior) : null
     const visibility = (cur.mentions / cur.answers) * 100
@@ -145,7 +149,8 @@ export function promptPerformanceRows(prompts: PromptV2[], models: AEOModel[] | 
       rank,
       priorRank,
       rankDelta: rank != null && priorRank != null ? priorRank - rank : null,
-      isNew: p.prior === null,
+      rankChange: prior === null ? null : rank != null && priorRank == null ? 'entered' : rank == null && priorRank != null ? 'dropped' : null,
+      isNew: prior === null,
       visibility,
       visibilityPrior,
       visibilityDelta: visibilityPrior != null ? visibility - visibilityPrior : null,
@@ -155,6 +160,8 @@ export function promptPerformanceRows(prompts: PromptV2[], models: AEOModel[] | 
 }
 
 export function promptChange(r: PromptPerfRow): 'gained' | 'lost' | 'same' | null {
+  if (r.rankChange === 'entered') return 'gained'
+  if (r.rankChange === 'dropped') return 'lost'
   if (r.rankDelta == null) return null
   const s = Math.sign(roundForUnit(r.rankDelta, 'places'))
   return s > 0 ? 'gained' : s < 0 ? 'lost' : 'same'
