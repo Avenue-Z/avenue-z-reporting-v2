@@ -53,7 +53,9 @@ a client **only** through that client's `report_section_config['peec-ai']`:
 - `extraParts`: new part ids the template doesn't have (`[{ "id": "...", "version": 1 }]`).
 - `versions`: pin an existing part to a new version (`{ "<part>": 2 }`).
 - `hidden`: part ids removed from the layout.
-- `order`: the final ordering of the ids above.
+- `order`: a priority list, not a partial reorder: the ids it names come first, in its order, and every visible part it
+  leaves out follows in template order (`lib/report-sections/resolve.ts`). So `order` must list **every visible part id, in
+  page order**; a partial list moves the listed parts to the top of the page.
 
 Apply it to **staging Neon only** until the account lead approves. The production flip is slice 7
 (spec section 4). Slice 1 added no parts: the compare/deltas
@@ -61,20 +63,31 @@ plumbing is live for every client but only honored on the v2 layout (v1 pages, c
 
 Slice 2 (02 Visibility vs Competitors) adds `visibility-chart@2` and `brand-rankings@2`. **Read the client's current staging override first and add only these entries**: slices 4 and 6 edit the same JSON in parallel, so never paste over it.
 
-Staging override shape (`<...>` placeholders are filled in by the slice that adds the part). The three `hidden` entries are the removals every v2 layout makes; add
-the v1 part each later slice replaces as that slice lands, and list its replacement in
-`extraParts`/`versions`/`order`:
+Staging override after slice 2. The three `hidden` entries are the removals every v2 layout makes; add the v1 part each
+later slice replaces as that slice lands, list its replacement in `extraParts`/`versions`, and insert its id into `order`
+at its place on the page (`order` always names every visible part):
 
 ```json
 {
   "peec-ai": {
     "hidden": ["domains-row", "competitor-visibility", "competitor-gaps"],
     "versions": { "visibility-chart": 2, "brand-rankings": 2 },
-    "extraParts": [{ "id": "<new-part-id>", "version": 1 }],
-    "order": ["visibility-chart", "brand-rankings", "<new-part-id>"]
+    "order": ["overview-synopsis", "kpi-cards", "visibility-chart", "brand-rankings", "llm-breakdown", "winners-losers", "footer"]
   }
 }
 ```
+
+A new part from a later slice goes in `extraParts` (`[{ "id": "<new-part-id>", "version": 1 }]`) and in `order`.
+
+**Two "Citation share" numbers on a Profound client (Avenue Z) until slice 6.** Until slice 6 replaces `kpi-cards@1`, a
+Profound client on the v2 layout sees two different figures with similar names, and they are not expected to agree:
+
+- the v1 **Citation Share** KPI tile (`kpi-cards@1`): the client's share of citation counts across **all** prompts,
+  matching the client's `clients.domain` exactly;
+- the brand table's **Citation share %** (`brand-rankings@2`): the share of citations from **Visibility** prompts that point
+  at any of the brand's Profound asset domains (website and alternate domains, subdomains included).
+
+Say so to anyone QAing the staging page.
 
 Before applying a staging override, save the client's current `peec-ai` override. Revert by restoring that saved value (or remove only the v2 entries); do not delete the key, which would also drop any pre-existing override. Edit with the SQL editor on the staging branch
 (see the Neon migrate and seed warnings: do not run `db:seed`, it overwrites `enabled_reports`).
