@@ -14,8 +14,12 @@ const brand = (over: Partial<BrandRanking>): BrandRanking => ({
 function rankings(): BrandRanking[] {
   const rows: BrandRanking[] = []
   for (let i = 1; i <= 29; i++) {
-    rows.push(brand({ rank: i, name: `B${i}`, visibility: 60 - i, visibilityDelta: 0 }))
+    // Ranks 1-8 sit above Renaissance's 24.9, ranks 10-29 below it, so rank 9 is real.
+    const visibility = i < 9 ? 60 - i : 24 - i * 0.5
+    rows.push(brand({ rank: i, name: `B${i}`, visibility, visibilityDelta: 0 }))
   }
+  // Rank 8 fell from 28 to 25.5; Renaissance fell from 28.88 to 24.9, so it was 8th before and is 9th now.
+  rows[7] = brand({ rank: 8, name: 'B8', visibility: 25.5, visibilityDelta: -2.5 })
   rows[8] = brand({ rank: 9, name: 'Renaissance', visibility: 24.9, visibilityDelta: -3.98, sov: 10, sovDelta: 1.2, sentiment: 0.17, sentimentDelta: -0.015, isYou: true })
   return rows
 }
@@ -70,6 +74,17 @@ describe('computeKpiTile', () => {
     const t = computeKpiTile('visibility-rank', ctx())
     expect(t.value).toBe('#9 of 29')
     expect(t.unit).toBe('places')
+    // prior rank 8, current rank 9: prior - current = -1 (moved down one place)
+    expect(t.delta).toBe(-1)
+  })
+
+  it('rank delta through the tile is prior minus current', () => {
+    const a = brand({ rank: 1, name: 'A', visibility: 50, visibilityDelta: 20 })
+    const you = brand({ rank: 2, name: 'You', visibility: 40, visibilityDelta: -15, isYou: true })
+    const b = brand({ rank: 3, name: 'B', visibility: 35, visibilityDelta: 0 })
+    const t = computeKpiTile('visibility-rank', ctx({ d: { ...data, brandRankings: [a, you, b] } as PeecOverview }))
+    expect(t.value).toBe('#2 of 3')
+    expect(t.delta).toBe(-1)
   })
 
   it('priorRank counts brands with a strictly higher prior visibility', () => {
