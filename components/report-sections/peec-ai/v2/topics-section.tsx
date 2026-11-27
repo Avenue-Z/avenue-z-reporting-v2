@@ -4,8 +4,9 @@ import { MODEL_DISPLAY_LABELS } from '@/lib/peec/models'
 import type { PeecCtx } from '../ctx'
 import { FALLBACK_COLOR, brandColors } from './brand-colors'
 import { compareSuffix, fetchCompareMode } from './compare'
+import { PromptPerformanceTable } from './prompt-performance-table'
 import { TopicMatrix } from './topic-matrix'
-import { topicMatrix } from './topics'
+import { promptPerformanceRows, topicMatrix } from './topics'
 
 /**
  * Section 04's visibility by topic matrix, fetched server-side. The topic figures and the brand table's order come from
@@ -54,4 +55,18 @@ export async function TopicMatrixSection({
       </div>
     </div>
   )
+}
+
+/** Section 05's Prompt Performance table, fetched server-side on the same comparison window; the model filter is applied
+ *  (only the selected models are summed). */
+export async function PromptPerformanceSection({
+  ctx,
+}: {
+  ctx: Pick<PeecCtx, 'provider' | 'clientSlug' | 'dateRange' | 'compare' | 'showDeltas' | 'models'>
+}) {
+  if (!ctx.clientSlug) return null
+  const data = await getTopicsPromptsV2(ctx.provider, ctx.clientSlug, ctx.dateRange ?? 'last_30_days', fetchCompareMode(ctx.compare))
+  const rows = promptPerformanceRows(data.prompts, ctx.models)
+  if (rows.length === 0) return null
+  return <PromptPerformanceTable rows={rows} showDeltas={ctx.showDeltas} />
 }
