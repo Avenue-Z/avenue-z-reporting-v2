@@ -4,6 +4,7 @@
 // mean of row share of voice) and the brand table's (Used as a source = retrieved answers / the model's answers).
 import { cached } from '@/lib/cache'
 import { parseDateRange, deriveCompareRange } from '@/lib/ga4/client'
+import { mean } from '@/lib/aeo/v2/mean'
 import { resolveYou } from '@/lib/aeo/v2/you'
 import type { CompareMode, ModelMetricV2, ModelStatV2, ModelsV2 } from '@/lib/aeo/v2/types'
 import {
@@ -49,13 +50,31 @@ function aggregate(rows: readonly ApiBrandRow[]): Map<string, Map<AEOModel, Agg>
 const visOf = (a: Agg | undefined): number | null => (a && a.t > 0 ? (a.c / a.t) * 100 : null)
 const sovOf = (a: Agg | undefined): number | null => (a && a.sovRows > 0 ? (a.sovSum / a.sovRows) * 100 : null)
 
-function mean(values: readonly (number | null)[]): number | null {
-  const v = values.filter((x): x is number => x !== null)
-  return v.length === 0 ? null : v.reduce((s, x) => s + x, 0) / v.length
+/**
+ * Domain rows per model bucket, one row per domain. Several raw models can share a bucket (Google AI Overview and AI
+ * Mode are both `Google`), and each reports its own row per domain against its own answer count. An answer belongs to
+ * one model, so a domain's retrieved answers add up across them exactly, and the bucket's answers are each raw model's
+ * total taken once. Without the merge the brand would read as a multi-domain brand over one raw model's answers.
+ */
+function bucketShareRows(rows: readonly ApiDomainRow[]): Map<AEOModel, DomainShareRow[]> {
+  const byBucket = new Map<AEOModel, { answers: Map<string, number>; totals: Map<string, number> }>()
+  for (const r of rows) {
+    const model = modelOf(r)
+    if (!model) continue
+    const b = byBucket.get(model) ?? { answers: new Map<string, number>(), totals: new Map<string, number>() }
+    b.answers.set(r.domain, (b.answers.get(r.domain) ?? 0) + r.retrieved_chat_count)
+    const raw = `${r.model_channel?.id ?? ''}|${r.model?.id ?? ''}`
+    b.totals.set(raw, Math.max(b.totals.get(raw) ?? 0, r.total_chat_count))
+    byBucket.set(model, b)
+  }
+  const out = new Map<AEOModel, DomainShareRow[]>()
+  for (const [model, b] of byBucket) {
+    let totalAnswers = 0
+    for (const t of b.totals.values()) totalAnswers += t
+    out.set(model, Array.from(b.answers, ([domain, answers]) => ({ domain, answers, totalAnswers })))
+  }
+  return out
 }
-
-const toShareRows = (rows: readonly ApiDomainRow[]): DomainShareRow[] =>
-  rows.map((r) => ({ domain: r.domain, answers: r.retrieved_chat_count, totalAnswers: r.total_chat_count }))
 
 /** Used as a source % per brand name for one window, model by model. */
 function usedByModel(
@@ -63,16 +82,8 @@ function usedByModel(
   domainRows: readonly ApiDomainRow[],
   distinct: DistinctMap | undefined,
 ): Map<AEOModel, Map<string, number | null>> {
-  const rowsByModel = new Map<AEOModel, ApiDomainRow[]>()
-  for (const r of domainRows) {
-    const m = modelOf(r)
-    if (!m) continue
-    const list = rowsByModel.get(m) ?? []
-    list.push(r)
-    rowsByModel.set(m, list)
-  }
   const out = new Map<AEOModel, Map<string, number | null>>()
-  for (const [model, rows] of rowsByModel) {
+  for (const [model, rows] of bucketShareRows(domainRows)) {
     const perBrand = new Map<string, number>()
     if (distinct) {
       for (const [brand, byModel] of distinct) {
@@ -80,7 +91,7 @@ function usedByModel(
         if (n !== undefined) perBrand.set(brand, n)
       }
     }
-    out.set(model, usedAsSourceByBrand(roster, toShareRows(rows), distinct ? perBrand : undefined))
+    out.set(model, usedAsSourceByBrand(roster, rows, distinct ? perBrand : undefined))
   }
   return out
 }
@@ -170,10 +181,11 @@ async function windowData(
     pagedDomains({ ...window, dimensions: MODEL_DIMS }, pid, 'domains', clientSlug),
   ])
   const rows = domains.rows
-  // A brand with several matching rows on a model needs a per-answer count; one call per window covers every model.
+  const brandRows = brandsRes.data ?? []
+  if (brandRows.length >= BRAND_LIMIT) console.warn(`[peec] model x brand rows hit ${BRAND_LIMIT} for ${clientSlug}`)
+  // A brand with several matching domains on a model needs a per-answer count; one call per window covers every model.
   const byBrand = new Map<string, Set<string>>()
-  for (const model of AEO_MODELS) {
-    const modelRows = toShareRows(rows.filter((r) => modelOf(r) === model))
+  for (const modelRows of bucketShareRows(rows).values()) {
     for (const m of multiRowBrands(roster, modelRows)) {
       const set = byBrand.get(m.name) ?? new Set<string>()
       m.domains.forEach((d) => set.add(d))
@@ -190,7 +202,7 @@ async function windowData(
     )
     if (!chat.capped) distinct = distinctAnswersByBrandModel(multi, chat.rows)
   }
-  return { brandRows: brandsRes.data ?? [], domainRows: rows, distinct }
+  return { brandRows, domainRows: rows, distinct }
 }
 
 async function getPeecModelsV2Impl(clientSlug: string, dateRange: string, compareMode: CompareMode): Promise<ModelsV2> {

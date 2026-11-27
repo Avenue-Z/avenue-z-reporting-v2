@@ -79,6 +79,21 @@ describe('buildPeecModels', () => {
     })
     expect(o.models[0].usedAsSource.you).toBeCloseTo(40)
   })
+  it('merges a domain across raw models that share one bucket (AI Overview + AI Mode -> Google)', () => {
+    const AO = 'google-ai-overview-scraper'
+    const AM = 'google-ai-mode-scraper'
+    const br = [brow('r', 'Renaissance', AO, 100, 1000, 0.1), brow('r', 'Renaissance', AM, 100, 1000, 0.1), brow('g', 'Guardian', AO, 50, 1000, 0.2)]
+    const dr = [drow('renaissancebenefits.com', AO, 300, 1000), drow('renaissancebenefits.com', AM, 300, 1000), drow('guardianlife.com', AO, 100, 1000)]
+    const o = buildPeecModels({ roster, brandRows: br, brandRowsPrior: [], domainRows: dr, domainRowsPrior: [], yourBrand: 'Renaissance' })
+    expect(o.models.map((m) => m.model)).toEqual(['Google'])
+    // (300 + 300) / (1000 + 1000): 30.0, not 60 (one model's total) and not null (read as a multi-row brand).
+    expect(o.models[0].usedAsSource.you).toBeCloseTo(30)
+    // Guardian appears on one raw model only; the bucket's answers still count both raw models.
+    expect(o.models[0].usedAsSource.competitorAvg).toBeCloseTo(5)
+    // SoV is the mean over the bucket's rows, as aggToMetrics (slice 2) takes it.
+    expect(o.models[0].sov.you).toBeCloseTo(10)
+    expect(o.models[0].visibility.you).toBeCloseTo(10)
+  })
 })
 
 describe('getPeecModelsV2', () => {
@@ -123,6 +138,25 @@ describe('getPeecModelsV2', () => {
     expect(chatCalls()).toHaveLength(10)
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('[peec] chat_id rows hit 50000 for renaissance; distinct answers unavailable'))
     expect(res.models[0].usedAsSource.you).toBeNull()
+    warn.mockRestore()
+  })
+  it('makes no chat_id call when one domain appears on two raw models of one bucket', async () => {
+    const AO = 'google-ai-overview-scraper'
+    const AM = 'google-ai-mode-scraper'
+    const br = [brow('r', 'Renaissance', AO, 100, 1000, 0.1), brow('r', 'Renaissance', AM, 100, 1000, 0.1)]
+    const dr = [drow('renaissancebenefits.com', AO, 300, 1000), drow('renaissancebenefits.com', AM, 300, 1000)]
+    post.mockImplementation(async (path) => ({ data: path === '/reports/brands' ? br : dr }) as never)
+    const res = await getPeecModelsV2('renaissance', 'last_30_days', 'previous_period')
+    expect(chatCalls()).toHaveLength(0)
+    expect(res.models[0].model).toBe('Google')
+    expect(res.models[0].usedAsSource.you).toBeCloseTo(30)
+  })
+  it('warns when the model x brand call returns its limit', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const full = Array.from({ length: 2_000 }, (_, i) => brow(i === 0 ? 'r' : `b${i}`, i === 0 ? 'Renaissance' : `B${i}`, CH, 10, 100, 0.01))
+    post.mockImplementation(async (path) => ({ data: path === '/reports/brands' ? full : domainRows }) as never)
+    await getPeecModelsV2('renaissance', 'last_30_days', 'previous_period')
+    expect(warn).toHaveBeenCalledWith('[peec] model x brand rows hit 2000 for renaissance')
     warn.mockRestore()
   })
   it('fails closed without a configured project', async () => {
