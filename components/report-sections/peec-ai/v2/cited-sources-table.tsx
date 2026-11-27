@@ -20,8 +20,8 @@ type Row = CitedUrlRow & { usedDelta: number | null; rateDelta: number | null }
 
 const TIPS = {
   peec: {
-    used: 'Share of AI answers that retrieved this page as a source.',
-    rate: 'Average times this page is cited in an answer that retrieved it.',
+    used: 'Share of AI answers that used this page as a source.',
+    rate: 'Average times this page is cited in an answer that used it as a source.',
   },
   profound: {
     used: 'Share of AI answers (Visibility prompts) that cited this page.',

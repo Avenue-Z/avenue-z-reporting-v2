@@ -1,7 +1,8 @@
-import { expect, test } from 'vitest'
+import { expect, test }  from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { CitedUrls } from '@/lib/aeo/cited-urls'
+import { ExportModeProvider } from '@/components/export/export-mode'
 import { CitedSourcesTable } from './cited-sources-table'
 
 const DATA: CitedUrls = {
@@ -103,4 +104,34 @@ test('too-long notice', () => {
 test('no rows notice', () => {
   render(ui({ rows: [] }))
   expect(screen.getByText('No cited pages for this period.')).toBeTruthy()
+})
+
+test('the Used as a source % tooltip names the provider copy', async () => {
+  for (const [provider, text] of [
+    ['peec', 'Share of AI answers that used this page as a source.'],
+    ['profound', 'Share of AI answers (Visibility prompts) that cited this page.'],
+  ] as const) {
+    const { container, unmount } = render(ui({ provider }))
+    const th = [...container.querySelectorAll('thead th')].find((h) => headerText(h) === 'Used as a source %')!
+    const trigger = [...th.querySelectorAll('span')].find((s) => s.textContent === '?')!
+    fireEvent.focus(trigger)
+    expect((await screen.findAllByText(text)).length).toBeGreaterThan(0)
+    unmount()
+  }
+})
+
+test('export mode shows all rows and no chips', () => {
+  const { container } = render(<ExportModeProvider>{ui()}</ExportModeProvider>)
+  expect(screen.queryAllByRole('radio')).toHaveLength(0)
+  expect(rows(container)).toHaveLength(3)
+})
+
+test('New sinks to the bottom in both directions', () => {
+  const { container } = render(ui())
+  const last = () => [...rows(container)].at(-1)?.textContent ?? ''
+  const header = screen.getAllByRole('button', { name: 'Sort by Δ' })[0]
+  fireEvent.click(header)
+  expect(last()).toContain('Listicle')
+  fireEvent.click(header)
+  expect(last()).toContain('Listicle')
 })
