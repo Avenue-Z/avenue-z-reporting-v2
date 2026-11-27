@@ -11,7 +11,7 @@ import type { SlAuthorSort } from '@/lib/organic-social/social-listening/picks'
 import { PeecAIReport } from '@/components/report-sections/peec-ai'
 import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
 import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
-import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
+import { TechnicalAuditPage } from '@/components/report-sections/peec-ai/technical-audit'
 import { PaidMediaOverviewReport } from '@/components/report-sections/paid-media/overview'
 import { PaidSearchReport } from '@/components/report-sections/paid-search'
 import { MetaAdsReport } from '@/components/report-sections/meta-ads'
@@ -29,13 +29,15 @@ export interface ExportViewParams {
   /** The AEO Informed Social tab's range and min competitors; Month and 2 when absent, as on the page. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The Technical Audit tab's snapshot date; absent, the latest the requester may see. */
+  snapshot?: string
   /** The Social Listening tab's charts set to columns (slcols); every other toggle chart prints its line. */
   slCols?: readonly SlToggleChart[]
   /** The Social Listening authors table's order (slsort); posts when absent. */
   slSort?: SlAuthorSort
 }
 
-export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models, aeo, aeoMin, slCols, slSort }: ExportViewParams): ReactElement {
+export function exportReportElement(view: ExportView, { clientSlug, dateRange, compareRange, models, aeo, aeoMin, snapshot, slCols, slSort }: ExportViewParams): ReactElement {
   switch (view.section) {
     case 'organic-social':
       // Locked months resolve inside OrganicSocialReport from the raw range, as on the page.
@@ -48,7 +50,9 @@ export function exportReportElement(view: ExportView, { clientSlug, dateRange, c
     case 'peec-ai':
       if (view.subsectionId === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} models={models} />
       if (view.subsectionId === 'content-impact')  return <ContentImpactReport audience="client" clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange ?? undefined} models={models} />
-      if (view.subsectionId === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} dateRange={dateRange} />
+      // Always the client view, whoever exports (as Social Listening): published snapshots only, so a draft date prints the
+      // latest published one, and no staff-only parts.
+      if (view.subsectionId === 'technical-audit') return <TechnicalAuditPage clientSlug={clientSlug} snapshot={snapshot} exporting />
       return <PeecAIReport audience="client" clientSlug={clientSlug} dateRange={dateRange} models={models} />
     case 'paid-media':
       if (view.subsectionId === 'meta')        return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />

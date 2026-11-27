@@ -1,5 +1,6 @@
 import { pgTable, uuid, text, jsonb, timestamp, pgEnum, index, integer, unique, boolean, date, check, bigint, uniqueIndex, doublePrecision, customType, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import type { SnapshotPayload } from '@/lib/organic-social/content-types'
+import { TA_SOURCES } from '@/lib/technical-audit/types'
 import type { SlExport, SlHistoryAuthor, SlHistoryMedia, SlTrend } from '@/lib/organic-social/social-listening/types'
 import { relations, sql } from 'drizzle-orm'
 import type { DashboardConfig } from '@/lib/dashboard/types'
@@ -223,6 +224,8 @@ export const clients = pgTable('clients', {
   hubspotTokenEnvVar: text('hubspot_token_env_var'),
   sfCsvFileId: text('sf_csv_file_id'),
   sfPrevCsvFileId: text('sf_prev_csv_file_id'),
+  sfDriveFolderId: text('sf_drive_folder_id'),
+  ahrefsProjectId: text('ahrefs_project_id'),
   sitebulbSheetId: text('sitebulb_sheet_id'),
   peecCustomerProjectId: text('peec_customer_project_id'),
   prProofSheetId: text('pr_proof_sheet_id'),
@@ -784,3 +787,109 @@ export type SocialListeningPostRow = typeof socialListeningPosts.$inferSelect
 export type SocialListeningPostImageRow = typeof socialListeningPostImages.$inferSelect
 export type SocialListeningTrendsRow = typeof socialListeningTrends.$inferSelect
 export type SocialListeningPickRow = typeof socialListeningPicks.$inferSelect
+
+// --- Technical Audit snapshots ---
+
+/** One monthly snapshot per client, keyed by the Screaming Frog run date. Publish is a staff action. */
+export const techAuditSnapshots = pgTable('tech_audit_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  snapshotDate: date('snapshot_date').notNull(),
+  sfRunFolderId: text('sf_run_folder_id'),
+  sfCrawlDate: date('sf_crawl_date'),
+  ahrefsCrawlDate: date('ahrefs_crawl_date'),
+  gscExportDate: date('gsc_export_date'),
+  ahrefsHealthScore: integer('ahrefs_health_score'),
+  crawlSettingsChanged: boolean('crawl_settings_changed').notNull().default(false),
+  status: text('status').notNull().default('draft'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  publishedBy: text('published_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientDateUnique: unique('tech_audit_snapshots_client_date_key').on(table.clientId, table.snapshotDate),
+  statusKnown: check('tech_audit_snapshots_status', sql`${table.status} IN ('draft', 'published')`),
+}))
+
+/** One row per (snapshot, source). `raw` is the source file kept so parsers can re-derive; page reads never select it.
+ *  `started_at` is null until a sweep claims the row. */
+export const techAuditSourceRuns = pgTable('tech_audit_source_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  snapshotId: uuid('snapshot_id').notNull().references(() => techAuditSnapshots.id, { onDelete: 'cascade' }),
+  source: text('source').notNull(),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  uploadedBy: text('uploaded_by'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  raw: bytea('raw'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  snapshotSourceUnique: unique('tech_audit_source_runs_snapshot_source_key').on(table.snapshotId, table.source),
+  sourceKnown: check('tech_audit_source_runs_source', sql`${table.source} IN (${sql.raw(TA_SOURCES.map((s) => `'${s}'`).join(', '))})`),
+  statusKnown: check('tech_audit_source_runs_status', sql`${table.status} IN ('pending', 'complete', 'failed', 'missing')`),
+  rawSize: check('tech_audit_source_runs_raw_size', sql`${table.raw} IS NULL OR octet_length(${table.raw}) <= 2097152`),
+}))
+
+/** Headline numbers per snapshot, nullable per source (a missing source leaves its columns null). */
+export const techAuditMetrics = pgTable('tech_audit_metrics', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  snapshotId: uuid('snapshot_id').notNull().references(() => techAuditSnapshots.id, { onDelete: 'cascade' }),
+  sfIssueTypesIssue: integer('sf_issue_types_issue'),
+  sfIssueTypesWarning: integer('sf_issue_types_warning'),
+  sfIssueTypesOpportunity: integer('sf_issue_types_opportunity'),
+  sfUrlsIssue: integer('sf_urls_issue'),
+  sfUrlsWarning: integer('sf_urls_warning'),
+  sfUrlsOpportunity: integer('sf_urls_opportunity'),
+  ahrefsHealthScore: integer('ahrefs_health_score'),
+  gscIndexed: integer('gsc_indexed'),
+  gscNotIndexed: integer('gsc_not_indexed'),
+  cwvMobilePoor: integer('cwv_mobile_poor'),
+  cwvMobileNi: integer('cwv_mobile_ni'),
+  cwvMobileGood: integer('cwv_mobile_good'),
+  cwvDesktopPoor: integer('cwv_desktop_poor'),
+  cwvDesktopNi: integer('cwv_desktop_ni'),
+  cwvDesktopGood: integer('cwv_desktop_good'),
+}, (table) => ({
+  snapshotUnique: unique('tech_audit_metrics_snapshot_key').on(table.snapshotId),
+}))
+
+/** Per-source issues as each tool names them; the canonical merge happens at read time. */
+export const techAuditSourceIssues = pgTable('tech_audit_source_issues', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  snapshotId: uuid('snapshot_id').notNull().references(() => techAuditSnapshots.id, { onDelete: 'cascade' }),
+  source: text('source').notNull(),
+  nativeIssueName: text('native_issue_name').notNull(),
+  nativeSeverity: text('native_severity').notNull(),
+  urlCount: integer('url_count').notNull(),
+  device: text('device'),
+}, (table) => ({
+  snapshotIdx: index('tech_audit_source_issues_snapshot_idx').on(table.snapshotId),
+  sourceKnown: check('tech_audit_source_issues_source', sql`${table.source} IN ('ahrefs', 'sf', 'gsc_indexing', 'gsc_cwv')`),
+  deviceKnown: check('tech_audit_source_issues_device', sql`${table.device} IS NULL OR ${table.device} IN ('mobile', 'desktop')`),
+}))
+
+/** Strategist judgment per brand: hide an issue row or annotate it. Note is plain text, rendered as text. */
+export const techAuditIssueOverrides = pgTable('tech_audit_issue_overrides', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  issueKey: text('issue_key').notNull(),
+  hidden: boolean('hidden').notNull().default(false),
+  note: text('note'),
+  // Who wrote the note and when; hiding a row must not re-attribute it, so these are not updated_by/updated_at.
+  noteBy: text('note_by'),
+  noteAt: timestamp('note_at', { withTimezone: true }),
+  updatedBy: text('updated_by').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  clientIssueUnique: unique('tech_audit_issue_overrides_client_issue_key').on(table.clientId, table.issueKey),
+  noteLength: check('tech_audit_issue_overrides_note_len', sql`${table.note} IS NULL OR char_length(${table.note}) <= 280`),
+}))
+
+export type TechAuditSnapshotRow = typeof techAuditSnapshots.$inferSelect
+export type TechAuditSourceRunRow = typeof techAuditSourceRuns.$inferSelect
+export type TechAuditMetricsRow = typeof techAuditMetrics.$inferSelect
+export type TechAuditSourceIssueRow = typeof techAuditSourceIssues.$inferSelect
+export type TechAuditIssueOverrideRow = typeof techAuditIssueOverrides.$inferSelect

@@ -18,6 +18,9 @@ export interface ExportRequest {
    *  body and export path is exactly what it was. */
   aeo?: AeoRange
   aeoMin?: number
+  /** The Technical Audit tab's snapshot (YYYY-MM-DD). Present only on that tab's export; an invalid one is dropped, so the
+   *  export prints the latest snapshot the requester may see. */
+  snapshot?: string
   /** The Social Listening tab's charts set to columns (slcols), exactly as the page writes it. Present only on that tab's export when a
    *  chart is on its columns, so every other request is exactly what it was. */
   slCols?: string
@@ -32,6 +35,7 @@ const SLUG = /^[a-z0-9-]{1,64}$/
 const RANGE = /^[A-Za-z0-9_:,-]{1,64}$/
 const MODELS = /^[A-Za-z,]{1,128}$/
 const AEO_RANGES: readonly AeoRange[] = ['month', 'ytd', 'all']
+const SNAPSHOT = /^\d{4}-\d{2}-\d{2}$/
 
 /** `tz` if it is an IANA timezone this runtime knows, else UTC. */
 export function safeTimeZone(tz: unknown): string {
@@ -67,6 +71,7 @@ export function parseExportRequest(body: unknown): ExportRequest | null {
     models: (b.models as string | null | undefined) ?? null,
     ...(b.aeo != null ? { aeo: b.aeo as AeoRange } : {}),
     ...(b.aeoMin != null ? { aeoMin: b.aeoMin as number } : {}),
+    ...(typeof b.snapshot === 'string' && SNAPSHOT.test(b.snapshot) ? { snapshot: b.snapshot } : {}),
     ...(b.slCols != null ? { slCols: b.slCols as string } : {}),
     ...(b.slSort != null ? { slSort: b.slSort as 'reach' | 'engagement' } : {}),
     tz: safeTimeZone(b.tz),
@@ -82,6 +87,7 @@ export function exportPagePath(r: ExportRequest): string {
   if (r.models) sp.set('models', r.models)
   if (r.aeo) sp.set('aeo', r.aeo)
   if (r.aeoMin) sp.set('aeomin', String(r.aeoMin))
+  if (r.snapshot) sp.set('snapshot', r.snapshot)
   if (r.slCols) sp.set('slcols', r.slCols)
   if (r.slSort) sp.set('slsort', r.slSort)
   sp.set('tz', r.tz)

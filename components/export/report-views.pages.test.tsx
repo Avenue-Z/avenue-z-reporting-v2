@@ -16,7 +16,7 @@ vi.mock('@/components/report-sections/organic-social', () => stub('OrganicSocial
 vi.mock('@/components/report-sections/peec-ai', () => stub('PeecAIReport'))
 vi.mock('@/components/report-sections/peec-ai/pr-influence', () => stub('PRInfluenceReport'))
 vi.mock('@/components/report-sections/peec-ai/content-impact', () => stub('ContentImpactReport'))
-vi.mock('@/components/report-sections/peec-ai/technical-audit', () => stub('TechnicalAuditReport'))
+vi.mock('@/components/report-sections/peec-ai/technical-audit', () => stub('TechnicalAuditPage'))
 vi.mock('@/components/report-sections/paid-media/overview', () => stub('PaidMediaOverviewReport'))
 vi.mock('@/components/report-sections/paid-search', () => stub('PaidSearchReport'))
 vi.mock('@/components/report-sections/meta-ads', () => stub('MetaAdsReport'))
@@ -33,7 +33,7 @@ import { exportablePages } from '@/lib/export/pages'
 import type { BulkExport } from '@/components/export-pdf-button'
 import { SERVER_EXPORT_SECTIONS, type ServerExportSection } from '@/lib/export/sections'
 
-const REPORTS = new Set(['OrganicSocialReport', 'PeecAIReport', 'PRInfluenceReport', 'ContentImpactReport', 'TechnicalAuditReport',
+const REPORTS = new Set(['OrganicSocialReport', 'PeecAIReport', 'PRInfluenceReport', 'ContentImpactReport', 'TechnicalAuditPage',
   'PaidMediaOverviewReport', 'PaidSearchReport', 'MetaAdsReport', 'LinkedInAdsReport', 'ExecutiveOverviewReport'])
 const CLIENT = {
   name: 'Client', slug: 'c', logoUrl: null, enabledReports: ['organic-social', 'peec-ai', 'paid-media', 'executive-overview'], hiddenReports: [] as string[],
@@ -85,12 +85,15 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
       const drift = routeName === 'dashboard' && nameOf(report.type) === 'PaidMediaOverviewReport'
       // The export always renders the client audience, whoever exports, so the dashboard's internal audience differs by design (spec R-14).
       const audience = routeName === 'dashboard' && ['PeecAIReport', 'ContentImpactReport'].includes(nameOf(report.type)) ? { audience: 'client' } : {}
-      expect(element.props).toEqual({ ...(drift ? { ...report.props, compareRange: Q.compareRange } : report.props), ...audience })
+      // Likewise Technical Audit: the export renders the client view whoever exports (exporting), on both routes.
+      const exporting = nameOf(report.type) === 'TechnicalAuditPage' ? { exporting: true } : {}
+      expect(element.props).toEqual({ ...(drift ? { ...report.props, compareRange: Q.compareRange } : report.props), ...audience, ...exporting })
       expect(view.pageTitle).toBe(button.props.pageTitle)
-      // Every resolved tab of these sections uses the page range, so the export always stamps a period.
+      // Every resolved tab of these sections uses the page range, so the export always stamps a period, except Technical
+      // Audit, a monthly snapshot with no date picker (spec 2026-11-23 §4).
       // Named drift (PR 1 review record #3): on AEO an unknown tab shows no period on the page (its date-picker rule), while
       // the export resolves it to Overview and stamps the period the Overview uses. Every other resolved tab stamps a period.
-      if (section === 'peec-ai' && subsection === 'not-a-tab') expect(button.props.periodLabel).toBeNull()
+      if (section === 'peec-ai' && (subsection === 'not-a-tab' || subsection === 'technical-audit')) expect(button.props.periodLabel).toBeNull()
       else if (subsection !== 'not-a-tab') expect(button.props.periodLabel).not.toBeNull()
     })
   }
@@ -111,6 +114,22 @@ for (const [routeName, Route] of Object.entries({ portal: PortalSpa, dashboard: 
     // stale ?compareRange= the request validator refuses would otherwise turn the export into a 400.
     expect(button.props.serverExport).toEqual({ clientSlug: 'c', section: 'executive-overview', subsection: null,
       dateRange: 'last_30_days', compareRange: null, models: null })
+  })
+
+  // Spec 2026-11-23 §4: the snapshot= the page shows reaches the export (single and bulk) and the export renders it alike.
+  test(`${routeName}: the Technical Audit tab carries its snapshot to the page, the export and the bulk export`, async () => {
+    getClientBySlug.mockResolvedValue(CLIENT)
+    const r = await runRoute(Route({ params: Promise.resolve({ clientSlug: 'c' }),
+      searchParams: Promise.resolve({ section: 'peec-ai', subsection: 'technical-audit', ...Q, snapshot: '2026-10-01' }) } as never))
+    if ('redirect' in r) throw new Error(`unexpected redirect to ${r.redirect}`)
+    const [report] = findElements(r.element, (e) => nameOf(e.type) === 'TechnicalAuditPage')
+    const [button] = findElements(r.element, (e) => nameOf(e.type) === 'ExportPdfButton')
+    expect(report.props).toEqual({ clientSlug: 'c', snapshot: '2026-10-01' })
+    const element = exportReportElement(resolveExportView(CLIENT as ExportViewClient, 'peec-ai', 'technical-audit'), { ...params, snapshot: '2026-10-01' })
+    expect(element.props).toEqual({ ...report.props, exporting: true })
+    expect(button.props.serverExport).toMatchObject({ subsection: 'technical-audit', snapshot: '2026-10-01' })
+    expect((button.props.bulk as BulkExport).snapshot).toBe('2026-10-01')
+    expect(findElements(r.element, (e) => nameOf(e.type) === 'GA4DatePicker')).toHaveLength(0)
   })
 
   test(`${routeName}: a tab the client has hidden exports its section's Overview, as the page renders it`, async () => {

@@ -37,8 +37,9 @@ export const getClientBySlug = cache(
     // Bumped for the ga4Config + hiddenJourneyStages columns (PR `#235`). A
     // warm instance serving a pre-bump cache entry would otherwise render
     // Renaissance's inflated raw conversions and all four journey stages for
-    // up to the 300s TTL after this deploys, then flip mid-session.
-    version: 'v2',
+    // up to the 300s TTL after this deploys, then flip mid-session. Bumped
+    // again for the sf_drive_folder_id + ahrefs_project_id columns (technical audit).
+    version: 'v3',
   }),
 )
 
@@ -95,7 +96,7 @@ const getAllClientsImpl = async (): Promise<(Client & { users: User[] })[]> => {
 // Persistently cached (5-min TTL); called once per render by the dashboard
 // layout. See getClientBySlug for the rationale and staleness tradeoff.
 export const getAllClients = cache(
-  cached('db', 'getAllClients', getAllClientsImpl, { ttlSeconds: 300, tags: ['db'], version: 'v2' }),
+  cached('db', 'getAllClients', getAllClientsImpl, { ttlSeconds: 300, tags: ['db'], version: 'v3' }),
 )
 
 /**

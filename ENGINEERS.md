@@ -199,8 +199,7 @@ Clients and users live in a **Neon Postgres database**, accessed via Drizzle ORM
   aeo/                                       # Answer-engine optimization helpers
   content-calendar/                          # Content calendar sync
   pr-proof/                                  # PR proof-point data
-  screaming-frog/                            # Screaming Frog crawl ingestion
-  sitebulb/                                  # Sitebulb crawl ingestion
+  technical-audit/                           # Technical Audit snapshots: SF/Ahrefs sweep, GSC upload parsers, issue map, view model
 
   # Platform internals
   admin/                                     # Admin-panel domain logic
@@ -493,6 +492,11 @@ A couple of easy-to-trip gotchas, called out because they've bitten before:
 - Per-client identifiers (GA4 property IDs, GSC site URLs) are **not** env vars —
   they're DB columns. Only per-client *secrets* (HubSpot tokens) are env vars, and
   the DB stores just the var-*name* pointer.
+- The Technical Audit tab (`lib/technical-audit/`) reads **`AHREFS_API_KEY`** (Ahrefs
+  Site Audit) and **`TECH_AUDIT_ISSUE_MAP_SHEET_ID`** (the canonical issue-map Sheet,
+  read with `GOOGLE_SERVICE_ACCOUNT_KEY`; without it the page uses the built-in map).
+  Its data arrives through the daily **`/api/tech-audit/sweep`** cron (`vercel.json`),
+  which requires `Authorization: Bearer <CRON_SECRET>` like the other cron routes.
 
 ### Vercel scoping
 

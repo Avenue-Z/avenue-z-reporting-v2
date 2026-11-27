@@ -94,6 +94,19 @@ test.each([[0], [6], [2.5], ['3'], [Number.NaN]])('an aeoMin of %j is refused', 
   expect(parseExportRequest({ ...ok, aeoMin })).toBeNull()
 })
 
+// The Technical Audit tab's snapshot (spec 2026-11-23 §4): a YYYY-MM-DD date the page selects. Anything else is dropped, so
+// the export falls back to the latest snapshot the requester may see rather than failing.
+test('parseExportRequest keeps a valid snapshot and drops an invalid one', () => {
+  const r = parseExportRequest({ ...ok, section: 'peec-ai', subsection: 'technical-audit', snapshot: '2026-11-01' })
+  expect(r?.snapshot).toBe('2026-11-01')
+  expect(exportPagePath(r!)).toBe('/export/renaissance/peec-ai?dateRange=custom%3A2026-09-01%2C2026-09-30&subsection=technical-audit&snapshot=2026-11-01&tz=America%2FNew_York')
+  for (const snapshot of ['2026-11-1', '2026-11-01&x=1', 'id-123', 20261101, null]) {
+    const dropped = parseExportRequest({ ...ok, snapshot })
+    expect(dropped).toEqual(ok)
+    expect('snapshot' in dropped!).toBe(false)
+  }
+})
+
 // The Social Listening toggle (plan 2026-11-24, Unit C): the charts set to columns travel to the export page.
 test('the Social Listening tab\'s slCols pass through, and the export path carries them', () => {
   const r = parseExportRequest({ ...ok, subsection: 'organic-social-listening', slCols: 'b-ytd,i-sentday' })

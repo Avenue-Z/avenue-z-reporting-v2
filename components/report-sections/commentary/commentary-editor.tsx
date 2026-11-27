@@ -35,6 +35,7 @@ export function CommentaryEditor({
   onDone,
   defaultPeriod,
   outline = INSIGHTS_OUTLINE,
+  periodLabel,
 }: {
   clientSlug: string
   viewKey: CommentaryViewKey
@@ -44,6 +45,9 @@ export function CommentaryEditor({
   /** The box's outline for a NEW entry (lib/commentary/labels.ts): absent means the Insights outline, as before this
    *  prop existed; null means the editor opens empty (the Recommendations box). */
   outline?: string | null
+  /** A snapshot-bound box (Technical Audit): the date inputs are hidden, this label shows instead, and the save always
+   *  uses `defaultPeriod` (start = end = the snapshot date). Absent: the two date inputs, as before. */
+  periodLabel?: string
 }) {
   const start = initialPeriod(entry, defaultPeriod)
   const [periodStart, setPeriodStart] = useState(start.start)
@@ -88,8 +92,8 @@ export function CommentaryEditor({
         clientSlug,
         viewKey,
         bodyHtml: editor.getHTML(),
-        periodStart,
-        periodEnd,
+        periodStart: periodLabel && defaultPeriod ? defaultPeriod.start : periodStart,
+        periodEnd: periodLabel && defaultPeriod ? defaultPeriod.end : periodEnd,
       })
       if (res.ok) onDone()
       else setError(res.error)
@@ -100,18 +104,22 @@ export function CommentaryEditor({
 
   return (
     <div className="space-y-3 rounded-lg border border-white/[0.08] bg-bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-xs text-text-muted">
-          Period start
-          <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
-            className="rounded border border-white/[0.08] bg-bg-base px-2 py-1 text-sm text-white" />
-        </label>
-        <label className="flex items-center gap-2 text-xs text-text-muted">
-          Period end
-          <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
-            className="rounded border border-white/[0.08] bg-bg-base px-2 py-1 text-sm text-white" />
-        </label>
-      </div>
+      {periodLabel ? (
+        <p className="text-xs text-text-muted">{periodLabel}</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-xs text-text-muted">
+            Period start
+            <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
+              className="rounded border border-white/[0.08] bg-bg-base px-2 py-1 text-sm text-white" />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-text-muted">
+            Period end
+            <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)}
+              className="rounded border border-white/[0.08] bg-bg-base px-2 py-1 text-sm text-white" />
+          </label>
+        </div>
+      )}
 
       <div className="rounded-md border border-white/[0.08] bg-bg-base">
         <div className="flex flex-wrap gap-1 border-b border-white/[0.08] p-2">

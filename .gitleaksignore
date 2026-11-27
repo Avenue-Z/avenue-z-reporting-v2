@@ -6,3 +6,20 @@
 5297635f9187c7be92e7aea3a8ed4db2ea162f2b:docs/superpowers/plans/2026-06-22-renaissance-linkedin-ads.md:linkedin-client-id:34
 5297635f9187c7be92e7aea3a8ed4db2ea162f2b:docs/superpowers/plans/2026-06-22-renaissance-linkedin-ads.md:linkedin-client-id:69
 5297635f9187c7be92e7aea3a8ed4db2ea162f2b:docs/superpowers/plans/2026-06-22-renaissance-linkedin-ads.md:linkedin-client-id:94
+
+# The generic-api-key rule firing on the Technical Audit issue id `broken-internal-4xx` (an issue-map key, not a
+# credential) in the fallback issue map and its test. Found by the PR #534 secret-scan on 2026-11-25.
+5d416c1e1530781441bff9337a004cadb1ea37da:lib/technical-audit/issue-map-fallback.ts:generic-api-key:13
+5d416c1e1530781441bff9337a004cadb1ea37da:lib/technical-audit/issue-map-fallback.ts:generic-api-key:179
+5d416c1e1530781441bff9337a004cadb1ea37da:lib/technical-audit/issue-map-fallback.ts:generic-api-key:190
+34e3d1c9213d3de163a2de88a496f4ac7859c75f:lib/technical-audit/issue-map-fallback.ts:generic-api-key:5
+34e3d1c9213d3de163a2de88a496f4ac7859c75f:lib/technical-audit/issue-map-fallback.ts:generic-api-key:6
+34e3d1c9213d3de163a2de88a496f4ac7859c75f:lib/technical-audit/issue-map-fallback.ts:generic-api-key:7
+34e3d1c9213d3de163a2de88a496f4ac7859c75f:lib/technical-audit/issue-map-fallback.ts:generic-api-key:8
+34e3d1c9213d3de163a2de88a496f4ac7859c75f:lib/technical-audit/issues.test.ts:generic-api-key:83
+34e3d1c9213d3de163a2de88a496f4ac7859c75f:lib/technical-audit/issues.test.ts:generic-api-key:90
+40ec6c8ffa4b24042cd129f00c2bb05bf0877b09:lib/technical-audit/issues.test.ts:generic-api-key:6
+40ec6c8ffa4b24042cd129f00c2bb05bf0877b09:lib/technical-audit/issues.test.ts:generic-api-key:7
+40ec6c8ffa4b24042cd129f00c2bb05bf0877b09:lib/technical-audit/issues.test.ts:generic-api-key:8
+3765a89776d75bd15f7d6e48a5a7b39fe7537858:lib/technical-audit/issues.test.ts:generic-api-key:20
+3765a89776d75bd15f7d6e48a5a7b39fe7537858:lib/technical-audit/issues.test.ts:generic-api-key:21

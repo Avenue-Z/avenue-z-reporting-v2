@@ -26,7 +26,8 @@ test('0030 exists and holds its place in the journal', () => {
   expect(journal.entries[31]?.tag).toBe('0031_sl_history_media_authors')
   // 0032 follows that (Unit F: the month's author and card picks).
   expect(journal.entries[32]?.tag).toBe('0032_sl_picks')
-  expect(journal.entries).toHaveLength(33)
+  // Later migrations (0033 technical audit, …) follow, so only the floor is pinned.
+  expect(journal.entries.length).toBeGreaterThanOrEqual(33)
 })
 
 test('0031 only adds two nullable jsonb columns to the history rows', () => {

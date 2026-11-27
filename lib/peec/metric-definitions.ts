@@ -130,42 +130,6 @@ export const AVENUE_Z: Record<string, MetricDefinition> = {
   domainTypeOther:         { text: 'Unclassified or miscellaneous domains.',                             source: 'Avenue Z' },
 }
 
-// ─── Sitebulb ────────────────────────────────────────────────────────────────
-
-export const SITEBULB: Record<string, MetricDefinition> = {
-  hint: {
-    text: 'A set of issues or opportunities that are pre-checked by Sitebulb, so you only need to look into them if an issue is present.',
-    source: 'Sitebulb',
-    sourceUrl: 'https://support.sitebulb.com/en/articles/9854034-about-sitebulb-hints',
-  },
-  severityLevels: {
-    text: 'Sitebulb categorises hints by severity: Critical, High, Medium, Low, Insight.',
-    source: 'Sitebulb',
-    sourceUrl: 'https://support.sitebulb.com/en/articles/9854034-about-sitebulb-hints',
-  },
-  hintStatus: {
-    text: 'Hint status flags whether a given issue is New, Resolved, Existing, or Worsened relative to the last crawl.',
-    source: 'Avenue Z',
-  },
-}
-
-// ─── Screaming Frog ──────────────────────────────────────────────────────────
-// No central glossary on screamingfrog.co.uk; these are the closest verbatim
-// quotes from the product page and HTTP-status tutorial.
-
-export const SCREAMING_FROG: Record<string, MetricDefinition> = {
-  crawl: {
-    text: 'The Screaming Frog SEO Spider is a website crawler that audits your site for over 300 SEO issues.',
-    source: 'Screaming Frog',
-    sourceUrl: 'https://www.screamingfrog.co.uk/seo-spider/',
-  },
-  httpStatus: {
-    text: "If the SEO Spider only crawls one page, or does not crawl as expected, the 'Status' and 'Status Code' are the first things to check.",
-    source: 'Screaming Frog',
-    sourceUrl: 'https://www.screamingfrog.co.uk/seo-spider/tutorials/http-status-codes-when-crawling/',
-  },
-}
-
 // ─── Profound ────────────────────────────────────────────────────────────────
 // Verbatim from Profound's own published article at
 // tryprofound.com/blog/how-to-track-your-visibility-in-ai-search.

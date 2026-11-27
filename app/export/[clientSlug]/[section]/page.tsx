@@ -54,14 +54,15 @@ export default async function ReportExportPage({
   const slCols = parseSlCols(str(sp.slcols))
   // ...and its authors table's order (Unit F).
   const slSort = parseSlSort(str(sp.slsort))
-  const report = exportReportElement(view, { clientSlug, dateRange, compareRange, models: parseModelsParam(str(sp.models)), aeo, aeoMin, slCols, slSort })
+  const report = exportReportElement(view, { clientSlug, dateRange, compareRange, models: parseModelsParam(str(sp.models)), aeo, aeoMin, snapshot: str(sp.snapshot) ?? undefined, slCols, slSort })
   // The period stamped is the range the report serves: Organic Social's locked month for an opted-in client (the
   // same lookup OrganicSocialBody makes), else the requested range. No month to serve, no period. The Executive
   // Overview has no picker and mixes windows (30 days, year to date, as of today), so it stamps none, as its live
   // button (spec 2026-10-09 §9.1).
   const clock = requestClock()
   const locked = section === 'organic-social' ? lockedRangeFor(client, session.user?.role, dateRange, clock) : null
-  const served = section === 'executive-overview' ? null : locked ? (locked.month?.dateRange ?? null) : dateRange
+  // The Technical Audit tab is a snapshot, not a range: no period, as its live button (spec 2026-11-23 §4).
+  const served = section === 'executive-overview' || view.subsectionId === 'technical-audit' ? null : locked ? (locked.month?.dateRange ?? null) : dateRange
   // The AEO Informed Social tab stamps the window it rendered ("YTD, " then the window in the date format of every other stamp), worked out as the section does; every other
   // view stamps its served range, as before.
   const period = !served ? null : view.view === 'aeo-informed' ? aeoExportPeriodLabel({ client, servedRange: served, range: aeo, clock }) : exportPeriodLabel(served)

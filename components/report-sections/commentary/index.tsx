@@ -8,6 +8,7 @@ import { CommentaryPanel } from './commentary-panel'
 import { hasReportingMonths } from '@/lib/organic-social/reporting-months'
 import { isOrganicSocialViewKey } from '@/lib/commentary/month'
 import { monthlyCommentary } from './monthly'
+import { snapshotCommentary, snapshotDateOf } from './snapshot'
 import { kitActive } from '@/lib/organic-social/design-from'
 import { INSIGHTS_LABELS, type CommentaryLabels } from '@/lib/commentary/labels'
 
@@ -20,9 +21,14 @@ export async function CommentarySection({ clientSlug, viewKey, requestedRange, l
    *  crosses to the browser. */
   look?: 'kit'
 }) {
+  // The Technical Audit snapshot page: one entry per monthly snapshot, the range being `D,D` (spec: snapshot-bound commentary).
+  const snapshotDate = viewKey === 'peec-ai:technical-audit' ? snapshotDateOf(requestedRange) : null
   const wantsKit = look === 'kit' && isOrganicSocialViewKey(viewKey)
   const [session, client] = await Promise.all([auth(), getClientBySlug(clientSlug)])
   if (!client) return null
+  if (snapshotDate) {
+    return snapshotCommentary({ client, email: session?.user?.email ?? null, viewKey, snapshotDate, labels })
+  }
   // Locked months: the box follows the month on screen (spec 3.9). Everyone else runs the code below unchanged. The kit
   // look applies only on a month on or after the client's designFrom (option B); monthlyCommentary decides by the month.
   if (hasReportingMonths(client) && isOrganicSocialViewKey(viewKey)) {
